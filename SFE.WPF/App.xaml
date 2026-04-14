@@ -1,0 +1,31 @@
+﻿<Application x:Class="SFE.WPF.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:SFE.WPF"
+             xmlns:converters="clr-namespace:SFE.WPF.Converters"
+             Startup="Application_Startup">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Charger tous nos styles dans l'ordre -->
+                <ResourceDictionary Source="Resources/Colors.xaml"/>
+                <ResourceDictionary Source="Resources/BaseStyles.xaml"/>
+                <ResourceDictionary Source="Resources/ToggleSwitchStyle.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <!-- Convertisseurs disponibles globalement -->
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+            <converters:BoolToStarConverter x:Key="BoolToStarConverter"/>
+            <converters:IntToVisibilityConverter x:Key="IntToVisibilityConverter"/>
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+            <converters:IsGreaterThanZeroConverter x:Key="IsGreaterThanZeroConverter"/>
+            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+            <converters:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
+            <converters:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter"/>
+            <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
+            <converters:StringToColorBrushConverter  x:Key="StringToColorBrushConverter"/>
+            <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+            <converters:IsNotNullToVisibilityConverter x:Key="IsNotNullToVisibilityConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

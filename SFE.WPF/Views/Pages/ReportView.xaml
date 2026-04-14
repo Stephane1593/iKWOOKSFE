@@ -1,0 +1,644 @@
+﻿<UserControl x:Class="SFE.WPF.Views.ReportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:SFE.WPF.Converters"
+             Background="#F1F5F9">
+
+    <UserControl.Resources>
+        <!-- ═══ CONVERTERS ═══ -->
+        <conv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <conv:StringToColorBrushConverter x:Key="StrBrush"/>
+        <BooleanToVisibilityConverter x:Key="SysBoolVis"/>
+
+        <!-- ═══ FLAT BUTTON TEMPLATE ═══ -->
+        <Style x:Key="FlatBtn" TargetType="Button">
+            <Setter Property="Padding" Value="16,9"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.72"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ GHOST BUTTON (outline) ═══ -->
+        <Style x:Key="GhostBtn" TargetType="Button">
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#F8FAFC"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#94A3B8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ LIST ITEM CONTAINER ═══ -->
+        <Style x:Key="ReportListItem" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd"
+                                Background="White"
+                                CornerRadius="8"
+                                Padding="12,10"
+                                BorderThickness="2"
+                                BorderBrush="Transparent"
+                                Cursor="Hand"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#F8FAFC"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#E2E8F0"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#3B82F6"/>
+                                <Setter TargetName="bd" Property="Background" Value="#EFF6FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- ════════════════════════════════════════
+             MAIN CONTENT
+             ════════════════════════════════════════ -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ═══ ROW 0: HEADER ═══ -->
+            <Border Grid.Row="0" Background="White"
+                    Padding="24,16" BorderBrush="#E2E8F0"
+                    BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="Rapports fiscaux"
+                                   FontSize="22" FontWeight="Bold"
+                                   Foreground="#0F172A"/>
+                        <TextBlock Text="Générer et consulter les rapports Z, X et A conformes DGI"
+                                   FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" Style="{StaticResource GhostBtn}"
+                            Command="{Binding RefreshCommand}"
+                            Content="🔄  Actualiser" FontSize="13"/>
+                </Grid>
+            </Border>
+
+            <!-- ═══ ROW 1: STATS STRIP ═══ -->
+            <UniformGrid Grid.Row="1" Columns="3" Margin="16,12,16,0">
+                <!-- Z-Rapport stat -->
+                <Border Background="White" CornerRadius="8" Padding="16,12"
+                        Margin="0,0,6,0" BorderBrush="#FEE2E2"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Background="#FEF2F2" CornerRadius="4"
+                                    Padding="6,2" Margin="0,0,8,0">
+                                <TextBlock Text="Z" FontWeight="Bold"
+                                           Foreground="#DC2626" FontSize="12"/>
+                            </Border>
+                            <TextBlock Text="Z-Rapport" FontWeight="SemiBold"
+                                       Foreground="#1E293B" FontSize="13"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding LastZInfo}" FontSize="12"
+                                   Foreground="#64748B" Margin="0,6,0,0"/>
+                        <TextBlock Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0">
+                            <Run Text="{Binding ZCount, Mode=OneWay}"/>
+                            <Run Text=" rapports générés"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- X-Rapport stat -->
+                <Border Background="White" CornerRadius="8" Padding="16,12"
+                        Margin="3,0,3,0" BorderBrush="#BFDBFE"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Background="#EFF6FF" CornerRadius="4"
+                                    Padding="6,2" Margin="0,0,8,0">
+                                <TextBlock Text="X" FontWeight="Bold"
+                                           Foreground="#2563EB" FontSize="12"/>
+                            </Border>
+                            <TextBlock Text="X-Rapport" FontWeight="SemiBold"
+                                       Foreground="#1E293B" FontSize="13"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding LastXInfo}" FontSize="12"
+                                   Foreground="#64748B" Margin="0,6,0,0"/>
+                        <TextBlock Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0">
+                            <Run Text="{Binding XCount, Mode=OneWay}"/>
+                            <Run Text=" rapports générés"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- A-Rapport stat -->
+                <Border Background="White" CornerRadius="8" Padding="16,12"
+                        Margin="6,0,0,0" BorderBrush="#A7F3D0"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Background="#ECFDF5" CornerRadius="4"
+                                    Padding="6,2" Margin="0,0,8,0">
+                                <TextBlock Text="A" FontWeight="Bold"
+                                           Foreground="#059669" FontSize="12"/>
+                            </Border>
+                            <TextBlock Text="A-Rapport" FontWeight="SemiBold"
+                                       Foreground="#1E293B" FontSize="13"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding LastAInfo}" FontSize="12"
+                                   Foreground="#64748B" Margin="0,6,0,0"/>
+                        <TextBlock Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0">
+                            <Run Text="{Binding ACount, Mode=OneWay}"/>
+                            <Run Text=" rapports générés"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- ═══ ROW 2: ACTION CARDS ═══ -->
+            <UniformGrid Grid.Row="2" Columns="4" Margin="16,12,16,0">
+
+                <!-- X Quotidien -->
+                <Border Background="White" CornerRadius="10" Padding="16,14"
+                        Margin="0,0,6,0" BorderBrush="#E2E8F0"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="📊  X-Rapport quotidien"
+                                   FontWeight="SemiBold" FontSize="13"
+                                   Foreground="#1E293B"/>
+                        <TextBlock Text="Situation depuis le dernier Z-rapport. Lecture seule, ne remet pas les compteurs à zéro."
+                                   TextWrapping="Wrap" FontSize="11"
+                                   Foreground="#64748B" Margin="0,6,0,12"
+                                   LineHeight="16"/>
+                        <Button Style="{StaticResource FlatBtn}"
+                                Background="#2563EB"
+                                Command="{Binding GenerateXDailyCommand}"
+                                Content="Générer" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- X Périodique -->
+                <Border Background="White" CornerRadius="10" Padding="16,14"
+                        Margin="3,0,3,0" BorderBrush="#E2E8F0"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="📊  X-Rapport périodique"
+                                   FontWeight="SemiBold" FontSize="13"
+                                   Foreground="#1E293B"/>
+                        <TextBlock Text="Rapport sur une période personnalisée."
+                                   TextWrapping="Wrap" FontSize="11"
+                                   Foreground="#64748B" Margin="0,4,0,8"
+                                   LineHeight="16"/>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Du :" FontSize="11"
+                                       Foreground="#64748B"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <DatePicker Grid.Column="1" FontSize="12"
+                                        SelectedDate="{Binding PeriodicFrom}"
+                                        VerticalContentAlignment="Center"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Au :" FontSize="11"
+                                       Foreground="#64748B"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <DatePicker Grid.Column="1" FontSize="12"
+                                        SelectedDate="{Binding PeriodicTo}"
+                                        VerticalContentAlignment="Center"/>
+                        </Grid>
+
+                        <Button Style="{StaticResource FlatBtn}"
+                                Background="#2563EB"
+                                Command="{Binding GenerateXPeriodicCommand}"
+                                Content="Générer" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Z Clôture -->
+                <Border Background="White" CornerRadius="10" Padding="16,14"
+                        Margin="3,0,3,0" BorderBrush="#FECACA"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="🔒  Z-Rapport (Clôture)"
+                                   FontWeight="SemiBold" FontSize="13"
+                                   Foreground="#1E293B"/>
+                        <TextBlock Text="Clôture de session. Agrège les transactions depuis le dernier Z et remet les compteurs à zéro."
+                                   TextWrapping="Wrap" FontSize="11"
+                                   Foreground="#64748B" Margin="0,6,0,12"
+                                   LineHeight="16"/>
+                        <Button Style="{StaticResource FlatBtn}"
+                                Background="#DC2626"
+                                Command="{Binding RequestGenerateZCommand}"
+                                Content="Clôturer" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- A-Rapport -->
+                <Border Background="White" CornerRadius="10" Padding="16,14"
+                        Margin="6,0,0,0" BorderBrush="#E2E8F0"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="📦  A-Rapport (Articles)"
+                                   FontWeight="SemiBold" FontSize="13"
+                                   Foreground="#1E293B"/>
+                        <TextBlock Text="Détail par article : quantités vendues, retournées et stock courant depuis le dernier A-rapport."
+                                   TextWrapping="Wrap" FontSize="11"
+                                   Foreground="#64748B" Margin="0,6,0,12"
+                                   LineHeight="16"/>
+                        <Button Style="{StaticResource FlatBtn}"
+                                Background="#059669"
+                                Command="{Binding GenerateACommand}"
+                                Content="Générer" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- ═══ ROW 3: CONTENT (LIST + PREVIEW) ═══ -->
+            <Grid Grid.Row="3" Margin="16,12,16,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="360"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ─── LEFT: HISTORY ─── -->
+                <Border Background="White" CornerRadius="10"
+                        BorderBrush="#E2E8F0" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Filter bar -->
+                        <Border Padding="12,10" BorderBrush="#E2E8F0"
+                                BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="Historique"
+                                           FontWeight="SemiBold" FontSize="14"
+                                           Foreground="#1E293B"
+                                           VerticalAlignment="Center"/>
+
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding FilterOptions}"
+                                          SelectedItem="{Binding SelectedFilter}"
+                                          FontSize="12" MinWidth="110"
+                                          VerticalContentAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Report list -->
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding Reports}"
+                                 SelectedItem="{Binding SelectedReport}"
+                                 ItemContainerStyle="{StaticResource ReportListItem}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="8"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 VirtualizingPanel.IsVirtualizing="True">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Type badge -->
+                                        <Border Width="36" Height="36"
+                                                CornerRadius="8"
+                                                Background="{Binding TypeBgColor, Converter={StaticResource StrBrush}}"
+                                                Margin="0,0,10,0">
+                                            <TextBlock Text="{Binding TypeBadge}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontWeight="Bold"
+                                                       FontSize="14"
+                                                       Foreground="{Binding TypeColor, Converter={StaticResource StrBrush}}"/>
+                                        </Border>
+
+                                        <!-- Info -->
+                                        <StackPanel Grid.Column="1"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="#1E293B"/>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding DateLabel}"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"/>
+                                                <TextBlock Text="  •  " FontSize="11"
+                                                           Foreground="#CBD5E1"/>
+                                                <TextBlock Text="{Binding PeriodLabel}"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Total -->
+                                        <StackPanel Grid.Column="2"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding TotalLabel}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="12"
+                                                       Foreground="#1E293B"
+                                                       HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding InvoiceCountLabel}"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"
+                                                       HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Empty state -->
+                        <StackPanel Grid.Row="1"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding NoResults, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="📋" FontSize="36"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Aucun rapport"
+                                       FontSize="14" Foreground="#94A3B8"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,8,0,0"/>
+                            <TextBlock Text="Générez votre premier rapport ci-dessus"
+                                       FontSize="12" Foreground="#CBD5E1"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ─── RIGHT: PREVIEW ─── -->
+                <Border Grid.Column="2" Background="White"
+                        CornerRadius="10" BorderBrush="#E2E8F0"
+                        BorderThickness="1">
+                    <Grid>
+                        <!-- Preview visible -->
+                        <Grid Visibility="{Binding ShowPreview, Converter={StaticResource BoolVis}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Toolbar -->
+                            <Border Padding="16,10" BorderBrush="#E2E8F0"
+                                    BorderThickness="0,0,0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding PreviewTitle}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="14"
+                                                   Foreground="#1E293B"/>
+                                        <TextBlock Text="{Binding PreviewSubtitle}"
+                                                   FontSize="11"
+                                                   Foreground="#94A3B8"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button Style="{StaticResource GhostBtn}"
+                                                Command="{Binding CopyReportCommand}"
+                                                Content="📋 Copier"
+                                                Margin="0,0,6,0"/>
+                                        <Button Style="{StaticResource FlatBtn}"
+                                                Background="#1E293B"
+                                                Command="{Binding PrintReportCommand}"
+                                                Content="🖨  Imprimer"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Report text -->
+                            <ScrollViewer Grid.Row="1"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto">
+                                <Border Background="#0F172A" Padding="24,20">
+                                    <TextBlock Text="{Binding ReportPreview}"
+                                               FontFamily="Consolas"
+                                               FontSize="12.5"
+                                               LineHeight="18"
+                                               Foreground="#E2E8F0"
+                                               TextWrapping="NoWrap"/>
+                                </Border>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <!-- No selection placeholder -->
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding ShowPreview, Converter={StaticResource InvBoolVis}}">
+                            <TextBlock Text="📄" FontSize="48"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Sélectionnez un rapport"
+                                       FontSize="15" Foreground="#94A3B8"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,12,0,0"/>
+                            <TextBlock Text="ou générez-en un nouveau avec les boutons ci-dessus"
+                                       FontSize="12" Foreground="#CBD5E1"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ═══ ROW 4: STATUS BAR ═══ -->
+            <Border Grid.Row="4" Padding="16,8"
+                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolVis}}"
+                    Background="#ECFDF5">
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12" Foreground="#059669"/>
+            </Border>
+
+            <Border Grid.Row="4" Padding="16,8"
+                    Visibility="{Binding ShowError, Converter={StaticResource BoolVis}}"
+                    Background="#FEF2F2">
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12" Foreground="#DC2626"
+                           TextWrapping="Wrap"/>
+            </Border>
+        </Grid>
+
+        <!-- ════════════════════════════════════════
+             LOADING OVERLAY
+             ════════════════════════════════════════ -->
+        <Border Background="#60FFFFFF"
+                Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+                <Border Background="White" CornerRadius="12"
+                        Padding="32,24">
+                    <Border.Effect>
+                      <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.3" Color="Black"/>
+                    </Border.Effect>
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="⏳" FontSize="28"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Traitement en cours…"
+                                   FontSize="14" Foreground="#64748B"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ════════════════════════════════════════
+             CONFIRMATION OVERLAY (Z-RAPPORT)
+             ════════════════════════════════════════ -->
+        <Grid Visibility="{Binding ShowConfirmation, Converter={StaticResource BoolVis}}">
+            <!-- Backdrop -->
+            <Border Background="#90000000">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick"
+                                  Command="{Binding CancelConfirmationCommand}"/>
+                </Border.InputBindings>
+            </Border>
+
+            <!-- Dialog card -->
+            <Border Background="White" CornerRadius="14"
+                    MaxWidth="460" MaxHeight="360"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Padding="28,24">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="40" Opacity="0.25"
+                                      ShadowDepth="4" Direction="270"/>
+                </Border.Effect>
+
+                <StackPanel>
+                    <!-- Icon + Title -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Background="#FEF2F2" CornerRadius="8"
+                                Width="40" Height="40" Margin="0,0,12,0">
+                            <TextBlock Text="⚠" FontSize="20"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="{Binding ConfirmTitle}"
+                                   FontSize="17" FontWeight="Bold"
+                                   Foreground="#1E293B"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Message -->
+                    <TextBlock Text="{Binding ConfirmMessage}"
+                               FontSize="13" Foreground="#475569"
+                               TextWrapping="Wrap" LineHeight="20"
+                               Margin="0,0,0,24"/>
+
+                    <!-- Buttons -->
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Button Style="{StaticResource GhostBtn}"
+                                Content="Annuler"
+                                Command="{Binding CancelConfirmationCommand}"
+                                MinWidth="90" Margin="0,0,10,0"/>
+                        <Button Style="{StaticResource FlatBtn}"
+                                Background="#DC2626"
+                                Content="{Binding ConfirmButtonText}"
+                                Command="{Binding ConfirmActionCommand}"
+                                MinWidth="160"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

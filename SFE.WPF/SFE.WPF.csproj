@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SFE.Domain\SFE.Domain.csproj" />
+    <ProjectReference Include="..\SFE.Application\SFE.Application.csproj" />
+    <ProjectReference Include="..\SFE.Infrastructure.Persistence\SFE.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\SFE.Infrastructure.EMcf\SFE.Infrastructure.EMcf.csproj" />
+    <ProjectReference Include="..\SFE.Infrastructure.Mcf\SFE.Infrastructure.Mcf.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.25" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

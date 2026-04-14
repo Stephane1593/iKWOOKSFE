@@ -1,0 +1,248 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SFE.Application.Interfaces;
+using SFE.Domain.Entities;
+using SFE.Domain.Enums;
+
+namespace SFE.Infrastructure.Persistence.Repositories;
+
+public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
+{
+    private readonly AppDbContext _db;
+    public InvoiceRepository(AppDbContext context) : base(context) {
+        _db = context;
+    }
+
+    public async Task<Invoice?> GetWithDetailsAsync(int invoiceId)
+    {
+        return await _dbSet
+            .Include(i => i.Lines.OrderBy(l => l.LineNumber))
+            .Include(i => i.Payments)
+            .FirstOrDefaultAsync(i => i.Id == invoiceId);
+    }
+
+    public async Task<Invoice?> GetByInvoiceNumberAsync(string invoiceNumber)
+    {
+        return await _dbSet.FirstOrDefaultAsync(i => i.InvoiceNumber == invoiceNumber);
+    }
+
+    public async Task<Invoice?> GetByCodeDEFDGIAsync(string codeDEFDGI)
+    {
+        return await _dbSet
+            .Include(i => i.Lines)
+            .FirstOrDefaultAsync(i => i.CodeDEFDGI == codeDEFDGI);
+    }
+
+    public async Task<List<Invoice>> GetByDateRangeAsync(DateTime from, DateTime to)
+    {
+        return await _dbSet
+            .Where(i => i.CreatedAt >= from && i.CreatedAt <= to && i.Status == InvoiceStatus.Normalized)
+            .OrderByDescending(i => i.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<Invoice>> GetByTypeAsync(InvoiceType type)
+    {
+        return await _dbSet
+            .Where(i => i.Type == type && i.Status == InvoiceStatus.Normalized)
+            .OrderByDescending(i => i.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<string> GenerateNextInvoiceNumberAsync(InvoiceType type, int year)
+    {
+        var prefix = type.ToString();
+        var pattern = $"{prefix}-{year}/";
+
+        var lastInvoice = await _dbSet
+            .Where(i => i.InvoiceNumber.StartsWith(pattern))
+            .OrderByDescending(i => i.InvoiceNumber)
+            .FirstOrDefaultAsync();
+
+        int nextNumber = 1;
+        if (lastInvoice != null)
+        {
+            var parts = lastInvoice.InvoiceNumber.Split('/');
+            if (parts.Length == 2 && int.TryParse(parts[1], out var lastNum))
+                nextNumber = lastNum + 1;
+        }
+
+        return $"{prefix}-{year}/{nextNumber:D4}";
+    }
+
+    public async Task<int> GetTodayCountAsync()
+    {
+        var today = DateTime.Today;
+        return await _dbSet.CountAsync(i => i.CreatedAt >= today && i.Status == InvoiceStatus.Normalized);
+    }
+
+    public async Task<decimal> GetTodayTotalAsync()
+    {
+        var today = DateTime.Today;
+        return await _dbSet
+            .Where(i => i.CreatedAt >= today && i.Status == InvoiceStatus.Normalized)
+            .SumAsync(i => i.TotalTTC);
+    }
+
+    public async Task<List<Invoice>> GetCreditNotesForOriginalAsync(string originalCodeDEFDGI)
+    {
+        return await _dbSet
+            .Include(i => i.Lines)
+            .Where(i => i.OriginalInvoiceReference == originalCodeDEFDGI
+                     && i.Status == InvoiceStatus.Normalized
+                     && (i.Type == InvoiceType.FA || i.Type == InvoiceType.EA))
+            .ToListAsync();
+    }
+
+    public async Task<string?> GetLastNumberAsync(InvoiceType type)
+    {
+        return await _db.Invoices
+            .Where(i => i.Type == type)
+            .OrderByDescending(i => i.Id)
+            .Select(i => i.InvoiceNumber)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<(List<Invoice> Items, int TotalCount)> SearchAsync(
+     InvoiceSearchCriteria criteria, int page, int pageSize)
+    {
+        var query = _db.Invoices
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .AsQueryable();
+
+        // ── Filtres ──
+        if (criteria.DateFrom.HasValue)
+            query = query.Where(i => i.CreatedAt >= criteria.DateFrom.Value);
+
+        if (criteria.DateTo.HasValue)
+        {
+            var endDate = criteria.DateTo.Value.Date.AddDays(1);
+            query = query.Where(i => i.CreatedAt < endDate);
+        }
+
+        if (criteria.Type.HasValue)
+            query = query.Where(i => i.Type == criteria.Type.Value);
+
+        if (criteria.Status.HasValue)
+            query = query.Where(i => i.Status == criteria.Status.Value);
+
+        if (criteria.PaymentType.HasValue)
+            query = query.Where(i => i.Payments.Any(p => p.PaymentType == criteria.PaymentType.Value));
+
+        if (!string.IsNullOrWhiteSpace(criteria.OperatorName))
+            query = query.Where(i => i.OperatorName == criteria.OperatorName);
+
+        if (criteria.MinAmount.HasValue)
+            query = query.Where(i => i.TotalTTC >= criteria.MinAmount.Value);
+
+        if (criteria.MaxAmount.HasValue)
+            query = query.Where(i => i.TotalTTC <= criteria.MaxAmount.Value);
+
+        if (!string.IsNullOrWhiteSpace(criteria.SearchText))
+        {
+            var search = criteria.SearchText.Trim().ToLower();
+            query = query.Where(i =>
+                i.InvoiceNumber.ToLower().Contains(search) ||
+                (i.CodeDEFDGI != null && i.CodeDEFDGI.ToLower().Contains(search)) ||
+                (i.ClientName != null && i.ClientName.ToLower().Contains(search)) ||
+                (i.ClientNIF != null && i.ClientNIF.ToLower().Contains(search)));
+        }
+
+        // ── Comptage total ──
+        var totalCount = await query.CountAsync();
+
+        // ── Pagination triée par date décroissante ──
+        var items = await query
+            .OrderByDescending(i => i.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
+
+    public async Task<InvoicePeriodStats> GetPeriodStatsAsync(DateTime from, DateTime to)
+    {
+        var endDate = to.Date.AddDays(1);
+        var invoices = await _db.Invoices
+            .Where(i => i.CreatedAt >= from && i.CreatedAt < endDate
+                        && i.Status == InvoiceStatus.Normalized)
+            .ToListAsync();
+
+        if (invoices.Count == 0)
+        {
+            return new InvoicePeriodStats();
+        }
+
+        return new InvoicePeriodStats
+        {
+            TotalCount = invoices.Count,
+            TotalHT = invoices.Sum(i => i.TotalHT),
+            TotalTVA = invoices.Sum(i => i.TotalTVA),
+            TotalTTC = invoices.Sum(i => i.TotalTTC),
+            FVCount = invoices.Count(i => i.Type == InvoiceType.FV),
+            FTCount = invoices.Count(i => i.Type == InvoiceType.FT),
+            EVCount = invoices.Count(i => i.Type == InvoiceType.EV),
+            ETCount = invoices.Count(i => i.Type == InvoiceType.ET),
+            AverageAmount = Math.Round(invoices.Average(i => i.TotalTTC), 0),
+            MaxInvoiceAmount = invoices.Max(i => i.TotalTTC)
+        };
+    }
+
+    public async Task<Invoice?> GetByCodeDEFAsync(string codeDEF)
+    {
+        return await _db.Invoices
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .FirstOrDefaultAsync(i => i.CodeDEFDGI == codeDEF);
+    }
+
+    public async Task<Invoice?> GetByNumberAsync(string invoiceNumber)
+    {
+        return await _db.Invoices
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .FirstOrDefaultAsync(i => i.InvoiceNumber == invoiceNumber);
+    }
+
+    public async Task<List<Invoice>> GetRecentAsync(int count)
+    {
+        return await _db.Invoices
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .OrderByDescending(i => i.CreatedAt)
+            .Take(count)
+            .ToListAsync();
+    }
+
+    // Add to InvoiceRepository:
+
+    public async Task<List<Invoice>> GetAdvancesByGroupAsync(string advanceGroupId)
+    {
+        return await _db.Invoices
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .Where(i => i.AdvanceGroupId == advanceGroupId
+                         && (i.Type == InvoiceType.FT || i.Type == InvoiceType.ET)
+                         && i.Status == InvoiceStatus.Normalized)
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<Invoice>> GetByAdvanceGroupAsync(string advanceGroupId)
+    {
+        return await _db.Invoices
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .Where(i => i.AdvanceGroupId == advanceGroupId
+                         && i.Status == InvoiceStatus.Normalized)
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<bool> CodeDEFDGIExistsAsync(string codeDEFDGI)
+    {
+        return await _db.Invoices
+            .AnyAsync(i => i.CodeDEFDGI == codeDEFDGI && i.Status == InvoiceStatus.Normalized);
+    }
+}

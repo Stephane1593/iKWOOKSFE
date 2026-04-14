@@ -1,0 +1,762 @@
+﻿<!-- File: SFE.WPF/Views/Pages/StockTransferPage.xaml -->
+<UserControl x:Class="SFE.WPF.Views.Pages.StockTransferPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SFE.WPF.ViewModels"
+             Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <DockPanel Margin="20,16">
+
+            <!-- ═══ HEADER ═══ -->
+            <Border DockPanel.Dock="Top" Background="White" CornerRadius="14"
+                    Padding="20,16" Margin="0,0,0,14">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" Opacity="0.06" ShadowDepth="2"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="🔄 Transferts inter-POS" FontFamily="{StaticResource AppFont}"
+                                   FontSize="20" FontWeight="Bold"/>
+                        <TextBlock Text="Transfert de stock entre points de vente"
+                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" Command="{Binding ShowNewTransferCommand}"
+                            Background="{StaticResource PrimaryBrush}" Foreground="White"
+                            FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
+                            Padding="16,10" BorderThickness="0" Cursor="Hand">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="＋" FontSize="15" Margin="0,0,6,0"/>
+                            <TextBlock Text="Nouveau transfert"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ═══ KPI ═══ -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,14">
+                <Border Background="White" CornerRadius="12" Padding="20,12" Margin="0,0,12,0"
+                        Width="160" Cursor="Hand">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding FilterByStatusCommand}" CommandParameter="Pending"/>
+                    </Border.InputBindings>
+                    <StackPanel>
+                        <TextBlock Text="⏳ En attente" FontFamily="{StaticResource AppFont}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding PendingCount}" FontFamily="{StaticResource AppFont}"
+                                   FontSize="22" FontWeight="Bold" Foreground="#F59E0B"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="White" CornerRadius="12" Padding="20,12" Margin="0,0,12,0"
+                        Width="160" Cursor="Hand">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding FilterByStatusCommand}" CommandParameter="InTransit"/>
+                    </Border.InputBindings>
+                    <StackPanel>
+                        <TextBlock Text="🚚 En transit" FontFamily="{StaticResource AppFont}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding InTransitCount}" FontFamily="{StaticResource AppFont}"
+                                   FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="White" CornerRadius="12" Padding="20,12" Width="160" Cursor="Hand">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding FilterByStatusCommand}" CommandParameter="Received"/>
+                    </Border.InputBindings>
+                    <StackPanel>
+                        <TextBlock Text="✅ Complétés" FontFamily="{StaticResource AppFont}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding CompletedCount}" FontFamily="{StaticResource AppFont}"
+                                   FontSize="22" FontWeight="Bold" Foreground="#10B981"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ═══ FILTRES ═══ -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                <Button Content="📋 Tous" Command="{Binding FilterByStatusCommand}" CommandParameter="All"
+                        Padding="12,6" Margin="0,0,6,0" Background="White" BorderThickness="0" Cursor="Hand"
+                        FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                <Button Content="🚚 En transit" Command="{Binding FilterByStatusCommand}" CommandParameter="InTransit"
+                        Padding="12,6" Margin="0,0,6,0" Background="#DBEAFE" BorderThickness="0" Cursor="Hand"
+                        FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                <Button Content="⏳ En attente" Command="{Binding FilterByStatusCommand}" CommandParameter="Pending"
+                        Padding="12,6" Margin="0,0,6,0" Background="#FEF3C7" BorderThickness="0" Cursor="Hand"
+                        FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                <Button Content="✅ Reçus" Command="{Binding FilterByStatusCommand}" CommandParameter="Received"
+                        Padding="12,6" Background="#ECFDF5" BorderThickness="0" Cursor="Hand"
+                        FontFamily="{StaticResource AppFont}" FontSize="12"/>
+            </StackPanel>
+
+            <!-- ═══ STATUS MESSAGE (main page) ═══ -->
+            <Border DockPanel.Dock="Top" Margin="0,0,0,8" CornerRadius="8" Padding="12,6"
+                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Background="#ECFDF5">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                           FontFamily="{StaticResource AppFont}" FontSize="12"/>
+            </Border>
+
+            <!-- ═══ LISTE TRANSFERTS ═══ -->
+            <Border Background="White" CornerRadius="14">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" Opacity="0.06" ShadowDepth="2"/>
+                </Border.Effect>
+
+                <Grid>
+                    <!-- Empty state -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Visibility="{Binding Transfers.Count, Converter={StaticResource ZeroToVisibilityConverter}, FallbackValue=Visible}">
+                        <TextBlock Text="📦" FontSize="40" HorizontalAlignment="Center" Opacity="0.4"/>
+                        <TextBlock Text="Aucun transfert trouvé" FontFamily="{StaticResource AppFont}"
+                                   FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                        <TextBlock Text="Cliquez sur « Nouveau transfert » pour commencer"
+                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" Margin="0,4,0,0" Opacity="0.6"/>
+                    </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Transfers}" Padding="8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="4,4" CornerRadius="12" Padding="16,14"
+                                            Background="#FAFAFA" BorderBrush="#F3F4F6" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <TextBlock Text="{Binding TransferNumber}" FontFamily="Consolas"
+                                                               FontSize="13" FontWeight="Bold"/>
+                                                    <Border CornerRadius="6" Padding="8,2" Margin="10,0,0,0"
+                                                            VerticalAlignment="Center">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="#F3F4F6"/>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding StatusDisplay}"
+                                                                   FontFamily="{StaticResource AppFont}"
+                                                                   FontSize="10" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                                    <Run Text="🏪 "/>
+                                                    <Run Text="{Binding FromPointOfSale.Code, Mode=OneWay}"/>
+                                                    <Run Text="  →  🏪 "/>
+                                                    <Run Text="{Binding ToPointOfSale.Code, Mode=OneWay}"/>
+                                                </TextBlock>
+
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0">
+                                                    <Run Text="{Binding Lines.Count, Mode=OneWay}"/>
+                                                    <Run Text=" produit(s) · "/>
+                                                    <Run Text="{Binding CreatedAt, StringFormat=dd/MM/yyyy HH:mm, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Button Content="👁" FontSize="14" Background="Transparent"
+                                                        BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
+                                                        ToolTip="Voir le détail"
+                                                        Command="{Binding DataContext.ViewDetailCommand,
+                                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="✅" FontSize="14" Padding="8,6"
+                                                        BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
+                                                        Background="#ECFDF5" ToolTip="Réceptionner"
+                                                        Command="{Binding DataContext.ReceiveTransferCommand,
+                                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="✕" FontSize="14" Padding="8,6"
+                                                        BorderThickness="0" Cursor="Hand"
+                                                        Background="#FEE2E2" ToolTip="Annuler"
+                                                        Command="{Binding DataContext.CancelTransferCommand,
+                                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </DockPanel>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!--  OVERLAY : Nouveau transfert                                   -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsNewTransferVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+
+            <!-- Dark backdrop -->
+            <Border Background="#80000000">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CancelNewTransferCommand}"/>
+                </Border.InputBindings>
+            </Border>
+
+            <!-- Dialog card -->
+            <Border Background="White" CornerRadius="16" Padding="0"
+                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Width="640" MaxHeight="750">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="40" Opacity="0.25" ShadowDepth="8"/>
+                </Border.Effect>
+
+                <DockPanel>
+
+                    <!-- ── HEADER BAR ── -->
+                    <Border DockPanel.Dock="Top" Background="{StaticResource PrimaryBrush}"
+                            CornerRadius="16,16,0,0" Padding="24,16">
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="🔄 Nouveau transfert de stock"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="17" FontWeight="Bold" Foreground="White"/>
+                                <TextBlock Text="Transférer des produits entre deux points de vente"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="11" Foreground="#C7D2FE" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Content="✕" FontSize="16" Foreground="White"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                    Command="{Binding CancelNewTransferCommand}"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- ── ERROR BANNER (inside dialog) ── -->
+                    <Border DockPanel.Dock="Top" Padding="16,10"
+                            Background="#FEE2E2"
+                            BorderBrush="#FECACA" BorderThickness="0,0,0,1"
+                            Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚠️" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding StatusMessage}" Foreground="#DC2626"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       FontWeight="SemiBold" TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ── BOTTOM BUTTONS ── -->
+                    <Border DockPanel.Dock="Bottom" Padding="24,16"
+                            Background="#F9FAFB" CornerRadius="0,0,16,16"
+                            BorderBrush="#F3F4F6" BorderThickness="0,1,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Content="Annuler" Command="{Binding CancelNewTransferCommand}"
+                                    FontFamily="{StaticResource AppFont}" FontSize="13"
+                                    Padding="12,12" Cursor="Hand"
+                                    Background="#F3F4F6" BorderThickness="0"/>
+
+                            <Button Grid.Column="2" Command="{Binding CreateAndShipCommand}"
+                                    Padding="12,12" Cursor="Hand" BorderThickness="0">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bg" Background="{TemplateBinding Background}"
+                                                            CornerRadius="10" Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bg" Property="Opacity" Value="0.9"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="🚚" FontSize="15" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Créer et expédier"
+                                               FontFamily="{StaticResource AppFont}"
+                                               FontSize="13" FontWeight="Bold" Foreground="White"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- ── SCROLLABLE BODY ── -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
+                        <StackPanel>
+
+                            <!-- ── STEP 1: POS Source → Destination ── -->
+                            <TextBlock Text="ÉTAPE 1 — Points de vente" FontFamily="{StaticResource AppFont}"
+                                       FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                       Margin="0,0,0,10"/>
+
+                            <Grid Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Source — binds to AvailableFromPos -->
+                                <Border Background="#F8FAFC" CornerRadius="10" Padding="14,12"
+                                        BorderBrush="#E5E7EB" BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="📤 Source" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Margin="0,0,0,6"/>
+                                        <ComboBox ItemsSource="{Binding AvailableFromPos}"
+                                                  SelectedItem="{Binding FromPos}"
+                                                  FontFamily="{StaticResource AppFont}"
+                                                  FontSize="12" Padding="8,6">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Code}" FontWeight="SemiBold"
+                                                                   FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                                                        <TextBlock Text=" — " Foreground="#9CA3AF"/>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Arrow -->
+                                <Border Grid.Column="1" VerticalAlignment="Bottom" Margin="10,0,10,14">
+                                    <TextBlock Text="→" FontSize="22" FontWeight="Bold"
+                                               Foreground="{StaticResource PrimaryBrush}"/>
+                                </Border>
+
+                                <!-- Destination — binds to AvailableToPos -->
+                                <Border Grid.Column="2" Background="#F8FAFC" CornerRadius="10" Padding="14,12"
+                                        BorderBrush="#E5E7EB" BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="📥 Destination" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Margin="0,0,0,6"/>
+                                        <ComboBox ItemsSource="{Binding AvailableToPos}"
+                                                  SelectedItem="{Binding ToPos}"
+                                                  FontFamily="{StaticResource AppFont}"
+                                                  FontSize="12" Padding="8,6">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Code}" FontWeight="SemiBold"
+                                                                   FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                                                        <TextBlock Text=" — " Foreground="#9CA3AF"/>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- Separator -->
+                            <Border Height="1" Background="#F3F4F6" Margin="0,0,0,20"/>
+
+                            <!-- ── STEP 2: Add products ── -->
+                            <TextBlock Text="ÉTAPE 2 — Produits à transférer"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="11" FontWeight="Bold"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       Margin="0,0,0,10"/>
+
+                            <!-- Product search area -->
+                            <Border Background="#F8FAFC" CornerRadius="10" Padding="14"
+                                    BorderBrush="#E5E7EB" BorderThickness="1"
+                                    Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="🔍 Rechercher un produit (code, nom ou code-barre)"
+                                               FontFamily="{StaticResource AppFont}" FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,0,0,8"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Product search with popup -->
+                                        <Grid Margin="0,0,8,0">
+                                            <TextBox x:Name="ProductSearchBox"
+                                                     Text="{Binding NewLineProductSearch, UpdateSourceTrigger=PropertyChanged}"
+                                                     FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                     Padding="10,8"
+                                                     BorderBrush="#D1D5DB" BorderThickness="1"/>
+
+                                            <!-- Placeholder text -->
+                                            <TextBlock Text="Tapez pour rechercher..."
+                                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                       Foreground="#9CA3AF" Margin="12,9,0,0"
+                                                       IsHitTestVisible="False">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Text, ElementName=ProductSearchBox}" Value="">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <!-- ★ SEARCH RESULTS POPUP ★ -->
+                                            <Popup IsOpen="{Binding IsProductSearchOpen}"
+                                                   PlacementTarget="{Binding ElementName=ProductSearchBox}"
+                                                   Placement="Bottom"
+                                                   Width="{Binding ActualWidth, ElementName=ProductSearchBox}"
+                                                   StaysOpen="False"
+                                                   AllowsTransparency="True"
+                                                   PopupAnimation="Slide">
+                                                <Border Background="White" CornerRadius="8"
+                                                        BorderBrush="#E5E7EB" BorderThickness="1"
+                                                        MaxHeight="250">
+                                                    <Border.Effect>
+                                                        <DropShadowEffect BlurRadius="12" Opacity="0.15" ShadowDepth="4"/>
+                                                    </Border.Effect>
+                                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                        <ItemsControl ItemsSource="{Binding ProductSearchResults}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Padding="10,8" Cursor="Hand"
+                                                                            Background="Transparent"
+                                                                            BorderBrush="#F3F4F6"
+                                                                            BorderThickness="0,0,0,1">
+                                                                        <Border.InputBindings>
+                                                                            <MouseBinding MouseAction="LeftClick"
+                                                                                Command="{Binding DataContext.SelectProductCommand,
+                                                                                    RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                CommandParameter="{Binding}"/>
+                                                                        </Border.InputBindings>
+                                                                        <Border.Style>
+                                                                            <Style TargetType="Border">
+                                                                                <Style.Triggers>
+                                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                                        <Setter Property="Background" Value="#EEF2FF"/>
+                                                                                    </Trigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Border.Style>
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <Border Background="#EEF2FF"
+                                                                                    CornerRadius="4"
+                                                                                    Padding="6,2" Margin="0,0,10,0"
+                                                                                    VerticalAlignment="Center">
+                                                                                <TextBlock Text="{Binding Code}"
+                                                                                           FontFamily="Consolas"
+                                                                                           FontSize="11"
+                                                                                           Foreground="{StaticResource PrimaryBrush}"
+                                                                                           FontWeight="SemiBold"/>
+                                                                            </Border>
+                                                                            <TextBlock Grid.Column="1"
+                                                                                       Text="{Binding Name}"
+                                                                                       FontFamily="{StaticResource AppFont}"
+                                                                                       FontSize="12"
+                                                                                       VerticalAlignment="Center"
+                                                                                       TextTrimming="CharacterEllipsis"/>
+                                                                            <TextBlock Grid.Column="2"
+                                                                                       Text="{Binding Unit}"
+                                                                                       FontFamily="{StaticResource AppFont}"
+                                                                                       FontSize="10"
+                                                                                       Foreground="#9CA3AF"
+                                                                                       VerticalAlignment="Center"
+                                                                                       Margin="10,0,0,0"/>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+
+                                        <!-- Quantity -->
+                                        <Grid Grid.Column="1" Margin="0,0,8,0">
+                                            <TextBox Text="{Binding NewLineQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                                     FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                     Padding="10,8" TextAlignment="Center"
+                                                     BorderBrush="#D1D5DB" BorderThickness="1"/>
+                                        </Grid>
+
+                                        <!-- Add button -->
+                                        <Button Grid.Column="2"
+                                                Command="{Binding AddLineCommand}"
+                                                Padding="14,8" BorderThickness="0" Cursor="Hand"
+                                                IsEnabled="{Binding CanAddLine}">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="Bg"
+                                                                        Background="{TemplateBinding Background}"
+                                                                        CornerRadius="8"
+                                                                        Padding="{TemplateBinding Padding}">
+                                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                                      VerticalAlignment="Center"/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsEnabled" Value="False">
+                                                                        <Setter TargetName="Bg" Property="Opacity" Value="0.4"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Bg" Property="Opacity" Value="0.9"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock Text="＋ Ajouter" Foreground="White"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" FontWeight="SemiBold"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Selected product indicator -->
+                                    <Border Margin="0,8,0,0" CornerRadius="6" Padding="8,4"
+                                            Background="#ECFDF5"
+                                            Visibility="{Binding NewLineProduct,
+                                                Converter={StaticResource NullToCollapsedConverter}}">
+                                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                                   Foreground="#059669">
+                                            <Run Text="✓ Sélectionné :"/>
+                                            <Run Text="{Binding NewLineProduct.Code, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            <Run Text="—"/>
+                                            <Run Text="{Binding NewLineProduct.Name, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ── Lines list ── -->
+                            <Grid Margin="0,0,0,4">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="📦 Produits ajoutés ("/>
+                                    <Run Text="{Binding TransferLines.Count, Mode=OneWay}"/>
+                                    <Run Text=")"/>
+                                </TextBlock>
+                            </Grid>
+
+                            <!-- Empty state for lines -->
+                            <Border Margin="0,0,0,8" Padding="20,16" Background="#FAFAFA"
+                                    CornerRadius="8" HorizontalAlignment="Stretch">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding TransferLines.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="Aucun produit ajouté — utilisez la recherche ci-dessus"
+                                           FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="#9CA3AF" HorizontalAlignment="Center"/>
+                            </Border>
+
+                            <!-- Lines items -->
+                            <ItemsControl ItemsSource="{Binding TransferLines}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,4" Padding="12,10"
+                                                Background="#FAFAFA" CornerRadius="8"
+                                                BorderBrush="#F3F4F6" BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Background="#EEF2FF" CornerRadius="4"
+                                                        Padding="6,2" Margin="0,0,10,0"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding ProductCode}"
+                                                               FontFamily="Consolas" FontSize="11"
+                                                               Foreground="{StaticResource PrimaryBrush}"
+                                                               FontWeight="SemiBold"/>
+                                                </Border>
+
+                                                <TextBlock Grid.Column="1" Text="{Binding ProductName}"
+                                                           FontFamily="{StaticResource AppFont}" FontSize="13"
+                                                           FontWeight="Medium" VerticalAlignment="Center"/>
+
+                                                <Border Grid.Column="2" Background="#DBEAFE" CornerRadius="6"
+                                                        Padding="10,4" Margin="0,0,8,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding QuantityDisplay}"
+                                                               FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                               FontWeight="Bold"
+                                                               Foreground="{StaticResource PrimaryBrush}"/>
+                                                </Border>
+
+                                                <Button Grid.Column="3" Content="🗑" FontSize="12"
+                                                        Background="Transparent" BorderThickness="0"
+                                                        Cursor="Hand" ToolTip="Supprimer cette ligne"
+                                                        Command="{Binding DataContext.RemoveLineCommand,
+                                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Separator -->
+                            <Border Height="1" Background="#F3F4F6" Margin="0,12,0,12"/>
+
+                            <!-- ── STEP 3: Notes (optional) ── -->
+                            <TextBlock Text="ÉTAPE 3 — Notes (optionnel)"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="11" FontWeight="Bold"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       Margin="0,0,0,8"/>
+                            <Grid>
+                                <TextBox Text="{Binding TransferNotes, UpdateSourceTrigger=PropertyChanged}"
+                                         x:Name="NotesBox"
+                                         FontFamily="{StaticResource AppFont}" FontSize="12"
+                                         Padding="10,8" AcceptsReturn="True" MinLines="2"
+                                         TextWrapping="Wrap"
+                                         BorderBrush="#D1D5DB" BorderThickness="1"/>
+                                <TextBlock Text="Raison du transfert, remarques..."
+                                           FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="#9CA3AF" Margin="12,9,0,0"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=NotesBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  OVERLAY : Détail transfert                                -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding ShowDetail, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#80000000">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDetailCommand}"/>
+                </Border.InputBindings>
+            </Border>
+            <Border Background="White" CornerRadius="16" Padding="24"
+                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Width="550" MaxHeight="500">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="30" Opacity="0.2" ShadowDepth="5"/>
+                </Border.Effect>
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,16">
+                        <TextBlock Text="📋 Détail du transfert" FontFamily="{StaticResource AppFont}"
+                                   FontSize="17" FontWeight="Bold"/>
+                        <Button HorizontalAlignment="Right" Content="✕" FontSize="16"
+                                Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                Command="{Binding CloseDetailCommand}"/>
+                    </Grid>
+                    <TextBlock DockPanel.Dock="Top" FontFamily="{StaticResource AppFont}" FontSize="13"
+                               Margin="0,0,0,12">
+                        <Run Text="{Binding SelectedTransfer.TransferNumber, Mode=OneWay}" FontWeight="Bold"/>
+                        <Run Text=" · "/>
+                        <Run Text="{Binding SelectedTransfer.StatusDisplay, Mode=OneWay}"/>
+                    </TextBlock>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding SelectedTransfer.Lines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="8,6" Margin="0,0,0,4" Background="#F9FAFB" CornerRadius="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12">
+                                                <Run Text="{Binding Product.Code, Mode=OneWay}" FontWeight="SemiBold"/>
+                                                <Run Text=" — "/>
+                                                <Run Text="{Binding Product.Name, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="1" FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryBrush}">
+                                                <Run Text="{Binding Quantity, StringFormat=G, Mode=OneWay}"/>
+                                                <Run Text="{Binding Product.Unit, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ═══ Spinner ═══ -->
+        <Border Background="#40000000"
+                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="⏳" FontSize="36" HorizontalAlignment="Center"/>
+                <TextBlock Text="Chargement..." FontFamily="{StaticResource AppFont}"
+                           FontSize="14" Foreground="White" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

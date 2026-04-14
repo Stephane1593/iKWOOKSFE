@@ -1,0 +1,1608 @@
+﻿<UserControl x:Class="SFE.WPF.Views.Pages.InvoicingPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="500"/>
+            <ColumnDefinition Width="380"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ══════ PANNEAU GAUCHE ══════ -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="24,20,12,20">
+            <StackPanel>
+
+                <!-- HEADER -->
+                <!-- HEADER -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="Nouvelle facture" Style="{StaticResource SectionTitleStyle}"/>
+                            <!-- ★ MODE BADGE ★ -->
+                            <Border HorizontalAlignment="Right" CornerRadius="8" Padding="10,4">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#DBEAFE"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHtMode}" Value="True">
+                                                <Setter Property="Background" Value="#FEF3C7"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding PriceModeDisplay}"
+                           FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#1D4ED8"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsHtMode}" Value="True">
+                                                    <Setter Property="Foreground" Value="#92400E"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+
+                        <!-- ═══ 🆕 POINT DE VENTE ═══ -->
+                        <Border CornerRadius="8" Padding="12,10" Margin="0,12,0,0"
+                BorderBrush="#BAE6FD" BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#F0F9FF"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPointOfSale}" Value="{x:Null}">
+                                            <Setter Property="Background" Value="#FEF2F2"/>
+                                            <Setter Property="BorderBrush" Value="#FECACA"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="🏪 Point de vente *" FontFamily="{StaticResource AppFont}"
+                               FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Foreground="#0369A1" Margin="0,0,10,0"/>
+
+                                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AvailablePointsOfSale}"
+                              SelectedItem="{Binding SelectedPointOfSale}"
+                              IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                              FontFamily="{StaticResource AppFont}" FontSize="12"
+                              Padding="8,5">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="0,0,8,0"
+                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Code}" FontFamily="Consolas" FontSize="10"
+                                                   FontWeight="Bold" Foreground="#0369A1"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Name}" FontFamily="{StaticResource AppFont}"
+                                               FontSize="12" FontWeight="Medium" VerticalAlignment="Center"/>
+                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
+                                               Foreground="#6B7280" VerticalAlignment="Center" Margin="8,0,0,0">
+                                        <Run Text="("/>
+                                        <Run Text="{Binding City}"/>
+                                        <Run Text=" · "/>
+                                        <Run Text="{Binding DeviceType}"/>
+                                        <Run Text=")"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+
+                                    <!-- Badge count (visible only if multiple POS) -->
+                                    <Border Grid.Column="2" CornerRadius="10" Padding="8,3" Margin="8,0,0,0"
+                            Background="#0EA5E9" VerticalAlignment="Center"
+                            Visibility="{Binding HasMultiplePos, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
+                                   Foreground="White" FontWeight="Bold">
+                            <Run Text="{Binding AvailablePointsOfSale.Count, Mode=OneWay}"/>
+                            <Run Text=" POS"/>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+
+                                <!-- POS details line (visible when selected) -->
+                                <TextBlock Text="{Binding SelectedPosInfo}" FontFamily="{StaticResource AppFont}"
+                           FontSize="10" Foreground="#6B7280" Margin="0,4,0,0"
+                           Visibility="{Binding SelectedPointOfSale, Converter={StaticResource IsNotNullToVisibilityConverter}}"/>
+
+                                <!-- Warning when no POS selected -->
+                                <TextBlock Text="⚠ Aucun point de vente sélectionné — la normalisation sera bloquée"
+                           FontFamily="{StaticResource AppFont}" FontSize="10"
+                           Foreground="#DC2626" Margin="0,4,0,0" FontStyle="Italic">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedPointOfSale}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Column="0" Margin="0,0,8,8">
+                                <TextBlock Text="Type" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding InvoiceTypes}"
+                          SelectedItem="{Binding SelectedInvoiceType}"
+                          IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                          FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="0,0,8,8">
+                                <TextBlock Text="N° Facture" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding InvoiceNumber}" IsReadOnly="True"
+                         FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
+                         Background="#F3F4F6" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Date" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding CurrentDateTime}" IsReadOnly="True"
+                         FontFamily="{StaticResource AppFont}" Background="#F3F4F6" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,8,0">
+                                <TextBlock Text="Opérateur" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding OperatorName}" FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="2">
+                                <TextBlock Text="ISF" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding Isf}" IsReadOnly="True"
+                         FontFamily="{StaticResource AppFont}" Background="#F3F4F6" Padding="8,6"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- AVOIR — 🆕 Enhanced with original invoice lookup   -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16"
+        Visibility="{Binding IsCreditNote, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="📄 Facture d'avoir" Style="{StaticResource SectionTitleStyle}"
+                   Foreground="{StaticResource AccentBrush}"/>
+
+                        <!-- Row 1: Nature + Reference -->
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Nature *" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding CreditNoteNatures}"
+                          SelectedItem="{Binding SelectedCreditNoteNature}"
+                          FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="Réf. facture originale (Code DEF/DGI ou RRR) *"
+                           FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding OriginalReference, UpdateSourceTrigger=PropertyChanged}"
+                         FontFamily="Consolas" Padding="8,6"
+                         IsEnabled="{Binding IsRRR, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+
+                            <!-- 🆕 Lookup button (visible only for non-RRR) -->
+                            <Button Grid.Column="2" Content="🔍 Charger" VerticalAlignment="Bottom"
+                    Command="{Binding LookupOriginalInvoiceCommand}"
+                    FontFamily="{StaticResource AppFont}" FontSize="12"
+                    Background="{StaticResource PrimaryBrush}" Foreground="White"
+                    Padding="12,7" BorderThickness="0" Cursor="Hand"
+                    Visibility="{Binding RequiresOriginalLookup, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                        </Grid>
+
+                        <!-- 🆕 RRR info -->
+                        <Border Background="#FEF3C7" CornerRadius="6" Padding="10,6" Margin="0,8,0,0"
+                Visibility="{Binding IsRRR, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="#92400E" TextWrapping="Wrap"
+                       Text="💡 Type RRR : Remise, Ristourne, Rabais — Saisie libre des articles. Référence automatiquement définie à « RRR »."/>
+                        </Border>
+
+                        <!-- 🆕 Original invoice summary (visible when loaded) -->
+                        <Border Background="#F0FDF4" CornerRadius="8" Padding="12,10" Margin="0,8,0,0"
+                Visibility="{Binding IsOriginalLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="✓ Facture originale" FontFamily="{StaticResource AppFont}"
+                           FontSize="12" FontWeight="Bold" Foreground="#065F46"/>
+                                <TextBlock Text="{Binding OriginalInvoiceSummary}" FontFamily="{StaticResource AppFont}"
+                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 🆕 Original invoice items selection (visible when loaded + non-RRR) -->
+                        <Border CornerRadius="8" Margin="0,8,0,0" BorderBrush="#E5E7EB" BorderThickness="1"
+                Visibility="{Binding IsOriginalLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <Grid Background="#F8FAFC" Margin="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Articles à rembourser" FontFamily="{StaticResource AppFont}"
+                               FontSize="13" FontWeight="SemiBold" Margin="12,8"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <Button Grid.Column="1" Content="+ Ajouter sélection"
+                            Command="{Binding AddAllSelectedCreditNoteLinesCommand}"
+                            FontFamily="{StaticResource AppFont}" FontSize="11"
+                            Background="{StaticResource AccentBrush}" Foreground="White"
+                            Padding="10,6" BorderThickness="0" Cursor="Hand" Margin="0,4,8,4"/>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding CreditNoteSelections}" Margin="8,4,8,8">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="4,6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="30"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="80"/>
+                                                        <ColumnDefinition Width="100"/>
+                                                        <ColumnDefinition Width="80"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center"/>
+
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="12" FontWeight="Medium"/>
+                                                        <TextBlock Text="{Binding DisplayQuantity}" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+
+                                                    <TextBlock Grid.Column="2" Text="{Binding TaxGroupLabel}"
+                                               FontFamily="{StaticResource AppFont}" FontSize="11"
+                                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+                                                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="4,0">
+                                                        <TextBlock Text="Quantité" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <TextBox Text="{Binding SelectedQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontFamily="{StaticResource AppFont}" FontSize="12" Padding="4,2"/>
+                                                    </StackPanel>
+
+                                                    <TextBlock Grid.Column="4" Text="{Binding DisplayPrice}"
+                                               FontFamily="{StaticResource AppFont}" FontSize="11"
+                                               VerticalAlignment="Center" HorizontalAlignment="Right"
+                                               Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- 🆕 ACOMPTE (FT/ET) — Groupe d'avances              -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16"
+        Visibility="{Binding ShowAdvanceSection, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="💰 Facture d'acompte" Style="{StaticResource SectionTitleStyle}"
+                   Foreground="#7C3AED"/>
+
+                        <TextBlock Text="Identifiant du groupe d'avances (optionnel — pour lier plusieurs acomptes)"
+                   FontFamily="{StaticResource AppFont}" FontSize="11"
+                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,4"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Text="{Binding AdvanceGroupId, UpdateSourceTrigger=PropertyChanged}"
+                     FontFamily="Consolas" FontSize="12" Padding="8,6"/>
+
+                            <Button Grid.Column="1" Content="🆕 Nouveau" Margin="6,0"
+                    Command="{Binding CreateNewAdvanceGroupCommand}"
+                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                    Background="#7C3AED" Foreground="White"
+                    Padding="10,6" BorderThickness="0" Cursor="Hand"/>
+
+                            <Button Grid.Column="2" Content="📋 Charger"
+                    Command="{Binding LoadAdvanceGroupCommand}"
+                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                    Background="#F3F4F6" Padding="10,6" BorderThickness="0" Cursor="Hand"/>
+                        </Grid>
+
+                        <!-- Previous advances in this group -->
+                        <ItemsControl ItemsSource="{Binding PreviousAdvances}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#F5F3FF" CornerRadius="6" Padding="10,6" Margin="0,2">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12">
+                                    <Run Text="{Binding InvoiceNumber}" FontWeight="SemiBold"/>
+                                    <Run Text=" — "/>
+                                    <Run Text="{Binding DateDisplay}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding CodeDEFDGI}" FontFamily="Consolas" FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="Bold"
+                                       Foreground="#7C3AED">
+                                <Run Text="{Binding Amount, StringFormat=N0}"/>
+                                <Run Text=" CDF" FontSize="10"/>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Total advances -->
+                        <Border Background="#EDE9FE" CornerRadius="8" Padding="12,8" Margin="0,8,0,0"
+                Visibility="{Binding PreviousAdvances.Count, Converter={StaticResource IsGreaterThanZeroConverter}}">
+                            <Grid>
+                                <TextBlock Text="Total acomptes versés" FontFamily="{StaticResource AppFont}"
+                           FontSize="12" FontWeight="SemiBold" Foreground="#7C3AED"/>
+                                <TextBlock HorizontalAlignment="Right" FontFamily="{StaticResource AppFont}"
+                           FontSize="14" FontWeight="Bold" Foreground="#7C3AED">
+                    <Run Text="{Binding AdvancesTotalPaid, StringFormat=N0, Mode=OneWay}"/>
+                    <Run Text=" CDF" FontSize="10"/>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="💡 Chaque acompte est une facture normalisée indépendante. Le groupe d'avances permet de les relier pour le suivi."
+                   FontFamily="{StaticResource AppFont}" FontSize="10"
+                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                   Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- CLIENT — Recherche + Sélection DGI 2026            -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="👤 Client" Style="{StaticResource SectionTitleStyle}"/>
+                            <!-- Badge type -->
+                            <Border HorizontalAlignment="Right" CornerRadius="8" Padding="10,4" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#F3F4F6"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedClientType}" Value="PM">
+                                                <Setter Property="Background" Value="#DBEAFE"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedClientType}" Value="AO">
+                                                <Setter Property="Background" Value="#FEF3C7"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding ClientTypeMention}" FontFamily="{StaticResource AppFont}"
+                           FontSize="11" FontWeight="SemiBold"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Row 1: Type + Recherche client -->
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Type *" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding ClientTypes}"
+                          SelectedItem="{Binding SelectedClientType}"
+                          IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                          FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="🔍 Rechercher un client existant" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <TextBox x:Name="ClientSearchBox"
+                             Text="{Binding ClientSearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                             FontFamily="{StaticResource AppFont}" Padding="8,6"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <Popup IsOpen="{Binding IsClientSearchOpen, Mode=TwoWay}" StaysOpen="False"
+                           PlacementTarget="{Binding ElementName=ClientSearchBox}"
+                           Placement="Bottom" Width="{Binding ActualWidth, ElementName=ClientSearchBox}">
+                                        <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1"
+                                CornerRadius="0,0,8,8" MaxHeight="260">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="12" Opacity="0.15" ShadowDepth="4"/>
+                                            </Border.Effect>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding ClientSearchResults}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Command="{Binding DataContext.SelectClientCommand,
+                                                        RelativeSource={RelativeSource AncestorType=Popup}}"
+                                                    CommandParameter="{Binding}"
+                                                    Background="Transparent" BorderThickness="0"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    Cursor="Hand" Padding="12,8">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <!-- Type badge -->
+                                                                    <Border CornerRadius="4" Padding="5,2" Margin="0,0,8,0"
+                                                            Background="#F3F4F6" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding Type}" FontFamily="Consolas"
+                                                                   FontSize="10" FontWeight="Bold"/>
+                                                                    </Border>
+                                                                    <!-- Name + NIF -->
+                                                                    <StackPanel Grid.Column="1">
+                                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                                                                   FontWeight="Medium"/>
+                                                                        <TextBlock FontFamily="Consolas" FontSize="11"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}">
+                                                            <Run Text="NIF: "/><Run Text="{Binding NIF, TargetNullValue='-'}"/>
+                                                            <Run Text=" · "/><Run Text="{Binding Phone, TargetNullValue=''}"/>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                    <!-- Arrow -->
+                                                                    <TextBlock Grid.Column="2" Text="→" FontSize="14"
+                                                               Foreground="{StaticResource PrimaryBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Clear button -->
+                            <Button Grid.Column="2" Content="✕ Vider" VerticalAlignment="Bottom"
+                    Command="{Binding ClearClientCommand}"
+                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                    Background="#FEF2F2" Foreground="#DC2626"
+                    Padding="10,7" BorderThickness="0" Cursor="Hand" Margin="0,0,0,0"
+                    Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                        </Grid>
+
+                        <!-- Row 2: NIF + Nom -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="2*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="NIF" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <TextBlock Text=" *" Foreground="#DC2626" FontWeight="Bold" FontSize="12"
+                               Visibility="{Binding IsClientNifRequired, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding ClientNIF, UpdateSourceTrigger=PropertyChanged}"
+                         FontFamily="{StaticResource AppFont}" Padding="8,6" Margin="0,4,0,0"
+                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Nom / Dénomination" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <TextBlock Text=" *" Foreground="#DC2626" FontWeight="Bold" FontSize="12"
+                               Visibility="{Binding IsClientNameRequired, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding ClientName, UpdateSourceTrigger=PropertyChanged}"
+                         FontFamily="{StaticResource AppFont}" Padding="8,6" Margin="0,4,0,0"
+                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Row 3: Adresse, Téléphone, Email (visible sauf PP sans données) -->
+                        <Grid Margin="0,10,0,0"
+              Visibility="{Binding ShowClientDetails, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Adresse" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding ClientAddress}" FontFamily="{StaticResource AppFont}" Padding="8,6"
+                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="Téléphone" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding ClientPhone}" FontFamily="{StaticResource AppFont}" Padding="8,6"
+                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Email" FontFamily="{StaticResource AppFont}" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding ClientEmail}" FontFamily="{StaticResource AppFont}" Padding="8,6"
+                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Save client inline (optionnel) -->
+                        <Button Content="💾 Enregistrer ce client" Command="{Binding SaveClientInlineCommand}"
+                FontFamily="{StaticResource AppFont}" FontSize="11"
+                Background="#F0FDF4" Foreground="#065F46" Padding="10,6"
+                BorderThickness="1" BorderBrush="#BBF7D0" Cursor="Hand"
+                HorizontalAlignment="Left" Margin="0,10,0,0"
+                Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                ToolTip="Sauvegarder les informations client pour un usage futur"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- COMMENTAIRES — 8 lignes DGI (A-H)                 -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="💬 Commentaires (lignes A–H)" Style="{StaticResource SectionTitleStyle}"/>
+
+                        <!-- ═══ LIGNE A — Obligatoire si AO ou Groupe D ═══ -->
+                        <Border CornerRadius="8" Padding="12,10" Margin="0,12,0,0">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#F8FAFC"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCommentARequired}" Value="True">
+                                            <Setter Property="Background" Value="#FFF7ED"/>
+                                            <Setter Property="BorderBrush" Value="#FDBA74"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="{Binding CommentALabel}" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               FontWeight="SemiBold"/>
+                                    <TextBlock Text=" (obligatoire)" Foreground="#EA580C" FontSize="11"
+                               FontFamily="{StaticResource AppFont}" FontStyle="Italic"
+                               Visibility="{Binding IsCommentARequired, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding CommentA, UpdateSourceTrigger=PropertyChanged}"
+                         FontFamily="{StaticResource AppFont}" Padding="8,6"
+                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                <!-- Info contextuelle -->
+                                <TextBlock Margin="0,4,0,0" FontFamily="{StaticResource AppFont}" FontSize="10"
+                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCommentARequired}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <TextBlock.Inlines>
+                                        <Run Text="⚠️ "/>
+                                        <Run Text="Client AO : référence du certificat d'exonération · ">
+                                            <Run.Style>
+                                                <Style TargetType="Run">
+                                                    <Setter Property="Text" Value=""/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedClientType}" Value="AO">
+                                                            <Setter Property="Text" Value="Client AO : référence du certificat d'exonération · "/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Run.Style>
+                                        </Run>
+                                        <Run Text="Art. 19 Ordonnance-loi n°10/001 du 20/08/2010"/>
+                                    </TextBlock.Inlines>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ═══ LIGNES B à H — Réservées ═══ -->
+                        <Expander Header="Lignes B–H (réservées)" FontFamily="{StaticResource AppFont}" FontSize="12"
+                  Foreground="{StaticResource TextSecondaryBrush}" Margin="0,10,0,0"
+                  IsExpanded="False">
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="B" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentB}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="C" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentC}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="D" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentD}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="E" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentE}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="F" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentF}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="G" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentG}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="H" FontFamily="{StaticResource AppFont}" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
+                               FontWeight="Bold"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CommentH}"
+                             FontFamily="{StaticResource AppFont}" Padding="6,4"
+                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </Grid>
+
+                                <TextBlock Text="Ces lignes sont réservées par la DGI pour usage futur."
+                           FontFamily="{StaticResource AppFont}" FontSize="10"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                           Margin="50,4,0,0"/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- AJOUTER UN ARTICLE (🆕 T.S. typée + remise)       -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16"
+                        Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="Ajouter un article" Style="{StaticResource SectionTitleStyle}"/>
+
+                        <!-- Ligne 1 : Code, Désignation, Type, Groupe -->
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,8,8">
+                                <TextBlock Text="Code" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding ArticleCode}" FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="0,0,8,8">
+                                <TextBlock Text="Désignation *" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <TextBox x:Name="ArticleNameBox"
+                                             Text="{Binding ArticleName, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                             FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                                    <Popup IsOpen="{Binding IsSearchPopupOpen, Mode=TwoWay}" StaysOpen="False"
+                                           PlacementTarget="{Binding ElementName=ArticleNameBox}"
+                                           Placement="Bottom" Width="{Binding ActualWidth, ElementName=ArticleNameBox}">
+                                        <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1"
+                                                CornerRadius="0,0,8,8" MaxHeight="240">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="12" Opacity="0.15" ShadowDepth="4"/>
+                                            </Border.Effect>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding ProductSearchResults}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Command="{Binding DataContext.SelectProductCommand,
+                                                                        RelativeSource={RelativeSource AncestorType=Popup}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Background="Transparent" BorderThickness="0"
+                                                                    HorizontalContentAlignment="Stretch"
+                                                                    Cursor="Hand" Padding="12,8">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="{Binding Name}"
+                                                                                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                                                                                   FontWeight="Medium"/>
+                                                                        <TextBlock FontFamily="Consolas" FontSize="11"
+                                                                                   Foreground="{StaticResource TextSecondaryBrush}">
+                                                                            <Run Text="{Binding Code}"/>
+                                                                            <Run Text=" · "/>
+                                                                            <Run Text="{Binding TaxGroup}"/>
+                                                                            <Run Text=" · T.S.: "/>
+                                                                            <Run Text="{Binding SpecificTaxDisplay, Mode=OneWay}"/>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="{Binding UnitPrice, StringFormat='{}{0:N2} CDF'}"
+                                                                               FontFamily="{StaticResource AppFont}" FontSize="13"
+                                                                               FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource PrimaryBrush}"/>
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Margin="0,0,8,8">
+                                <TextBlock Text="Type" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding ItemTypes}"
+                                          SelectedItem="{Binding ArticleItemType}"
+                                          FontFamily="{StaticResource AppFont}" Padding="8,4"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="3" Margin="0,0,0,8">
+                                <TextBlock Text="Groupe" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding TaxGroups}"
+                                          SelectedItem="{Binding ArticleTaxGroup}"
+                                          FontFamily="{StaticResource AppFont}" Padding="8,4"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Ligne 2 : Prix, Quantité, Unité -->
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,8,8">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Prix unit. TTC *"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsHtMode}" Value="True">
+                                                    <Setter Property="Text" Value="Prix unit. HT *"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBox Text="{Binding ArticleUnitPrice, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="0,0,8,8">
+                                <TextBlock Text="Quantité *" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding ArticleQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="{StaticResource AppFont}" Padding="8,6"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Margin="0,0,8,8">
+                                <TextBlock Text="Unité" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox ItemsSource="{Binding CommonUnits}"
+                                          SelectedItem="{Binding ArticleUnit}" IsEditable="True"
+                                          FontFamily="{StaticResource AppFont}" Padding="6,4"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- ═══ Ligne 2b : Taxe spécifique typée ═══ -->
+                        <Border Background="#FFFBEB" CornerRadius="8" Padding="12,10" Margin="0,4,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="⚡ T.S. :" FontFamily="{StaticResource AppFont}" FontSize="12"
+                   VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#92400E"
+                   FontWeight="SemiBold"/>
+
+                                <!-- Type de taxe spécifique -->
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding SpecificTaxTypes}"
+                  SelectedItem="{Binding ArticleSpecificTaxType}"
+                  FontFamily="{StaticResource AppFont}" Padding="6,4" Margin="0,0,8,0"
+                  ToolTip="Type de taxe spécifique"/>
+
+                                <!-- Valeur (visible si type ≠ None) -->
+                                <TextBox Grid.Column="2"
+                 Text="{Binding ArticleSpecificTaxValue, UpdateSourceTrigger=PropertyChanged}"
+                 FontFamily="{StaticResource AppFont}" Padding="8,6" Margin="0,0,8,0"
+                 Visibility="{Binding ShowArticleSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBox.ToolTip>
+                                        <TextBlock>
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Montant fixe par unité (ex : 230)"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ArticleSpecificTaxType}" Value="Percentage">
+                                                            <Setter Property="Text" Value="Pourcentage sur HT (ex : 10)"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </TextBox.ToolTip>
+                                </TextBox>
+
+                                <!-- ✅ FIX: was TaxSpecificModes → TaxApplicationModes -->
+                                <!-- ✅ FIX: was ArticleTaxSpecificMode → ArticleTaxApplicationMode -->
+                                <ComboBox Grid.Column="3" ItemsSource="{Binding TaxApplicationModes}"
+                  SelectedItem="{Binding ArticleTaxApplicationMode}"
+                  FontFamily="{StaticResource AppFont}" Padding="6,4"
+                  Visibility="{Binding ShowArticleSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}"
+                  ToolTip="Mode d'application de la T.S."/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Info T.S. contextuelle (visible si type ≠ None) -->
+                        <Border Background="#FEF9C3" CornerRadius="6" Padding="10,6" Margin="0,0,0,8"
+        Visibility="{Binding ShowArticleSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
+               Foreground="#854D0E" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text"
+                        Value="📦 Montant fixe par unité · ⚡ Par article : appliqué sur chaque ligne"/>
+                                        <Style.Triggers>
+                                            <!-- ✅ FIX: was ArticleTaxSpecificMode/PerItem → ArticleTaxApplicationMode/PerArticle -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ArticleSpecificTaxType}" Value="Percentage"/>
+                                                    <Condition Binding="{Binding ArticleTaxApplicationMode}" Value="PerArticle"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Text"
+                                Value="📊 Pourcentage appliqué sur le montant HT · ⚡ Par article : appliqué sur chaque ligne"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ArticleSpecificTaxType}" Value="FixedPerUnit"/>
+                                                    <Condition Binding="{Binding ArticleTaxApplicationMode}" Value="OnTotal"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Text"
+                                Value="📦 Montant fixe par unité · 🔢 Sur le total : T.S. différée, calculée une seule fois sur le sous-total regroupé"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ArticleSpecificTaxType}" Value="Percentage"/>
+                                                    <Condition Binding="{Binding ArticleTaxApplicationMode}" Value="OnTotal"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Text"
+                                Value="📊 Pourcentage appliqué sur le montant HT · 🔢 Sur le total : T.S. différée, calculée une seule fois sur le sous-total regroupé"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+
+
+
+                        <!-- 🆕 Ligne 3 : Remise par ligne -->
+                        <Border Background="#FFF5F5" CornerRadius="8" Padding="12,10" Margin="0,4,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="💸 Remise :" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#DC2626"/>
+
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding DiscountTypes}"
+                                          SelectedItem="{Binding ArticleDiscountType}"
+                                          FontFamily="{StaticResource AppFont}" Padding="6,4" Margin="0,0,8,0"/>
+
+                                <TextBox Grid.Column="2" Text="{Binding ArticleDiscountValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="{StaticResource AppFont}" Padding="8,6" Margin="0,0,8,0"
+                                         ToolTip="Valeur de la remise (% ou montant fixe)"/>
+
+                                <!-- Spacer -->
+                                <StackPanel Grid.Column="3"/>
+
+                                <!-- Bouton Ajouter -->
+                                <Button Grid.Column="4" Content="+ Ajouter" Command="{Binding AddArticleCommand}"
+                                        Background="{StaticResource PrimaryBrush}" Foreground="White"
+                                        FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
+                                        Padding="16,8" BorderThickness="0" Cursor="Hand"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- GRILLE DES LIGNES (🆕 colonnes T.S. typée)        -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Lignes de facture" Style="{StaticResource SectionTitleStyle}"/>
+                        <DataGrid ItemsSource="{Binding InvoiceLines}" AutoGenerateColumns="False"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                  BorderThickness="0" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                  Margin="0,12,0,0" MaxHeight="300">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding LineNumber}" Width="30"/>
+                                <DataGridTextColumn Header="Désignation" Binding="{Binding Name}" Width="*"/>
+                                <DataGridTextColumn Header="Grp" Binding="{Binding TaxGroupDisplay}" Width="50"/>
+                                <DataGridTextColumn Header="P.U. HT" Binding="{Binding UnitPriceHT, StringFormat=N2}" Width="75"/>
+                                <DataGridTextColumn Header="Qté" Binding="{Binding Quantity, StringFormat=G}" Width="45"/>
+                                <DataGridTextColumn Header="Unité" Binding="{Binding Unit}" Width="40"/>
+
+                                <!-- 🆕 Colonne Remise -->
+                                <DataGridTextColumn Header="Remise" Binding="{Binding DiscountDisplay}" Width="55">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#DC2626"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <!-- 🆕 Colonne T.S. typée (type+valeur empilés) -->
+                                <DataGridTemplateColumn Header="T.S." Width="68">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel VerticalAlignment="Center"
+                                                        Visibility="{Binding HasSpecificTax, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding SpecificTaxDisplay}"
+                                                           FontFamily="{StaticResource AppFont}" FontSize="10"
+                                                           HorizontalAlignment="Center" FontWeight="Medium"
+                                                           Foreground="#92400E"/>
+                                                <TextBlock Text="{Binding TaxSpecificAmount, StringFormat=N0}" 
+                                                           FontFamily="{StaticResource AppFont}" FontSize="9"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTextColumn Header="H.T." Binding="{Binding AmountHT, StringFormat=N2}" Width="75"/>
+                                <DataGridTextColumn Header="TVA" Binding="{Binding AmountTVA, StringFormat=N2}" Width="60"/>
+                                <DataGridTextColumn Header="TTC" Binding="{Binding AmountTTC, StringFormat=N2}" Width="80">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTemplateColumn Header="" Width="35">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="✕" FontSize="12" Foreground="Red"
+                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                    Command="{Binding DataContext.RemoveArticleCommand,
+                                                        RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding DataContext.IsNormalized,
+                                                        RelativeSource={RelativeSource AncestorType=DataGrid},
+                                                        Converter={StaticResource InverseBoolConverter}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Text="Aucun article ajouté" FontFamily="{StaticResource AppFont}"
+                                   FontSize="13" Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" Margin="0,20,0,10"
+                                   Visibility="{Binding InvoiceLines.Count, Converter={StaticResource InverseBoolConverter}}"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ══════ PANNEAU DROIT ══════ -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="12,20,24,20">
+            <StackPanel>
+
+                <!-- RÉSUMÉ FISCAL -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Résumé fiscal" Style="{StaticResource SectionTitleStyle}"/>
+
+                        <!-- Détail par groupe -->
+                        <ItemsControl ItemsSource="{Binding TaxGroupSummaries}" Margin="0,12,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding Label}" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding TotalHT, StringFormat='HT: {0:N2}'}"
+                                                       FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding TotalTVA, StringFormat='TVA: {0:N2}'}"
+                                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                       Foreground="{StaticResource PrimaryBrush}"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Separator Margin="0,8"/>
+
+                        <!-- Détail des totaux -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 🆕 Sous-total avant remise (visible si remise) -->
+                            <TextBlock Text="Sous-total avant remise" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Visibility="{Binding HasAnyDiscount, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding TotalHTBeforeDiscount, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextDecorations="Strikethrough"
+                                       Visibility="{Binding HasAnyDiscount, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <!-- 🆕 Total remise (visible si remise) -->
+                            <TextBlock Grid.Row="1" Text="💸 Remise" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="#DC2626"
+                                       Visibility="{Binding HasAnyDiscount, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TotalDiscount, StringFormat='-{0:N2}'}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12" HorizontalAlignment="Right"
+                                       Foreground="#DC2626" FontWeight="SemiBold"
+                                       Visibility="{Binding HasAnyDiscount, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <TextBlock Grid.Row="2" Text="Total H.T." FontFamily="{StaticResource AppFont}" FontSize="13"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TotalHT, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13" HorizontalAlignment="Right"/>
+
+                            <TextBlock Grid.Row="3" Text="Total TVA" FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="{StaticResource PrimaryBrush}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding TotalTVA, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Right"/>
+
+                            <!-- 🆕 T.S. détaillée : fixe par unité -->
+                            <TextBlock Grid.Row="4" Text="⚡ T.S. fixe / unité"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="#92400E"
+                                       Visibility="{Binding HasFixedSpecificTax, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1"
+                                       Text="{Binding TotalFixedSpecificTax, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12" HorizontalAlignment="Right"
+                                       Foreground="#92400E"
+                                       Visibility="{Binding HasFixedSpecificTax, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <!-- 🆕 T.S. détaillée : pourcentage -->
+                            <TextBlock Grid.Row="5" Text="⚡ T.S. pourcentage"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="#92400E"
+                                       Visibility="{Binding HasPercentSpecificTax, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBlock Grid.Row="5" Grid.Column="1"
+                                       Text="{Binding TotalPercentSpecificTax, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12" HorizontalAlignment="Right"
+                                       Foreground="#92400E"
+                                       Visibility="{Binding HasPercentSpecificTax, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <!-- Total T.S. combiné -->
+                            <TextBlock Grid.Row="6" Text="⚡ Total taxe spécifique"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="#92400E" FontWeight="SemiBold"
+                                       Visibility="{Binding HasAnySpecificTax, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBlock Grid.Row="6" Grid.Column="1"
+                                       Text="{Binding TotalSpecificTax, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13" HorizontalAlignment="Right"
+                                       Foreground="#92400E" FontWeight="SemiBold"
+                                       Visibility="{Binding HasAnySpecificTax, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <TextBlock Grid.Row="7" Text="Total TTC" FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding TotalTTC, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"
+                                       Margin="0,4,0,0"/>
+                        </Grid>
+
+                        <!-- ★ GRAND TOTAL ★ -->
+                        <Border CornerRadius="10" Padding="14,10" Margin="0,12,0,0">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#EFF6FF"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsHtMode}" Value="True">
+                                            <Setter Property="Background" Value="#FEF3C7"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding GrandTotalLabel}"
+                                               FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold"/>
+                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="Montant toutes taxes comprises"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHtMode}" Value="True">
+                                                        <Setter Property="Text" Value="Montant hors taxes · TVA en sus"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}" FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryBrush}">
+                                    <Run Text="{Binding GrandTotal, StringFormat=N2, Mode=OneWay}"/>
+                                    <Run Text=" CDF" FontSize="12"/>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <!-- ★ "À PAYER TTC" visible only in HT mode ★ -->
+                        <Border Background="#F0FDF4" CornerRadius="8" Padding="12,8" Margin="0,6,0,0"
+                                Visibility="{Binding IsHtMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid>
+                                <TextBlock Text="À payer (TTC)" FontFamily="{StaticResource AppFont}"
+                                           FontSize="13" FontWeight="SemiBold" Foreground="#065F46"/>
+                                <TextBlock HorizontalAlignment="Right" FontFamily="{StaticResource AppFont}"
+                                           FontSize="15" FontWeight="Bold" Foreground="#065F46">
+                                    <Run Text="{Binding TotalTTC, StringFormat=N2, Mode=OneWay}"/>
+                                    <Run Text=" CDF" FontSize="11"/>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <!-- 🆕 DEVISE ALTERNATIVE -->
+                        <Border Background="#F8FAFC" CornerRadius="8" Padding="12,8" Margin="0,6,0,0"
+                                BorderBrush="#E2E8F0" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="💱" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                        <Run Text="Équivalent "/>
+                                        <Run Text="{Binding AlternateCurrencyLabel, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Run Text="{Binding TotalInAlternateCurrency, StringFormat=N2, Mode=OneWay}"/>
+                                    <Run Text=" " FontSize="10"/>
+                                    <Run Text="{Binding AlternateCurrencyLabel, Mode=OneWay}" FontSize="10"/>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- PAIEMENTS -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Paiements" Style="{StaticResource SectionTitleStyle}"/>
+
+                        <Grid Margin="0,12,0,8"
+                              Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox ItemsSource="{Binding PaymentTypes}"
+                                      SelectedItem="{Binding SelectedPaymentType}"
+                                      FontFamily="{StaticResource AppFont}" Padding="6,4" Margin="0,0,6,0"/>
+                            <TextBox Grid.Column="1" Text="{Binding PaymentAmount}"
+                                     FontFamily="{StaticResource AppFont}" Padding="6,4" Margin="0,0,6,0"
+                                     ToolTip="Laisser vide pour le montant restant"/>
+                            <Button Grid.Column="2" Content="+" Command="{Binding AddPaymentCommand}"
+                                    Background="{StaticResource PrimaryBrush}" Foreground="White"
+                                    FontWeight="Bold" Padding="10,4" BorderThickness="0" Cursor="Hand"/>
+                        </Grid>
+
+                        <ItemsControl ItemsSource="{Binding PaymentItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Label}" FontFamily="{StaticResource AppFont}" FontSize="13"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Amount, StringFormat=N2}"
+                                                   FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
+                                                   Margin="0,0,8,0"/>
+                                        <Button Grid.Column="2" Content="✕" FontSize="11" Foreground="Red"
+                                                Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                Command="{Binding DataContext.RemovePaymentCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Separator Margin="0,6"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Reste à payer (TTC)" FontFamily="{StaticResource AppFont}"
+                                       FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Remaining, StringFormat=N2}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold"
+                                       HorizontalAlignment="Right">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Remaining}" Value="0">
+                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- 🆕 FACTURES EN ATTENTE — Vérifier & Annuler       -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="⏳ Factures en attente" Style="{StaticResource SectionTitleStyle}"/>
+                            <Button HorizontalAlignment="Right" Content="🔄 Vérifier"
+                    Command="{Binding CheckPendingInvoicesCommand}"
+                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                    Background="{StaticResource PrimaryBrush}" Foreground="White"
+                    Padding="10,5" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- Pending count badge (visible after check) -->
+                        <Border CornerRadius="8" Padding="10,6" Margin="0,10,0,0"
+                Visibility="{Binding ShowPendingSection, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#F0FDF4"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasPendingInvoices}" Value="True">
+                                            <Setter Property="Background" Value="#FEF3C7"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="✓ Aucune facture en attente"/>
+                                            <Setter Property="Foreground" Value="#065F46"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPendingInvoices}" Value="True">
+                                                    <Setter Property="Foreground" Value="#92400E"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            Visibility="{Binding HasPendingInvoices, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Border Background="#F59E0B" CornerRadius="10" Padding="8,2" Margin="0,0,8,0">
+                                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12" 
+                                   FontWeight="Bold" Foreground="White">
+                            <Run Text="{Binding PendingInvoiceCount, Mode=OneWay}"/>
+                            <Run Text=" en attente"/>
+                                        </TextBlock>
+                                    </Border>
+                                    <Button Content="🗑 Tout annuler" Command="{Binding CancelAllPendingCommand}"
+                            FontFamily="{StaticResource AppFont}" FontSize="10"
+                            Background="#DC2626" Foreground="White"
+                            Padding="8,3" BorderThickness="0" Cursor="Hand"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- List of pending invoices -->
+                        <ItemsControl ItemsSource="{Binding PendingInvoices}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#FFFBEB" CornerRadius="6" Padding="10,6" Margin="0,3"
+                            BorderBrush="#FDE68A" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock FontFamily="Consolas" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Run Text="UID: "/><Run Text="{Binding Uid}"/>
+                                                </TextBlock>
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Date: "/><Run Text="{Binding DateDisplay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1" Content="✕ Annuler"
+                                    Command="{Binding DataContext.CancelPendingInvoiceCommand,
+                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding Uid}"
+                                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                                    Background="#FEE2E2" Foreground="#DC2626"
+                                    Padding="10,5" BorderThickness="0" Cursor="Hand"
+                                    VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Manual UID cancel -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Text="{Binding CancelUid, UpdateSourceTrigger=PropertyChanged}"
+                     FontFamily="Consolas" FontSize="12" Padding="8,6"
+                     ToolTip="Saisir manuellement le UID d'une facture en attente"/>
+
+                            <Button Grid.Column="1" Content="🗑 Annuler" Margin="6,0,0,0"
+                    Command="{Binding CancelPendingInvoiceCommand}"
+                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                    Background="#DC2626" Foreground="White"
+                    Padding="10,6" BorderThickness="0" Cursor="Hand"/>
+                        </Grid>
+
+                        <TextBlock Text="Saisir un UID ou cliquer « Vérifier » pour lister"
+                   FontFamily="{StaticResource AppFont}" FontSize="10"
+                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+
+                        <!-- Status messages -->
+                        <Border Margin="0,8,0,0" CornerRadius="6" Padding="10,6"
+                Background="#ECFDF5"
+                Visibility="{Binding ShowPendingSuccess, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding PendingStatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                       FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
+                        </Border>
+                        <Border Margin="0,8,0,0" CornerRadius="6" Padding="10,6"
+                Background="#FEF2F2"
+                Visibility="{Binding ShowPendingError, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding PendingStatusMessage}" Foreground="{StaticResource ErrorBrush}"
+                       FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ACTIONS -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Button Command="{Binding NormalizeInvoiceCommand}"
+                                IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                                Background="{StaticResource SuccessBrush}" Foreground="White"
+                                FontFamily="{StaticResource AppFont}" FontSize="16" FontWeight="Bold"
+                                Padding="16,12" BorderThickness="0" Cursor="Hand"
+                                HorizontalContentAlignment="Center" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔒" FontSize="18" Margin="0,0,8,0"/>
+                                <TextBlock Text="NORMALISER LA FACTURE" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Content="📄 Nouvelle facture" Command="{Binding NewInvoiceCommand}"
+                                Background="{StaticResource PrimaryBrush}" Foreground="White"
+                                FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
+                                Padding="12,8" BorderThickness="0" Cursor="Hand"
+                                HorizontalContentAlignment="Center"/>
+
+                        <Border Margin="0,10,0,0" CornerRadius="6" Padding="12,8"
+                                Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Background="#ECFDF5">
+                            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13" TextWrapping="Wrap"/>
+                        </Border>
+                        <Border Margin="0,10,0,0" CornerRadius="6" Padding="12,8"
+                                Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Background="#FEF2F2">
+                            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13" TextWrapping="Wrap"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- SÉCURITÉ -->
+                <Border Style="{StaticResource CardStyle}"
+                        Visibility="{Binding IsNormalized, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="🔐 Éléments de sécurité" Style="{StaticResource SectionTitleStyle}"
+                                   Foreground="{StaticResource SuccessBrush}"/>
+
+                        <Border Background="#F0FDF4" CornerRadius="8" Padding="16,12" Margin="0,12,0,0">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="CODE DEF/DGI" FontFamily="{StaticResource AppFont}"
+                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding CodeDEFDGI}" FontFamily="Consolas"
+                                           FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="DEF NIM:" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,12,4"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Nim}" FontFamily="Consolas" FontSize="12"/>
+
+                            <TextBlock Grid.Row="1" Text="Compteurs:" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,12,4"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Counters}" FontFamily="Consolas" FontSize="12"/>
+
+                            <TextBlock Grid.Row="2" Text="Date DEF:" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DeviceDateTime}" FontFamily="Consolas" FontSize="12"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

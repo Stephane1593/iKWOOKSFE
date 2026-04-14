@@ -1,0 +1,541 @@
+﻿<UserControl x:Class="SFE.WPF.Views.Pages.InvoiceDocumentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="White" Width="750">
+
+    <UserControl.Resources>
+        <Style x:Key="CellBorder" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#333"/>
+            <Setter Property="BorderThickness" Value="0.5"/>
+            <Setter Property="Padding" Value="6,3"/>
+        </Style>
+        <Style x:Key="HeaderText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="DataText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="LabelText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Border BorderBrush="#333" BorderThickness="1" Padding="0" Background="White">
+        <StackPanel>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 1: COMPANY HEADER (Logo + Info)             -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="12,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Logo -->
+                    <Border Width="100" Height="60" VerticalAlignment="Center">
+                        <Grid>
+                            <TextBlock Text="" FontSize="30" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CompanyLogo}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Image Source="{Binding CompanyLogo}" Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Company info text -->
+                    <TextBlock Grid.Column="1" Text="{Binding CompanyFullAddress}"
+                               FontFamily="Segoe UI" FontSize="9" LineHeight="14"
+                               TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 2: INVOICE TITLE                            -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border Padding="0,12">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding TypeTitle}" FontFamily="Segoe UI"
+                               FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 3: INVOICE # + ISF + MODE                   -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border BorderBrush="#333" BorderThickness="0,1,0,1" Padding="12,6">
+                <Grid>
+                    <TextBlock FontFamily="Segoe UI" FontSize="11" FontWeight="Bold">
+                        <Run Text="FACTURE # "/>
+                        <Run Text="{Binding InvoiceNumber, Mode=OneWay}"/>
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock FontFamily="Segoe UI" FontSize="9" FontWeight="Bold"
+                                   Margin="0,0,24,0">
+                            <Run Text="ISF : "/>
+                            <Run Text="{Binding Isf, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Text="{Binding PriceModeLabel}" FontFamily="Segoe UI"
+                                   FontSize="9" FontWeight="Bold"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 4: COMPANY + CLIENT DETAILS TABLE           -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Company details -->
+                <Border BorderBrush="#333" BorderThickness="0,0,0.5,1" Padding="12,8">
+                    <StackPanel>
+                        <TextBlock Text="{Binding CompanyName}" Style="{StaticResource LabelText}"
+                                   FontSize="10" Margin="0,0,0,3"/>
+                        <TextBlock Style="{StaticResource DataText}">
+                            <Run Text="Point de Vente : " FontWeight="SemiBold"/>
+                            <Run Text="{Binding PosName, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource DataText}">
+                            <Run Text="NIF : " FontWeight="SemiBold"/>
+                            <Run Text="{Binding CompanyNIF, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource DataText}" TextWrapping="Wrap">
+                            <Run Text="{Binding CompanyAddress, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Text="{Binding CompanyCity}" Style="{StaticResource DataText}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Client details (table style) -->
+                <Border Grid.Column="1" BorderBrush="#333" BorderThickness="0.5,0,0,1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="Client" Style="{StaticResource LabelText}"/>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="{Binding ClientName}" Style="{StaticResource HeaderText}"/>
+                        </Border>
+
+                        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="Type" Style="{StaticResource LabelText}"/>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="{Binding ClientType}" Style="{StaticResource DataText}"/>
+                        </Border>
+
+                        <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="NIF" Style="{StaticResource LabelText}"/>
+                        </Border>
+                        <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="{Binding ClientNIF}" Style="{StaticResource DataText}"/>
+                        </Border>
+
+                        <Border Grid.Row="3" Grid.Column="0" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="Contact" Style="{StaticResource LabelText}"/>
+                        </Border>
+                        <Border Grid.Row="3" Grid.Column="1" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="{Binding ClientContact}" Style="{StaticResource DataText}"/>
+                        </Border>
+
+                        <Border Grid.Row="4" Grid.Column="0" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="Adresse" Style="{StaticResource LabelText}"/>
+                        </Border>
+                        <Border Grid.Row="4" Grid.Column="1" Style="{StaticResource CellBorder}">
+                            <TextBlock Text="{Binding ClientAddress}" Style="{StaticResource DataText}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 5: OPERATOR                                 -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border Padding="12,6" BorderBrush="#333" BorderThickness="0,0,0,1">
+                <TextBlock FontFamily="Segoe UI" FontSize="9">
+                    <Run Text="Opérateur :" FontWeight="SemiBold"/>
+                    <Run Text="{Binding OperatorName, Mode=OneWay}"/>
+                </TextBlock>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 6: ARTICLE TABLE                            -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="26"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="62"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="36"/>
+                    <ColumnDefinition Width="55"/>
+                    <ColumnDefinition Width="85"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Column="0" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="#" Style="{StaticResource HeaderText}" HorizontalAlignment="Center"/>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="CODE" Style="{StaticResource HeaderText}"/>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="Désignation" Style="{StaticResource HeaderText}"/>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="" Style="{StaticResource HeaderText}" HorizontalAlignment="Center"/>
+                </Border>
+                <Border Grid.Column="4" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="PU HT" Style="{StaticResource HeaderText}" HorizontalAlignment="Right"/>
+                </Border>
+                <Border Grid.Column="5" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="TS" Style="{StaticResource HeaderText}" HorizontalAlignment="Center"/>
+                </Border>
+                <Border Grid.Column="6" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="QTE" Style="{StaticResource HeaderText}" HorizontalAlignment="Right"/>
+                </Border>
+                <Border Grid.Column="7" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                    <TextBlock Text="TOTAL HT" Style="{StaticResource HeaderText}" HorizontalAlignment="Right"/>
+                </Border>
+            </Grid>
+
+            <!-- Article rows -->
+            <ItemsControl ItemsSource="{Binding Lines}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="26"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="62"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="36"/>
+                                <ColumnDefinition Width="55"/>
+                                <ColumnDefinition Width="85"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding Number}" Style="{StaticResource DataText}"
+                                           HorizontalAlignment="Center"/>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding Code}" FontFamily="Consolas"
+                                           FontSize="8" VerticalAlignment="Center"/>
+                            </Border>
+                            <Border Grid.Column="2" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource DataText}"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Grid.Column="3" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding TaxGroupLabel}" FontFamily="Consolas"
+                                           FontSize="8" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <Border Grid.Column="4" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding UnitPriceHT, StringFormat=N2}"
+                                           Style="{StaticResource DataText}" HorizontalAlignment="Right"/>
+                            </Border>
+                            <Border Grid.Column="5" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding TaxSpecific}" Style="{StaticResource DataText}"
+                                           HorizontalAlignment="Center"/>
+                            </Border>
+                            <Border Grid.Column="6" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding Quantity, StringFormat=N3}"
+                                           Style="{StaticResource DataText}" HorizontalAlignment="Right"/>
+                            </Border>
+                            <Border Grid.Column="7" Style="{StaticResource CellBorder}">
+                                <TextBlock Text="{Binding TotalHT, StringFormat=N2}"
+                                           Style="{StaticResource DataText}" HorizontalAlignment="Right"
+                                           FontWeight="SemiBold"/>
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 7: SUMMARY (Tax breakdown + Totals)         -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border BorderBrush="#333" BorderThickness="0,1,0,0" Padding="0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="260"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Tax breakdown (left) -->
+                    <Border Padding="12,8" BorderBrush="#333" BorderThickness="0,0,0.5,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource LabelText}" Margin="0,0,0,6">
+                                <Run Text="Nombre d'articles :   "/>
+                                <Run Text="{Binding LineCount, Mode=OneWay}" FontWeight="Bold"/>
+                            </TextBlock>
+
+                            <ItemsControl ItemsSource="{Binding TaxBreakdown}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="90"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}" FontFamily="Segoe UI"
+                                                       FontSize="8.5" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Amount, StringFormat=N2}"
+                                                       FontFamily="Segoe UI" FontSize="8.5"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Totals (right) -->
+                    <Border Grid.Column="1" Padding="12,8">
+                        <StackPanel>
+                            <!-- Exchange rate -->
+                            <Grid Margin="0,0,0,6"
+                                  Visibility="{Binding HasExchangeRate, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="Taux de change :" Style="{StaticResource LabelText}"/>
+                                <TextBlock Text="{Binding ExchangeRateDisplay}" Style="{StaticResource DataText}"
+                                           HorizontalAlignment="Right" FontWeight="Bold"/>
+                            </Grid>
+
+                            <!-- Total TVA -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,0.5" Padding="0,4" Margin="0,0,0,4">
+                                <Grid>
+                                    <TextBlock Text="TOTAL TVA" Style="{StaticResource LabelText}"/>
+                                    <TextBlock Text="{Binding TotalTVA, StringFormat=N2}"
+                                               Style="{StaticResource DataText}" HorizontalAlignment="Right"
+                                               FontWeight="Bold"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Total TTC CDF -->
+                            <Border Background="#F0F0F0" Padding="8,6" Margin="0,0,0,4">
+                                <Grid>
+                                    <TextBlock Text="Total TTC : CDF" Style="{StaticResource LabelText}"
+                                               FontSize="10"/>
+                                    <TextBlock Text="{Binding TotalTTC, StringFormat=N2}"
+                                               FontFamily="Segoe UI" FontSize="11" FontWeight="Bold"
+                                               HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Montant TTC USD -->
+                            <Grid Visibility="{Binding HasExchangeRate, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="Montant TTC USD" Style="{StaticResource LabelText}"/>
+                                <TextBlock Text="{Binding TotalTTCUsdDisplay}" Style="{StaticResource DataText}"
+                                           HorizontalAlignment="Right" FontWeight="Bold"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 8: AMOUNT IN WORDS                          -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border BorderBrush="#333" BorderThickness="0,1,0,1" Padding="12,8">
+                <TextBlock Text="{Binding AmountInWords}" FontFamily="Segoe UI"
+                           FontSize="8.5" FontStyle="Italic" TextWrapping="Wrap"/>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 9: COMMENTS + PAYMENT TABLE                 -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Grid MinHeight="80">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="260"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Comments -->
+                <Border BorderBrush="#333" BorderThickness="0,0,0.5,1" Padding="12,8">
+                    <StackPanel>
+                        <TextBlock Text="COMMENTAIRES" Style="{StaticResource LabelText}"
+                                   Margin="0,0,0,4"/>
+                        <Border BorderBrush="#999" BorderThickness="1" MinHeight="50" Padding="4"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Payment table -->
+                <Border Grid.Column="1" BorderBrush="#333" BorderThickness="0,0,0,1">
+                    <StackPanel>
+                        <!-- Payment header -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                                <TextBlock Text="MODE DE PAIEMENT" Style="{StaticResource HeaderText}"/>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource CellBorder}" Background="#F0F0F0">
+                                <TextBlock Text="MONTANT" Style="{StaticResource HeaderText}"
+                                           HorizontalAlignment="Right"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Payment rows -->
+                        <ItemsControl ItemsSource="{Binding Payments}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="100"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource CellBorder}">
+                                            <TextBlock Text="{Binding Label}" FontFamily="Segoe UI"
+                                                       FontSize="9" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsTotal}" Value="True">
+                                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource CellBorder}">
+                                            <TextBlock Text="{Binding Amount, StringFormat=N2}"
+                                                       FontFamily="Segoe UI" FontSize="9"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsTotal}" Value="True">
+                                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- ROW 10: SECURITY ELEMENTS + QR CODE             -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <Border Padding="0"
+                    Visibility="{Binding HasNormalization, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid MinHeight="120">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="260"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Security info + QR -->
+                    <Border BorderBrush="#333" BorderThickness="0,0,0.5,0" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="----ELEMENTS DE SECURITE DE LA FACTURE"
+                                       Style="{StaticResource LabelText}" Margin="0,0,0,8"/>
+
+                            <TextBlock FontFamily="Segoe UI" FontSize="8.5" FontWeight="Bold"
+                                       Margin="0,0,0,4">
+                                <Run Text="CODE DEF/DGI  "/>
+                                <Run Text="{Binding CodeDEFDGI, Mode=OneWay}" FontWeight="Bold"
+                                     Foreground="#1A365D"/>
+                            </TextBlock>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- QR Code -->
+                                <Border Width="80" Height="80" Margin="0,0,10,0"
+                                        VerticalAlignment="Top">
+                                    <Grid>
+                                        <!-- Fallback if no QR image -->
+                                        <Border Background="#F5F5F5" CornerRadius="4"
+                                                Visibility="{Binding QrCodeImage,
+                                                    Converter={StaticResource NullToVisibilityConverter}}">
+                                            <TextBlock Text="QR" FontSize="14" FontWeight="Bold"
+                                                       Foreground="#999" HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Image Source="{Binding QrCodeImage}" Stretch="Uniform"
+                                               RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- DEF details -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock FontFamily="Segoe UI" FontSize="8.5" Margin="0,0,0,3">
+                                        <Run Text="DEF /NID   " FontWeight="SemiBold"/>
+                                        <Run Text="{Binding DefNid, Mode=OneWay}"/>
+                                    </TextBlock>
+                                    <TextBlock FontFamily="Segoe UI" FontSize="8.5" Margin="0,0,0,3">
+                                        <Run Text="DEF Compteurs:   " FontWeight="SemiBold"/>
+                                        <Run Text="{Binding Counters, Mode=OneWay}"/>
+                                    </TextBlock>
+                                    <TextBlock FontFamily="Segoe UI" FontSize="8.5">
+                                        <Run Text="DEF Heure   " FontWeight="SemiBold"/>
+                                        <Run Text="{Binding NormalizedAtDisplay, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Payment reference -->
+                    <Border Grid.Column="1" Padding="12,10">
+                        <TextBlock Text="PAYEMENT CASH A LA COMMANDE"
+                                   FontFamily="Segoe UI" FontSize="9" FontWeight="SemiBold"
+                                   VerticalAlignment="Top"/>
+                    </Border>
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </Border>
+</UserControl>

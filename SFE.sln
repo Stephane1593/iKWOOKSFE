@@ -1,0 +1,52 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Domain", "SFE.Domain\SFE.Domain.csproj", "{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Application", "SFE.Application\SFE.Application.csproj", "{C82411BF-945A-422A-AC19-6EBCBB63F4EF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Infrastructure.Persistence", "SFE.Infrastructure.Persistence\SFE.Infrastructure.Persistence.csproj", "{528E2169-0332-48F8-A093-20E21F192765}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Infrastructure.EMcf", "SFE.Infrastructure.EMcf\SFE.Infrastructure.EMcf.csproj", "{CC75B12C-CA9A-415E-BB61-2AF311E32747}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Infrastructure.Mcf", "SFE.Infrastructure.Mcf\SFE.Infrastructure.Mcf.csproj", "{136EB681-7475-408D-8CA2-AD3C1D07AF45}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.WPF", "SFE.WPF\SFE.WPF.csproj", "{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C82411BF-945A-422A-AC19-6EBCBB63F4EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C82411BF-945A-422A-AC19-6EBCBB63F4EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C82411BF-945A-422A-AC19-6EBCBB63F4EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C82411BF-945A-422A-AC19-6EBCBB63F4EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{528E2169-0332-48F8-A093-20E21F192765}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{528E2169-0332-48F8-A093-20E21F192765}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{528E2169-0332-48F8-A093-20E21F192765}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{528E2169-0332-48F8-A093-20E21F192765}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC75B12C-CA9A-415E-BB61-2AF311E32747}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC75B12C-CA9A-415E-BB61-2AF311E32747}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC75B12C-CA9A-415E-BB61-2AF311E32747}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC75B12C-CA9A-415E-BB61-2AF311E32747}.Release|Any CPU.Build.0 = Release|Any CPU
+		{136EB681-7475-408D-8CA2-AD3C1D07AF45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{136EB681-7475-408D-8CA2-AD3C1D07AF45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{136EB681-7475-408D-8CA2-AD3C1D07AF45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{136EB681-7475-408D-8CA2-AD3C1D07AF45}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

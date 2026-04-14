@@ -1,0 +1,128 @@
+﻿<UserControl x:Class="SFE.WPF.Views.Pages.DashboardPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BackgroundBrush}">
+
+    <!-- PAS de DataContext ici — il est assigné par MainViewModel -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28">
+        <StackPanel MaxWidth="1200">
+
+            <TextBlock Text="Tableau de bord" Style="{StaticResource PageTitleStyle}"/>
+            <TextBlock Text="Vue d'ensemble de votre activité commerciale"
+                       Style="{StaticResource PageSubtitleStyle}"/>
+
+            <!-- ══════════ CARTES KPI ══════════ -->
+            <UniformGrid Columns="4" Margin="0,0,0,24">
+
+                <!-- Ventes du jour -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,16,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Border Background="#EEF2FF" CornerRadius="8" Padding="8">
+                                <TextBlock Text="&#xE8C7;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="18" Foreground="{StaticResource PrimaryBrush}"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{Binding TodaySalesAmount}"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Grid.Row="2" Text="Ventes du jour"
+                                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- Factures -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,16,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Border Background="#FDF2F8" CornerRadius="8" Padding="8">
+                                <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="18" Foreground="{StaticResource AccentBrush}"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{Binding TodayInvoiceCount}"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Grid.Row="2" Text="Factures aujourd'hui"
+                                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- Clients fidélité -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,16,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Border Background="#ECFDF5" CornerRadius="8" Padding="8">
+                                <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="18" Foreground="{StaticResource SuccessBrush}"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{Binding LoyaltyMemberCount}"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Grid.Row="2" Text="Clients fidélité"
+                                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- Produits enregistrés -->
+                <!-- Alertes stock (remplacement ou ajout dans DashboardPage.xaml) -->
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Border Background="#FEF2F2" CornerRadius="8" Padding="8">
+                                <TextBlock Text="⚠️" FontSize="18"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{Binding LowStockAlerts}"
+                   FontFamily="{StaticResource AppFont}"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="#EF4444"/>
+                        <TextBlock Grid.Row="2" Text="Alertes stock"
+                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    </Grid>
+                </Border>
+            </UniformGrid>
+
+            <!-- Activité récente -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Activité récente" Style="{StaticResource SectionTitleStyle}"/>
+                    <TextBlock Text="Les données sont chargées depuis la base SQLite. Ajoutez des produits et des clients pour voir les compteurs s'actualiser."
+                               FontFamily="{StaticResource AppFont}" FontSize="14"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap" Padding="0,20"/>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
