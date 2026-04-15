@@ -1,5 +1,4 @@
-﻿// File: SFE.WPF/App.xaml.cs
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,13 +19,51 @@ public partial class App : System.Windows.Application
 
     private async void Application_Startup(object sender, StartupEventArgs e)
     {
+        // ══════════════ BUILD DI ══════════════
         var services = new ServiceCollection();
         ConfigureServices(services);
         ServiceProvider = services.BuildServiceProvider();
-        await InitializeDatabaseAsync();
 
-        var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+        // ══════════════ SEED DATABASE ══════════════
+        var context = ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseSeeder.SeedAsync(context);
+
+        // ══════════════ LOGIN LOOP ══════════════
+        // The loop allows returning to login after logout.
+        while (true)
+        {
+            var authService = ServiceProvider.GetRequiredService<IAuthService>();
+
+            // ── Show Login ──
+            var loginVm = new LoginViewModel(authService);
+            var loginWindow = new LoginWindow { DataContext = loginVm };
+
+            loginVm.LoginSucceeded += () => loginWindow.DialogResult = true;
+
+            bool? loginResult = loginWindow.ShowDialog();
+
+            if (loginResult != true)
+            {
+                // User closed login window without logging in → exit app
+                Shutdown();
+                return;
+            }
+
+            // ── Show Main Window ──
+            var mainVm = ServiceProvider.GetRequiredService<MainViewModel>();
+            var mainWindow = new MainWindow(mainVm);
+            mainWindow.ShowDialog();   // blocks until window closes
+
+            if (!mainVm.LogoutRequested)
+            {
+                // User closed window via [X] → exit app
+                Shutdown();
+                return;
+            }
+
+            // LogoutRequested == true → clear session, loop back to login
+            authService.Logout();
+        }
     }
 
     private static void ConfigureServices(IServiceCollection services)
@@ -48,6 +85,9 @@ public partial class App : System.Windows.Application
 
         // ═══ Repositories & Unit of Work ═══
         services.AddTransient<IUnitOfWork, UnitOfWork>();
+
+        // ═══ AUTH (Singleton — holds current user state) ═══
+        services.AddSingleton<IAuthService, AuthService>();
 
         // ═══ Services Application ═══
         services.AddTransient<SettingsService>();

@@ -1,73 +1,103 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace SFE.Infrastructure.Persistence;
 
 public static class DatabaseSeeder
 {
-    /// <summary>
-    /// Crée la base de données et insère les données initiales si vide.
-    /// Appelé une seule fois au démarrage de l'application.
-    /// </summary>
     public static async Task SeedAsync(AppDbContext context)
     {
-        // Créer la base de données et appliquer le schéma
         await context.Database.EnsureCreatedAsync();
 
-        // --- Rôles ---
+        // ══════════════ RÔLES ══════════════
         if (!await context.Roles.AnyAsync())
         {
             var roles = new List<Role>
             {
+                // ── 1. Administrateur ──
                 new Role
                 {
-                    Name = "Administrateur",
+                    Name = "Admin",
                     Permissions = """
                     {
+                        "dashboard": true,
+                        "pos": true,
                         "invoicing": true,
-                        "products": true,
                         "clients": true,
+                        "salesHistory": true,
+                        "products": true,
                         "stock": true,
+                        "transfers": true,
                         "loyalty": true,
                         "reports": true,
-                        "cash": true,
                         "settings": true,
                         "users": true
                     }
                     """
                 },
-                new Role
-                {
-                    Name = "Caissier",
-                    Permissions = """
-                    {
-                        "invoicing": true,
-                        "products": false,
-                        "clients": true,
-                        "stock": false,
-                        "loyalty": true,
-                        "reports": false,
-                        "cash": true,
-                        "settings": false,
-                        "users": false
-                    }
-                    """
-                },
+
+                // ── 2. Gestionnaire ──
                 new Role
                 {
                     Name = "Gestionnaire",
                     Permissions = """
                     {
+                        "dashboard": true,
+                        "pos": true,
                         "invoicing": true,
-                        "products": true,
                         "clients": true,
+                        "salesHistory": true,
+                        "products": true,
                         "stock": true,
+                        "transfers": true,
                         "loyalty": true,
                         "reports": true,
-                        "cash": false,
+                        "settings": false,
+                        "users": false
+                    }
+                    """
+                },
+
+                // ── 3. Opérateur (caissier / agent de saisie) ──
+                new Role
+                {
+                    Name = "Opérateur",
+                    Permissions = """
+                    {
+                        "dashboard": false,
+                        "pos": true,
+                        "invoicing": true,
+                        "clients": true,
+                        "salesHistory": false,
+                        "products": false,
+                        "stock": false,
+                        "transfers": false,
+                        "loyalty": true,
+                        "reports": false,
+                        "settings": false,
+                        "users": false
+                    }
+                    """
+                },
+
+                // ── 4. Inspecteur DGI (lecture seule / audit) ──
+                new Role
+                {
+                    Name = "Inspecteur DGI",
+                    Permissions = """
+                    {
+                        "dashboard": true,
+                        "pos": false,
+                        "invoicing": false,
+                        "clients": false,
+                        "salesHistory": true,
+                        "products": false,
+                        "stock": false,
+                        "transfers": false,
+                        "loyalty": false,
+                        "reports": true,
                         "settings": false,
                         "users": false
                     }
@@ -79,15 +109,15 @@ public static class DatabaseSeeder
             await context.SaveChangesAsync();
         }
 
-        // --- Utilisateur Admin par défaut ---
+        // ══════════════ UTILISATEUR ADMIN PAR DÉFAUT ══════════════
         if (!await context.Users.AnyAsync())
         {
-            var adminRole = await context.Roles.FirstAsync(r => r.Name == "Administrateur");
+            var adminRole = await context.Roles.FirstAsync(r => r.Name == "Admin");
 
             var admin = new User
             {
                 Username = "admin",
-                PasswordHash = HashPassword("admin123"), // TODO: Changer en production !
+                PasswordHash = AuthService.HashPassword("admin123"),
                 FullName = "Administrateur Système",
                 RoleId = adminRole.Id,
                 IsActive = true
@@ -97,7 +127,7 @@ public static class DatabaseSeeder
             await context.SaveChangesAsync();
         }
 
-        // --- Entreprise par défaut ---
+        // ══════════════ ENTREPRISE PAR DÉFAUT ══════════════
         if (!await context.Companies.AnyAsync())
         {
             var company = new Company
@@ -118,36 +148,6 @@ public static class DatabaseSeeder
 
             await context.Companies.AddAsync(company);
             await context.SaveChangesAsync();
-
-            // POS par défaut
-            //var pos = new PointOfSale
-            //{
-            //    CompanyId = company.Id,
-            //    Code = "POS-001",
-            //    Name = "Point de vente principal",
-            //    Address = "",
-            //    City = "Kinshasa",
-            //    Phone = "",
-            //    IsActive = true,
-            //    DeviceType = DeviceType.EMcf,
-            //    EmcfApiUrl = "",
-            //    EmcfToken = "",
-            //    EmcfNIM = "",
-            //    McfBaudRate = 115200
-            //};
-
-            //await context.PointsOfSale.AddAsync(pos);
-            //await context.SaveChangesAsync();
         }
-    }
-
-    /// <summary>
-    /// Hash simple SHA256 pour le mot de passe.
-    /// En production, utiliser BCrypt ou Argon2.
-    /// </summary>
-    private static string HashPassword(string password)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
-        return Convert.ToHexString(bytes).ToLower();
     }
 }

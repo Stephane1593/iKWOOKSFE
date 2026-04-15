@@ -1,8 +1,9 @@
-﻿// File: SFE.WPF/ViewModels/MainViewModel.cs
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using SFE.Application.Interfaces;
 using SFE.WPF.Views;
 using SFE.WPF.Views.Pages;
 
@@ -10,57 +11,139 @@ namespace SFE.WPF.ViewModels;
 
 public partial class MainViewModel : BaseViewModel
 {
-    [ObservableProperty]
-    private object? _currentPage;
+    private readonly IAuthService _authService;
 
-    [ObservableProperty]
-    private NavigationItem? _selectedNavItem;
+    // ═══════════════ CURRENT PAGE ═══════════════
+    [ObservableProperty] private object? _currentPage;
+    [ObservableProperty] private string _currentPageKey = "";
 
-    [ObservableProperty]
-    private bool _isSidebarCollapsed = false;
+    // ═══════════════ USER INFO ═══════════════
+    [ObservableProperty] private string _currentUserName = "";
+    [ObservableProperty] private string _currentRoleName = "";
+    [ObservableProperty] private string _userInitials = "?";
 
-    [ObservableProperty]
-    private string _currentUserName = "Admin";
+    // ═══════════════ POS / COMPANY INFO ═══════════════
+    [ObservableProperty] private string _currentPosName = "";
+    [ObservableProperty] private string _currentPosCode = "";
+    [ObservableProperty] private string _currentPosCity = "";
+    [ObservableProperty] private string _companyName = "";
 
-    [ObservableProperty]
-    private string _currentPosName = "POS-001 Principal";
+    // ═══════════════ DEVICE STATUS ═══════════════
+    [ObservableProperty] private string _deviceStatus = "";
+    [ObservableProperty] private string _deviceStatusShort = "MCF";
+    [ObservableProperty] private bool _isDeviceOnline = true;
 
-    [ObservableProperty]
-    private string _deviceStatus = "";
+    // ═══════════════ LOGOUT ═══════════════
+    public bool LogoutRequested { get; private set; }
+    public event Action? RequestClose;
 
-    [ObservableProperty]
-    private bool _isDeviceOnline = true;
+    // ═══════════════ PERMISSIONS (bound to Visibility in XAML) ═══════════════
+    public bool CanAccessDashboard => _authService.HasPermission("dashboard");
+    public bool CanAccessPos => _authService.HasPermission("pos");
+    public bool CanAccessInvoicing => _authService.HasPermission("invoicing");
+    public bool CanAccessClients => _authService.HasPermission("clients");
+    public bool CanAccessSalesHistory => _authService.HasPermission("salesHistory");
+    public bool CanAccessProducts => _authService.HasPermission("products");
+    public bool CanAccessStock => _authService.HasPermission("stock");
+    public bool CanAccessTransfers => _authService.HasPermission("transfers");
+    public bool CanAccessLoyalty => _authService.HasPermission("loyalty");
+    public bool CanAccessReports => _authService.HasPermission("reports");
+    public bool CanAccessSettings => _authService.HasPermission("settings");
+    public bool CanAccessUsers => _authService.HasPermission("users");
 
-    public ObservableCollection<NavigationItem> NavigationItems { get; } = new()
-    {
-        new NavigationItem { Label = "Tableau de bord", IconGlyph = "\uE80F", PageKey = "Dashboard" },
-        new NavigationItem { Label = "Caisse",          IconGlyph = "\uE8C7", PageKey = "Cash" },
-        new NavigationItem { Label = "Facturation",     IconGlyph = "\uE8A5", PageKey = "Invoicing" },
-        new NavigationItem { Label = "Produits",        IconGlyph = "\uE719", PageKey = "Products" },
-        new NavigationItem { Label = "Clients",         IconGlyph = "\uE77B", PageKey = "Clients" },
-        new NavigationItem { Label = "Stock",           IconGlyph = "\uE74C", PageKey = "Stock" },
-        new NavigationItem { Label = "Transferts",      IconGlyph = "\uE895", PageKey = "StockTransfer" },
-        new NavigationItem { Label = "Fidélité",        IconGlyph = "\uEB51", PageKey = "Loyalty" },
-        new NavigationItem { Label = "Rapports",        IconGlyph = "\uE9F9", PageKey = "Reports" },
-        new NavigationItem { Label = "Journal",         IconGlyph = "\uE8A5", PageKey = "SalesHistory" },
-    };
+    // Group-level visibility (dropdown shows if ≥ 1 child visible)
+    public bool CanSeeVentes => CanAccessPos || CanAccessInvoicing || CanAccessClients || CanAccessSalesHistory;
+    public bool CanSeeGestion => CanAccessProducts || CanAccessStock || CanAccessTransfers || CanAccessLoyalty;
+    public bool CanSeeRapports => CanAccessReports;
+    public bool CanSeeAdmin => CanAccessSettings || CanAccessUsers;
 
-    public ObservableCollection<NavigationItem> BottomNavigationItems { get; } = new()
-    {
-        new NavigationItem { Label = "Paramètres", IconGlyph = "\uE713", PageKey = "Settings" },
-    };
-
+    // ═══════════════ PAGE CACHE ═══════════════
     private readonly Dictionary<string, object> _pages = new();
 
-    public MainViewModel()
+    // ═══════════════ CONSTRUCTOR ═══════════════
+    public MainViewModel(IAuthService authService)
     {
-        PageTitle = "GECOM2025";
-        NavigateToPage("Cash");
+        _authService = authService;
+        PageTitle = "iKWOOK SFE";
+
+        LoadUserContext();
+        NavigateToDefaultPage();
+    }
+
+    // ═══════════════════════════════════════════
+    //  INITIALISATION
+    // ═══════════════════════════════════════════
+
+    private void LoadUserContext()
+    {
+        var user = _authService.CurrentUser;
+        if (user == null) return;
+
+        CurrentUserName = user.FullName;
+        CurrentRoleName = user.Role?.Name ?? "";
+        UserInitials = _authService.GetUserInitials();
+
+        // Load POS + company info (fire-and-forget on UI thread)
+        _ = LoadPosAndCompanyAsync(user);
+    }
+
+    private async Task LoadPosAndCompanyAsync(Domain.Entities.User user)
+    {
+        try
+        {
+            var uow = App.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+            // POS
+            var posIds = JsonSerializer.Deserialize<int[]>(user.AssignedPosIds ?? "[]") ?? [];
+            if (posIds.Length > 0)
+            {
+                var pos = await uow.PointsOfSale.GetByIdAsync(posIds[0]);
+                if (pos != null)
+                {
+                    CurrentPosName = pos.Name;
+                    CurrentPosCode = pos.Code;
+                    CurrentPosCity = pos.City;
+                }
+            }
+
+            // Company
+            var companies = await uow.Companies.GetAllAsync();
+            var comp = companies.FirstOrDefault();
+            if (comp != null)
+            {
+                CompanyName = comp.Name;
+                if (string.IsNullOrEmpty(CurrentPosName))
+                {
+                    CurrentPosName = comp.Name;
+                    CurrentPosCity = comp.City;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainVM] LoadPosAndCompany error: {ex.Message}");
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  NAVIGATION
+    // ═══════════════════════════════════════════
+
+    private void NavigateToDefaultPage()
+    {
+        if (CanAccessDashboard) NavigateToPage("Dashboard");
+        else if (CanAccessPos) NavigateToPage("Cash");
+        else if (CanAccessInvoicing) NavigateToPage("Invoicing");
+        else if (CanAccessReports) NavigateToPage("Reports");
+        else if (CanAccessSalesHistory) NavigateToPage("SalesHistory");
+        else NavigateToPage("Dashboard");
     }
 
     [RelayCommand]
     private void NavigateToPage(string pageKey)
     {
+        if (string.IsNullOrEmpty(pageKey)) return;
+
         if (!_pages.ContainsKey(pageKey))
         {
             _pages[pageKey] = pageKey switch
@@ -75,39 +158,39 @@ public partial class MainViewModel : BaseViewModel
                 "Settings" => CreatePage<SettingsPage, SettingsViewModel>(),
                 "SalesHistory" => CreatePage<SalesHistoryPage, SalesHistoryViewModel>(),
                 "Reports" => CreatePage<ReportView, ReportViewModel>(),
-                "Loyalty" => new PlaceholderPage("Fidélité", "Le programme de fidélité sera implémenté ici."),
+                "Loyalty" => new PlaceholderPage("Fidélité",
+                                       "Le programme de fidélité sera implémenté ici."),
+                "Users" => new PlaceholderPage("Gestion des utilisateurs",
+                                       "La gestion des utilisateurs sera implémentée ici."),
                 _ => new PlaceholderPage("Page inconnue", "")
             };
         }
 
         CurrentPage = _pages[pageKey];
+        CurrentPageKey = pageKey;
 
-        // 🆕 Activate cached pages that implement IActivatable
+        // Activate cached pages that implement IActivatable
         if (CurrentPage is System.Windows.FrameworkElement { DataContext: IActivatable activatable })
         {
             _ = activatable.ActivateAsync();
         }
-
-        SelectedNavItem = NavigationItems.FirstOrDefault(n => n.PageKey == pageKey)
-                       ?? BottomNavigationItems.FirstOrDefault(n => n.PageKey == pageKey);
     }
 
-    partial void OnSelectedNavItemChanged(NavigationItem? value)
+    // ═══════════════════════════════════════════
+    //  LOGOUT
+    // ═══════════════════════════════════════════
+
+    [RelayCommand]
+    private void Logout()
     {
-        if (value != null)
-        {
-            NavigateToPage(value.PageKey);
-        }
+        LogoutRequested = true;
+        RequestClose?.Invoke();
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  FACTORY GÉNÉRIQUE
-    // ══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════
+    //  FACTORIES
+    // ═══════════════════════════════════════════
 
-    /// <summary>
-    /// Crée une page WPF et lui assigne son ViewModel résolu par DI.
-    /// TPage doit avoir un constructeur sans paramètre.
-    /// </summary>
     private static TPage CreatePage<TPage, TViewModel>()
         where TPage : System.Windows.FrameworkElement, new()
         where TViewModel : notnull
@@ -117,18 +200,9 @@ public partial class MainViewModel : BaseViewModel
         return page;
     }
 
-    /// <summary>
-    /// Cas spécial : ClientsPage prend le VM dans son constructeur.
-    /// </summary>
     private static ClientsPage CreateClientsPage()
     {
         var vm = App.ServiceProvider.GetRequiredService<ClientsViewModel>();
         return new ClientsPage(vm);
-    }
-
-    [RelayCommand]
-    private void ToggleSidebar()
-    {
-        IsSidebarCollapsed = !IsSidebarCollapsed;
     }
 }
