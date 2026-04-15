@@ -8,8 +8,8 @@ using SFE.Infrastructure.Persistence;
 using SFE.Infrastructure.EMcf;
 using SFE.WPF.ViewModels;
 using SFE.WPF.Services;
-using SFE.WPF.Views.Pages;
 using SFE.WPF.Views;
+using SFE.WPF.Views.Pages;
 
 namespace SFE.WPF;
 
@@ -29,39 +29,69 @@ public partial class App : System.Windows.Application
         await DatabaseSeeder.SeedAsync(context);
 
         // ══════════════ LOGIN LOOP ══════════════
-        // The loop allows returning to login after logout.
         while (true)
         {
             var authService = ServiceProvider.GetRequiredService<IAuthService>();
+            var sessionState = ServiceProvider.GetRequiredService<CashSessionState>();
 
-            // ── Show Login ──
+            // ── 1. Show Login ──
             var loginVm = new LoginViewModel(authService);
             var loginWindow = new LoginWindow { DataContext = loginVm };
 
             loginVm.LoginSucceeded += () => loginWindow.DialogResult = true;
 
             bool? loginResult = loginWindow.ShowDialog();
-
             if (loginResult != true)
             {
-                // User closed login window without logging in → exit app
                 Shutdown();
                 return;
             }
 
-            // ── Show Main Window ──
+            // ── 2. Show Session Opening Dialog ──
+            var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var settingsService = ServiceProvider.GetRequiredService<SettingsService>();
+            var sessionVm = new SessionOpenViewModel(uow, authService, settingsService);
+            var sessionDialog = new SessionOpenDialog { DataContext = sessionVm };
+
+            // Handle both normal confirm and IT Tech bypass
+            sessionVm.SessionConfirmed += () => sessionDialog.DialogResult = true;
+            sessionVm.SessionBypassed += () => sessionDialog.DialogResult = true;
+
+            bool? sessionResult = sessionDialog.ShowDialog();
+            if (sessionResult != true)
+            {
+                // User cancelled session → logout and loop back to login
+                authService.Logout();
+                sessionState.Close();
+                continue;
+            }
+
+            // ── 3. Determine session mode ──
+            if (sessionVm.IsBypass)
+            {
+                // IT Tech bypass — no cash session, enter setup mode
+                sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+            }
+            else
+            {
+                // Normal flow — store full session info
+                sessionState.Open(sessionVm.Result!);
+            }
+
+            // ── 4. Show Main Window ──
             var mainVm = ServiceProvider.GetRequiredService<MainViewModel>();
             var mainWindow = new MainWindow(mainVm);
-            mainWindow.ShowDialog();   // blocks until window closes
+
+            mainWindow.ShowDialog();
 
             if (!mainVm.LogoutRequested)
             {
-                // User closed window via [X] → exit app
                 Shutdown();
                 return;
             }
 
-            // LogoutRequested == true → clear session, loop back to login
+            // Logout → clear session, loop back to login
+            sessionState.Close();
             authService.Logout();
         }
     }
@@ -75,7 +105,6 @@ public partial class App : System.Windows.Application
         Directory.CreateDirectory(appDataPath);
         var dbPath = Path.Combine(appDataPath, "sfe.db");
 
-        // ★ FIX: Cache=Shared + WAL interceptor
         var walInterceptor = new SqliteWalInterceptor();
 
         services.AddDbContext<AppDbContext>(options =>
@@ -88,6 +117,9 @@ public partial class App : System.Windows.Application
 
         // ═══ AUTH (Singleton — holds current user state) ═══
         services.AddSingleton<IAuthService, AuthService>();
+
+        // ═══ Session State (Singleton — holds current cash session) ═══
+        services.AddSingleton<CashSessionState>();
 
         // ═══ Services Application ═══
         services.AddTransient<SettingsService>();

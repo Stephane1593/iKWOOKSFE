@@ -706,7 +706,9 @@ public partial class PosViewModel : BaseViewModel,
         invoice.Payments.Add(new InvoicePayment
         {
             PaymentType = SelectedPaymentType,
-            Amount = paidAmount
+            Amount = paidAmount,
+            CurrencyCode = "CDF",
+            CurrencyRate = 1m
         });
 
         return invoice;

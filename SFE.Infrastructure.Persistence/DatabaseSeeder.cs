@@ -33,7 +33,8 @@ public static class DatabaseSeeder
                         "loyalty": true,
                         "reports": true,
                         "settings": true,
-                        "users": true
+                        "users": true,
+                        "bypassPosCheck": false
                     }
                     """
                 },
@@ -55,7 +56,8 @@ public static class DatabaseSeeder
                         "loyalty": true,
                         "reports": true,
                         "settings": false,
-                        "users": false
+                        "users": false,
+                        "bypassPosCheck": false
                     }
                     """
                 },
@@ -77,7 +79,8 @@ public static class DatabaseSeeder
                         "loyalty": true,
                         "reports": false,
                         "settings": false,
-                        "users": false
+                        "users": false,
+                        "bypassPosCheck": false
                     }
                     """
                 },
@@ -99,7 +102,31 @@ public static class DatabaseSeeder
                         "loyalty": false,
                         "reports": true,
                         "settings": false,
-                        "users": false
+                        "users": false,
+                        "bypassPosCheck": false
+                    }
+                    """
+                },
+
+                // ── 5. IT Tech (configuration technique / accès sans POS) ──
+                new Role
+                {
+                    Name = "IT Tech",
+                    Permissions = """
+                    {
+                        "dashboard": true,
+                        "pos": false,
+                        "invoicing": false,
+                        "clients": false,
+                        "salesHistory": false,
+                        "products": true,
+                        "stock": true,
+                        "transfers": false,
+                        "loyalty": false,
+                        "reports": false,
+                        "settings": true,
+                        "users": true,
+                        "bypassPosCheck": true
                     }
                     """
                 }
@@ -113,17 +140,29 @@ public static class DatabaseSeeder
         if (!await context.Users.AnyAsync())
         {
             var adminRole = await context.Roles.FirstAsync(r => r.Name == "Admin");
+            var itTechRole = await context.Roles.FirstAsync(r => r.Name == "IT Tech");
 
-            var admin = new User
+            var defaultUsers = new List<User>
             {
-                Username = "admin",
-                PasswordHash = AuthService.HashPassword("admin123"),
-                FullName = "Administrateur Système",
-                RoleId = adminRole.Id,
-                IsActive = true
+                new User
+                {
+                    Username = "admin",
+                    PasswordHash = AuthService.HashPassword("admin123"),
+                    FullName = "Administrateur Système",
+                    RoleId = adminRole.Id,
+                    IsActive = true
+                },
+                new User
+                {
+                    Username = "tech",
+                    PasswordHash = AuthService.HashPassword("tech123"),
+                    FullName = "Technicien IT",
+                    RoleId = itTechRole.Id,
+                    IsActive = true
+                }
             };
 
-            await context.Users.AddAsync(admin);
+            await context.Users.AddRangeAsync(defaultUsers);
             await context.SaveChangesAsync();
         }
 

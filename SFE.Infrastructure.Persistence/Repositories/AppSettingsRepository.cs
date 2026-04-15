@@ -33,6 +33,8 @@ public class AppSettingsRepository : IAppSettingsRepository
         {
             existing.ExchangeRateMode = settings.ExchangeRateMode;
             existing.CurrentExchangeRate = settings.CurrentExchangeRate;
+            existing.CurrentExchangeRateEUR = settings.CurrentExchangeRateEUR;   
+            existing.CurrentExchangeRateCNY = settings.CurrentExchangeRateCNY;
             existing.ExchangeRateUpdatedAt = settings.ExchangeRateUpdatedAt;
             existing.DefaultCurrency = settings.DefaultCurrency;
             existing.DefaultPriceMode = settings.DefaultPriceMode;

@@ -15,20 +15,19 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
 
-        <!-- Drop shadow for popups -->
         <DropShadowEffect x:Key="DropShadow"
                           BlurRadius="20" ShadowDepth="4"
                           Opacity="0.18" Direction="270" Color="#000"/>
 
         <!-- ═══ NAV BUTTON (single top-level item) ═══ -->
         <Style x:Key="NavBtn" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#CBD5E1"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Margin" Value="2,0"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"       Value="#CBD5E1"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="FontFamily"       Value="{StaticResource AppFont}"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Margin"           Value="2,0"/>
+            <Setter Property="BorderThickness"  Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -50,13 +49,13 @@
 
         <!-- ═══ NAV DROPDOWN TOGGLE ═══ -->
         <Style x:Key="NavDropdownBtn" TargetType="ToggleButton">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#CBD5E1"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Margin" Value="2,0"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"       Value="#CBD5E1"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="FontFamily"       Value="{StaticResource AppFont}"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Margin"           Value="2,0"/>
+            <Setter Property="BorderThickness"  Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -80,15 +79,15 @@
             </Setter>
         </Style>
 
-        <!-- ═══ DROPDOWN SUB-ITEM BUTTON ═══ -->
+        <!-- ═══ DROPDOWN SUB-ITEM ═══ -->
         <Style x:Key="NavSubBtn" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#334155"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"       Value="#334155"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="FontFamily"       Value="{StaticResource AppFont}"/>
+            <Setter Property="Cursor"           Value="Hand"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderThickness"  Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -107,9 +106,18 @@
             </Setter>
         </Style>
 
-        <!-- ═══ LOGOUT SUB-ITEM (red text) ═══ -->
+        <!-- ═══ DANGER SUB-ITEM (red) ═══ -->
         <Style x:Key="NavSubBtnDanger" TargetType="Button" BasedOn="{StaticResource NavSubBtn}">
             <Setter Property="Foreground" Value="#EF4444"/>
+        </Style>
+
+        <!-- ═══ DROPDOWN SECTION HEADER ═══ -->
+        <Style x:Key="NavSectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize"     Value="10"/>
+            <Setter Property="FontWeight"   Value="Bold"/>
+            <Setter Property="Foreground"   Value="#94A3B8"/>
+            <Setter Property="Margin"       Value="12,8,12,4"/>
+            <Setter Property="FontFamily"   Value="{StaticResource AppFont}"/>
         </Style>
     </Window.Resources>
 
@@ -119,11 +127,8 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <!-- Top navbar -->
             <RowDefinition Height="*"/>
-            <!-- Content -->
             <RowDefinition Height="Auto"/>
-            <!-- Footer -->
         </Grid.RowDefinitions>
 
         <!-- ═══════════════ TOP NAVBAR ═══════════════ -->
@@ -131,11 +136,8 @@
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Logo -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Nav items -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Right section -->
                 </Grid.ColumnDefinitions>
 
                 <!-- ── LOGO ── -->
@@ -148,17 +150,11 @@
                                    VerticalAlignment="Center"
                                    FontFamily="{StaticResource AppFont}"/>
                     </Border>
-                    <!--<TextBlock Text="SFE" Foreground="White" FontSize="18"
-                               FontWeight="Bold" VerticalAlignment="Center"
-                               FontFamily="{StaticResource AppFont}"/>
-                    <TextBlock Text=" · " Foreground="#475569" FontSize="14"
-                               VerticalAlignment="Center"/>-->
-                    <!--<TextBlock Text="{Binding CompanyName}" Foreground="#94A3B8"
-                               FontSize="18" VerticalAlignment="Center"
-                               FontFamily="{StaticResource AppFont}"/>-->
                 </StackPanel>
 
-                <!-- ── NAVIGATION ITEMS ── -->
+                <!-- ══════════════════════════════════════════ -->
+                <!--  NAVIGATION ITEMS                         -->
+                <!-- ══════════════════════════════════════════ -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal"
                             VerticalAlignment="Center">
 
@@ -177,27 +173,28 @@
                     </Button>
 
                     <!-- ┌──────────────────────────────┐ -->
-                    <!-- │  VENTES (dropdown)            │ -->
+                    <!-- │  FICHIER (dropdown)            │ -->
                     <!-- └──────────────────────────────┘ -->
-                    <Grid Visibility="{Binding CanSeeVentes, Converter={StaticResource B2V}}">
-                        <ToggleButton x:Name="VentesDropdownBtn"
+                    <Grid Visibility="{Binding CanSeeFichier, Converter={StaticResource B2V}}">
+                        <ToggleButton x:Name="FichierDropdownBtn"
                                       Style="{StaticResource NavDropdownBtn}"
                                       Checked="OnDropdownOpened">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8C7;" FontFamily="{StaticResource IconFont}"
+                                <TextBlock Text="&#xE8E5;" FontFamily="{StaticResource IconFont}"
                                            FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Ventes" VerticalAlignment="Center"/>
+                                <TextBlock Text="Fichier" VerticalAlignment="Center"/>
                                 <TextBlock Text="  ▾" FontSize="9" VerticalAlignment="Center"
                                            Foreground="#64748B"/>
                             </StackPanel>
                         </ToggleButton>
-                        <Popup IsOpen="{Binding IsChecked, ElementName=VentesDropdownBtn, Mode=TwoWay}"
+                        <Popup IsOpen="{Binding IsChecked, ElementName=FichierDropdownBtn, Mode=TwoWay}"
                                StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
-                               PlacementTarget="{Binding ElementName=VentesDropdownBtn}"
+                               PlacementTarget="{Binding ElementName=FichierDropdownBtn}"
                                Placement="Bottom" HorizontalOffset="-4" VerticalOffset="4">
                             <Border Background="White" CornerRadius="10" Padding="6"
                                     MinWidth="220" Effect="{StaticResource DropShadow}">
                                 <StackPanel>
+                                    <!-- Caisse -->
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
                                             CommandParameter="Cash" Click="CloseDropdowns"
@@ -205,9 +202,10 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE8C7;" FontFamily="{StaticResource IconFont}"
                                                        FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Caisse (POS)" Margin="8,0,0,0"/>
+                                            <TextBlock Text="Caisse" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
+                                    <!-- Facture -->
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
                                             CommandParameter="Invoicing" Click="CloseDropdowns"
@@ -215,9 +213,59 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}"
                                                        FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Facturation" Margin="8,0,0,0"/>
+                                            <TextBlock Text="Facture" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <!-- ┌──────────────────────────────┐ -->
+                    <!-- │  ÉDITER (dropdown)             │ -->
+                    <!-- └──────────────────────────────┘ -->
+                    <Grid Visibility="{Binding CanSeeEditer, Converter={StaticResource B2V}}">
+                        <ToggleButton x:Name="EditerDropdownBtn"
+                                      Style="{StaticResource NavDropdownBtn}"
+                                      Checked="OnDropdownOpened">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE70F;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Éditer" VerticalAlignment="Center"/>
+                                <TextBlock Text="  ▾" FontSize="9" VerticalAlignment="Center"
+                                           Foreground="#64748B"/>
+                            </StackPanel>
+                        </ToggleButton>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=EditerDropdownBtn, Mode=TwoWay}"
+                               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
+                               PlacementTarget="{Binding ElementName=EditerDropdownBtn}"
+                               Placement="Bottom" HorizontalOffset="-4" VerticalOffset="4">
+                            <Border Background="White" CornerRadius="10" Padding="6"
+                                    MinWidth="240" Effect="{StaticResource DropShadow}">
+                                <StackPanel>
+                                    <!-- Articles -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="Articles" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessProducts, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE719;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Articles" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <!-- Catégories -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="Categories" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessProducts, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8FD;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Catégories" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <!-- Clients -->
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
                                             CommandParameter="Clients" Click="CloseDropdowns"
@@ -228,55 +276,7 @@
                                             <TextBlock Text="Clients" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
-                                    <Separator Background="#E2E8F0" Margin="6,4"
-                                               Visibility="{Binding CanAccessSalesHistory, Converter={StaticResource B2V}}"/>
-                                    <Button Style="{StaticResource NavSubBtn}"
-                                            Command="{Binding NavigateToPageCommand}"
-                                            CommandParameter="SalesHistory" Click="CloseDropdowns"
-                                            Visibility="{Binding CanAccessSalesHistory, Converter={StaticResource B2V}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE9D2;" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Journal des ventes" Margin="8,0,0,0"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-
-                    <!-- ┌──────────────────────────────┐ -->
-                    <!-- │  GESTION (dropdown)           │ -->
-                    <!-- └──────────────────────────────┘ -->
-                    <Grid Visibility="{Binding CanSeeGestion, Converter={StaticResource B2V}}">
-                        <ToggleButton x:Name="GestionDropdownBtn"
-                                      Style="{StaticResource NavDropdownBtn}"
-                                      Checked="OnDropdownOpened">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE74C;" FontFamily="{StaticResource IconFont}"
-                                           FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Gestion" VerticalAlignment="Center"/>
-                                <TextBlock Text="  ▾" FontSize="9" VerticalAlignment="Center"
-                                           Foreground="#64748B"/>
-                            </StackPanel>
-                        </ToggleButton>
-                        <Popup IsOpen="{Binding IsChecked, ElementName=GestionDropdownBtn, Mode=TwoWay}"
-                               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
-                               PlacementTarget="{Binding ElementName=GestionDropdownBtn}"
-                               Placement="Bottom" HorizontalOffset="-4" VerticalOffset="4">
-                            <Border Background="White" CornerRadius="10" Padding="6"
-                                    MinWidth="220" Effect="{StaticResource DropShadow}">
-                                <StackPanel>
-                                    <Button Style="{StaticResource NavSubBtn}"
-                                            Command="{Binding NavigateToPageCommand}"
-                                            CommandParameter="Products" Click="CloseDropdowns"
-                                            Visibility="{Binding CanAccessProducts, Converter={StaticResource B2V}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE719;" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Produits" Margin="8,0,0,0"/>
-                                        </StackPanel>
-                                    </Button>
+                                    <!-- Stocks -->
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
                                             CommandParameter="Stock" Click="CloseDropdowns"
@@ -284,29 +284,22 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE74C;" FontFamily="{StaticResource IconFont}"
                                                        FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Stock" Margin="8,0,0,0"/>
+                                            <TextBlock Text="Stocks" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Style="{StaticResource NavSubBtn}"
-                                            Command="{Binding NavigateToPageCommand}"
-                                            CommandParameter="StockTransfer" Click="CloseDropdowns"
-                                            Visibility="{Binding CanAccessTransfers, Converter={StaticResource B2V}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE895;" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Transferts" Margin="8,0,0,0"/>
-                                        </StackPanel>
-                                    </Button>
+
+                                    <!-- Separator + Clôture Z -->
                                     <Separator Background="#E2E8F0" Margin="6,4"
-                                               Visibility="{Binding CanAccessLoyalty, Converter={StaticResource B2V}}"/>
+                                               Visibility="{Binding CanAccessReports, Converter={StaticResource B2V}}"/>
                                     <Button Style="{StaticResource NavSubBtn}"
-                                            Command="{Binding NavigateToPageCommand}"
-                                            CommandParameter="Loyalty" Click="CloseDropdowns"
-                                            Visibility="{Binding CanAccessLoyalty, Converter={StaticResource B2V}}">
+                                            Command="{Binding CloseReportZCommand}"
+                                            Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessReports, Converter={StaticResource B2V}}">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Fidélité" Margin="8,0,0,0"/>
+                                            <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#F59E0B"/>
+                                            <TextBlock Text="Clôture du rapport Z" Margin="8,0,0,0"
+                                                       FontWeight="SemiBold" Foreground="#92400E"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -315,34 +308,84 @@
                     </Grid>
 
                     <!-- ┌──────────────────────────────┐ -->
-                    <!-- │  RAPPORTS (dropdown)          │ -->
+                    <!-- │  AFFICHAGE (dropdown)          │ -->
                     <!-- └──────────────────────────────┘ -->
-                    <Grid Visibility="{Binding CanSeeRapports, Converter={StaticResource B2V}}">
-                        <ToggleButton x:Name="RapportsDropdownBtn"
+                    <Grid Visibility="{Binding CanSeeAffichage, Converter={StaticResource B2V}}">
+                        <ToggleButton x:Name="AffichageDropdownBtn"
                                       Style="{StaticResource NavDropdownBtn}"
                                       Checked="OnDropdownOpened">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE9F9;" FontFamily="{StaticResource IconFont}"
                                            FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Rapports" VerticalAlignment="Center"/>
+                                <TextBlock Text="Affichage" VerticalAlignment="Center"/>
                                 <TextBlock Text="  ▾" FontSize="9" VerticalAlignment="Center"
                                            Foreground="#64748B"/>
                             </StackPanel>
                         </ToggleButton>
-                        <Popup IsOpen="{Binding IsChecked, ElementName=RapportsDropdownBtn, Mode=TwoWay}"
+                        <Popup IsOpen="{Binding IsChecked, ElementName=AffichageDropdownBtn, Mode=TwoWay}"
                                StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
-                               PlacementTarget="{Binding ElementName=RapportsDropdownBtn}"
+                               PlacementTarget="{Binding ElementName=AffichageDropdownBtn}"
                                Placement="Bottom" HorizontalOffset="-4" VerticalOffset="4">
                             <Border Background="White" CornerRadius="10" Padding="6"
-                                    MinWidth="220" Effect="{StaticResource DropShadow}">
+                                    MinWidth="260" Effect="{StaticResource DropShadow}">
                                 <StackPanel>
+                                    <!-- Section header: RAPPORTS -->
+                                    <TextBlock Text="RAPPORTS" Style="{StaticResource NavSectionHeader}"/>
+
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
-                                            CommandParameter="Reports" Click="CloseDropdowns">
+                                            CommandParameter="ReportX" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessReports, Converter={StaticResource B2V}}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE9F9;" FontFamily="{StaticResource IconFont}"
                                                        FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Rapports DGI (X, Z, A)" Margin="8,0,0,0"/>
+                                            <TextBlock Text="Rapport X" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="ReportA" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessReports, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE9F9;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Rapport A" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="ReportZ" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessReports, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE9F9;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Rapport Z" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Separator Background="#E2E8F0" Margin="6,4"/>
+
+                                    <!-- Journal des ventes -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="SalesJournal" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessSalesHistory, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE9D2;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Journal" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Historique des rapports -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="ReportHistory" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessReports, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE81C;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Historique des rapports" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -351,27 +394,28 @@
                     </Grid>
 
                     <!-- ┌──────────────────────────────┐ -->
-                    <!-- │  ADMINISTRATION (dropdown)    │ -->
+                    <!-- │  OUTILS (dropdown)             │ -->
                     <!-- └──────────────────────────────┘ -->
-                    <Grid Visibility="{Binding CanSeeAdmin, Converter={StaticResource B2V}}">
-                        <ToggleButton x:Name="AdminDropdownBtn"
+                    <Grid Visibility="{Binding CanSeeOutils, Converter={StaticResource B2V}}">
+                        <ToggleButton x:Name="OutilsDropdownBtn"
                                       Style="{StaticResource NavDropdownBtn}"
                                       Checked="OnDropdownOpened">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}"
                                            FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Admin" VerticalAlignment="Center"/>
+                                <TextBlock Text="Outils" VerticalAlignment="Center"/>
                                 <TextBlock Text="  ▾" FontSize="9" VerticalAlignment="Center"
                                            Foreground="#64748B"/>
                             </StackPanel>
                         </ToggleButton>
-                        <Popup IsOpen="{Binding IsChecked, ElementName=AdminDropdownBtn, Mode=TwoWay}"
+                        <Popup IsOpen="{Binding IsChecked, ElementName=OutilsDropdownBtn, Mode=TwoWay}"
                                StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
-                               PlacementTarget="{Binding ElementName=AdminDropdownBtn}"
+                               PlacementTarget="{Binding ElementName=OutilsDropdownBtn}"
                                Placement="Bottom" HorizontalOffset="-4" VerticalOffset="4">
                             <Border Background="White" CornerRadius="10" Padding="6"
-                                    MinWidth="220" Effect="{StaticResource DropShadow}">
+                                    MinWidth="280" Effect="{StaticResource DropShadow}">
                                 <StackPanel>
+                                    <!-- Configuration de base -->
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
                                             CommandParameter="Settings" Click="CloseDropdowns"
@@ -379,9 +423,21 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}"
                                                        FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Paramètres" Margin="8,0,0,0"/>
+                                            <TextBlock Text="Configuration de base" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
+                                    <!-- Gestion des points de vente -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="PosManagement" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessSettings, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE825;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Gestion des points de vente" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <!-- Gestion des utilisateurs -->
                                     <Button Style="{StaticResource NavSubBtn}"
                                             Command="{Binding NavigateToPageCommand}"
                                             CommandParameter="Users" Click="CloseDropdowns"
@@ -389,7 +445,70 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE716;" FontFamily="{StaticResource IconFont}"
                                                        FontSize="14" Width="22" Foreground="#64748B"/>
-                                            <TextBlock Text="Utilisateurs" Margin="8,0,0,0"/>
+                                            <TextBlock Text="Gestion des utilisateurs" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Section: OUTILS D'AUDIT -->
+                                    <Separator Background="#E2E8F0" Margin="6,4"/>
+                                    <TextBlock Text="OUTILS D'AUDIT" Style="{StaticResource NavSectionHeader}"/>
+
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="AuditLog" Click="CloseDropdowns"
+                                            Visibility="{Binding CanAccessSettings, Converter={StaticResource B2V}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE7C3;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Journal d'audit" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <!-- ┌──────────────────────────────┐ -->
+                    <!-- │  AIDE (dropdown)               │ -->
+                    <!-- └──────────────────────────────┘ -->
+                    <Grid>
+                        <ToggleButton x:Name="AideDropdownBtn"
+                                      Style="{StaticResource NavDropdownBtn}"
+                                      Checked="OnDropdownOpened">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE897;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Aide" VerticalAlignment="Center"/>
+                                <TextBlock Text="  ▾" FontSize="9" VerticalAlignment="Center"
+                                           Foreground="#64748B"/>
+                            </StackPanel>
+                        </ToggleButton>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=AideDropdownBtn, Mode=TwoWay}"
+                               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
+                               PlacementTarget="{Binding ElementName=AideDropdownBtn}"
+                               Placement="Bottom" HorizontalOffset="-4" VerticalOffset="4">
+                            <Border Background="White" CornerRadius="10" Padding="6"
+                                    MinWidth="240" Effect="{StaticResource DropShadow}">
+                                <StackPanel>
+                                    <!-- Manuel d'utilisation -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="UserManual" Click="CloseDropdowns">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE736;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="Manuel d'utilisation" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Separator Background="#E2E8F0" Margin="6,4"/>
+                                    <!-- À propos -->
+                                    <Button Style="{StaticResource NavSubBtn}"
+                                            Command="{Binding ShowAboutCommand}"
+                                            Click="CloseDropdowns">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE946;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Width="22" Foreground="#64748B"/>
+                                            <TextBlock Text="À propos" Margin="8,0,0,0"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -398,7 +517,9 @@
                     </Grid>
                 </StackPanel>
 
-                <!-- ── RIGHT SECTION: Status + User ── -->
+                <!-- ══════════════════════════════════════════ -->
+                <!--  RIGHT SECTION: Status + User             -->
+                <!-- ══════════════════════════════════════════ -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                             VerticalAlignment="Center">
 
@@ -408,6 +529,7 @@
                                  VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#10B981"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsDeviceOnline}" Value="False">
                                             <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
@@ -509,7 +631,6 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: App info -->
                 <TextBlock Grid.Column="0" FontSize="11" Foreground="#94A3B8"
                            VerticalAlignment="Center" FontFamily="{StaticResource AppFont}">
                     <Run Text="iKWOOK SFE v2.0"/>
@@ -517,7 +638,6 @@
                     <Run Text="Système de Facturation d'Entreprise"/>
                 </TextBlock>
 
-                <!-- Center: POS info -->
                 <Border Grid.Column="1" Background="#EFF6FF" CornerRadius="4"
                         Padding="10,3" Margin="16,0">
                     <TextBlock FontSize="11" Foreground="#3B82F6"
@@ -529,13 +649,13 @@
                     </TextBlock>
                 </Border>
 
-                <!-- Right: MCF status + copyright -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Margin="0,0,5,0"
                              VerticalAlignment="Center">
                         <Ellipse.Style>
                             <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#10B981"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsDeviceOnline}" Value="False">
                                         <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>

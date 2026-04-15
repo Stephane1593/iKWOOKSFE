@@ -72,6 +72,8 @@ public class SettingsService
             DiscountBeforeTax = appSettings?.DiscountBeforeTax ?? true,
             DefaultCurrency = appSettings?.DefaultCurrency ?? Currency.CDF,
             CurrentExchangeRate = appSettings?.CurrentExchangeRate ?? 2800m,
+            CurrentExchangeRateEUR = appSettings?.CurrentExchangeRateEUR ?? 3100m,   // ← NEW
+            CurrentExchangeRateCNY = appSettings?.CurrentExchangeRateCNY ?? 385m,    // ← NEW
             ExchangeRateMode = appSettings?.ExchangeRateMode ?? ExchangeRateMode.Manual,
 
             // POS actif
@@ -128,6 +130,8 @@ public class SettingsService
                 appSettings.DiscountBeforeTax = data.DiscountBeforeTax;
                 appSettings.DefaultCurrency = data.DefaultCurrency;
                 appSettings.CurrentExchangeRate = data.CurrentExchangeRate;
+                appSettings.CurrentExchangeRateEUR = data.CurrentExchangeRateEUR;   // ← NEW
+                appSettings.CurrentExchangeRateCNY = data.CurrentExchangeRateCNY;   // ← NEW
                 appSettings.ExchangeRateMode = data.ExchangeRateMode;
                 appSettings.UpdatedAt = DateTime.Now;
                 appSettings.CompanyIdNat = data.CompanyISF;
@@ -189,7 +193,9 @@ public class SettingsData
     // 🆕 Paramètres de calcul (depuis AppSettings)
     public bool DiscountBeforeTax { get; set; } = true;
     public Currency DefaultCurrency { get; set; } = Currency.CDF;
-    public decimal CurrentExchangeRate { get; set; } = 2800m;
+    public decimal CurrentExchangeRate { get; set; } = 2800m;        // USD
+    public decimal CurrentExchangeRateEUR { get; set; } = 3100m;     // ← NEW
+    public decimal CurrentExchangeRateCNY { get; set; } = 385m;      // ← NEW
     public ExchangeRateMode ExchangeRateMode { get; set; } = ExchangeRateMode.Manual;
 
     // POS actif

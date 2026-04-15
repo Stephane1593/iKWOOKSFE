@@ -11,7 +11,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
 
-        // Wire logout → close window
         viewModel.RequestClose += () => Close();
     }
 
@@ -24,8 +23,12 @@ public partial class MainWindow : Window
 
         foreach (var btn in new ToggleButton?[]
         {
-            VentesDropdownBtn, GestionDropdownBtn, RapportsDropdownBtn,
-            AdminDropdownBtn, UserDropdownBtn
+            FichierDropdownBtn,
+            EditerDropdownBtn,
+            AffichageDropdownBtn,
+            OutilsDropdownBtn,
+            AideDropdownBtn,
+            UserDropdownBtn
         })
         {
             if (btn != null && btn != opened)
@@ -38,10 +41,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void CloseDropdowns(object sender, RoutedEventArgs e)
     {
-        VentesDropdownBtn.IsChecked = false;
-        GestionDropdownBtn.IsChecked = false;
-        RapportsDropdownBtn.IsChecked = false;
-        AdminDropdownBtn.IsChecked = false;
+        FichierDropdownBtn.IsChecked = false;
+        EditerDropdownBtn.IsChecked = false;
+        AffichageDropdownBtn.IsChecked = false;
+        OutilsDropdownBtn.IsChecked = false;
+        AideDropdownBtn.IsChecked = false;
         UserDropdownBtn.IsChecked = false;
     }
 }

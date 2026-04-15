@@ -1,0 +1,523 @@
+﻿<Window x:Class="SFE.WPF.Views.Pages.SessionOpenDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:SFE.WPF.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:SessionOpenViewModel}"
+        Title="Ouverture de session"
+        Width="620" Height="760"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        Background="#0F172A"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V"/>
+
+        <!-- ═══ LIGHT FORM INPUT ═══ -->
+        <Style x:Key="FormInput" TargetType="TextBox">
+            <Setter Property="Background"      Value="White"/>
+            <Setter Property="Foreground"       Value="#0F172A"/>
+            <Setter Property="FontSize"         Value="14"/>
+            <Setter Property="Padding"          Value="12,9"/>
+            <Setter Property="BorderBrush"      Value="#E2E8F0"/>
+            <Setter Property="BorderThickness"  Value="1.5"/>
+            <Setter Property="FontFamily"       Value="Segoe UI"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="2,0"
+                                          VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3B82F6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ RATE / AMOUNT INPUT ═══ -->
+        <Style x:Key="RateInput" TargetType="TextBox" BasedOn="{StaticResource FormInput}">
+            <Setter Property="HorizontalContentAlignment" Value="Right"/>
+            <Setter Property="Background" Value="#F8FAFC"/>
+        </Style>
+
+        <!-- ═══ SECTION LABEL ═══ -->
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"     Value="10"/>
+            <Setter Property="FontWeight"   Value="Bold"/>
+            <Setter Property="Foreground"   Value="#94A3B8"/>
+            <Setter Property="FontFamily"   Value="Segoe UI"/>
+            <Setter Property="Margin"       Value="0,0,0,10"/>
+        </Style>
+
+        <!-- ═══ CURRENCY LABEL ═══ -->
+        <Style x:Key="CurrLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="FontWeight"       Value="SemiBold"/>
+            <Setter Property="Foreground"       Value="#334155"/>
+            <Setter Property="FontFamily"       Value="Segoe UI"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ═══ CONFIRM BUTTON ═══ -->
+        <Style x:Key="ConfirmButton" TargetType="Button">
+            <Setter Property="Background"      Value="#3B82F6"/>
+            <Setter Property="Foreground"       Value="White"/>
+            <Setter Property="FontSize"         Value="15"/>
+            <Setter Property="FontWeight"       Value="SemiBold"/>
+            <Setter Property="FontFamily"       Value="Segoe UI"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8" Padding="0,14">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#475569"/>
+                                <Setter Property="Foreground" Value="#94A3B8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ IT TECH BYPASS BUTTON ═══ -->
+        <Style x:Key="BypassButton" TargetType="Button">
+            <Setter Property="Background"      Value="#059669"/>
+            <Setter Property="Foreground"       Value="White"/>
+            <Setter Property="FontSize"         Value="14"/>
+            <Setter Property="FontWeight"       Value="SemiBold"/>
+            <Setter Property="FontFamily"       Value="Segoe UI"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8" Padding="0,13">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#047857"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══ CLOSE BUTTON ═══ -->
+        <Button Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,8,8,0" Width="32" Height="32" Panel.ZIndex="10"
+                Background="Transparent" BorderThickness="0" Cursor="Hand"
+                Click="CloseButton_Click">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6">
+                        <TextBlock Text="✕" Foreground="#64748B" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#1E293B"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+
+        <!-- ═══════════════════════════════════ -->
+        <!--  DARK HEADER                        -->
+        <!-- ═══════════════════════════════════ -->
+        <StackPanel Grid.Row="0" Margin="40,28,40,20" HorizontalAlignment="Center">
+            <Border Background="#3B82F6" CornerRadius="12" Width="130" Height="50"
+                    HorizontalAlignment="Center" Margin="0,0,0,16">
+                <TextBlock Text="iKWOOK SFE" Foreground="White" FontSize="18" FontWeight="Bold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontFamily="Segoe UI"/>
+            </Border>
+
+            <TextBlock Text="Ouverture de session de caisse" Foreground="White"
+                       FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"
+                       FontFamily="Segoe UI"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                <TextBlock Text="{Binding CurrentDate}" Foreground="#94A3B8" FontSize="12"
+                           FontFamily="Segoe UI"/>
+                <TextBlock Text=" · " Foreground="#475569" FontSize="12"/>
+                <TextBlock Text="{Binding CurrentTime}" Foreground="#94A3B8" FontSize="12"
+                           FontFamily="Segoe UI"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+                <TextBlock Text="Opérateur : " Foreground="#64748B" FontSize="12"
+                           FontFamily="Segoe UI"/>
+                <TextBlock Text="{Binding OperatorName}" Foreground="#CBD5E1" FontSize="12"
+                           FontWeight="SemiBold" FontFamily="Segoe UI"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ═══════════════════════════════════ -->
+        <!--  LIGHT FORM AREA                    -->
+        <!-- ═══════════════════════════════════ -->
+        <Border Grid.Row="1" Background="White" CornerRadius="20,20,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="36,28,36,20">
+                <StackPanel>
+
+                    <!-- ══════════════════════════════════════════════ -->
+                    <!--  NO POS WARNING — REGULAR USER (BLOCKED)      -->
+                    <!-- ══════════════════════════════════════════════ -->
+                    <Border Visibility="{Binding ShowNoPosBlocker, Converter={StaticResource B2V}}"
+                            Background="#FFF7ED" BorderBrush="#FB923C" BorderThickness="1.5"
+                            CornerRadius="10" Padding="20,18" Margin="0,0,0,16">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="{Binding NoPosIcon}" FontSize="24"
+                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBlock Text="Point de vente indisponible"
+                                           FontWeight="Bold" FontSize="15" Foreground="#C2410C"
+                                           VerticalAlignment="Center" FontFamily="Segoe UI"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding NoPosMessage}"
+                                       Foreground="#9A3412" FontSize="13"
+                                       TextWrapping="Wrap" LineHeight="20"
+                                       FontFamily="Segoe UI"/>
+                            <Border Background="#FFEDD5" CornerRadius="6"
+                                    Padding="12,8" Margin="0,12,0,0">
+                                <TextBlock Text="💡 Fermez cette fenêtre, configurez vos points de vente dans les paramètres, puis réouvrez une session."
+                                           Foreground="#9A3412" FontSize="11.5"
+                                           TextWrapping="Wrap" FontFamily="Segoe UI"
+                                           FontStyle="Italic"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ══════════════════════════════════════════════ -->
+                    <!--  NO POS — IT TECH BYPASS PANEL                -->
+                    <!-- ══════════════════════════════════════════════ -->
+                    <Border Visibility="{Binding ShowItTechBypass, Converter={StaticResource B2V}}"
+                            Background="#F0FDF4" BorderBrush="#34D399" BorderThickness="1.5"
+                            CornerRadius="10" Padding="20,18" Margin="0,0,0,16">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="🔧" FontSize="24"
+                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBlock Text="Mode Technicien IT"
+                                           FontWeight="Bold" FontSize="15" Foreground="#166534"
+                                           VerticalAlignment="Center" FontFamily="Segoe UI"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding NoPosMessage}"
+                                       Foreground="#15803D" FontSize="13"
+                                       TextWrapping="Wrap" LineHeight="20"
+                                       FontFamily="Segoe UI"/>
+
+                            <Border Background="#DCFCE7" CornerRadius="6"
+                                    Padding="12,8" Margin="0,12,0,0">
+                                <TextBlock Foreground="#166534" FontSize="11.5"
+                                           TextWrapping="Wrap" FontFamily="Segoe UI"
+                                           FontStyle="Italic"
+                                           Text="🛡 En tant que technicien IT, vous pouvez accéder à l'application en mode configuration pour créer des points de vente, gérer les utilisateurs et configurer le système."/>
+                            </Border>
+
+                            <!-- ── Bypass Button ── -->
+                            <Button Style="{StaticResource BypassButton}" Margin="0,16,0,0"
+                                    Command="{Binding BypassCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE912;" FontFamily="Segoe MDL2 Assets"
+                                               FontSize="16" Margin="0,0,10,0"
+                                               VerticalAlignment="Center" Foreground="White"/>
+                                    <TextBlock Text="Accéder au mode configuration"
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="White" FontFamily="Segoe UI"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ══════════════════════════════════════ -->
+                    <!--  NORMAL FORM (visible only if POS)    -->
+                    <!-- ══════════════════════════════════════ -->
+                    <StackPanel Visibility="{Binding HasPosAvailable, Converter={StaticResource B2V}}">
+
+                        <!-- ── POINT DE VENTE ── -->
+                        <TextBlock Text="POINT DE VENTE" Style="{StaticResource SectionLabel}"/>
+
+                        <ComboBox ItemsSource="{Binding AvailablePos}"
+                                  SelectedItem="{Binding SelectedPos}"
+                                  FontFamily="Segoe UI" FontSize="14"
+                                  Padding="10,10" Margin="0,0,0,4"
+                                  Visibility="{Binding HasMultiplePos, Converter={StaticResource B2V}}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Code}" FontWeight="Bold"
+                                                   Foreground="#0F172A" FontFamily="Segoe UI"/>
+                                        <TextBlock Text=" — " Foreground="#94A3B8"/>
+                                        <TextBlock Text="{Binding Name}" Foreground="#334155"
+                                                   FontFamily="Segoe UI"/>
+                                        <TextBlock Text=" · " Foreground="#CBD5E1"/>
+                                        <TextBlock Text="{Binding City}" Foreground="#64748B"
+                                                   FontFamily="Segoe UI"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <!-- Single POS display (when only 1 POS, no combo needed) -->
+                        <StackPanel Margin="0,0,0,4">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasMultiplePos}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding SelectedPos.Code}" FontWeight="Bold"
+                                           FontSize="14" Foreground="#0F172A" FontFamily="Segoe UI"/>
+                                <TextBlock Text=" — " Foreground="#94A3B8" FontSize="14"/>
+                                <TextBlock Text="{Binding SelectedPos.Name}" FontSize="14"
+                                           FontWeight="SemiBold" Foreground="#334155"
+                                           FontFamily="Segoe UI"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding SelectedPosDetail}" FontSize="11"
+                                   Foreground="#94A3B8" Margin="2,2,0,0" FontFamily="Segoe UI"/>
+
+                        <!-- ── SEPARATOR ── -->
+                        <Separator Background="#F1F5F9" Height="1" Margin="0,18"/>
+
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!--  TWO-COLUMN: TAUX (left) │ CAISSE (right)         -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══════════════════════ -->
+                            <!--  LEFT: TAUX DE CHANGE   -->
+                            <!-- ═══════════════════════ -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="TAUX DE CHANGE" Style="{StaticResource SectionLabel}"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- USD -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="USD"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="0" Grid.Column="1"
+                                               Text="{Binding RateUSD, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+
+                                    <!-- EUR -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="EUR"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="2" Grid.Column="1"
+                                               Text="{Binding RateEUR, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+
+                                    <!-- CNY -->
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="CNY"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="4" Grid.Column="1"
+                                               Text="{Binding RateCNY, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+
+                                    <!-- CDF (base — no input) -->
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="CDF"
+                                               Style="{StaticResource CurrLabel}"
+                                               Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Row="6" Grid.Column="1"
+                                               Text="Devise de base" FontSize="12"
+                                               Foreground="#94A3B8" FontFamily="Segoe UI"
+                                               VerticalAlignment="Center" Margin="8,0,0,0"
+                                               FontStyle="Italic"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- ═══ VERTICAL DIVIDER ═══ -->
+                            <Border Grid.Column="1" Width="1" Background="#E2E8F0"
+                                    Margin="16,0"/>
+
+                            <!-- ═══════════════════════ -->
+                            <!--  RIGHT: CAISSE (FONDS)  -->
+                            <!-- ═══════════════════════ -->
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="CAISSE" Style="{StaticResource SectionLabel}"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- USD -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="USD"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="0" Grid.Column="1"
+                                               Text="{Binding AmountUSD, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+
+                                    <!-- EUR -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="EUR"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="2" Grid.Column="1"
+                                               Text="{Binding AmountEUR, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+
+                                    <!-- CNY -->
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="CNY"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="4" Grid.Column="1"
+                                               Text="{Binding AmountCNY, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+
+                                    <!-- CDF -->
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="CDF"
+                                               Style="{StaticResource CurrLabel}"/>
+                                    <TextBox   Grid.Row="6" Grid.Column="1"
+                                               Text="{Binding AmountCDF, UpdateSourceTrigger=PropertyChanged}"
+                                               Style="{StaticResource RateInput}"
+                                               PreviewTextInput="NumericInput_PreviewTextInput"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- ── TOTAL ── -->
+                        <Border Background="#1E293B" CornerRadius="8" Padding="14,12" Margin="0,16,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="TOTAL FONDS DE CAISSE"
+                                           Foreground="#94A3B8" FontSize="12" FontWeight="Bold"
+                                           VerticalAlignment="Center" FontFamily="Segoe UI"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="{Binding TotalEquivCDF}" Foreground="White"
+                                               FontSize="18" FontWeight="Bold"
+                                               VerticalAlignment="Center" FontFamily="Segoe UI"/>
+                                    <TextBlock Text=" CDF" Foreground="#94A3B8" FontSize="13"
+                                               VerticalAlignment="Bottom" Margin="4,0,0,2"
+                                               FontFamily="Segoe UI"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- ── SEPARATOR ── -->
+                        <Separator Background="#F1F5F9" Height="1" Margin="0,18"/>
+
+                        <!-- ── NOTES ── -->
+                        <TextBlock Text="NOTES (OPTIONNEL)" Style="{StaticResource SectionLabel}"/>
+                        <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource FormInput}"
+                                 Height="50" AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalContentAlignment="Top"/>
+
+                        <!-- ── ERROR ── -->
+                        <TextBlock Text="{Binding ErrorMessage}" Foreground="#EF4444" FontSize="12"
+                                   Margin="0,12,0,0" TextWrapping="Wrap" FontFamily="Segoe UI"
+                                   Visibility="{Binding HasError, Converter={StaticResource B2V}}"/>
+
+                        <!-- ── CONFIRM BUTTON ── -->
+                        <Button Style="{StaticResource ConfirmButton}" Margin="0,16,0,0"
+                                Command="{Binding ConfirmCommand}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE785;" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="16" Margin="0,0,10,0"
+                                           VerticalAlignment="Center" Foreground="White"/>
+                                <TextBlock Text="Ouvrir la session de caisse"
+                                           FontSize="15" FontWeight="SemiBold"
+                                           Foreground="White" FontFamily="Segoe UI"/>
+                            </StackPanel>
+                        </Button>
+
+                    </StackPanel>
+                    <!-- ══ END NORMAL FORM ══ -->
+
+                    <!-- ── LOADING ── -->
+                    <TextBlock Text="Chargement en cours…"
+                               Foreground="#94A3B8" FontSize="12"
+                               HorizontalAlignment="Center" Margin="0,10,0,0"
+                               FontFamily="Segoe UI"
+                               Visibility="{Binding IsLoading, Converter={StaticResource B2V}}"/>
+
+                    <!-- ── FOOTER ── -->
+                    <TextBlock Text="SFE v2.0 · Conforme DGI-RDC"
+                               Foreground="#CBD5E1" FontSize="11"
+                               HorizontalAlignment="Center" Margin="0,20,0,8"
+                               FontFamily="Segoe UI"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

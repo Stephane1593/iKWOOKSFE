@@ -5,7 +5,8 @@ namespace SFE.Domain.Entities
     public class ExchangeRate
     {
         public int Id { get; set; }
-        public decimal Rate { get; set; } // 1 USD = X CDF
+        public CurrencyCode Currency { get; set; } = CurrencyCode.USD; // ← NEW
+        public decimal Rate { get; set; } // 1 [Currency] = X CDF
         public ExchangeRateMode Source { get; set; }
         public DateTime EffectiveDate { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
