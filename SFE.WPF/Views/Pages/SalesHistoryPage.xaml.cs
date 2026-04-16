@@ -33,4 +33,13 @@ public partial class SalesHistoryPage : UserControl
                 break;
         }
     }
+
+    private void OnOverlayBackdropClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is ViewModels.SalesHistoryViewModel vm
+            && vm.CloseDocumentCommand.CanExecute(null))
+        {
+            vm.CloseDocumentCommand.Execute(null);
+        }
+    }
 }

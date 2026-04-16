@@ -41,6 +41,8 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<Invoice?> GetByCodeDEFAsync(string codeDEF);
     Task<Invoice?> GetByNumberAsync(string invoiceNumber);
     Task<List<Invoice>> GetRecentAsync(int count);
+    // Add to IInvoiceRepository
+    Task<List<string>> GetDistinctOperatorNamesAsync();
 }
 
 /// <summary>
@@ -57,6 +59,8 @@ public class InvoiceSearchCriteria
     public string? OperatorName { get; set; }
     public decimal? MinAmount { get; set; }
     public decimal? MaxAmount { get; set; }
+
+    public string? Reference { get; set; }
 }
 
 /// <summary>
@@ -72,6 +76,8 @@ public class InvoicePeriodStats
     public int FTCount { get; set; }
     public int EVCount { get; set; }
     public int ETCount { get; set; }
+    public int FACount { get; set; }
+    public int EACount { get; set; }
     public decimal AverageAmount { get; set; }
     public decimal MaxInvoiceAmount { get; set; }
 }

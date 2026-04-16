@@ -184,6 +184,8 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
             FTCount = invoices.Count(i => i.Type == InvoiceType.FT),
             EVCount = invoices.Count(i => i.Type == InvoiceType.EV),
             ETCount = invoices.Count(i => i.Type == InvoiceType.ET),
+            EACount = invoices.Count(i => i.Type == InvoiceType.EA),
+            FACount = invoices.Count(i => i.Type == InvoiceType.FA),
             AverageAmount = Math.Round(invoices.Average(i => i.TotalTTC), 0),
             MaxInvoiceAmount = invoices.Max(i => i.TotalTTC)
         };
@@ -195,6 +197,16 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
             .Include(i => i.Lines)
             .Include(i => i.Payments)
             .FirstOrDefaultAsync(i => i.CodeDEFDGI == codeDEF);
+    }
+
+    public async Task<List<string>> GetDistinctOperatorNamesAsync()
+    {
+        return await _context.Invoices
+            .Where(i => i.OperatorName != null && i.OperatorName != "")
+            .Select(i => i.OperatorName!)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync();
     }
 
     public async Task<Invoice?> GetByNumberAsync(string invoiceNumber)

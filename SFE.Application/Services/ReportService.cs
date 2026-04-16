@@ -15,7 +15,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  PUBLIC API
+    //  PUBLIC API — Existing (unchanged signatures)
     // ══════════════════════════════════════════════════════════
 
     public async Task<DailyReport> GenerateReportXAsync(string operatorName)
@@ -74,25 +74,164 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  BUILD Z/X REPORT (§1.3)
+    //  🆕 PUBLIC API — Session Z-Report
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Generates a Z-report with full session data (opening/closing/variance).
+    /// Invoices are filtered by PointOfSaleId and session period.
+    /// </summary>
+    public async Task<DailyReport> GenerateSessionZReportAsync(SessionCloseData closeData)
+    {
+        var periodStart = closeData.SessionOpenedAt;
+        var periodEnd = DateTime.Now;
+
+        // 1. Build standard Z summaries — filtered by POS
+        var report = await BuildZXReportAsync(
+            ReportType.Z, periodStart, periodEnd,
+            closeData.OperatorName, closeData.PointOfSaleId);
+
+        report.ReportNumber = await GetNextReportNumberAsync(ReportType.Z);
+        report.PointOfSaleId = closeData.PointOfSaleId;
+
+        // 2. Fill opening session data
+        report.SessionOpenedAt = closeData.SessionOpenedAt;
+        report.OpeningAmountUSD = closeData.OpeningAmountUSD;
+        report.OpeningAmountCDF = closeData.OpeningAmountCDF;
+        report.OpeningAmountEUR = closeData.OpeningAmountEUR;
+        report.OpeningAmountCNY = closeData.OpeningAmountCNY;
+        report.RateUSD = closeData.RateUSD;
+        report.RateEUR = closeData.RateEUR;
+        report.RateCNY = closeData.RateCNY;
+        report.OpeningNotes = closeData.OpeningNotes;
+
+        // 3. Calculate expected cash per currency
+        var invoices = await FetchInvoicesAsync(
+            periodStart, periodEnd, InvoiceStatus.Normalized, closeData.PointOfSaleId);
+
+        var expected = CalculateExpectedCash(invoices, closeData);
+        report.ExpectedCashUSD = expected.usd;
+        report.ExpectedCashCDF = expected.cdf;
+        report.ExpectedCashEUR = expected.eur;
+        report.ExpectedCashCNY = expected.cny;
+
+        // 4. Fill closing data
+        report.ClosingAmountUSD = closeData.ClosingAmountUSD;
+        report.ClosingAmountCDF = closeData.ClosingAmountCDF;
+        report.ClosingAmountEUR = closeData.ClosingAmountEUR;
+        report.ClosingAmountCNY = closeData.ClosingAmountCNY;
+        report.ClosingNotes = closeData.ClosingNotes;
+
+        // 5. Calculate variance
+        report.VarianceUSD = closeData.ClosingAmountUSD - expected.usd;
+        report.VarianceCDF = closeData.ClosingAmountCDF - expected.cdf;
+        report.VarianceEUR = closeData.ClosingAmountEUR - expected.eur;
+        report.VarianceCNY = closeData.ClosingAmountCNY - expected.cny;
+
+        // 6. Format and save
+        report.PrintContent = FormatZXReport(report);
+        await SaveReportAsync(report);
+
+        return report;
+    }
+
+    /// <summary>
+    /// Pre-calculates session summary without persisting.
+    /// Used by SessionCloseViewModel to show expected cash before user confirms.
+    /// </summary>
+    public async Task<SessionSummary> CalculateSessionSummaryAsync(
+        DateTime sessionStart, int pointOfSaleId,
+        decimal openUSD, decimal openCDF, decimal openEUR, decimal openCNY)
+    {
+        var now = DateTime.Now;
+        var invoices = await FetchInvoicesAsync(
+            sessionStart, now, InvoiceStatus.Normalized, pointOfSaleId);
+
+        // Invoice counts
+        int salesCount = invoices.Count(i => i.Type.IsSale());
+        int creditCount = invoices.Count(i => i.Type.IsCreditNote());
+
+        // Net TTC
+        decimal salesTTC = invoices.Where(i => i.Type.IsSale()).Sum(i => i.TotalTTC);
+        decimal creditTTC = invoices.Where(i => i.Type.IsCreditNote()).Sum(i => i.TotalTTC);
+
+        // Incomplete
+        int incomplete = 0;
+        foreach (var status in new[] { InvoiceStatus.Draft, InvoiceStatus.Error, InvoiceStatus.Cancelled })
+        {
+            var res = await _uow.Invoices.SearchAsync(
+                new InvoiceSearchCriteria { DateFrom = sessionStart, DateTo = now, Status = status },
+                1, int.MaxValue);
+            incomplete += res.Items.Where(i => i.PointOfSaleId == pointOfSaleId).Count();
+        }
+
+        // Cash sales per currency
+        var cashByCurrency = CalculateCashFlowByCurrency(invoices);
+
+        // Expected
+        decimal expUSD = openUSD + cashByCurrency.salesUSD - cashByCurrency.refundsUSD;
+        decimal expCDF = openCDF + cashByCurrency.salesCDF - cashByCurrency.refundsCDF;
+        decimal expEUR = openEUR + cashByCurrency.salesEUR - cashByCurrency.refundsEUR;
+        decimal expCNY = openCNY + cashByCurrency.salesCNY - cashByCurrency.refundsCNY;
+
+        // Non-cash total
+        decimal nonCashTotal = invoices
+            .SelectMany(i => i.Payments)
+            .Where(p => p.PaymentType != PaymentType.Especes)
+            .Sum(p => p.Amount);
+
+        return new SessionSummary
+        {
+            TotalInvoiceCount = invoices.Count,
+            SalesCount = salesCount,
+            CreditNoteCount = creditCount,
+            SalesTTC = salesTTC,
+            CreditNoteTTC = creditTTC,
+            NetTTC = salesTTC - creditTTC,
+            IncompleteCount = incomplete,
+
+            CashSalesUSD = cashByCurrency.salesUSD,
+            CashSalesCDF = cashByCurrency.salesCDF,
+            CashSalesEUR = cashByCurrency.salesEUR,
+            CashSalesCNY = cashByCurrency.salesCNY,
+
+            CashRefundsUSD = cashByCurrency.refundsUSD,
+            CashRefundsCDF = cashByCurrency.refundsCDF,
+            CashRefundsEUR = cashByCurrency.refundsEUR,
+            CashRefundsCNY = cashByCurrency.refundsCNY,
+
+            ExpectedCashUSD = expUSD,
+            ExpectedCashCDF = expCDF,
+            ExpectedCashEUR = expEUR,
+            ExpectedCashCNY = expCNY,
+
+            NonCashTotal = nonCashTotal
+        };
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  BUILD Z/X REPORT (§1.3) — 🆕 optional POS filter
     // ══════════════════════════════════════════════════════════
 
     private async Task<DailyReport> BuildZXReportAsync(
-        ReportType type, DateTime start, DateTime end, string operatorName)
+        ReportType type, DateTime start, DateTime end, string operatorName,
+        int? posId = null)
     {
-        // ── Snapshot en-tête entreprise (from Company, not AppSettings) ──
         var company = await GetCompanyAsync();
 
-        var normalized = await FetchInvoicesAsync(start, end, InvoiceStatus.Normalized);
+        var normalized = await FetchInvoicesAsync(start, end, InvoiceStatus.Normalized, posId);
 
-        // §1.3.3.m — Ventes incomplètes
+        // §1.3.3.m — Incomplete
         int incompleteCount = 0;
         foreach (var status in new[] { InvoiceStatus.Draft, InvoiceStatus.Error, InvoiceStatus.Cancelled })
         {
             var incomplete = await _uow.Invoices.SearchAsync(
                 new InvoiceSearchCriteria { DateFrom = start, DateTo = end, Status = status },
                 1, int.MaxValue);
-            incompleteCount += incomplete.TotalCount;
+            var items = incomplete.Items;
+            if (posId.HasValue)
+                items = items.Where(i => i.PointOfSaleId == posId.Value).ToList();
+            incompleteCount += items.Count;
         }
 
         var report = new DailyReport
@@ -110,8 +249,10 @@ public class ReportService
             IncompleteCount = incompleteCount,
         };
 
-        // §1.3.3.g — Totaux par type de facture
-        // §1.3.3.i — Totaux par groupe de taxation par type de facture
+        if (posId.HasValue)
+            report.PointOfSaleId = posId.Value;
+
+        // §1.3.3.g — Totaux par type
         foreach (InvoiceType invType in Enum.GetValues<InvoiceType>())
         {
             var subset = normalized.Where(i => i.Type == invType).ToList();
@@ -145,7 +286,7 @@ public class ReportService
             }
         }
 
-        // §1.3.3.j,k — Ventilation des paiements
+        // §1.3.3.j,k — Payments
         foreach (PaymentType pt in Enum.GetValues<PaymentType>())
         {
             var invoicesWithPt = normalized
@@ -166,7 +307,7 @@ public class ReportService
             });
         }
 
-        // Totaux généraux nets (ventes − avoirs)
+        // Net totals
         decimal salesHT = normalized.Where(i => i.Type.IsSale()).Sum(i => i.TotalHT);
         decimal salesTVA = normalized.Where(i => i.Type.IsSale()).Sum(i => i.TotalTVA);
         decimal salesTTC = normalized.Where(i => i.Type.IsSale()).Sum(i => i.TotalTTC);
@@ -184,7 +325,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  BUILD A-REPORT (§1.4)
+    //  BUILD A-REPORT (§1.4) — unchanged
     // ══════════════════════════════════════════════════════════
 
     private async Task<DailyReport> BuildAReportAsync(
@@ -193,15 +334,8 @@ public class ReportService
         var company = await GetCompanyAsync();
         var normalized = await FetchInvoicesAsync(start, end, InvoiceStatus.Normalized);
 
-        var salesLines = normalized
-            .Where(i => i.Type.IsSale())
-            .SelectMany(i => i.Lines)
-            .ToList();
-
-        var creditLines = normalized
-            .Where(i => i.Type.IsCreditNote())
-            .SelectMany(i => i.Lines)
-            .ToList();
+        var salesLines = normalized.Where(i => i.Type.IsSale()).SelectMany(i => i.Lines).ToList();
+        var creditLines = normalized.Where(i => i.Type.IsCreditNote()).SelectMany(i => i.Lines).ToList();
 
         var allCodes = salesLines.Select(l => l.Code)
             .Union(creditLines.Select(l => l.Code))
@@ -210,15 +344,13 @@ public class ReportService
             .OrderBy(c => c)
             .ToList();
 
-        var allProducts = (await _uow.GetRepository<Product>()
-            .FindAsync(p => true)).ToList();
+        var allProducts = (await _uow.GetRepository<Product>().FindAsync(p => true)).ToList();
         var productByCode = allProducts
             .Where(p => !string.IsNullOrEmpty(p.Code))
             .GroupBy(p => p.Code, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        var allPosStocks = (await _uow.GetRepository<PosStock>()
-            .FindAsync(ps => true)).ToList();
+        var allPosStocks = (await _uow.GetRepository<PosStock>().FindAsync(ps => true)).ToList();
         var totalStockByProductId = allPosStocks
             .GroupBy(ps => ps.ProductId)
             .ToDictionary(g => g.Key, g => g.Sum(ps => ps.Quantity));
@@ -237,13 +369,8 @@ public class ReportService
 
         foreach (var code in allCodes)
         {
-            var sold = salesLines
-                .Where(l => l.Code.Equals(code, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var returned = creditLines
-                .Where(l => l.Code.Equals(code, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
+            var sold = salesLines.Where(l => l.Code.Equals(code, StringComparison.OrdinalIgnoreCase)).ToList();
+            var returned = creditLines.Where(l => l.Code.Equals(code, StringComparison.OrdinalIgnoreCase)).ToList();
             var sample = sold.FirstOrDefault() ?? returned.First();
 
             decimal stockQty = 0;
@@ -273,12 +400,101 @@ public class ReportService
 
         report.TotalInvoiceCount = normalized.Count;
         report.TotalItemCount = report.ArticleLines.Count;
-
         return report;
     }
 
     // ══════════════════════════════════════════════════════════
-    //  FORMAT Z/X REPORT → TEXT
+    //  🆕 EXPECTED CASH CALCULATION
+    // ══════════════════════════════════════════════════════════
+
+    private (decimal usd, decimal cdf, decimal eur, decimal cny) CalculateExpectedCash(
+        List<Invoice> invoices, SessionCloseData closeData)
+    {
+        decimal cashUSD = closeData.OpeningAmountUSD;
+        decimal cashCDF = closeData.OpeningAmountCDF;
+        decimal cashEUR = closeData.OpeningAmountEUR;
+        decimal cashCNY = closeData.OpeningAmountCNY;
+
+        foreach (var inv in invoices)
+        {
+            var cashTotal = inv.Payments
+                .Where(p => p.PaymentType == PaymentType.Especes)
+                .Sum(p => p.Amount);
+
+            if (cashTotal <= 0) continue;
+
+            // Cap at TotalTTC to account for change given back on overpayment
+            var netCash = Math.Min(cashTotal, inv.TotalTTC);
+
+            var currency = NormalizeCurrency(inv.CurrencyCode);
+            int sign = inv.Type.IsSale() ? 1 : inv.Type.IsCreditNote() ? -1 : 0;
+            if (sign == 0) continue;
+
+            switch (currency)
+            {
+                case "USD": cashUSD += netCash * sign; break;
+                case "EUR": cashEUR += netCash * sign; break;
+                case "CNY": cashCNY += netCash * sign; break;
+                default: cashCDF += netCash * sign; break;
+            }
+        }
+
+        return (cashUSD, cashCDF, cashEUR, cashCNY);
+    }
+
+    private CashFlowByCurrency CalculateCashFlowByCurrency(List<Invoice> invoices)
+    {
+        var result = new CashFlowByCurrency();
+
+        foreach (var inv in invoices)
+        {
+            var cashTotal = inv.Payments
+                .Where(p => p.PaymentType == PaymentType.Especes)
+                .Sum(p => p.Amount);
+
+            if (cashTotal <= 0) continue;
+            var netCash = Math.Min(cashTotal, inv.TotalTTC);
+            var currency = NormalizeCurrency(inv.CurrencyCode);
+
+            if (inv.Type.IsSale())
+            {
+                switch (currency)
+                {
+                    case "USD": result.salesUSD += netCash; break;
+                    case "EUR": result.salesEUR += netCash; break;
+                    case "CNY": result.salesCNY += netCash; break;
+                    default: result.salesCDF += netCash; break;
+                }
+            }
+            else if (inv.Type.IsCreditNote())
+            {
+                switch (currency)
+                {
+                    case "USD": result.refundsUSD += netCash; break;
+                    case "EUR": result.refundsEUR += netCash; break;
+                    case "CNY": result.refundsCNY += netCash; break;
+                    default: result.refundsCDF += netCash; break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static string NormalizeCurrency(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return "CDF";
+        return code.Trim().ToUpperInvariant() switch
+        {
+            "USD" => "USD",
+            "EUR" => "EUR",
+            "CNY" => "CNY",
+            _ => "CDF"
+        };
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  FORMAT Z/X REPORT → TEXT — 🆕 includes session section
     // ══════════════════════════════════════════════════════════
 
     private string FormatZXReport(DailyReport r)
@@ -308,6 +524,46 @@ public class ReportService
         sb.AppendLine($"  Opérateur  : {r.OperatorName}");
         sb.AppendLine();
 
+        // ── 🆕 SESSION DE CAISSE (Z-report only) ──
+        if (r.HasSessionData)
+        {
+            sb.AppendLine(thin);
+            sb.AppendLine(Center("SESSION DE CAISSE", W));
+            sb.AppendLine(thin);
+            sb.AppendLine($"  Ouverture  : {r.SessionOpenedAt:dd/MM/yyyy HH:mm}");
+            sb.AppendLine($"  Clôture    : {r.GeneratedAt:dd/MM/yyyy HH:mm}");
+
+            var duration = r.GeneratedAt - r.SessionOpenedAt!.Value;
+            sb.AppendLine($"  Durée      : {(int)duration.TotalHours}h {duration.Minutes:D2}min");
+            sb.AppendLine();
+
+            sb.AppendLine($"  {"Devise",-8} {"Ouverture",12} {"Attendu",12} {"Compté",12} {"Écart",12}");
+            sb.AppendLine($"  {new string('─', W - 4)}");
+
+            AppendCurrencyRow(sb, "USD", r.OpeningAmountUSD, r.ExpectedCashUSD, r.ClosingAmountUSD, r.VarianceUSD);
+            AppendCurrencyRow(sb, "CDF", r.OpeningAmountCDF, r.ExpectedCashCDF, r.ClosingAmountCDF, r.VarianceCDF);
+            AppendCurrencyRow(sb, "EUR", r.OpeningAmountEUR, r.ExpectedCashEUR, r.ClosingAmountEUR, r.VarianceEUR);
+            AppendCurrencyRow(sb, "CNY", r.OpeningAmountCNY, r.ExpectedCashCNY, r.ClosingAmountCNY, r.VarianceCNY);
+
+            sb.AppendLine($"  {new string('─', W - 4)}");
+            sb.AppendLine($"  {"Éq.CDF",-8} {r.OpeningTotalCDF,12:N0} {r.ExpectedTotalCDF,12:N0} {r.ClosingTotalCDF,12:N0} {r.VarianceTotalCDF,12:N0}");
+
+            if (r.VarianceTotalCDF == 0)
+                sb.AppendLine(Center("✓ Caisse équilibrée", W));
+            else if (r.VarianceTotalCDF > 0)
+                sb.AppendLine(Center($"⚠ Excédent de {r.VarianceTotalCDF:N0} CDF", W));
+            else
+                sb.AppendLine(Center($"⚠ Manquant de {Math.Abs(r.VarianceTotalCDF):N0} CDF", W));
+
+            sb.AppendLine();
+
+            if (r.RateUSD > 0) sb.AppendLine($"  Taux USD   : {r.RateUSD:N2} CDF");
+            if (r.RateEUR > 0) sb.AppendLine($"  Taux EUR   : {r.RateEUR:N2} CDF");
+            if (r.RateCNY > 0) sb.AppendLine($"  Taux CNY   : {r.RateCNY:N2} CDF");
+            sb.AppendLine();
+        }
+
+        // ── Invoice type summaries ──
         sb.AppendLine(thin);
         sb.AppendLine(Center("TOTAUX PAR TYPE DE FACTURE", W));
         sb.AppendLine(thin);
@@ -319,20 +575,18 @@ public class ReportService
             sb.AppendLine(
                 $"  {ts.InvoiceType,-10} {ts.Count,4}" +
                 $" {ts.TotalHT,12:N2} {ts.TotalTVA,12:N2} {ts.TotalTTC,12:N2}");
-
             if (ts.TotalSpecificTax > 0)
                 sb.AppendLine($"  {"  T.Spécif.",-14} {"",-4} {"",-12} {"",-12} {ts.TotalSpecificTax,12:N2}");
         }
         sb.AppendLine();
 
+        // ── Tax group details ──
         sb.AppendLine(thin);
         sb.AppendLine(Center("DÉTAIL PAR GROUPE DE TAXATION", W));
         sb.AppendLine(thin);
 
         var invoiceTypesInReport = r.TaxGroupDetails
-            .Select(d => d.InvoiceType)
-            .Distinct()
-            .OrderBy(t => t);
+            .Select(d => d.InvoiceType).Distinct().OrderBy(t => t);
 
         foreach (var invType in invoiceTypesInReport)
         {
@@ -341,10 +595,7 @@ public class ReportService
             sb.AppendLine($"  │ {"Grp",-6} {"Total",12} {"Taxable",12} {"TVA",12}");
             sb.AppendLine($"  │ {new string('─', W - 6)}");
 
-            var details = r.TaxGroupDetails
-                .Where(d => d.InvoiceType == invType)
-                .OrderBy(d => d.TaxGroup);
-
+            var details = r.TaxGroupDetails.Where(d => d.InvoiceType == invType).OrderBy(d => d.TaxGroup);
             decimal subTotal = 0, subTaxable = 0, subTax = 0;
 
             foreach (var d in details)
@@ -352,22 +603,19 @@ public class ReportService
                 char label = (char)('A' + (int)d.TaxGroup);
                 string desc = GetTaxGroupShortDesc(d.TaxGroup);
                 sb.AppendLine(
-                    $"  │ {label} {desc,-4}" +
-                    $" {d.TotalAmount,12:N2} {d.TaxableAmount,12:N2} {d.TaxAmount,12:N2}");
-
+                    $"  │ {label} {desc,-4} {d.TotalAmount,12:N2} {d.TaxableAmount,12:N2} {d.TaxAmount,12:N2}");
                 subTotal += d.TotalAmount;
                 subTaxable += d.TaxableAmount;
                 subTax += d.TaxAmount;
             }
 
             sb.AppendLine($"  │ {new string('─', W - 6)}");
-            sb.AppendLine(
-                $"  │ {"TOTAL",-6}" +
-                $" {subTotal,12:N2} {subTaxable,12:N2} {subTax,12:N2}");
+            sb.AppendLine($"  │ {"TOTAL",-6} {subTotal,12:N2} {subTaxable,12:N2} {subTax,12:N2}");
             sb.AppendLine($"  └─");
         }
         sb.AppendLine();
 
+        // ── Payment breakdown ──
         sb.AppendLine(thin);
         sb.AppendLine(Center("VENTILATION DES PAIEMENTS", W));
         sb.AppendLine(thin);
@@ -379,9 +627,7 @@ public class ReportService
 
         foreach (var ps in r.PaymentSummaries.OrderBy(p => p.PaymentType))
         {
-            sb.AppendLine(
-                $"  {GetPaymentLabel(ps.PaymentType),-26}" +
-                $" {ps.InvoiceCount,8} {ps.TotalAmount,14:N2}");
+            sb.AppendLine($"  {GetPaymentLabel(ps.PaymentType),-26} {ps.InvoiceCount,8} {ps.TotalAmount,14:N2}");
             totalPaymentInvoices += ps.InvoiceCount;
             totalPaymentAmount += ps.TotalAmount;
         }
@@ -390,22 +636,19 @@ public class ReportService
         sb.AppendLine($"  {"TOTAL",-26} {totalPaymentInvoices,8} {totalPaymentAmount,14:N2}");
         sb.AppendLine();
 
-        var creditSummary = r.InvoiceTypeSummaries
-            .Where(s => s.InvoiceType.IsCreditNote())
-            .ToList();
-
+        // ── Credit notes ──
+        var creditSummary = r.InvoiceTypeSummaries.Where(s => s.InvoiceType.IsCreditNote()).ToList();
         if (creditSummary.Any())
         {
             sb.AppendLine(thin);
             sb.AppendLine(Center("ÉLÉMENTS RÉDUCTEURS", W));
             sb.AppendLine(thin);
             foreach (var cn in creditSummary)
-            {
                 sb.AppendLine($"  {cn.InvoiceType.Label(),-30} {cn.Count,4} × {cn.TotalTTC,14:N2}");
-            }
             sb.AppendLine();
         }
 
+        // ── Grand totals ──
         sb.AppendLine(heavy);
         sb.AppendLine($"  {"Total HT net",-34} {r.GrandTotalHT,14:N2} CDF");
         sb.AppendLine($"  {"Total TVA",-34} {r.GrandTotalTVA,14:N2} CDF");
@@ -421,6 +664,7 @@ public class ReportService
         sb.AppendLine($"  {"Ventes incomplètes",-34} {r.IncompleteCount,10}");
         sb.AppendLine();
 
+        // ── Footer ──
         sb.AppendLine(heavy);
         if (r.Type == ReportType.Z)
         {
@@ -440,8 +684,20 @@ public class ReportService
         return sb.ToString();
     }
 
+    private static void AppendCurrencyRow(StringBuilder sb, string label,
+        decimal opening, decimal expected, decimal closing, decimal variance)
+    {
+        string vSign = variance switch
+        {
+            > 0 => "+",
+            < 0 => "",
+            _ => " "
+        };
+        sb.AppendLine($"  {label,-8} {opening,12:N2} {expected,12:N2} {closing,12:N2} {vSign}{variance,11:N2}");
+    }
+
     // ══════════════════════════════════════════════════════════
-    //  FORMAT A-REPORT → TEXT (§1.4)
+    //  FORMAT A-REPORT → TEXT (§1.4) — unchanged
     // ══════════════════════════════════════════════════════════
 
     private string FormatAReport(DailyReport r)
@@ -469,38 +725,26 @@ public class ReportService
 
         sb.AppendLine(thin);
         sb.AppendLine(
-            $"  {"Code",-12} {"Désignation",-20}" +
-            $" {"P.U.",10} {"Taux",6}" +
-            $" {"Vendu",8} {"Retour",8} {"Stock",8}");
+            $"  {"Code",-12} {"Désignation",-20} {"P.U.",10} {"Taux",6} {"Vendu",8} {"Retour",8} {"Stock",8}");
         sb.AppendLine(thin);
 
         foreach (var a in r.ArticleLines)
         {
-            string name = a.ArticleName.Length > 20
-                ? a.ArticleName[..17] + "..."
-                : a.ArticleName;
+            string name = a.ArticleName.Length > 20 ? a.ArticleName[..17] + "..." : a.ArticleName;
             char grpChar = (char)('A' + (int)a.TaxGroup);
             string taxLabel = $"{grpChar}/{a.TaxRate:G}%";
-
             sb.AppendLine(
-                $"  {a.ArticleCode,-12} {name,-20}" +
-                $" {a.UnitPrice,10:N2} {taxLabel,6}" +
+                $"  {a.ArticleCode,-12} {name,-20} {a.UnitPrice,10:N2} {taxLabel,6}" +
                 $" {a.QuantitySold,8:N3} {a.QuantityReturned,8:N3} {a.QuantityInStock,8:N3}");
         }
 
         sb.AppendLine(thin);
-
-        decimal totalSold = r.ArticleLines.Sum(a => a.QuantitySold);
-        decimal totalReturned = r.ArticleLines.Sum(a => a.QuantityReturned);
-        decimal totalAmountNet = r.ArticleLines.Sum(a => a.TotalAmount);
-
         sb.AppendLine();
         sb.AppendLine($"  {"Total articles distincts :",-40} {r.ArticleLines.Count,10}");
-        sb.AppendLine($"  {"Total quantité vendue :",-40} {totalSold,10:N3}");
-        sb.AppendLine($"  {"Total quantité retournée :",-40} {totalReturned,10:N3}");
-        sb.AppendLine($"  {"Montant net (ventes − retours) :",-40} {totalAmountNet,10:N2} CDF");
+        sb.AppendLine($"  {"Total quantité vendue :",-40} {r.ArticleLines.Sum(a => a.QuantitySold),10:N3}");
+        sb.AppendLine($"  {"Total quantité retournée :",-40} {r.ArticleLines.Sum(a => a.QuantityReturned),10:N3}");
+        sb.AppendLine($"  {"Montant net (ventes − retours) :",-40} {r.ArticleLines.Sum(a => a.TotalAmount),10:N2} CDF");
         sb.AppendLine();
-
         sb.AppendLine(heavy);
         sb.AppendLine(Center($"Imprimé le {DateTime.Now:dd/MM/yyyy HH:mm}", W));
         sb.AppendLine(Center($"ISF: {r.ISF}", W));
@@ -513,7 +757,7 @@ public class ReportService
     // ══════════════════════════════════════════════════════════
 
     private async Task<List<Invoice>> FetchInvoicesAsync(
-        DateTime start, DateTime end, InvoiceStatus status)
+        DateTime start, DateTime end, InvoiceStatus status, int? posId = null)
     {
         var result = await _uow.Invoices.SearchAsync(
             new InvoiceSearchCriteria
@@ -523,17 +767,15 @@ public class ReportService
                 Status = status
             }, 1, int.MaxValue);
 
-        return result.Items;
+        var items = result.Items;
+        if (posId.HasValue)
+            items = items.Where(i => i.PointOfSaleId == posId.Value).ToList();
+
+        return items;
     }
 
-    /// <summary>
-    /// 🆕 Reads company info directly from the Companies table
-    /// instead of AppSettings.
-    /// </summary>
-    private async Task<Company?> GetCompanyAsync()
-    {
-        return await _uow.Companies.GetCurrentCompanyAsync();
-    }
+    private async Task<Company?> GetCompanyAsync() =>
+        await _uow.Companies.GetCurrentCompanyAsync();
 
     private async Task SaveReportAsync(DailyReport report)
     {
@@ -543,17 +785,13 @@ public class ReportService
 
     private async Task<DateTime?> GetLastReportDateAsync(ReportType type)
     {
-        var reports = await _uow.GetRepository<DailyReport>()
-            .FindAsync(r => r.Type == type);
-        return reports
-            .OrderByDescending(r => r.GeneratedAt)
-            .FirstOrDefault()?.PeriodEnd;
+        var reports = await _uow.GetRepository<DailyReport>().FindAsync(r => r.Type == type);
+        return reports.OrderByDescending(r => r.GeneratedAt).FirstOrDefault()?.PeriodEnd;
     }
 
     private async Task<int> GetNextReportNumberAsync(ReportType type)
     {
-        var reports = await _uow.GetRepository<DailyReport>()
-            .FindAsync(r => r.Type == type);
+        var reports = await _uow.GetRepository<DailyReport>().FindAsync(r => r.Type == type);
         return reports.Count() + 1;
     }
 
@@ -596,4 +834,42 @@ public class ReportService
         TaxGroup.P => "MP1",
         _ => ""
     };
+}
+
+// ══════════════════════════════════════════════════════════
+//  🆕 HELPER DTOs
+// ══════════════════════════════════════════════════════════
+
+public class SessionSummary
+{
+    public int TotalInvoiceCount { get; set; }
+    public int SalesCount { get; set; }
+    public int CreditNoteCount { get; set; }
+    public decimal SalesTTC { get; set; }
+    public decimal CreditNoteTTC { get; set; }
+    public decimal NetTTC { get; set; }
+    public int IncompleteCount { get; set; }
+
+    public decimal CashSalesUSD { get; set; }
+    public decimal CashSalesCDF { get; set; }
+    public decimal CashSalesEUR { get; set; }
+    public decimal CashSalesCNY { get; set; }
+
+    public decimal CashRefundsUSD { get; set; }
+    public decimal CashRefundsCDF { get; set; }
+    public decimal CashRefundsEUR { get; set; }
+    public decimal CashRefundsCNY { get; set; }
+
+    public decimal ExpectedCashUSD { get; set; }
+    public decimal ExpectedCashCDF { get; set; }
+    public decimal ExpectedCashEUR { get; set; }
+    public decimal ExpectedCashCNY { get; set; }
+
+    public decimal NonCashTotal { get; set; }
+}
+
+internal class CashFlowByCurrency
+{
+    public decimal salesUSD, salesCDF, salesEUR, salesCNY;
+    public decimal refundsUSD, refundsCDF, refundsEUR, refundsCNY;
 }

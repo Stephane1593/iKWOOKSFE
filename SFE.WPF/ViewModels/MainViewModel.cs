@@ -4,8 +4,8 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
 using SFE.WPF.Services;
-using SFE.WPF.Views;
 using SFE.WPF.Views.Pages;
+using SFE.WPF.Views;
 
 namespace SFE.WPF.ViewModels;
 
@@ -208,12 +208,9 @@ public partial class MainViewModel : BaseViewModel
                 "Stock" => CreatePage<StockPage, StockViewModel>(),
 
                 // ── Affichage > Rapports ──
-                "ReportX" => new PlaceholderPage("Rapport X",
-                                       "Rapport X — État des ventes de la journée en cours."),
-                "ReportA" => new PlaceholderPage("Rapport A",
-                                       "Rapport A — Récapitulatif des annulations."),
-                "ReportZ" => new PlaceholderPage("Rapport Z",
-                                       "Rapport Z — Rapport de clôture de journée."),
+                "ReportZ" => CreateReportZPage(),
+                "ReportX" => CreatePage<ReportXPage, ReportXPageViewModel>(),
+                "ReportA" => CreatePage<ReportAPage, ReportAPageViewModel>(),
                 "SalesJournal" => CreatePage<SalesHistoryPage, SalesHistoryViewModel>(),
                 "ReportHistory" => new PlaceholderPage("Historique des rapports",
                                        "Consultation et filtrage des rapports par période et par type."),
@@ -256,6 +253,7 @@ public partial class MainViewModel : BaseViewModel
     [RelayCommand]
     private void CloseReportZ()
     {
+        // ── Setup mode — no Z close available ──
         if (_sessionState.IsSetupMode)
         {
             System.Windows.MessageBox.Show(
@@ -266,14 +264,50 @@ public partial class MainViewModel : BaseViewModel
             return;
         }
 
-        // TODO Phase 3: open SessionCloseDialog (same layout as Ouverture de session)
-        System.Windows.MessageBox.Show(
-            "La fonctionnalité de clôture du rapport Z sera implémentée prochainement.\n\n" +
-            "Ce dialogue permettra de saisir les montants de clôture de caisse\n" +
-            "par devise (USD, EUR, CNY, CDF).",
-            "Clôture du rapport Z",
-            System.Windows.MessageBoxButton.OK,
-            System.Windows.MessageBoxImage.Information);
+        // ── No active session ──
+        if (!_sessionState.IsSessionOpen)
+        {
+            System.Windows.MessageBox.Show(
+                "Aucune session active à clôturer.",
+                "Clôture Z",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
+        // ── Confirm intent ──
+        var confirm = System.Windows.MessageBox.Show(
+            "Voulez-vous clôturer la session et générer le rapport Z ?\n\n" +
+            "Cette action est irréversible. Toutes les ventes de la session\n" +
+            "seront comptabilisées et la session sera fermée.",
+            "Clôture de Session",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Question);
+
+        if (confirm != System.Windows.MessageBoxResult.Yes)
+            return;
+
+        // ── Open session close dialog ──
+        var vm = App.ServiceProvider.GetRequiredService<SessionCloseViewModel>();
+        var dialog = new Views.Pages.SessionCloseDialog { DataContext = vm };
+
+        // Try to set owner to current main window
+        var mainWindow = System.Windows.Application.Current.Windows
+            .OfType<System.Windows.Window>()
+            .FirstOrDefault(w => w.IsActive)
+            ?? System.Windows.Application.Current.MainWindow;
+
+        if (mainWindow != null && mainWindow != dialog)
+            dialog.Owner = mainWindow;
+
+        var result = dialog.ShowDialog();
+
+        if (result == true)
+        {
+            // Session closed, Z generated → logout
+            LogoutRequested = true;
+            RequestClose?.Invoke();
+        }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -321,5 +355,19 @@ public partial class MainViewModel : BaseViewModel
     {
         var vm = App.ServiceProvider.GetRequiredService<ClientsViewModel>();
         return new ClientsPage(vm);
+    }
+
+    private ReportZPage CreateReportZPage()
+    {
+        var vm = App.ServiceProvider.GetRequiredService<ReportZPageViewModel>();
+
+        // Wire session close event → logout
+        vm.SessionClosedByZ += () =>
+        {
+            LogoutRequested = true;
+            RequestClose?.Invoke();
+        };
+
+        return new ReportZPage { DataContext = vm };
     }
 }

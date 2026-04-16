@@ -150,6 +150,10 @@ public partial class App : System.Windows.Application
         services.AddTransient<PointOfSaleManagementViewModel>();
         services.AddTransient<ReportViewModel>();
         services.AddTransient<InvoiceDocumentView>();
+        services.AddTransient<SessionCloseViewModel>();
+        services.AddTransient<ReportZPageViewModel>();
+        services.AddTransient<ReportXPageViewModel>();
+        services.AddTransient<ReportAPageViewModel>();
 
         // ═══ Fenêtres & Pages ═══
         services.AddTransient<MainWindow>();

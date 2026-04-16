@@ -1,8 +1,8 @@
 ﻿using System.Collections.ObjectModel;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Interfaces;
-using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Helpers;
@@ -13,28 +13,51 @@ public partial class SalesHistoryViewModel : BaseViewModel
 {
     private readonly IUnitOfWork _unitOfWork;
 
-    // ══════ RÉSULTATS ══════
+    // ══════════════════════ RESULTS ══════════════════════
     public ObservableCollection<InvoiceListItemViewModel> Invoices { get; } = new();
     [ObservableProperty] private InvoiceListItemViewModel? _selectedInvoice;
 
-    // 🆕 DOCUMENT VIEW
+    // ══════════════════════ DOCUMENT / DETAIL PANEL ══════
     [ObservableProperty] private InvoiceDocumentViewModel? _documentViewModel;
-    [ObservableProperty] private bool _showDocument;
+    [ObservableProperty] private bool _showDocument;      // pop-out overlay
+    [ObservableProperty] private bool _showDetailPanel;    // inline right panel
 
-    // (keep old detail for backward compat if needed)
+    // Detail-panel header
+    [ObservableProperty] private string _detailTypeLabel = "";
+    [ObservableProperty] private string _detailNumber = "";
+    [ObservableProperty] private string _detailDate = "";
+    [ObservableProperty] private string _detailOperator = "";
+    [ObservableProperty] private string _detailClient = "";
+    [ObservableProperty] private string _detailClientNIF = "";
+    [ObservableProperty] private string _detailCodeDEF = "";
+
+    // Detail totals
+    [ObservableProperty] private string _detailTotalHT = "";
+    [ObservableProperty] private string _detailTotalTVA = "";
+    [ObservableProperty] private string _detailTotalTTC = "";
+
+    // Detail items
+    public ObservableCollection<InvoiceDetailLineVm> DetailLines { get; } = new();
+
+    // Legacy detail
     [ObservableProperty] private InvoiceDetailViewModel? _invoiceDetail;
     [ObservableProperty] private bool _showDetail;
 
-    // ══════ FILTRES ══════
+    // ══════════════════════ OPERATORS ═══════════════════
+    public ObservableCollection<string> AvailableOperators { get; } = new();
+
+    // ══════════════════════ FILTERS ══════════════════════
     [ObservableProperty] private DateTime _dateFrom = DateTime.Today;
     [ObservableProperty] private DateTime _dateTo = DateTime.Today;
     [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private string _filterOperator = "";
+    [ObservableProperty] private string _filterReference = "";
     [ObservableProperty] private InvoiceType? _filterType;
     [ObservableProperty] private InvoiceStatus? _filterStatus;
     [ObservableProperty] private PaymentType? _filterPaymentType;
     [ObservableProperty] private string _selectedPeriodPreset = "Aujourd'hui";
 
-    // ══════ PAGINATION ══════
+    // ══════════════════════ PAGINATION ═══════════════════
     [ObservableProperty] private int _currentPage = 1;
     [ObservableProperty] private int _totalPages = 1;
     [ObservableProperty] private int _totalCount;
@@ -43,7 +66,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
     [ObservableProperty] private bool _canGoBack;
     [ObservableProperty] private bool _canGoForward;
 
-    // ══════ STATS PÉRIODE ══════
+    // ══════════════════════ STATS ════════════════════════
     [ObservableProperty] private int _statsTotalCount;
     [ObservableProperty] private decimal _statsTotalTTC;
     [ObservableProperty] private decimal _statsTotalTVA;
@@ -51,23 +74,28 @@ public partial class SalesHistoryViewModel : BaseViewModel
     [ObservableProperty] private int _statsFVCount;
     [ObservableProperty] private int _statsFTCount;
     [ObservableProperty] private int _statsEVCount;
+    [ObservableProperty] private int _statsFACount;
+    [ObservableProperty] private int _statsEACount;
+    [ObservableProperty] private int _statsETCount;
 
-    // ══════ STATUS ══════
+    // ══════════════════════ STATUS ═══════════════════════
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool _showSuccess;
     [ObservableProperty] private bool _showError;
     [ObservableProperty] private bool _noResults;
 
-    // ══════ ENUMS POUR COMBOS ══════
+    // ══════════════════════ COMBOS ═══════════════════════
     public InvoiceType?[] FilterTypes { get; } =
     {
-        null, InvoiceType.FV, InvoiceType.FT, InvoiceType.EV,
-        InvoiceType.ET, InvoiceType.FA, InvoiceType.EA
+        null,
+        InvoiceType.FV, InvoiceType.FA, InvoiceType.FT,
+        InvoiceType.EV, InvoiceType.EA, InvoiceType.ET
     };
 
     public InvoiceStatus?[] FilterStatuses { get; } =
     {
-        null, InvoiceStatus.Normalized, InvoiceStatus.Draft,
+        null,
+        InvoiceStatus.Normalized, InvoiceStatus.Draft,
         InvoiceStatus.Cancelled, InvoiceStatus.Error
     };
 
@@ -76,6 +104,10 @@ public partial class SalesHistoryViewModel : BaseViewModel
         "Aujourd'hui", "Hier", "Cette semaine", "Ce mois",
         "Mois dernier", "Ce trimestre", "Cette année", "Personnalisé"
     };
+
+    // ═════════════════════════════════════════════════════
+    //  CTOR
+    // ═════════════════════════════════════════════════════
 
     public SalesHistoryViewModel(IUnitOfWork unitOfWork)
     {
@@ -88,11 +120,27 @@ public partial class SalesHistoryViewModel : BaseViewModel
     {
         ApplyPeriodPreset("Aujourd'hui");
         await SearchInvoicesAsync();
+        await LoadOperatorsAsync();
     }
 
-    // ══════════════════════════════════════════════
-    // RECHERCHE & FILTRES (unchanged)
-    // ══════════════════════════════════════════════
+    private async Task LoadOperatorsAsync()
+    {
+        try
+        {
+            var operators = await _unitOfWork.Invoices.GetDistinctOperatorNamesAsync();
+
+            AvailableOperators.Clear();
+            AvailableOperators.Add("");  // "Tous" — empty = no filter
+
+            foreach (var name in operators.OrderBy(n => n))
+                AvailableOperators.Add(name);
+        }
+        catch { /* non-blocking */ }
+    }
+
+    // ═════════════════════════════════════════════════════
+    //  SEARCH & FILTERS
+    // ═════════════════════════════════════════════════════
 
     [RelayCommand]
     private async Task Search()
@@ -105,6 +153,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private async Task ResetFilters()
     {
         SearchText = "";
+        FilterOperator = "";
+        FilterReference = "";
         FilterType = null;
         FilterStatus = null;
         FilterPaymentType = null;
@@ -163,7 +213,9 @@ public partial class SalesHistoryViewModel : BaseViewModel
                 Type = FilterType,
                 Status = FilterStatus,
                 PaymentType = FilterPaymentType,
-                SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim()
+                SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
+                OperatorName = string.IsNullOrWhiteSpace(FilterOperator) ? null : FilterOperator.Trim(),
+                Reference = string.IsNullOrWhiteSpace(FilterReference) ? null : FilterReference.Trim()
             };
 
             var (items, totalCount) = await _unitOfWork.Invoices
@@ -174,15 +226,15 @@ public partial class SalesHistoryViewModel : BaseViewModel
             CanGoBack = CurrentPage > 1;
             CanGoForward = CurrentPage < TotalPages;
 
-            int startIndex = (CurrentPage - 1) * PageSize + 1;
-            int endIndex = Math.Min(CurrentPage * PageSize, totalCount);
+            int start = (CurrentPage - 1) * PageSize + 1;
+            int end = Math.Min(CurrentPage * PageSize, totalCount);
             PaginationInfo = totalCount > 0
-                ? $"{startIndex}–{endIndex} sur {totalCount}"
+                ? $"{start}–{end} sur {totalCount}"
                 : "Aucun résultat";
 
             Invoices.Clear();
-            foreach (var invoice in items)
-                Invoices.Add(InvoiceListItemViewModel.FromEntity(invoice));
+            foreach (var inv in items)
+                Invoices.Add(InvoiceListItemViewModel.FromEntity(inv));
 
             NoResults = Invoices.Count == 0;
             await LoadPeriodStatsAsync();
@@ -207,13 +259,16 @@ public partial class SalesHistoryViewModel : BaseViewModel
             StatsFVCount = stats.FVCount;
             StatsFTCount = stats.FTCount;
             StatsEVCount = stats.EVCount;
+            StatsFACount = stats.FACount;
+            StatsEACount = stats.EACount;
+            StatsETCount = stats.ETCount;
         }
-        catch { }
+        catch { /* stats are nice-to-have */ }
     }
 
-    // ══════════════════════════════════════════════
-    // PAGINATION (unchanged)
-    // ══════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════
+    //  PAGINATION
+    // ═════════════════════════════════════════════════════
 
     [RelayCommand]
     private async Task GoFirstPage() { CurrentPage = 1; await SearchInvoicesAsync(); }
@@ -224,9 +279,9 @@ public partial class SalesHistoryViewModel : BaseViewModel
     [RelayCommand]
     private async Task GoLastPage() { CurrentPage = TotalPages; await SearchInvoicesAsync(); }
 
-    // ══════════════════════════════════════════════
-    // 🆕 VIEW INVOICE DOCUMENT
-    // ══════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════
+    //  VIEW INVOICE → INLINE DETAIL PANEL
+    // ═════════════════════════════════════════════════════
 
     [RelayCommand]
     private async Task ViewInvoice(InvoiceListItemViewModel? item)
@@ -236,39 +291,60 @@ public partial class SalesHistoryViewModel : BaseViewModel
         IsBusy = true;
         try
         {
-            // Load invoice with all details
             var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
             if (invoice == null) return;
 
-            // Load company
             var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
 
-            // Load POS if invoice has PointOfSaleId
             PointOfSale? pos = null;
             if (invoice.PointOfSaleId > 0)
-            {
-                pos = await _unitOfWork.GetRepository<PointOfSale>()
-                    .GetByIdAsync(invoice.PointOfSaleId);
-            }
+                pos = await _unitOfWork.GetRepository<PointOfSale>().GetByIdAsync(invoice.PointOfSaleId);
 
-            // Get exchange rate from settings or company
-            // For now, use a default or load from AppSettings
             decimal exchangeRate = 0;
             try
             {
                 var settings = (await _unitOfWork.GetRepository<AppSettings>()
                     .FindAsync(s => true)).FirstOrDefault();
-                if (settings != null)
-                    exchangeRate = settings.CurrentExchangeRate;
+                if (settings != null) exchangeRate = settings.CurrentExchangeRate;
             }
             catch { }
 
-            // Create the document view model
-            DocumentViewModel = InvoiceDocumentViewModel.Create(
-                invoice, company, pos, exchangeRate);
+            DocumentViewModel = InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
 
-            ShowDocument = true;
-            ShowDetail = false;
+            // Populate detail panel header
+            DetailTypeLabel = invoice.Type.Label();
+            DetailNumber = invoice.InvoiceNumber ?? $"#{invoice.Id}";
+            DetailDate = invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm");
+            DetailOperator = invoice.OperatorName ?? "—";
+            DetailClient = invoice.ClientName ?? "Client comptoir";
+            DetailClientNIF = invoice.ClientNIF ?? "—";
+            DetailCodeDEF = invoice.CodeDEFDGI ?? "—";
+
+            DetailTotalHT = invoice.TotalHT.ToString("N0") + " CDF";
+            DetailTotalTVA = invoice.TotalTVA.ToString("N0") + " CDF";
+            DetailTotalTTC = invoice.TotalTTC.ToString("N0") + " CDF";
+
+            // Load line items
+            DetailLines.Clear();
+            if (invoice.Lines != null)
+            {
+                foreach (var line in invoice.Lines)
+                {
+                    DetailLines.Add(new InvoiceDetailLineVm
+                    {
+                        Description = line.Name ?? "—",
+                        Quantity = line.Quantity,
+                        UnitPrice = line.UnitPrice,
+                        TotalHT = line.AmountHT,
+                        TVARate = line.TaxRate
+                    });
+                }
+            }
+
+            // Show inline panel
+            ShowDetailPanel = true;
+            ShowDocument = false;
+            SelectedInvoice = item;
         }
         catch (Exception ex)
         {
@@ -278,22 +354,39 @@ public partial class SalesHistoryViewModel : BaseViewModel
         finally { IsBusy = false; }
     }
 
+    // ═════════════════════════════════════════════════════
+    //  DETAIL PANEL ACTIONS
+    // ═════════════════════════════════════════════════════
+
+    [RelayCommand]
+    private void CloseDetailPanel()
+    {
+        ShowDetailPanel = false;
+    }
+
+    /// <summary>Pop out the inline detail into the full overlay dialog.</summary>
+    [RelayCommand]
+    private void PopOutDetail()
+    {
+        if (DocumentViewModel == null) return;
+        ShowDetailPanel = false;
+        ShowDocument = true;
+    }
+
     [RelayCommand]
     private void CloseDocument()
     {
         ShowDocument = false;
-        DocumentViewModel = null;
     }
 
-    // ══════════════════════════════════════════════
-    // 🆕 PRINT INVOICE
-    // ══════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════
+    //  PRINT / EXPORT / COPY
+    // ═════════════════════════════════════════════════════
 
     [RelayCommand]
     private void PrintInvoice()
     {
         if (DocumentViewModel == null) return;
-
         try
         {
             InvoicePrintHelper.Print(DocumentViewModel);
@@ -307,15 +400,10 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
     }
 
-    // ══════════════════════════════════════════════
-    // 🆕 EXPORT PDF / XPS
-    // ══════════════════════════════════════════════
-
     [RelayCommand]
     private void ExportPdf()
     {
         if (DocumentViewModel == null) return;
-
         try
         {
             InvoicePrintHelper.ExportPdf(DocumentViewModel);
@@ -329,24 +417,17 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
     }
 
-    // ══════════════════════════════════════════════
-    // RÉIMPRESSION (from list - quick print)
-    // ══════════════════════════════════════════════
-
     [RelayCommand]
     private async Task ReprintInvoice(InvoiceListItemViewModel? item)
     {
         if (item == null) return;
-
         IsBusy = true;
         try
         {
             var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
             if (invoice == null) { StatusMessage = "Facture introuvable."; ShowError = true; return; }
-
             var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
             var vm = InvoiceDocumentViewModel.Create(invoice, company);
-
             InvoicePrintHelper.Print(vm);
             StatusMessage = $"✓ Impression lancée — {invoice.InvoiceNumber}";
             ShowSuccess = true;
@@ -359,24 +440,16 @@ public partial class SalesHistoryViewModel : BaseViewModel
         finally { IsBusy = false; }
     }
 
-    // ══════════════════════════════════════════════
-    // COPIER CODE DEF
-    // ══════════════════════════════════════════════
-
     [RelayCommand]
     private void CopyCodeDEF()
     {
         if (DocumentViewModel != null && !string.IsNullOrEmpty(DocumentViewModel.CodeDEFDGI))
         {
-            System.Windows.Clipboard.SetText(DocumentViewModel.CodeDEFDGI);
+            Clipboard.SetText(DocumentViewModel.CodeDEFDGI);
             StatusMessage = "✓ Code DEF copié";
             ShowSuccess = true;
         }
     }
-
-    // ══════════════════════════════════════════════
-    // CLOSE OLD DETAIL (kept for compat)
-    // ══════════════════════════════════════════════
 
     [RelayCommand]
     private void CloseDetail()
@@ -384,6 +457,10 @@ public partial class SalesHistoryViewModel : BaseViewModel
         ShowDetail = false;
         InvoiceDetail = null;
     }
+
+    // ═════════════════════════════════════════════════════
+    //  HELPERS
+    // ═════════════════════════════════════════════════════
 
     private void ClearStatus()
     {
@@ -403,4 +480,22 @@ public partial class SalesHistoryViewModel : BaseViewModel
         if (SelectedPeriodPreset != "Personnalisé")
             SelectedPeriodPreset = "Personnalisé";
     }
+}
+
+// ═════════════════════════════════════════════════════
+//  LINE ITEM VM for the inline detail panel
+// ═════════════════════════════════════════════════════
+
+public class InvoiceDetailLineVm
+{
+    public string Description { get; set; } = "";
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal TotalHT { get; set; }
+    public decimal TVARate { get; set; }
+
+    public string QuantityDisplay => Quantity.ToString("N0");
+    public string UnitPriceDisplay => UnitPrice.ToString("N0");
+    public string TotalDisplay => TotalHT.ToString("N0");
+    public string TVADisplay => TVARate > 0 ? $"{TVARate}%" : "0%";
 }

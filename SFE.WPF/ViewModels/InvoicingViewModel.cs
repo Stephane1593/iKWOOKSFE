@@ -22,6 +22,9 @@ public partial class InvoicingViewModel : BaseViewModel,
     private readonly ProductService _productService;
     private bool _isFirstActivation = true;
 
+    // ══════ OPERATORS ══════
+    public ObservableCollection<string> AvailableOperators { get; } = new();
+
     // ══════ PARAMÈTRE GLOBAL ══════
     private bool _discountBeforeTax = true;
 
@@ -416,6 +419,28 @@ public partial class InvoicingViewModel : BaseViewModel,
             catch { _discountBeforeTax = true; }
 
             await GenerateNewInvoiceNumber();
+            await LoadOperatorsAsync();
+        }
+        catch { }
+    }
+
+    private async Task LoadOperatorsAsync()
+    {
+        try
+        {
+            var operators = await _unitOfWork.Invoices.GetDistinctOperatorNamesAsync();
+
+            AvailableOperators.Clear();
+            foreach (var name in operators.OrderBy(n => n))
+                AvailableOperators.Add(name);
+
+            // If current OperatorName not in list, add it
+            if (!string.IsNullOrEmpty(OperatorName) && !AvailableOperators.Contains(OperatorName))
+                AvailableOperators.Insert(0, OperatorName);
+
+            // Default to first if not set
+            if (string.IsNullOrEmpty(OperatorName) && AvailableOperators.Count > 0)
+                OperatorName = AvailableOperators[0];
         }
         catch { }
     }
@@ -1634,6 +1659,7 @@ public partial class InvoicingViewModel : BaseViewModel,
             // ── Refresh invoice number & timestamp ──
             await GenerateNewInvoiceNumber();
             CurrentDateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+            await LoadOperatorsAsync();
         }
         catch { }
     }

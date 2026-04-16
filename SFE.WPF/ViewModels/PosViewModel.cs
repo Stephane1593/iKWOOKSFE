@@ -22,6 +22,9 @@ public partial class PosViewModel : BaseViewModel,
     private readonly DispatcherTimer _clockTimer;
     private bool _isFirstActivation = true;
 
+    // ══════ OPERATORS ══════
+    public ObservableCollection<string> AvailableOperators { get; } = new();
+
     // ══════ PARAMÈTRE GLOBAL ══════
     private bool _discountBeforeTax = true;
 
@@ -236,6 +239,8 @@ public partial class PosViewModel : BaseViewModel,
             await LoadDisplayProductsAsync();
             await RefreshDailyStatsAsync();
             await GenerateNewNumber();
+            // ── Load operators ──
+            await LoadOperatorsAsync();
         }
         catch (Exception ex)
         {
@@ -243,6 +248,27 @@ public partial class PosViewModel : BaseViewModel,
             ShowError = true;
         }
         finally { IsBusy = false; }
+    }
+
+    private async Task LoadOperatorsAsync()
+    {
+        try
+        {
+            var operators = await _unitOfWork.Invoices.GetDistinctOperatorNamesAsync();
+
+            AvailableOperators.Clear();
+            foreach (var name in operators.OrderBy(n => n))
+                AvailableOperators.Add(name);
+
+            // If current OperatorName not in list, add it
+            if (!string.IsNullOrEmpty(OperatorName) && !AvailableOperators.Contains(OperatorName))
+                AvailableOperators.Insert(0, OperatorName);
+
+            // Default to first if not set
+            if (string.IsNullOrEmpty(OperatorName) && AvailableOperators.Count > 0)
+                OperatorName = AvailableOperators[0];
+        }
+        catch { }
     }
 
     private async Task GenerateNewNumber() =>
@@ -939,6 +965,9 @@ public partial class PosViewModel : BaseViewModel,
 
             // ── Refresh products (may have been edited) ──
             await LoadDisplayProductsAsync();
+
+            // ── Refresh operators ──
+            await LoadOperatorsAsync();
         }
         catch { }
     }
