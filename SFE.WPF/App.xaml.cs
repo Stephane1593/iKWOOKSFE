@@ -130,6 +130,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<StockService>();
         services.AddTransient<PointOfSaleService>();
         services.AddTransient<ReportService>();
+        services.AddSingleton<CustomerDisplayService>();
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();

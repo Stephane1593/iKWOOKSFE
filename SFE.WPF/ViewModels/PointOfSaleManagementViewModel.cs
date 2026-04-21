@@ -4,7 +4,10 @@ using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
+using SFE.WPF.Helpers;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text;
 
 namespace SFE.WPF.ViewModels;
 
@@ -39,7 +42,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [ObservableProperty]
     private string _formTitle = "";
 
-    // ── Champs formulaire ──
+    // ── Champs formulaire : Général ──
 
     private int _editId;
 
@@ -73,7 +76,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [ObservableProperty]
     private string _editEmcfNim = "";
 
-    // ── Radio fiscal (bool au lieu de l'enum directement) ──
+    // ── Radio fiscal ──
 
     private bool _editIsEmcf = true;
     public bool EditIsEmcf
@@ -87,13 +90,56 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════
-    //  COMMANDES
+    //  🖨 CHAMPS FORMULAIRE : IMPRIMANTE
+    // ══════════════════════════════════════════════
+
+    [ObservableProperty]
+    private string _editPrinterName = "";
+
+    [ObservableProperty]
+    private int _editPaperWidth = 80;
+
+    [ObservableProperty]
+    private bool _editAutoPrint = true;
+
+    [ObservableProperty]
+    private int _editPrintCopies = 1;
+
+    [ObservableProperty]
+    private bool _editEnableCustomerDisplay;
+
+    [ObservableProperty]
+    private bool _editEnableCashDrawer;
+
+    [ObservableProperty]
+    private int _editCashDrawerPin;
+
+    [ObservableProperty]
+    private int _editCodePage = 858;
+
+    [ObservableProperty]
+    private bool _editPrintLogo;
+
+    [ObservableProperty]
+    private string _editFooterText = "Merci pour votre achat !";
+
+    // ── Sources ComboBox imprimante ──
+
+    public int[] PaperWidths { get; } = { 80, 58 };
+    public int[] PrintCopiesOptions { get; } = { 1, 2, 3 };
+    public int[] CashDrawerPins { get; } = { 0, 1 };
+    public int[] CodePages { get; } = { 858, 850, 437, 1252 };
+
+    public ObservableCollection<string> DetectedPrinters { get; } = new();
+
+    // ══════════════════════════════════════════════
+    //  COMMANDES — CRUD POS
     // ══════════════════════════════════════════════
 
     [RelayCommand]
     private async Task LoadAsync()
     {
-        if (!await EnsureCompanyLoadedAsync()) return;   // ← simplified
+        if (!await EnsureCompanyLoadedAsync()) return;
 
         var posList = await _posService.GetAllAsync(CompanyId);
         AllPos = new ObservableCollection<PointOfSale>(posList);
@@ -112,10 +158,24 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditPhone = "";
         EditManagesStock = true;
         EditAllowNegativeStock = false;
-        EditIsEmcf = true;                // ← synchronisé
+        EditIsEmcf = true;
         EditEmcfUrl = "";
         EditEmcfToken = "";
         EditEmcfNim = "";
+
+        // 🖨 Valeurs par défaut imprimante
+        EditPrinterName = "";
+        EditPaperWidth = 80;
+        EditAutoPrint = true;
+        EditPrintCopies = 1;
+        EditEnableCustomerDisplay = false;
+        EditEnableCashDrawer = false;
+        EditCashDrawerPin = 0;
+        EditCodePage = 858;
+        EditPrintLogo = false;
+        EditFooterText = "Merci pour votre achat !";
+
+        RefreshPrinterList();
         FormTitle = "Nouveau point de vente";
         IsEditing = true;
     }
@@ -131,10 +191,24 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditPhone = pos.Phone;
         EditManagesStock = pos.ManagesStock;
         EditAllowNegativeStock = pos.AllowNegativeStock;
-        EditIsEmcf = pos.DeviceType == DeviceType.EMcf;  // ← synchronisé
+        EditIsEmcf = pos.DeviceType == DeviceType.EMcf;
         EditEmcfUrl = pos.EmcfApiUrl ?? "";
         EditEmcfToken = pos.EmcfToken ?? "";
         EditEmcfNim = pos.EmcfNIM ?? "";
+
+        // 🖨 Charger config imprimante existante
+        EditPrinterName = pos.ThermalPrinterName ?? "";
+        EditPaperWidth = pos.PaperWidthMm > 0 ? pos.PaperWidthMm : 80;
+        EditAutoPrint = pos.AutoPrintReceipt;
+        EditPrintCopies = pos.PrintCopies > 0 ? pos.PrintCopies : 1;
+        EditEnableCustomerDisplay = pos.EnableCustomerDisplay;
+        EditEnableCashDrawer = pos.EnableCashDrawer;
+        EditCashDrawerPin = pos.CashDrawerPin;
+        EditCodePage = pos.PrinterCodePage > 0 ? pos.PrinterCodePage : 858;
+        EditPrintLogo = pos.PrintLogo;
+        EditFooterText = pos.ReceiptFooterText ?? "Merci pour votre achat !";
+
+        RefreshPrinterList();
         FormTitle = $"Modifier {pos.Code}";
         IsEditing = true;
     }
@@ -146,9 +220,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     private async Task SavePosAsync()
     {
         if (!await EnsureCompanyLoadedAsync()) return;
-        // ✅ Conversion bool → enum AVANT la sauvegarde
-        var deviceType = EditIsEmcf ? DeviceType.EMcf : DeviceType.Mcf;
 
+        var deviceType = EditIsEmcf ? DeviceType.EMcf : DeviceType.Mcf;
         PosSaveResult result;
 
         if (_editId == 0)
@@ -163,10 +236,22 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
                 Phone = EditPhone,
                 ManagesStock = EditManagesStock,
                 AllowNegativeStock = EditAllowNegativeStock,
-                DeviceType = deviceType,                        // ← corrigé
+                DeviceType = deviceType,
                 EmcfApiUrl = NullIfEmpty(EditEmcfUrl),
                 EmcfToken = NullIfEmpty(EditEmcfToken),
-                EmcfNIM = NullIfEmpty(EditEmcfNim)
+                EmcfNIM = NullIfEmpty(EditEmcfNim),
+
+                // 🖨 Imprimante
+                ThermalPrinterName = EditPrinterName?.Trim() ?? "",
+                PaperWidthMm = EditPaperWidth,
+                AutoPrintReceipt = EditAutoPrint,
+                PrintCopies = EditPrintCopies,
+                EnableCustomerDisplay = EditEnableCustomerDisplay,
+                EnableCashDrawer = EditEnableCashDrawer,
+                CashDrawerPin = EditCashDrawerPin,
+                PrinterCodePage = EditCodePage,
+                PrintLogo = EditPrintLogo,
+                ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !"
             };
             result = await _posService.CreateAsync(pos);
         }
@@ -182,10 +267,22 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             pos.Phone = EditPhone;
             pos.ManagesStock = EditManagesStock;
             pos.AllowNegativeStock = EditAllowNegativeStock;
-            pos.DeviceType = deviceType;                        // ← corrigé
+            pos.DeviceType = deviceType;
             pos.EmcfApiUrl = NullIfEmpty(EditEmcfUrl);
             pos.EmcfToken = NullIfEmpty(EditEmcfToken);
             pos.EmcfNIM = NullIfEmpty(EditEmcfNim);
+
+            // 🖨 Imprimante
+            pos.ThermalPrinterName = EditPrinterName?.Trim() ?? "";
+            pos.PaperWidthMm = EditPaperWidth;
+            pos.AutoPrintReceipt = EditAutoPrint;
+            pos.PrintCopies = EditPrintCopies;
+            pos.EnableCustomerDisplay = EditEnableCustomerDisplay;
+            pos.EnableCashDrawer = EditEnableCashDrawer;
+            pos.CashDrawerPin = EditCashDrawerPin;
+            pos.PrinterCodePage = EditCodePage;
+            pos.PrintLogo = EditPrintLogo;
+            pos.ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !";
 
             result = await _posService.UpdateAsync(pos);
         }
@@ -231,6 +328,96 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════
+    //  🖨 COMMANDES — IMPRIMANTE
+    // ══════════════════════════════════════════════
+
+    [RelayCommand]
+    private void RefreshPrinterList()
+    {
+        var previous = EditPrinterName;
+        DetectedPrinters.Clear();
+        DetectedPrinters.Add(""); // vide = auto-détection
+
+        try
+        {
+            foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+                DetectedPrinters.Add(printer);
+        }
+        catch
+        {
+            // System.Drawing non disponible ou aucune imprimante
+        }
+
+        // Restaurer la sélection
+        if (!string.IsNullOrEmpty(previous) && DetectedPrinters.Contains(previous))
+            EditPrinterName = previous;
+    }
+
+    [RelayCommand]
+    private void AutoDetectPrinter()
+    {
+        string[] thermalKeywords =
+        {
+            "pos", "thermal", "receipt", "epson", "tm-t", "tm-m",
+            "star ", "tsp", "bixolon", "srp-", "citizen", "ct-",
+            "xprinter", "xp-", "rongta", "rp-", "zjiang",
+            "pos-58", "pos-80", "80mm", "58mm", "optima"
+        };
+
+        try
+        {
+            foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+            {
+                string lower = printer.ToLowerInvariant();
+                foreach (var kw in thermalKeywords)
+                {
+                    if (lower.Contains(kw))
+                    {
+                        EditPrinterName = printer;
+                        _ = ShowSuccessAsync($"🖨 Imprimante détectée : {printer}");
+                        return;
+                    }
+                }
+            }
+        }
+        catch { /* ignore */ }
+
+        ShowErrorMessage("Aucune imprimante thermique détectée automatiquement.");
+    }
+
+    [RelayCommand]
+    private void TestPrint()
+    {
+        string printerName = EditPrinterName?.Trim() ?? "";
+
+        // Si vide, tenter auto-détection rapide
+        if (string.IsNullOrEmpty(printerName))
+        {
+            AutoDetectPrinter();
+            printerName = EditPrinterName?.Trim() ?? "";
+        }
+
+        if (string.IsNullOrEmpty(printerName))
+        {
+            ShowErrorMessage("Aucune imprimante configurée ou détectée.");
+            return;
+        }
+
+        try
+        {
+            int charsPerLine = EditPaperWidth >= 80 ? 48 : 32;
+            byte[] receipt = BuildTestReceipt(charsPerLine, EditCodePage);
+            RawPrinterHelper.SendBytesToPrinter(printerName, receipt, "SFE-TestPrint");
+
+            _ = ShowSuccessAsync($"🖨 Ticket test envoyé à « {printerName} ».");
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur impression : {ex.Message}");
+        }
+    }
+
+    // ══════════════════════════════════════════════
     //  HELPERS
     // ══════════════════════════════════════════════
 
@@ -252,4 +439,111 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s;
 
+    /// <summary>
+    /// Construit un ticket test ESC/POS complet pour vérifier
+    /// l'alignement, les accents et la largeur papier.
+    /// </summary>
+    private static byte[] BuildTestReceipt(int charsPerLine, int codePage)
+    {
+        using var ms = new MemoryStream();
+
+        void Write(params byte[] data) => ms.Write(data, 0, data.Length);
+
+        Encoding enc;
+        try { enc = Encoding.GetEncoding(codePage); }
+        catch { enc = Encoding.GetEncoding(858); }
+
+        void PrintLine(string text)
+        {
+            byte[] bytes = enc.GetBytes(text);
+            ms.Write(bytes, 0, bytes.Length);
+            ms.WriteByte(0x0A); // LF
+        }
+
+        // ── ESC @ : Initialize printer ──
+        Write(0x1B, 0x40);
+
+        // ── Set code page ──
+        byte cpByte = codePage switch
+        {
+            437 => 0x00,
+            850 => 0x02,
+            858 => 0x13,
+            1252 => 0x10,
+            _ => 0x13
+        };
+        Write(0x1B, 0x74, cpByte);
+
+        // ── Center align ──
+        Write(0x1B, 0x61, 0x01);
+
+        // ── Bold ON + Double height/width ──
+        Write(0x1B, 0x45, 0x01);
+        Write(0x1D, 0x21, 0x11);
+
+        PrintLine("SFE GECOM");
+
+        // ── Reset size ──
+        Write(0x1D, 0x21, 0x00);
+        Write(0x1B, 0x45, 0x00);
+
+        PrintLine("");
+        PrintLine(new string('=', charsPerLine));
+        PrintLine("TEST D'IMPRESSION");
+        PrintLine(new string('=', charsPerLine));
+        PrintLine("");
+        PrintLine($"Largeur : {(charsPerLine >= 48 ? 80 : 58)} mm");
+        PrintLine($"Caractères/ligne : {charsPerLine}");
+        PrintLine($"Code page : {codePage}");
+        PrintLine($"Date : {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
+        PrintLine("");
+        PrintLine("Caractères spéciaux :");
+        PrintLine("é è ê ë à â ù û ç ô î ï €");
+        PrintLine("");
+        PrintLine(new string('-', charsPerLine));
+
+        // ── Left align for table ──
+        Write(0x1B, 0x61, 0x00);
+
+        void PrintRow(string left, string right)
+        {
+            int gap = charsPerLine - left.Length - right.Length;
+            if (gap < 1) gap = 1;
+            PrintLine(left + new string(' ', gap) + right);
+        }
+
+        PrintRow("Article test", "1 500,00 CDF");
+        PrintRow("TVA 16%", "240,00 CDF");
+
+        // ── Center ──
+        Write(0x1B, 0x61, 0x01);
+        PrintLine(new string('-', charsPerLine));
+
+        // ── Bold total ──
+        Write(0x1B, 0x61, 0x00);
+        Write(0x1B, 0x45, 0x01);
+        Write(0x1D, 0x21, 0x01); // Double height
+
+        PrintRow("TOTAL TTC", "1 740,00 CDF");
+
+        Write(0x1D, 0x21, 0x00);
+        Write(0x1B, 0x45, 0x00);
+
+        // ── Center footer ──
+        Write(0x1B, 0x61, 0x01);
+        PrintLine(new string('=', charsPerLine));
+        PrintLine("");
+        PrintLine("Si ce ticket s'imprime");
+        PrintLine("correctement, votre");
+        PrintLine("imprimante est configurée !");
+        PrintLine("");
+        PrintLine("--- SFE GECOM ---");
+        PrintLine("");
+
+        // ── Feed 5 lines + Partial cut ──
+        Write(0x1B, 0x64, 0x05);
+        Write(0x1D, 0x56, 0x01);
+
+        return ms.ToArray();
+    }
 }

@@ -162,25 +162,25 @@
                         <StackPanel Orientation="Horizontal">
                             <Border Background="#E0E7FF" CornerRadius="8" Padding="8" Margin="0,0,12,0">
                                 <TextBlock Text="&#xE7BF;" FontFamily="{StaticResource IconFont}"
-                                           FontSize="18" Foreground="{StaticResource PrimaryBrush}"/>
+                               FontSize="18" Foreground="{StaticResource PrimaryBrush}"/>
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="Points de vente"
-                                           Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                               Style="{StaticResource SectionTitleStyle}" Margin="0"/>
                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="{StaticResource TextMutedBrush}">
-                                    <Run Text="Chaque POS dispose de sa propre configuration fiscale · "/>
-                                    <Run Text="{Binding AllPos.Count, Mode=OneWay}"/>
-                                    <Run Text=" point(s)"/>
+                               Foreground="{StaticResource TextMutedBrush}">
+                        <Run Text="Chaque POS dispose de sa propre configuration fiscale et imprimante · "/>
+                        <Run Text="{Binding AllPos.Count, Mode=OneWay}"/>
+                        <Run Text=" point(s)"/>
                                 </TextBlock>
                             </StackPanel>
                         </StackPanel>
 
                         <Button Grid.Column="1" VerticalAlignment="Center"
-                                Command="{Binding StartNewPosCommand}"
-                                Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold"
-                                Padding="14,8" BorderThickness="0" Cursor="Hand">
+                    Command="{Binding StartNewPosCommand}"
+                    Background="{StaticResource PrimaryBrush}" Foreground="White"
+                    FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold"
+                    Padding="14,8" BorderThickness="0" Cursor="Hand">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="＋" FontSize="14" Margin="0,0,6,0"/>
                                 <TextBlock Text="Ajouter un POS"/>
@@ -190,25 +190,25 @@
 
                     <!-- ── Bandeau succès ── -->
                     <Border Margin="0,0,0,8" CornerRadius="6" Padding="10,6"
-                            Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                            Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1">
+                Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
+                Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="✓" Foreground="{StaticResource SuccessBrush}"
-                                       FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                           FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                                       FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                           FontFamily="{StaticResource AppFont}" FontSize="12"/>
                         </StackPanel>
                     </Border>
 
                     <!-- ── Bandeau erreur ── -->
                     <Border Margin="0,0,0,8" CornerRadius="6" Padding="10,6"
-                            Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                            Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1">
+                Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
+                Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="✗" Foreground="#DC2626"
-                                        FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                           FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding StatusMessage}" Foreground="#DC2626"
-                                       FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
+                           FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
 
@@ -217,7 +217,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Margin="0,0,0,8" CornerRadius="10" Padding="16,12"
-                                        Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1">
+                            Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -225,11 +225,11 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
+                                        <!-- Status dot -->
                                         <Border Width="8" Height="8" CornerRadius="4" Margin="0,0,12,0"
-                                                VerticalAlignment="Center">
+                                    VerticalAlignment="Center">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="#10B981"/>
@@ -242,42 +242,45 @@
                                             </Border.Style>
                                         </Border>
 
+                                        <!-- Info -->
                                         <StackPanel Grid.Column="1">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding Code}" FontFamily="Consolas"
-                                                           FontSize="13" FontWeight="Bold"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                               FontSize="13" FontWeight="Bold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
                                                 <TextBlock Text=" — " Foreground="{StaticResource TextMutedBrush}"/>
                                                 <TextBlock Text="{Binding Name}" FontFamily="{StaticResource AppFont}"
-                                                           FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                               FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
-                                                           Foreground="{StaticResource TextSecondaryBrush}">
-                                                    <Run Text="{Binding City, Mode=OneWay}"/>
+                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                        <Run Text="{Binding City, Mode=OneWay}"/>
                                                 </TextBlock>
+
+                                                <!-- Badge device type -->
                                                 <Border CornerRadius="4" Padding="6,2" Margin="8,0,0,0"
-                                                        VerticalAlignment="Center">
+                                            VerticalAlignment="Center">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="#EEF2FF"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding DeviceType}"
-                                                                             Value="{x:Static enums:DeviceType.Mcf}">
+                                                                 Value="{x:Static enums:DeviceType.Mcf}">
                                                                     <Setter Property="Background" Value="#FDF4FF"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Border.Style>
                                                     <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                               FontWeight="SemiBold">
+                                                   FontWeight="SemiBold">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
                                                                 <Setter Property="Text" Value="📡 e-MCF"/>
                                                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding DeviceType}"
-                                                                                 Value="{x:Static enums:DeviceType.Mcf}">
+                                                                     Value="{x:Static enums:DeviceType.Mcf}">
                                                                         <Setter Property="Text" Value="🔌 MCF"/>
                                                                         <Setter Property="Foreground" Value="#9333EA"/>
                                                                     </DataTrigger>
@@ -286,8 +289,10 @@
                                                         </TextBlock.Style>
                                                     </TextBlock>
                                                 </Border>
+
+                                                <!-- Badge stock -->
                                                 <Border CornerRadius="4" Padding="6,2" Margin="4,0,0,0"
-                                                        VerticalAlignment="Center">
+                                            VerticalAlignment="Center">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="#ECFDF5"/>
@@ -300,18 +305,40 @@
                                                         </Style>
                                                     </Border.Style>
                                                     <TextBlock Text="📦 Stock" FontFamily="{StaticResource AppFont}"
-                                                               FontSize="10" Foreground="#059669"/>
+                                                   FontSize="10" Foreground="#059669"/>
+                                                </Border>
+
+                                                <!-- 🖨 Badge imprimante -->
+                                                <Border CornerRadius="4" Padding="6,2" Margin="4,0,0,0"
+                                            VerticalAlignment="Center">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#FFF7ED"/>
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ThermalPrinterName}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
+                                                   Foreground="#C2410C">
+                                            <Run Text="🖨"/>
+                                            <Run Text="{Binding PaperWidthMm, Mode=OneWay, StringFormat='{}{0}mm'}"/>
+                                                    </TextBlock>
                                                 </Border>
                                             </StackPanel>
                                         </StackPanel>
 
+                                        <!-- Init stock -->
                                         <Button Grid.Column="2" Content="📦 Init. stock"
-                                                FontFamily="{StaticResource AppFont}" FontSize="11"
-                                                Padding="10,6" Background="#ECFDF5" BorderThickness="0"
-                                                Cursor="Hand" Margin="0,0,6,0" VerticalAlignment="Center"
-                                                Command="{Binding DataContext.InitializeStockCommand,
-                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}">
+                                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                                    Padding="10,6" Background="#ECFDF5" BorderThickness="0"
+                                    Cursor="Hand" Margin="0,0,6,0" VerticalAlignment="Center"
+                                    Command="{Binding DataContext.InitializeStockCommand,
+                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -325,57 +352,63 @@
                                         </Button>
 
                                         <Button Grid.Column="3" Content="✏️" FontSize="14"
-                                                Background="Transparent" BorderThickness="0"
-                                                Cursor="Hand" Margin="0,0,4,0" VerticalAlignment="Center"
-                                                Command="{Binding DataContext.EditPosCommand,
-                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"/>
+                                    Background="Transparent" BorderThickness="0"
+                                    Cursor="Hand" Margin="0,0,4,0" VerticalAlignment="Center"
+                                    Command="{Binding DataContext.EditPosCommand,
+                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"/>
 
                                         <Button Grid.Column="4" Content="🗑" FontSize="14"
-                                                Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                                VerticalAlignment="Center"
-                                                Command="{Binding DataContext.DeactivatePosCommand,
-                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"/>
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding DataContext.DeactivatePosCommand,
+                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <!-- ── Formulaire édition POS ── -->
+                    <!-- ══════════════════════════════════════════════════════════ -->
+                    <!-- FORMULAIRE ÉDITION POS                                     -->
+                    <!-- ══════════════════════════════════════════════════════════ -->
                     <Border Background="#FFFBEB" CornerRadius="12" Padding="24" Margin="0,8,0,0"
-                            BorderBrush="#FDE68A" BorderThickness="1"
-                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
+                BorderBrush="#FDE68A" BorderThickness="1"
+                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel>
                             <Grid Margin="0,0,0,16">
                                 <TextBlock Text="{Binding FormTitle}" FontFamily="{StaticResource AppFont}"
-                                           FontSize="15" FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                               FontSize="15" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <Button Content="✕" HorizontalAlignment="Right" FontSize="14"
-                                        Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                        Command="{Binding CancelEditCommand}"/>
+                            Background="Transparent" BorderThickness="0" Cursor="Hand"
+                            Command="{Binding CancelEditCommand}"/>
                             </Grid>
 
-                            <TextBlock Text="I N F O R M A T I O N S G É N É R A L E S" FontFamily="{StaticResource AppFont}"
-                                       FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,0,0,10" />
+                            <!-- ────────────────────────────────────────── -->
+                            <!-- BLOC 1 : INFORMATIONS GÉNÉRALES             -->
+                            <!-- ────────────────────────────────────────── -->
+                            <TextBlock Text="I N F O R M A T I O N S   G É N É R A L E S"
+                           FontFamily="{StaticResource AppFont}" FontSize="10"
+                           FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
+                           Margin="0,0,0,10"/>
 
                             <UniformGrid Columns="3" Margin="0,0,0,12">
                                 <StackPanel Margin="0,0,8,0">
                                     <TextBlock Text="CODE *" Style="{StaticResource FormLabelStyle}"/>
                                     <TextBox Text="{Binding EditCode}" FontFamily="Consolas"
-                                             Style="{StaticResource ModernTextBoxStyle}"/>
+                                 Style="{StaticResource ModernTextBoxStyle}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,8,0">
                                     <TextBlock Text="NOM *" Style="{StaticResource FormLabelStyle}"/>
                                     <TextBox Text="{Binding EditName}"
-                                             Style="{StaticResource ModernTextBoxStyle}"/>
+                                 Style="{StaticResource ModernTextBoxStyle}"/>
                                 </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="VILLE" Style="{StaticResource FormLabelStyle}"/>
                                     <TextBox Text="{Binding EditCity}"
-                                             Style="{StaticResource ModernTextBoxStyle}"/>
+                                 Style="{StaticResource ModernTextBoxStyle}"/>
                                 </StackPanel>
                             </UniformGrid>
 
@@ -383,74 +416,77 @@
                                 <StackPanel Margin="0,0,8,0">
                                     <TextBlock Text="ADRESSE" Style="{StaticResource FormLabelStyle}"/>
                                     <TextBox Text="{Binding EditAddress}"
-                                             Style="{StaticResource ModernTextBoxStyle}"/>
+                                 Style="{StaticResource ModernTextBoxStyle}"/>
                                 </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="TÉLÉPHONE" Style="{StaticResource FormLabelStyle}"/>
                                     <TextBox Text="{Binding EditPhone}"
-                                             Style="{StaticResource ModernTextBoxStyle}"/>
+                                 Style="{StaticResource ModernTextBoxStyle}"/>
                                 </StackPanel>
                             </UniformGrid>
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
                                 <CheckBox Content="Gère du stock" IsChecked="{Binding EditManagesStock}"
-                                          FontFamily="{StaticResource AppFont}" Margin="0,0,24,0"/>
+                              FontFamily="{StaticResource AppFont}" Margin="0,0,24,0"/>
                                 <CheckBox Content="Autoriser stock négatif" IsChecked="{Binding EditAllowNegativeStock}"
-                                          FontFamily="{StaticResource AppFont}"/>
+                              FontFamily="{StaticResource AppFont}"/>
                             </StackPanel>
 
                             <Border Height="1" Background="#E5E7EB" Margin="0,0,0,20"/>
 
-                            <TextBlock Text="DISPOSITIF FISCAL DE CE POINT DE VENTE"
-                                       FontFamily="{StaticResource AppFont}"
-                                       FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,0,0,12"/>
+                            <!-- ────────────────────────────────────────── -->
+                            <!-- BLOC 2 : DISPOSITIF FISCAL                  -->
+                            <!-- ────────────────────────────────────────── -->
+                            <TextBlock Text="D I S P O S I T I F   F I S C A L"
+                           FontFamily="{StaticResource AppFont}" FontSize="10"
+                           FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
+                           Margin="0,0,0,12"/>
 
                             <UniformGrid Columns="2" Margin="0,0,0,16">
                                 <RadioButton GroupName="PosDeviceType"
-                                             IsChecked="{Binding EditIsEmcf}"
-                                             Style="{StaticResource RadioCardStyle}" Margin="0,0,8,0">
+                                 IsChecked="{Binding EditIsEmcf}"
+                                 Style="{StaticResource RadioCardStyle}" Margin="0,0,8,0">
                                     <StackPanel>
                                         <TextBlock Text="📡 e-MCF" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="14" FontWeight="Bold"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       FontSize="14" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock Text="API REST (Internet)" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                                   Margin="0,2,0,0"/>
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </RadioButton>
                                 <RadioButton GroupName="PosDeviceType"
-                                             IsChecked="{Binding EditIsEmcf, Converter={StaticResource InverseBoolConverter}}"
-                                             Style="{StaticResource RadioCardStyle}" Margin="8,0,0,0">
+                                 IsChecked="{Binding EditIsEmcf, Converter={StaticResource InverseBoolConverter}}"
+                                 Style="{StaticResource RadioCardStyle}" Margin="8,0,0,0">
                                     <StackPanel>
                                         <TextBlock Text="🔌 MCF" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="14" FontWeight="Bold"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       FontSize="14" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock Text="Port série (RS232/USB)" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                                   Margin="0,2,0,0"/>
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </RadioButton>
                             </UniformGrid>
 
                             <!-- Champs e-MCF -->
                             <Border Background="White" CornerRadius="8" Padding="16"
-                                    BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4"
-                                    Visibility="{Binding EditIsEmcf, Converter={StaticResource BoolToVisibilityConverter}}">
+                        BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4"
+                        Visibility="{Binding EditIsEmcf, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <StackPanel>
                                     <TextBlock Text="URL DE L'API e-MCF" Style="{StaticResource FormLabelStyle}"/>
                                     <TextBox Text="{Binding EditEmcfUrl, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,12"/>
+                                 Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,12"/>
                                     <UniformGrid Columns="2">
                                         <StackPanel Margin="0,0,8,0">
                                             <TextBlock Text="TOKEN JWT" Style="{StaticResource FormLabelStyle}"/>
                                             <TextBox Text="{Binding EditEmcfToken, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                         Style="{StaticResource ModernTextBoxStyle}"/>
                                         </StackPanel>
                                         <StackPanel Margin="8,0,0,0">
                                             <TextBlock Text="NIM" Style="{StaticResource FormLabelStyle}"/>
                                             <TextBox Text="{Binding EditEmcfNim, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                         Style="{StaticResource ModernTextBoxStyle}"/>
                                         </StackPanel>
                                     </UniformGrid>
                                 </StackPanel>
@@ -458,7 +494,7 @@
 
                             <!-- Note MCF -->
                             <Border Background="White" CornerRadius="8" Padding="16"
-                                    BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4">
+                        BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4">
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -470,22 +506,163 @@
                                     </Style>
                                 </Border.Style>
                                 <TextBlock TextWrapping="Wrap" FontFamily="{StaticResource AppFont}"
-                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Le port COM et le baud rate se configurent dans la section "/>
-                                    <Run Text="« Test de connexion »" FontWeight="SemiBold"/>
-                                    <Run Text=" ci-dessous. Enregistrez d'abord ce POS, puis testez la connexion."/>
+                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                        <Run Text="Le port COM et le baud rate se configurent dans la section "/>
+                        <Run Text="« Test de connexion »" FontWeight="SemiBold"/>
+                        <Run Text=" ci-dessous. Enregistrez d'abord ce POS, puis testez la connexion."/>
                                 </TextBlock>
                             </Border>
 
-                            <!-- Boutons form -->
+                            <Border Height="1" Background="#E5E7EB" Margin="0,20,0,20"/>
+
+                            <!-- ────────────────────────────────────────── -->
+                            <!-- BLOC 3 : 🖨 IMPRIMANTE THERMIQUE           -->
+                            <!-- ────────────────────────────────────────── -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                <Border Background="#FFF7ED" CornerRadius="6" Padding="6" Margin="0,0,10,0">
+                                    <TextBlock Text="🖨" FontSize="16"/>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Imprimante thermique"
+                                   FontFamily="{StaticResource AppFont}" FontSize="13"
+                                   FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Configuration de l'impression des reçus pour ce POS"
+                                   FontFamily="{StaticResource AppFont}" FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Border Background="White" CornerRadius="10" Padding="20"
+                        BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4">
+                                <StackPanel>
+
+                                    <!-- Imprimante + boutons détection -->
+                                    <TextBlock Text="NOM DE L'IMPRIMANTE WINDOWS"
+                                   Style="{StaticResource FormLabelStyle}"/>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox IsEditable="True"
+                                      Text="{Binding EditPrinterName, UpdateSourceTrigger=PropertyChanged}"
+                                      ItemsSource="{Binding DetectedPrinters}"
+                                      Style="{StaticResource ModernComboBoxStyle}"/>
+                                        <Button Grid.Column="1" Content="🔍 Détecter"
+                                    Command="{Binding AutoDetectPrinterCommand}"
+                                    FontFamily="{StaticResource AppFont}" FontSize="11"
+                                    Background="#EEF2FF" Foreground="{StaticResource PrimaryBrush}"
+                                    Padding="10,6" BorderThickness="0" Cursor="Hand"
+                                    Margin="8,0,0,0" VerticalAlignment="Stretch"/>
+                                        <Button Grid.Column="2" Content="🔄"
+                                    ToolTip="Rafraîchir la liste des imprimantes"
+                                    Command="{Binding RefreshPrinterListCommand}"
+                                    FontSize="13" Background="Transparent"
+                                    BorderThickness="1" BorderBrush="{StaticResource BorderBrush}"
+                                    Padding="8,4" Cursor="Hand" Margin="4,0,0,0"
+                                    VerticalAlignment="Stretch"/>
+                                    </Grid>
+                                    <TextBlock Text="Laissez vide pour auto-détection au démarrage. Ex: EPSON TM-T88V, POS-80C"
+                                   FontFamily="{StaticResource AppFont}" FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,16"/>
+
+                                    <!-- Largeur / Copies / Code page -->
+                                    <UniformGrid Columns="3" Margin="0,0,0,14">
+                                        <StackPanel Margin="0,0,8,0">
+                                            <TextBlock Text="LARGEUR PAPIER" Style="{StaticResource FormLabelStyle}"/>
+                                            <ComboBox ItemsSource="{Binding PaperWidths}"
+                                          SelectedItem="{Binding EditPaperWidth}"
+                                          Style="{StaticResource ModernComboBoxStyle}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock FontFamily="{StaticResource AppFont}">
+                                                <Run Text="{Binding Mode=OneWay}"/>
+                                                <Run Text=" mm"/>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,8,0">
+                                            <TextBlock Text="COPIES AUTO" Style="{StaticResource FormLabelStyle}"/>
+                                            <ComboBox ItemsSource="{Binding PrintCopiesOptions}"
+                                          SelectedItem="{Binding EditPrintCopies}"
+                                          Style="{StaticResource ModernComboBoxStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="PAGE DE CODE" Style="{StaticResource FormLabelStyle}"/>
+                                            <ComboBox ItemsSource="{Binding CodePages}"
+                                          SelectedItem="{Binding EditCodePage}"
+                                          Style="{StaticResource ModernComboBoxStyle}"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+
+                                    <!-- Options (checkboxes) -->
+                                    <Border Background="#F8FAFC" CornerRadius="8" Padding="16" Margin="0,0,0,14">
+                                        <UniformGrid Columns="2" Rows="2">
+                                            <CheckBox Content="Impression auto après normalisation"
+                                          IsChecked="{Binding EditAutoPrint}"
+                                          FontFamily="{StaticResource AppFont}" FontSize="12"
+                                          Margin="0,0,0,10"/>
+                                            <CheckBox Content="Imprimer le logo entreprise"
+                                          IsChecked="{Binding EditPrintLogo}"
+                                          FontFamily="{StaticResource AppFont}" FontSize="12"
+                                          Margin="0,0,0,10"/>
+                                            <CheckBox Content="Affichage client (écran secondaire)"
+                                          IsChecked="{Binding EditEnableCustomerDisplay}"
+                                          FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox Content="Tiroir-caisse"
+                                              IsChecked="{Binding EditEnableCashDrawer}"
+                                              FontFamily="{StaticResource AppFont}" FontSize="12"
+                                              Margin="0,0,12,0"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding EditEnableCashDrawer,
+                                                    Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBlock Text="Pin:" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                    <ComboBox ItemsSource="{Binding CashDrawerPins}"
+                                                  SelectedItem="{Binding EditCashDrawerPin}"
+                                                  Width="55" Padding="4,2"
+                                                  FontFamily="{StaticResource AppFont}" FontSize="11"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </Border>
+
+                                    <!-- Pied de ticket -->
+                                    <TextBlock Text="TEXTE PIED DE TICKET" Style="{StaticResource FormLabelStyle}"/>
+                                    <TextBox Text="{Binding EditFooterText, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 MaxLength="500" Margin="0,0,0,14"/>
+
+                                    <!-- Bouton test impression -->
+                                    <Button Command="{Binding TestPrintCommand}"
+                                HorizontalAlignment="Left"
+                                Background="#FFF7ED" Foreground="#C2410C"
+                                FontFamily="{StaticResource AppFont}" FontSize="12"
+                                Padding="14,8" BorderThickness="1" BorderBrush="#FED7AA"
+                                Cursor="Hand">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="🖨" FontSize="14" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Imprimer un ticket test"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Boutons formulaire -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                                 <Button Content="Annuler" Command="{Binding CancelEditCommand}"
-                                        FontFamily="{StaticResource AppFont}" Padding="16,8" Margin="0,0,8,0"
-                                        Background="#F3F4F6" BorderThickness="0" Cursor="Hand"/>
+                            FontFamily="{StaticResource AppFont}" Padding="16,8" Margin="0,0,8,0"
+                            Background="#F3F4F6" BorderThickness="0" Cursor="Hand"/>
                                 <Button Content="💾 Enregistrer" Command="{Binding SavePosCommand}"
-                                        Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                        FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
-                                        Padding="16,8" BorderThickness="0" Cursor="Hand"/>
+                            Background="{StaticResource PrimaryBrush}" Foreground="White"
+                            FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
+                            Padding="16,8" BorderThickness="0" Cursor="Hand"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -503,9 +680,9 @@
                             </Style>
                         </Border.Style>
                         <TextBlock Text="Aucun point de vente configuré. Cliquez « Ajouter un POS » pour commencer."
-                                   FontFamily="{StaticResource AppFont}" FontSize="13"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   HorizontalAlignment="Center" FontStyle="Italic"/>
+                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       HorizontalAlignment="Center" FontStyle="Italic"/>
                     </Border>
 
                 </StackPanel>
