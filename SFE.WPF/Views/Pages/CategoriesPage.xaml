@@ -1,0 +1,409 @@
+﻿<UserControl x:Class="SFE.WPF.Views.Pages.CategoriesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:SFE.WPF.Converters"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:StringToBrushConverter x:Key="StringToBrushConverter"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!-- PANNEAU PRINCIPAL : Liste des catégories                   -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <DockPanel Grid.Column="0" Margin="24,20,12,20">
+
+            <!-- HEADER -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Catégories" Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0">
+                            <Run Text="{Binding CategoryCount, Mode=OneWay}"/>
+                            <Run Text=" catégorie(s)"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <Border Grid.Column="1" Background="#F3F4F6" CornerRadius="8"
+                            Margin="20,0,12,0" Padding="12,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="🔍" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                     FontFamily="{StaticResource AppFont}" FontSize="13"
+                                     Background="Transparent" BorderThickness="0"
+                                     VerticalAlignment="Center" Padding="0,8"/>
+                        </Grid>
+                    </Border>
+
+                    <Button Grid.Column="2" Command="{Binding StartNewCategoryCommand}"
+                            Background="{StaticResource PrimaryBrush}" Foreground="White"
+                            FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
+                            Padding="16,8" BorderThickness="0" Cursor="Hand">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="＋" FontSize="15" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Nouvelle catégorie" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- STATUS -->
+            <Border DockPanel.Dock="Top" Margin="0,0,0,8" CornerRadius="6" Padding="12,8"
+                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Background="#ECFDF5">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                           FontFamily="{StaticResource AppFont}" FontSize="13"/>
+            </Border>
+            <Border DockPanel.Dock="Top" Margin="0,0,0,8" CornerRadius="6" Padding="12,8"
+                    Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Background="#FEF2F2">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
+                           FontFamily="{StaticResource AppFont}" FontSize="13"/>
+            </Border>
+
+            <!-- ══════ GRILLE CATÉGORIES ══════ -->
+            <Border Style="{StaticResource CardStyle}" Padding="0">
+                <DataGrid ItemsSource="{Binding Categories}" AutoGenerateColumns="False"
+                          CanUserAddRows="False" CanUserDeleteRows="False"
+                          IsReadOnly="True" GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column" BorderThickness="0"
+                          FontFamily="{StaticResource AppFont}" FontSize="12"
+                          RowHeight="52" SelectionMode="Single"
+                          SelectedItem="{Binding SelectedCategory}">
+
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#EFF6FF"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#F9FAFB"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+
+                    <DataGrid.Columns>
+
+                        <!-- Aperçu (couleur + icône) -->
+                        <DataGridTemplateColumn Header="" Width="60">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Width="36" Height="36" CornerRadius="8"
+                                            Background="{Binding Color, Converter={StaticResource StringToBrushConverter}}"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Icon}" FontSize="18"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Nom -->
+                        <DataGridTextColumn Header="Nom" Binding="{Binding Name}" Width="*">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="FontSize" Value="14"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Couleur (hex) -->
+                        <DataGridTemplateColumn Header="Couleur" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Width="14" Height="14" CornerRadius="3"
+                                                Background="{Binding Color, Converter={StaticResource StringToBrushConverter}}"
+                                                Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding Color}" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Ordre -->
+                        <DataGridTextColumn Header="Ordre" Binding="{Binding SortOrder}" Width="60">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Statut -->
+                        <DataGridTemplateColumn Header="Statut" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            CornerRadius="4" Padding="8,3">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#ECFDF5"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                        <Setter Property="Background" Value="#F3F4F6"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                                   FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Actif"/>
+                                                    <Setter Property="Foreground" Value="#059669"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                            <Setter Property="Text" Value="Inactif"/>
+                                                            <Setter Property="Foreground" Value="#9CA3AF"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Actions -->
+                        <DataGridTemplateColumn Header="" Width="85">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <Button Content="✏️" FontSize="13" Background="Transparent"
+                                                BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
+                                                ToolTip="Modifier"
+                                                Command="{Binding DataContext.StartEditCategoryCommand,
+                                                    RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"/>
+                                        <Button Content="🗑️" FontSize="13" Background="Transparent"
+                                                BorderThickness="0" Cursor="Hand"
+                                                ToolTip="Supprimer"
+                                                Command="{Binding DataContext.DeleteCategoryCommand,
+                                                    RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </DockPanel>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!-- PANNEAU DROIT : Formulaire d'édition                       -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Column="1" Width="380" Margin="0,20,24,20"
+                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Style="{StaticResource CardStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+
+                        <!-- ── TITRE ── -->
+                        <Grid Margin="0,0,0,16">
+                            <TextBlock Text="{Binding FormTitle}" Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                            <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    FontSize="16" Background="Transparent" BorderThickness="0"
+                                    Cursor="Hand" Foreground="{StaticResource TextSecondaryBrush}"
+                                    Command="{Binding CancelEditCommand}"/>
+                        </Grid>
+
+                        <!-- ── APERÇU EN DIRECT ── -->
+                        <Border Background="#F8FAFC" CornerRadius="10" Padding="16" Margin="0,0,0,20"
+                                BorderBrush="#E2E8F0" BorderThickness="1"
+                                HorizontalAlignment="Center">
+                            <StackPanel HorizontalAlignment="Center">
+                                <Border Width="56" Height="56" CornerRadius="12"
+                                        Background="{Binding EditColor, Converter={StaticResource StringToBrushConverter}}"
+                                        HorizontalAlignment="Center" Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding EditIcon}" FontSize="28"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="{Binding EditName, TargetNullValue='Nom…'}"
+                                           FontFamily="{StaticResource AppFont}" FontSize="14"
+                                           FontWeight="SemiBold" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{Binding EditColor}" FontFamily="Consolas" FontSize="10"
+                                           HorizontalAlignment="Center" Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ── NOM ── -->
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="Nom *" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                     FontFamily="{StaticResource AppFont}"
+                                     FontSize="14" FontWeight="Medium" Padding="8,8"/>
+                        </StackPanel>
+
+                        <Separator Margin="0,0,0,16"/>
+
+                        <!-- ═══════════════════════════════════ -->
+                        <!--  I C Ô N E                          -->
+                        <!-- ═══════════════════════════════════ -->
+                        <TextBlock Text="I C Ô N E" FontFamily="{StaticResource AppFont}" FontSize="11"
+                                   FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,10"/>
+
+                        <ItemsControl ItemsSource="{Binding PresetIcons}" Margin="0,0,0,16">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding}" FontSize="18"
+                                            Width="34" Height="34" Margin="2" Cursor="Hand"
+                                            Background="Transparent" BorderThickness="1"
+                                            BorderBrush="#E5E7EB" Padding="0"
+                                            Command="{Binding DataContext.SelectIconCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#F3F4F6"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Separator Margin="0,0,0,16"/>
+
+                        <!-- ═══════════════════════════════════ -->
+                        <!--  C O U L E U R                      -->
+                        <!-- ═══════════════════════════════════ -->
+                        <TextBlock Text="C O U L E U R" FontFamily="{StaticResource AppFont}" FontSize="11"
+                                   FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,10"/>
+
+                        <ItemsControl ItemsSource="{Binding PresetColors}" Margin="0,0,0,12">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Margin="2" Padding="0" BorderThickness="0"
+                                            Background="Transparent" Cursor="Hand"
+                                            Command="{Binding DataContext.SelectColorCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <Border Width="28" Height="28" CornerRadius="6"
+                                                Background="{Binding Converter={StaticResource StringToBrushConverter}}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderThickness" Value="2"/>
+                                                    <Setter Property="BorderBrush" Value="Transparent"/>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Saisie manuelle de la couleur -->
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="Couleur personnalisée (hex)" FontFamily="{StaticResource AppFont}"
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Width="28" Height="28" CornerRadius="6" Margin="0,0,8,0"
+                                        Background="{Binding EditColor, Converter={StaticResource StringToBrushConverter}}"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding EditColor, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas" FontSize="13" Padding="8,4"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <Separator Margin="0,0,0,16"/>
+
+                        <!-- ═══════════════════════════════════ -->
+                        <!--  O R D R E   D ' A F F I C H A G E -->
+                        <!-- ═══════════════════════════════════ -->
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="Ordre d'affichage" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding EditSortOrder}" FontFamily="{StaticResource AppFont}"
+                                     FontSize="13" Padding="8,6" MaxWidth="100" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Les catégories sont triées par cet ordre, puis par nom."
+                                       FontFamily="{StaticResource AppFont}" FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <Separator Margin="0,0,0,16"/>
+
+                        <!-- ═══════════════════════════════════ -->
+                        <!--  O P T I O N S                      -->
+                        <!-- ═══════════════════════════════════ -->
+                        <CheckBox Content="Catégorie active" IsChecked="{Binding EditIsActive}"
+                                  FontFamily="{StaticResource AppFont}" FontSize="13" Margin="0,0,0,20"/>
+
+                        <!-- ═══════════════════════════════════ -->
+                        <!--  B O U T O N S                      -->
+                        <!-- ═══════════════════════════════════ -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="Annuler" Command="{Binding CancelEditCommand}"
+                                    FontFamily="{StaticResource AppFont}" FontSize="13"
+                                    Padding="12,10" Margin="0,0,6,0" Cursor="Hand"
+                                    Background="#F3F4F6" BorderThickness="0"/>
+                            <Button Grid.Column="1" Content="💾 Enregistrer"
+                                    Command="{Binding SaveCategoryCommand}"
+                                    Background="{StaticResource PrimaryBrush}" Foreground="White"
+                                    FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
+                                    Padding="12,10" Margin="6,0,0,0" Cursor="Hand" BorderThickness="0"/>
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

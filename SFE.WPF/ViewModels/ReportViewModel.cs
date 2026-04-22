@@ -1,10 +1,12 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
@@ -14,7 +16,6 @@ namespace SFE.WPF.ViewModels;
 
 public partial class ReportViewModel : BaseViewModel
 {
-    private readonly ReportService _reportService;
     private readonly IUnitOfWork _unitOfWork;
 
     // ══════ LIST ══════
@@ -22,207 +23,70 @@ public partial class ReportViewModel : BaseViewModel
 
     [ObservableProperty] private ReportListItemViewModel? _selectedReport;
 
+    // ══════ FILTER ══════
+    [ObservableProperty] private string _selectedFilter = "Tous";
+    public string[] FilterOptions { get; } =
+        { "Tous", "Z-Rapport", "X-Rapport", "A-Rapport" };
+
+    [ObservableProperty] private string _searchText = "";
+
+    // ══════ STATS ══════
+    [ObservableProperty] private int _zCount;
+    [ObservableProperty] private int _xCount;
+    [ObservableProperty] private int _aCount;
+    [ObservableProperty] private int _totalCount;
+    [ObservableProperty] private string _lastZInfo = "Aucun";
+    [ObservableProperty] private string _lastXInfo = "Aucun";
+    [ObservableProperty] private string _lastAInfo = "Aucun";
+
     // ══════ PREVIEW ══════
     [ObservableProperty] private string _reportPreview = "";
     [ObservableProperty] private bool _showPreview;
     [ObservableProperty] private string _previewTitle = "";
     [ObservableProperty] private string _previewSubtitle = "";
 
-    // ══════ PERIODIC X ══════
-    [ObservableProperty] private DateTime _periodicFrom = DateTime.Today;
-    [ObservableProperty] private DateTime _periodicTo = DateTime.Today;
-
-    // ══════ FILTER ══════
-    [ObservableProperty] private string _selectedFilter = "Tous";
-    public string[] FilterOptions { get; } =
-        { "Tous", "Z-Rapport", "X-Rapport", "A-Rapport" };
-
-    // ══════ STATS ══════
-    [ObservableProperty] private string _lastZInfo = "Aucun";
-    [ObservableProperty] private string _lastXInfo = "Aucun";
-    [ObservableProperty] private string _lastAInfo = "Aucun";
-    [ObservableProperty] private int _zCount;
-    [ObservableProperty] private int _xCount;
-    [ObservableProperty] private int _aCount;
-
-    // ══════ STATUS ══════
+    // ══════ STATE ══════
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool _showSuccess;
     [ObservableProperty] private bool _showError;
     [ObservableProperty] private bool _noResults;
 
-    // ══════ CONFIRMATION ══════
-    [ObservableProperty] private bool _showConfirmation;
-    [ObservableProperty] private string _confirmTitle = "";
-    [ObservableProperty] private string _confirmMessage = "";
-    [ObservableProperty] private string _confirmButtonText = "Confirmer";
-    private Func<Task>? _pendingAction;
+    /// <summary>All reports — source of truth for filtering.</summary>
+    private List<ReportListItemViewModel> _allReports = new();
 
-    // TODO: inject from authentication / session service
-    private string OperatorName => "Opérateur";
-
-    public ReportViewModel(IUnitOfWork unitOfWork, ReportService reportService)
+    public ReportViewModel(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
-        _reportService = reportService;
-        PageTitle = "Rapports fiscaux";
+        PageTitle = "Historique des rapports";
 
-        _ = InitializeAsync();
-    }
-
-    private async Task InitializeAsync()
-    {
-        await LoadReportsAsync();
-        await LoadStatsAsync();
+        _ = LoadAsync();
     }
 
     // ══════════════════════════════════════════════
-    // DATA LOADING
+    //  LOAD
     // ══════════════════════════════════════════════
 
-    private async Task LoadReportsAsync()
-    {
-        IsBusy = true;
-        try
-        {
-            ReportType? typeFilter = SelectedFilter switch
-            {
-                "Z-Rapport" => ReportType.Z,
-                "X-Rapport" => ReportType.X,
-                "A-Rapport" => ReportType.A,
-                _ => null
-            };
-
-            var all = await _unitOfWork.GetRepository<DailyReport>()
-                .FindAsync(r => typeFilter == null || r.Type == typeFilter);
-
-            var sorted = all
-                .OrderByDescending(r => r.GeneratedAt)
-                .Take(200)
-                .ToList();
-
-            Reports.Clear();
-            foreach (var r in sorted)
-                Reports.Add(ReportListItemViewModel.FromEntity(r));
-
-            NoResults = Reports.Count == 0;
-        }
-        catch (Exception ex)
-        {
-            ShowStatus($"Erreur chargement : {ex.Message}", true);
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    private async Task LoadStatsAsync()
-    {
-        try
-        {
-            var all = (await _unitOfWork.GetRepository<DailyReport>()
-                .FindAsync(r => true)).ToList();
-
-            var lastZ = all.Where(r => r.Type == ReportType.Z)
-                .OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
-            var lastX = all.Where(r => r.Type == ReportType.X)
-                .OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
-            var lastA = all.Where(r => r.Type == ReportType.A)
-                .OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
-
-            ZCount = all.Count(r => r.Type == ReportType.Z);
-            XCount = all.Count(r => r.Type == ReportType.X);
-            ACount = all.Count(r => r.Type == ReportType.A);
-
-            LastZInfo = lastZ != null
-                ? $"N°{lastZ.ReportNumber} — {lastZ.GeneratedAt:dd/MM/yyyy HH:mm}"
-                : "Aucun";
-            LastXInfo = lastX != null
-                ? $"N°{lastX.ReportNumber} — {lastX.GeneratedAt:dd/MM/yyyy HH:mm}"
-                : "Aucun";
-            LastAInfo = lastA != null
-                ? $"N°{lastA.ReportNumber} — {lastA.GeneratedAt:dd/MM/yyyy HH:mm}"
-                : "Aucun";
-        }
-        catch { /* stats are non-critical */ }
-    }
-
-    // ══════════════════════════════════════════════
-    // GENERATE COMMANDS
-    // ══════════════════════════════════════════════
-
-    [RelayCommand]
-    private async Task GenerateXDaily()
-    {
-        await RunGenerationAsync("X-Rapport quotidien", async () =>
-            await _reportService.GenerateReportXAsync(OperatorName));
-    }
-
-    [RelayCommand]
-    private async Task GenerateXPeriodic()
-    {
-        if (PeriodicFrom > PeriodicTo)
-        {
-            ShowStatus("La date de début doit être antérieure à la date de fin.", true);
-            return;
-        }
-
-        var end = PeriodicTo.Date.AddDays(1).AddSeconds(-1);
-        await RunGenerationAsync("X-Rapport périodique", async () =>
-            await _reportService.GenerateReportXPeriodicAsync(OperatorName, PeriodicFrom, end));
-    }
-
-    [RelayCommand]
-    private void RequestGenerateZ()
-    {
-        ConfirmTitle = "⚠ Clôture — Z-Rapport";
-        ConfirmMessage =
-            "Le Z-Rapport effectue la clôture de la session.\n\n" +
-            "Cette action :\n" +
-            "  • Agrège toutes les transactions depuis le dernier Z\n" +
-            "  • Marque la fin de la période comptable\n" +
-            "  • Démarre une nouvelle session\n\n" +
-            "Voulez-vous continuer ?";
-        ConfirmButtonText = "Générer Z-Rapport";
-        _pendingAction = async () =>
-            await RunGenerationAsync("Z-Rapport", async () =>
-                await _reportService.GenerateReportZAsync(OperatorName));
-        ShowConfirmation = true;
-    }
-
-    [RelayCommand]
-    private async Task GenerateA()
-    {
-        await RunGenerationAsync("A-Rapport", async () =>
-            await _reportService.GenerateReportAAsync(OperatorName));
-    }
-
-    private async Task RunGenerationAsync(string label, Func<Task<DailyReport>> generate)
+    private async Task LoadAsync()
     {
         IsBusy = true;
         ClearStatus();
 
         try
         {
-            var report = await generate();
+            var entities = await _unitOfWork.GetRepository<DailyReport>()
+                .FindAsync(r => true);
 
-            await LoadReportsAsync();
-            await LoadStatsAsync();
+            _allReports = entities
+                .OrderByDescending(r => r.GeneratedAt)
+                .Select(ReportListItemViewModel.FromEntity)
+                .ToList();
 
-            // Auto-select newly created report
-            var item = Reports.FirstOrDefault(r => r.ReportId == report.Id);
-            if (item != null)
-            {
-                SelectedReport = item;
-                ShowPreviewFor(item);
-            }
-
-            ShowStatus($"✓ {label} N°{report.ReportNumber} généré avec succès", false);
+            UpdateStats();
+            ApplyFilter();
         }
         catch (Exception ex)
         {
-            ShowStatus($"Erreur {label} : {ex.Message}", true);
+            ShowStatus($"Erreur de chargement : {ex.Message}", true);
         }
         finally
         {
@@ -231,93 +95,97 @@ public partial class ReportViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════
-    // CONFIRMATION
+    //  STATS
     // ══════════════════════════════════════════════
 
-    [RelayCommand]
-    private async Task ConfirmAction()
+    private void UpdateStats()
     {
-        ShowConfirmation = false;
-        if (_pendingAction != null)
+        ZCount = _allReports.Count(r => r.Type == ReportType.Z);
+        XCount = _allReports.Count(r => r.Type == ReportType.X);
+        ACount = _allReports.Count(r => r.Type == ReportType.A);
+        TotalCount = _allReports.Count;
+
+        var lastZ = _allReports.FirstOrDefault(r => r.Type == ReportType.Z);
+        var lastX = _allReports.FirstOrDefault(r => r.Type == ReportType.X);
+        var lastA = _allReports.FirstOrDefault(r => r.Type == ReportType.A);
+
+        LastZInfo = FormatLastInfo(lastZ);
+        LastXInfo = FormatLastInfo(lastX);
+        LastAInfo = FormatLastInfo(lastA);
+    }
+
+    private static string FormatLastInfo(ReportListItemViewModel? r)
+        => r != null
+            ? $"N°{r.ReportNumber} — {r.GeneratedAt:dd/MM/yyyy HH:mm}"
+            : "Aucun rapport";
+
+    // ══════════════════════════════════════════════
+    //  FILTER & SEARCH
+    // ══════════════════════════════════════════════
+
+    partial void OnSelectedFilterChanged(string value) => ApplyFilter();
+    partial void OnSearchTextChanged(string value) => ApplyFilter();
+
+    private void ApplyFilter()
+    {
+        IEnumerable<ReportListItemViewModel> filtered = SelectedFilter switch
         {
-            var action = _pendingAction;
-            _pendingAction = null;
-            await action();
-        }
-    }
+            "Z-Rapport" => _allReports.Where(r => r.Type == ReportType.Z),
+            "X-Rapport" => _allReports.Where(r => r.Type == ReportType.X),
+            "A-Rapport" => _allReports.Where(r => r.Type == ReportType.A),
+            _ => _allReports
+        };
 
-    [RelayCommand]
-    private void CancelConfirmation()
-    {
-        ShowConfirmation = false;
-        _pendingAction = null;
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var q = SearchText.Trim().ToLowerInvariant();
+            filtered = filtered.Where(r =>
+                r.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.OperatorName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.ReportNumber.ToString().Contains(q) ||
+                r.DateLabel.Contains(q));
+        }
+
+        Reports.Clear();
+        foreach (var r in filtered)
+            Reports.Add(r);
+
+        NoResults = Reports.Count == 0;
     }
 
     // ══════════════════════════════════════════════
-    // SELECTION & PREVIEW
+    //  SELECTION & PREVIEW
     // ══════════════════════════════════════════════
 
     partial void OnSelectedReportChanged(ReportListItemViewModel? value)
     {
-        if (value != null)
-            ShowPreviewFor(value);
+        if (value?.PrintContent is not null)
+        {
+            ReportPreview = value.PrintContent;
+            PreviewTitle = value.Title;
+            PreviewSubtitle = $"{value.DateLabel}  •  {value.PeriodLabel}  •  {value.OperatorName}";
+            ShowPreview = true;
+        }
+        else
+        {
+            ShowPreview = false;
+            ReportPreview = "";
+            PreviewTitle = "";
+            PreviewSubtitle = "";
+        }
     }
 
-    private void ShowPreviewFor(ReportListItemViewModel item)
-    {
-        ReportPreview = item.PrintContent ?? "(Contenu non disponible)";
-        PreviewTitle = item.Title;
-        PreviewSubtitle = $"{item.DateLabel}  •  {item.PeriodLabel}  •  {item.InvoiceCountLabel}";
-        ShowPreview = true;
-    }
+    // ══════════════════════════════════════════════
+    //  COMMANDS
+    // ══════════════════════════════════════════════
 
     [RelayCommand]
-    private void ClosePreview()
+    private async Task Refresh()
     {
-        ShowPreview = false;
-        ReportPreview = "";
-        PreviewTitle = "";
-        PreviewSubtitle = "";
+        ClearStatus();
         SelectedReport = null;
-    }
-
-    // ══════════════════════════════════════════════
-    // PRINT / COPY
-    // ══════════════════════════════════════════════
-
-    [RelayCommand]
-    private void PrintReport()
-    {
-        if (string.IsNullOrEmpty(ReportPreview)) return;
-
-        try
-        {
-            var dlg = new PrintDialog();
-            if (dlg.ShowDialog() != true) return;
-
-            var doc = new FlowDocument
-            {
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 10,
-                PagePadding = new Thickness(40, 30, 40, 30),
-                ColumnWidth = double.MaxValue
-            };
-
-            doc.Blocks.Add(new Paragraph(new Run(ReportPreview))
-            {
-                LineHeight = 14
-            });
-
-            var paginator = ((IDocumentPaginatorSource)doc).DocumentPaginator;
-            paginator.PageSize = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-            dlg.PrintDocument(paginator, PreviewTitle);
-
-            ShowStatus($"✓ {PreviewTitle} envoyé à l'imprimante", false);
-        }
-        catch (Exception ex)
-        {
-            ShowStatus($"Erreur impression : {ex.Message}", true);
-        }
+        await LoadAsync();
+        ShowStatus("✓ Données actualisées", false);
     }
 
     [RelayCommand]
@@ -335,26 +203,75 @@ public partial class ReportViewModel : BaseViewModel
         }
     }
 
-    // ══════════════════════════════════════════════
-    // FILTER
-    // ══════════════════════════════════════════════
-
-    partial void OnSelectedFilterChanged(string value)
+    [RelayCommand]
+    private void PrintReport()
     {
-        _ = LoadReportsAsync();
+        if (SelectedReport?.PrintContent is null)
+        {
+            ShowStatus("Sélectionnez un rapport à imprimer.", true);
+            return;
+        }
+
+        try
+        {
+            var pd = new PrintDialog();
+            if (pd.ShowDialog() != true) return;
+
+            var doc = new FlowDocument
+            {
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 10,
+                PagePadding = new Thickness(40, 30, 40, 30),
+                ColumnWidth = double.MaxValue
+            };
+            doc.Blocks.Add(new Paragraph(new Run(SelectedReport.PrintContent))
+            {
+                LineHeight = 14
+            });
+
+            var paginator = ((IDocumentPaginatorSource)doc).DocumentPaginator;
+            paginator.PageSize = new Size(pd.PrintableAreaWidth, pd.PrintableAreaHeight);
+            pd.PrintDocument(paginator, PreviewTitle);
+
+            ShowStatus($"✓ {PreviewTitle} envoyé à l'imprimante", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Erreur impression : {ex.Message}", true);
+        }
     }
 
     [RelayCommand]
-    private async Task Refresh()
+    private void ExportReport()
     {
-        ClearStatus();
-        await LoadReportsAsync();
-        await LoadStatsAsync();
-        ShowStatus("✓ Données actualisées", false);
+        if (SelectedReport?.PrintContent is null)
+        {
+            ShowStatus("Sélectionnez un rapport à exporter.", true);
+            return;
+        }
+
+        try
+        {
+            var dlg = new SaveFileDialog
+            {
+                FileName = $"{SelectedReport.TypeBadge}-Rapport-{SelectedReport.ReportNumber}_{SelectedReport.GeneratedAt:yyyyMMdd_HHmm}",
+                DefaultExt = ".txt",
+                Filter = "Fichier texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            File.WriteAllText(dlg.FileName, SelectedReport.PrintContent);
+            ShowStatus($"✓ Exporté : {Path.GetFileName(dlg.FileName)}", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Erreur export : {ex.Message}", true);
+        }
     }
 
     // ══════════════════════════════════════════════
-    // STATUS
+    //  STATUS
     // ══════════════════════════════════════════════
 
     private void ShowStatus(string msg, bool isError)

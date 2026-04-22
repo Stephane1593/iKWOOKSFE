@@ -131,6 +131,8 @@ public partial class App : System.Windows.Application
         services.AddTransient<PointOfSaleService>();
         services.AddTransient<ReportService>();
         services.AddSingleton<CustomerDisplayService>();
+        services.AddTransient<UserService>();
+        services.AddTransient<CategoryService>();
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();
@@ -155,6 +157,9 @@ public partial class App : System.Windows.Application
         services.AddTransient<ReportZPageViewModel>();
         services.AddTransient<ReportXPageViewModel>();
         services.AddTransient<ReportAPageViewModel>();
+        services.AddTransient<UsersViewModel>();
+        services.AddTransient<CategoriesViewModel>();
+
 
         // ═══ Fenêtres & Pages ═══
         services.AddTransient<MainWindow>();

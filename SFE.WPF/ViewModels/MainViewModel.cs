@@ -59,6 +59,7 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessTransfers => _authService.HasPermission("transfers");
     public bool CanAccessLoyalty => _authService.HasPermission("loyalty");
     public bool CanAccessReports => _authService.HasPermission("reports") && _sessionState.IsSessionOpen;
+    public bool CanAccessReportHistory => _authService.HasPermission("reports");
     public bool CanAccessSettings => _authService.HasPermission("settings");
     public bool CanAccessUsers => _authService.HasPermission("users");
 
@@ -66,7 +67,7 @@ public partial class MainViewModel : BaseViewModel
     public bool CanSeeFichier => CanAccessPos || CanAccessInvoicing;
     public bool CanSeeEditer => CanAccessProducts || CanAccessClients
                                 || CanAccessStock || CanAccessReports;
-    public bool CanSeeAffichage => CanAccessReports || CanAccessSalesHistory;
+    public bool CanSeeAffichage => CanAccessReports || CanAccessSalesHistory || CanAccessReportHistory;
     public bool CanSeeOutils => CanAccessSettings || CanAccessUsers;
 
     // ═══════════════ PAGE CACHE ═══════════════
@@ -202,25 +203,24 @@ public partial class MainViewModel : BaseViewModel
 
                 // ── Éditer ──
                 "Articles" => CreatePage<ProductsPage, ProductsViewModel>(),
-                "Categories" => new PlaceholderPage("Catégories",
-                                       "La gestion des catégories de produits sera implémentée ici."),
+                "Categories" => CreatePage<CategoriesPage, CategoriesViewModel>(),
                 "Clients" => CreateClientsPage(),
                 "Stock" => CreatePage<StockPage, StockViewModel>(),
 
-                // ── Affichage > Rapports ──
+                // ── Affichage > Rapports (génération) ──
                 "ReportZ" => CreateReportZPage(),
                 "ReportX" => CreatePage<ReportXPage, ReportXPageViewModel>(),
                 "ReportA" => CreatePage<ReportAPage, ReportAPageViewModel>(),
+
+                // ── Affichage > Historique ──
                 "SalesJournal" => CreatePage<SalesHistoryPage, SalesHistoryViewModel>(),
-                "ReportHistory" => new PlaceholderPage("Historique des rapports",
-                                       "Consultation et filtrage des rapports par période et par type."),
+                "ReportHistory" => CreatePage<ReportView, ReportViewModel>(),
 
                 // ── Outils ──
                 "Settings" => CreatePage<SettingsPage, SettingsViewModel>(),
                 "PosManagement" => new PlaceholderPage("Gestion des points de vente",
                                        "Configuration et gestion des points de vente."),
-                "Users" => new PlaceholderPage("Gestion des utilisateurs",
-                                       "Création et gestion des comptes utilisateurs et des rôles."),
+                "Users" => CreatePage<UsersPage, UsersViewModel>(),
                 "AuditLog" => new PlaceholderPage("Journal d'audit",
                                        "Rapports MCF, rapports e-MCF et journal des activités utilisateurs."),
 
@@ -228,8 +228,7 @@ public partial class MainViewModel : BaseViewModel
                 "UserManual" => new PlaceholderPage("Manuel d'utilisation",
                                        "Le manuel d'utilisation au format PDF sera intégré ici."),
 
-                // ── Backward compat (hidden from new nav) ──
-                "Reports" => CreatePage<ReportView, ReportViewModel>(),
+                // ── Backward compat ──
                 "StockTransfer" => CreatePage<StockTransferPage, StockTransferViewModel>(),
 
                 _ => new PlaceholderPage("Page inconnue", "")

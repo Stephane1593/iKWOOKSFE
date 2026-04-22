@@ -27,6 +27,7 @@
             <converters:StringToColorBrushConverter  x:Key="StringToColorBrushConverter"/>
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
             <converters:IsNotNullToVisibilityConverter x:Key="IsNotNullToVisibilityConverter"/>
+            <converters:StringToBrushConverter x:Key="StringToBrushConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

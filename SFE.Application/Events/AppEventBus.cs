@@ -15,7 +15,21 @@ public enum AppEvent
     StockTransferCreated,
     StockTransferShipped,
     StockTransferReceived,
-    StockTransferCancelled
+    StockTransferCancelled,
+
+    // 🆕 Users
+    UserCreated,
+    UserUpdated,
+    UserDeleted,
+
+    // 🆕 Roles
+    RoleCreated,
+    RoleUpdated,
+    RoleDeleted,
+
+    CategoryCreated,
+    CategoryUpdated,
+    CategoryDeleted,
 }
 
 public class AppEventArgs

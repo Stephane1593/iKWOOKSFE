@@ -34,4 +34,12 @@ public class UserRepository : Repository<User>, IUserRepository
             .OrderBy(u => u.FullName)
             .ToListAsync();
     }
+
+    public async Task<List<User>> GetAllWithRolesAsync()
+    {
+        return await _dbSet
+            .Include(u => u.Role)
+            .OrderBy(u => u.FullName)
+            .ToListAsync();
+    }
 }

@@ -118,6 +118,11 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             AppEvent.ProductUpdated,
             AppEvent.ProductDeleted);
 
+        Subscribe(OnCategoryChangedAsync,
+            AppEvent.CategoryCreated,
+            AppEvent.CategoryUpdated,
+            AppEvent.CategoryDeleted);
+
         _ = InitializeAsync();
     }
 
@@ -129,6 +134,13 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         {
             await LoadProductsAsync();
         }
+    }
+
+    private async Task OnCategoryChangedAsync()
+    {
+        var cats = await _productService.GetCategoriesAsync();
+        Categories.Clear();
+        foreach (var c in cats) Categories.Add(c);
     }
 
     private async Task InitializeAsync()
