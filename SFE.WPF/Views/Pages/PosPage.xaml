@@ -300,105 +300,125 @@
                 <DockPanel>
 
                     <!-- HEADER PANIER -->
+                    <!-- HEADER PANIER -->
                     <Border DockPanel.Dock="Top" Padding="16,12,16,8" BorderBrush="#F3F4F6" BorderThickness="0,0,0,1">
                         <StackPanel>
-                            <Grid>
+
+                            <!-- ── Row 1 : Title  +  Toolbar icons ── -->
+                            <Grid Margin="0,0,0,2">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="🛒 Panier" FontFamily="{StaticResource AppFont}" FontSize="17" FontWeight="Bold"/>
-                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                        <Run Text="{Binding CartItemCount, Mode=OneWay}"/> <Run Text=" ligne(s) ·"/>
-                                        <Run Text="{Binding TotalArticles, Mode=OneWay}"/> <Run Text=" art."/>
-                                    </TextBlock>
-                                </StackPanel>
 
-                                <!-- 👤 Client -->
-                                <Button Grid.Column="1" Command="{Binding ToggleClientPanelCommand}" Background="Transparent"
-                                        BorderThickness="0" Cursor="Hand" ToolTip="Client" Margin="0,0,4,0" Padding="6">
-                                    <TextBlock Text="👤" FontSize="17"/>
-                                </Button>
-                                <!-- 💬 Commentaire -->
-                                <Button Grid.Column="2" Command="{Binding ToggleCommentPanelCommand}" Background="Transparent"
-                                        BorderThickness="0" Cursor="Hand" ToolTip="Commentaires" Margin="0,0,4,0" Padding="6">
-                                    <TextBlock Text="💬" FontSize="16"/>
-                                </Button>
-                                <!-- % Remise -->
-                                <Button Grid.Column="3" Command="{Binding ToggleDiscountPanelCommand}" Background="Transparent"
-                                        BorderThickness="0" Cursor="Hand" ToolTip="Remise" Margin="0,0,4,0" Padding="6"
-                                        Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
-                                    <TextBlock Text="%" FontSize="17" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
-                                </Button>
-                                <!-- ⏸ Held -->
-                                <Button Grid.Column="4" Command="{Binding ToggleHeldPanelCommand}" Background="Transparent"
-                                        BorderThickness="0" Cursor="Hand" ToolTip="En attente" Margin="0,0,4,0" Padding="6">
-                                    <Grid>
-                                        <TextBlock Text="⏸" FontSize="16"/>
-                                        <Border Background="#EF4444" CornerRadius="8" MinWidth="16" Height="16"
-                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-8,0" Padding="4,0"
-                                                Visibility="{Binding HeldCount, Converter={StaticResource IntToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding HeldCount}" FontSize="9" FontWeight="Bold" Foreground="White"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        </Border>
-                                    </Grid>
-                                </Button>
-                                <!-- ⏳ Pending -->
-                                <Button Grid.Column="5" Command="{Binding TogglePendingPanelCommand}" Background="Transparent"
-                                        BorderThickness="0" Cursor="Hand" ToolTip="Factures en attente" Margin="0,0,4,0" Padding="6">
-                                    <TextBlock Text="⏳" FontSize="16"/>
-                                </Button>
-                                <!-- Invoice # -->
-                                <TextBlock Grid.Column="6" Text="{Binding InvoiceNumber}" FontFamily="Consolas" FontSize="10"
-                                           VerticalAlignment="Center" Margin="4,0,6,0" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <!-- 🗑 Clear -->
-                                <Button Grid.Column="7" Content="🗑" FontSize="16" Background="Transparent" BorderThickness="0"
-                                        Cursor="Hand" Command="{Binding ClearCartCommand}"
-                                        Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                <TextBlock Text="🛒 Panier" FontFamily="{StaticResource AppFont}"
+                       FontSize="17" FontWeight="Bold" VerticalAlignment="Center"/>
+
+                                <!-- All action icons grouped on the right -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- 👤 Client -->
+                                    <Button Command="{Binding ToggleClientPanelCommand}" Background="Transparent"
+                        BorderThickness="0" Cursor="Hand" ToolTip="Client" Padding="5,4">
+                                        <TextBlock Text="👤" FontSize="16"/>
+                                    </Button>
+                                    <!-- 💬 Commentaire -->
+                                    <Button Command="{Binding ToggleCommentPanelCommand}" Background="Transparent"
+                        BorderThickness="0" Cursor="Hand" ToolTip="Commentaires" Padding="5,4">
+                                        <TextBlock Text="💬" FontSize="15"/>
+                                    </Button>
+                                    <!-- % Remise -->
+                                    <Button Command="{Binding ToggleDiscountPanelCommand}" Background="Transparent"
+                        BorderThickness="0" Cursor="Hand" ToolTip="Remise" Padding="5,4"
+                        Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
+                                        <TextBlock Text="%" FontSize="16" FontWeight="Bold"
+                               Foreground="{StaticResource AccentBrush}"/>
+                                    </Button>
+                                    <!-- ⏸ Held (with badge) -->
+                                    <Button Command="{Binding ToggleHeldPanelCommand}" Background="Transparent"
+                        BorderThickness="0" Cursor="Hand" ToolTip="En attente" Padding="5,4">
+                                        <Grid>
+                                            <TextBlock Text="⏸" FontSize="15"/>
+                                            <Border Background="#EF4444" CornerRadius="8" MinWidth="16" Height="16"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Margin="0,-6,-8,0" Padding="4,0"
+                                Visibility="{Binding HeldCount, Converter={StaticResource IntToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding HeldCount}" FontSize="9" FontWeight="Bold"
+                                       Foreground="White" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                                            </Border>
+                                        </Grid>
+                                    </Button>
+                                    <!-- ⏳ Pending -->
+                                    <Button Command="{Binding TogglePendingPanelCommand}" Background="Transparent"
+                        BorderThickness="0" Cursor="Hand" ToolTip="Factures en attente"
+                        Padding="5,4">
+                                        <TextBlock Text="⏳" FontSize="15"/>
+                                    </Button>
+                                    <!-- 🗑 Clear -->
+                                    <Button Content="🗑" FontSize="15" Background="Transparent"
+                        BorderThickness="0" Cursor="Hand" Padding="5,4"
+                        Command="{Binding ClearCartCommand}"
+                        Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- ── Row 2 : Counts (left)  +  Invoice # (right) ── -->
+                            <Grid Margin="0,2,0,0">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center">
+                <Run Text="{Binding CartItemCount, Mode=OneWay}"/>
+                <Run Text=" ligne(s) ·"/>
+                <Run Text="{Binding TotalArticles, Mode=OneWay}"/>
+                <Run Text=" art."/>
+                                </TextBlock>
+                                <TextBlock Text="{Binding InvoiceNumber}" FontFamily="Consolas"
+                       FontSize="10" HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
                             </Grid>
 
                             <!-- Client badge (when selected) -->
                             <Border CornerRadius="8" Padding="10,6" Margin="0,6,0,0" Background="#EFF6FF"
-                                    Visibility="{Binding HasClientSelected, Converter={StaticResource BoolToVisibilityConverter}}">
+                Visibility="{Binding HasClientSelected, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="👤 " FontSize="12"/>
                                         <TextBlock Text="{Binding ClientName}" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource PrimaryBrush}"/>
                                         <TextBlock Text="{Binding ClientTypeMention}" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="8,0,0,0"
-                                                   VerticalAlignment="Center"/>
+                               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="✕" FontSize="10" Background="Transparent"
-                                            BorderThickness="0" Cursor="Hand" Foreground="#DC2626"
-                                            Command="{Binding ClearClientCommand}"/>
+                                    <Button HorizontalAlignment="Right" Content="✕" FontSize="10"
+                        Background="Transparent" BorderThickness="0" Cursor="Hand"
+                        Foreground="#DC2626" Command="{Binding ClearClientCommand}"/>
                                 </Grid>
                             </Border>
 
                             <!-- Credit note / Advance badges -->
                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <Border Background="#FEE2E2" CornerRadius="6" Padding="8,3" Margin="0,0,6,0" Cursor="Hand"
-                                        Visibility="{Binding IsCreditNote, Converter={StaticResource BoolToVisibilityConverter}}">
-                                    <Button Command="{Binding ToggleCreditNotePanelCommand}" Background="Transparent" BorderThickness="0" Padding="0">
-                                        <TextBlock Text="📄 Avoir" FontFamily="{StaticResource AppFont}" FontSize="11"
-                                                   FontWeight="SemiBold" Foreground="#DC2626"/>
+                                <Border Background="#FEE2E2" CornerRadius="6" Padding="8,3" Margin="0,0,6,0"
+                    Cursor="Hand"
+                    Visibility="{Binding IsCreditNote, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Button Command="{Binding ToggleCreditNotePanelCommand}"
+                        Background="Transparent" BorderThickness="0" Padding="0">
+                                        <TextBlock Text="📄 Avoir" FontFamily="{StaticResource AppFont}"
+                               FontSize="11" FontWeight="SemiBold" Foreground="#DC2626"/>
                                     </Button>
                                 </Border>
                                 <Border Background="#EDE9FE" CornerRadius="6" Padding="8,3" Cursor="Hand"
-                                        Visibility="{Binding IsAdvanceInvoice, Converter={StaticResource BoolToVisibilityConverter}}">
-                                    <Button Command="{Binding ToggleAdvancePanelCommand}" Background="Transparent" BorderThickness="0" Padding="0">
-                                        <TextBlock Text="💰 Acompte" FontFamily="{StaticResource AppFont}" FontSize="11"
-                                                   FontWeight="SemiBold" Foreground="#7C3AED"/>
+                    Visibility="{Binding IsAdvanceInvoice, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Button Command="{Binding ToggleAdvancePanelCommand}"
+                        Background="Transparent" BorderThickness="0" Padding="0">
+                                        <TextBlock Text="💰 Acompte" FontFamily="{StaticResource AppFont}"
+                               FontSize="11" FontWeight="SemiBold" Foreground="#7C3AED"/>
                                     </Button>
                                 </Border>
                             </StackPanel>
+
                         </StackPanel>
                     </Border>
 
