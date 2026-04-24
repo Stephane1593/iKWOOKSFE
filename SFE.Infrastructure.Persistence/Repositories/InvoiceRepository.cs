@@ -78,9 +78,12 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
     public async Task<decimal> GetTodayTotalAsync()
     {
         var today = DateTime.Today;
-        return await _dbSet
+        var totals = await _dbSet
             .Where(i => i.CreatedAt >= today && i.Status == InvoiceStatus.Normalized)
-            .SumAsync(i => i.TotalTTC);
+            .Select(i => i.TotalTTC)
+            .ToListAsync();           // ← fetch to memory first
+
+        return totals.Sum();          // ← Sum in C#, not SQLite
     }
 
     public async Task<List<Invoice>> GetCreditNotesForOriginalAsync(string originalCodeDEFDGI)

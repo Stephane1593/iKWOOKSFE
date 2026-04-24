@@ -3,18 +3,22 @@
 namespace SFE.Application.Services;
 
 /// <summary>
-/// Moteur de calcul fiscal conforme DGI RDC — V10.
+/// Moteur de calcul fiscal conforme DGI RDC — V11.
 ///
-/// V10 vs V6–V9 :
-///   TS Percentage uses Ceil2 (arrondi par excès) at the SOURCE
-///   inside CalculateLineFull, matching the VSDC exactly.
-///   All fragile post-fix passes are eliminated.
+/// V11 vs V10 :
+///   TS Percentage uses hybrid rounding matching VSDC exactly:
+///     - Decomposition (extracting bases) → Ceil2 (protects tax base)
+///     - Tax computation (applying rates)  → R2   (standard rounding)
 ///
-///   Formula (TS Percentage):
-///     TS  = Ceil2(goodsHT × tsRate)
-///     TTC = Ceil2((goodsHT + TS) × (1 + vatRate))   ← two-step
-///     HT  = R2(TTC / (1 + vatRate))                  ← reverse
-///     TVA = TTC − HT
+///   Formula (TS Percentage, TTC mode):
+///     goodsHT = Ceil2(PU_TTC ÷ (1 + vatRate))   ← decomposition
+///     TS      = Ceil2(goodsHT × tsRate)           ← decomposition
+///     HT      = goodsHT + TS                      ← exact addition
+///     TVA     = R2(HT × vatRate)                  ← tax computation
+///     TTC     = HT + TVA                           ← exact addition
+///
+///   V10 used Ceil2 on TTC forward calculation then R2 reverse,
+///   which caused +0.01 drift on some rate combinations (e.g. 16% + TS 10%).
 ///
 ///   Formula (TS FixedPerUnit) — unchanged:
 ///     TS  = R2(value × qty)
@@ -188,16 +192,17 @@ public static class TaxCalculator
         {
             if (input.SpecificTaxType == SpecificTaxType.Percentage)
             {
-                // ── V10: Two-step Ceil2 forward + reverse ──
-                // TS  = Ceil2(goodsHT × tsRate)  [already done above]
-                // TTC = Ceil2((goodsHT + TS) × (1+vat))
-                // HT  = R2(TTC / (1+vat))
-                // TVA = TTC − HT
-                decimal ts = result.TaxSpecificAmount;
-                decimal baseHT = goodsHT + ts;
-                result.AmountTTC = Ceil2(baseHT * (1m + rate));
-                result.AmountHT = R2(result.AmountTTC / (1m + rate));
-                result.AmountTVA = result.AmountTTC - result.AmountHT;
+                // ── V11: Hybrid rounding — Ceil2 decomposition, R2 tax ──
+                // Ceil2 for extracting base (protects tax base)
+                // R2 for computing tax (standard rounding)
+                decimal goodsHTFiscal = isTTC && rate > 0m
+                    ? Ceil2(netAmount / (1m + rate))
+                    : goodsHT;
+                decimal ts = Ceil2(goodsHTFiscal * input.SpecificTaxValue / 100m);
+                result.TaxSpecificAmount = ts;
+                result.AmountHT = goodsHTFiscal + ts;
+                result.AmountTVA = R2(result.AmountHT * rate);
+                result.AmountTTC = result.AmountHT + result.AmountTVA;
             }
             else
             {
@@ -254,12 +259,15 @@ public static class TaxCalculator
         {
             if (input.SpecificTaxType == SpecificTaxType.Percentage)
             {
-                // ── V10: Two-step Ceil2 forward + reverse ──
-                decimal ts = result.TaxSpecificAmount;
-                decimal baseHT = goodsHT + ts;
-                grossTTC = Ceil2(baseHT * (1m + rate));
-                result.AmountHT = R2(grossTTC / (1m + rate));
-                result.AmountTVA = grossTTC - result.AmountHT;
+                // ── V11: Hybrid rounding — Ceil2 decomposition, R2 tax ──
+                decimal goodsHTFiscal = isTTC && rate > 0m
+                    ? Ceil2(grossAmount / (1m + rate))
+                    : goodsHT;
+                decimal ts = Ceil2(goodsHTFiscal * input.SpecificTaxValue / 100m);
+                result.TaxSpecificAmount = ts;
+                result.AmountHT = goodsHTFiscal + ts;
+                result.AmountTVA = R2(result.AmountHT * rate);
+                grossTTC = result.AmountHT + result.AmountTVA;
             }
             else
             {

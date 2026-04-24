@@ -277,19 +277,13 @@ public class InvoiceService
 
                 foreach (var line in lines)
                 {
-                    decimal goodsHT = line.AmountHT; // Pure goods, no TS (OnTotal → hasTS=false)
+                    decimal goodsHT = line.AmountHT;
                     decimal vatRate = line.TaxRate / 100m;
 
-                    // 1) TS with Ceil2
                     decimal ts = TaxCalculator.Ceil2(goodsHT * tsRate);
-
-                    // 2) TTC with Ceil2
-                    decimal baseHT = goodsHT + ts;
-                    decimal ttc = TaxCalculator.Ceil2(baseHT * (1m + vatRate));
-
-                    // 3) Reverse-derive HT and TVA
-                    decimal ht = TaxCalculator.R2(ttc / (1m + vatRate));
-                    decimal tva = ttc - ht;
+                    decimal ht = goodsHT + ts;
+                    decimal tva = TaxCalculator.R2(ht * vatRate);
+                    decimal ttc = ht + tva;
 
                     line.TaxSpecificAmount = ts;
                     line.AmountHT = ht;

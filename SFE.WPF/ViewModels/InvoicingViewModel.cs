@@ -759,10 +759,9 @@ public partial class InvoicingViewModel : BaseViewModel,
                     decimal vatRate = line.TaxRate / 100m;
 
                     decimal ts = TaxCalculator.Ceil2(goodsHT * tsRate);
-                    decimal baseHT = goodsHT + ts;
-                    decimal ttc = TaxCalculator.Ceil2(baseHT * (1m + vatRate));
-                    decimal ht = TaxCalculator.R2(ttc / (1m + vatRate));
-                    decimal tva = ttc - ht;
+                    decimal ht = goodsHT + ts;
+                    decimal tva = TaxCalculator.R2(ht * vatRate);
+                    decimal ttc = ht + tva;
 
                     line.TaxSpecificAmount = ts;
                     line.AmountHT = ht;
