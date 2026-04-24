@@ -65,5 +65,11 @@ public class PointOfSaleConfiguration : IEntityTypeConfiguration<PointOfSale>
         builder.Property(p => p.PrinterCodePage).HasDefaultValue(858);
         builder.Property(p => p.PrintLogo).HasDefaultValue(false);
         builder.Property(p => p.ReceiptFooterText).HasMaxLength(500).HasDefaultValue("Merci pour votre achat !");
+
+        // 🆕 Operators relationship
+        builder.HasMany(p => p.Operators)
+            .WithOne(u => u.PointOfSale)
+            .HasForeignKey(u => u.PointOfSaleId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -10,6 +10,7 @@ using SFE.WPF.ViewModels;
 using SFE.WPF.Services;
 using SFE.WPF.Views;
 using SFE.WPF.Views.Pages;
+using QuestPDF.Infrastructure;
 
 namespace SFE.WPF;
 
@@ -19,16 +20,14 @@ public partial class App : System.Windows.Application
 
     private async void Application_Startup(object sender, StartupEventArgs e)
     {
-        // ══════════════ BUILD DI ══════════════
         var services = new ServiceCollection();
         ConfigureServices(services);
         ServiceProvider = services.BuildServiceProvider();
+        QuestPDF.Settings.License = LicenseType.Community;
 
-        // ══════════════ SEED DATABASE ══════════════
         var context = ServiceProvider.GetRequiredService<AppDbContext>();
         await DatabaseSeeder.SeedAsync(context);
 
-        // ══════════════ LOGIN LOOP ══════════════
         while (true)
         {
             var authService = ServiceProvider.GetRequiredService<IAuthService>();
@@ -37,7 +36,6 @@ public partial class App : System.Windows.Application
             // ── 1. Show Login ──
             var loginVm = new LoginViewModel(authService);
             var loginWindow = new LoginWindow { DataContext = loginVm };
-
             loginVm.LoginSucceeded += () => loginWindow.DialogResult = true;
 
             bool? loginResult = loginWindow.ShowDialog();
@@ -47,53 +45,231 @@ public partial class App : System.Windows.Application
                 return;
             }
 
-            // ── 2. Show Session Opening Dialog ──
-            var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
-            var settingsService = ServiceProvider.GetRequiredService<SettingsService>();
-            var sessionVm = new SessionOpenViewModel(uow, authService, settingsService);
-            var sessionDialog = new SessionOpenDialog { DataContext = sessionVm };
+            // ── 2. Determine session flow ──
+            var sessionAction = ResolveSessionAction(authService, sessionState);
 
-            // Handle both normal confirm and IT Tech bypass
-            sessionVm.SessionConfirmed += () => sessionDialog.DialogResult = true;
-            sessionVm.SessionBypassed += () => sessionDialog.DialogResult = true;
-
-            bool? sessionResult = sessionDialog.ShowDialog();
-            if (sessionResult != true)
+            switch (sessionAction)
             {
-                // User cancelled session → logout and loop back to login
-                authService.Logout();
-                sessionState.Close();
-                continue;
+                case SessionAction.JoinExisting:
+                    {
+                        // Same POS — shift handover
+                        var session = sessionState.Current!;
+                        MessageBox.Show(
+                            $"Une session de caisse est déjà ouverte.\n\n" +
+                            $"Point de vente : {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"Ouverte le : {session.OpenedAt:dd/MM/yyyy HH:mm}\n" +
+                            $"Par : {session.OperatorName}\n\n" +
+                            $"Vous reprenez cette session en tant que {authService.CurrentUser!.FullName}.\n" +
+                            $"Pour la clôturer, effectuez un Rapport Z.",
+                            "Reprise de session",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+
+                        // Update the operator name on the session
+                        sessionState.Current!.OperatorName = authService.CurrentUser!.FullName;
+                        break;
+                    }
+
+                case SessionAction.BlockedWrongPos:
+                    {
+                        // User is assigned to a different POS than the open session
+                        var session = sessionState.Current!;
+                        var user = authService.CurrentUser!;
+                        var userPosId = user.PointOfSaleId;
+
+                        // Try to get the user's POS name for the message
+                        string userPosDisplay = "un autre point de vente";
+                        if (userPosId.HasValue)
+                        {
+                            try
+                            {
+                                var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+                                var userPos = await uow.PointsOfSale.GetByIdAsync(userPosId.Value);
+                                if (userPos != null)
+                                    userPosDisplay = $"{userPos.Code} — {userPos.Name}";
+                            }
+                            catch { /* fallback to generic message */ }
+                        }
+
+                        MessageBox.Show(
+                            $"Impossible de vous connecter.\n\n" +
+                            $"Une session est déjà ouverte sur :\n" +
+                            $"   📍 {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"   🕐 Depuis le {session.OpenedAt:dd/MM/yyyy à HH:mm}\n" +
+                            $"   👤 Par : {session.OperatorName}\n\n" +
+                            $"Vous êtes assigné(e) à :\n" +
+                            $"   📍 {userPosDisplay}\n\n" +
+                            $"La session en cours doit d'abord être clôturée par un Rapport Z\n" +
+                            $"avant qu'un autre point de vente puisse être utilisé sur cette machine.",
+                            "Session en cours sur un autre POS",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+
+                        authService.Logout();
+                        continue; // back to login
+                    }
+
+                case SessionAction.BlockedNoPos:
+                    {
+                        // User has no POS assigned AND can't bypass — blocked
+                        var session = sessionState.Current!;
+
+                        MessageBox.Show(
+                            $"Impossible de vous connecter.\n\n" +
+                            $"Une session est ouverte sur {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"mais aucun point de vente ne vous est assigné.\n\n" +
+                            $"Contactez votre administrateur.",
+                            "Accès refusé",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+
+                        authService.Logout();
+                        continue;
+                    }
+
+                case SessionAction.BypassToSetup:
+                    {
+                        // IT Tech with active session on different POS — enter setup mode
+                        var session = sessionState.Current!;
+
+                        var choice = MessageBox.Show(
+                            $"Une session est ouverte sur {session.PointOfSaleCode} — {session.PointOfSaleName}.\n\n" +
+                            $"En tant que technicien, vous pouvez :\n" +
+                            $"• Accéder au mode configuration (paramètres, utilisateurs)\n" +
+                            $"• La caisse et la facturation restent indisponibles\n\n" +
+                            $"Continuer en mode configuration ?",
+                            "Mode Technicien",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+
+                        if (choice != MessageBoxResult.Yes)
+                        {
+                            authService.Logout();
+                            continue;
+                        }
+
+                        // Don't touch the existing session — just layer setup mode
+                        sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+                        break;
+                    }
+
+                case SessionAction.ShowDialog:
+                    {
+                        // No session open — normal flow
+                        if (sessionState.IsSetupMode)
+                            sessionState.Close();
+
+                        var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+                        var settingsService = ServiceProvider.GetRequiredService<SettingsService>();
+                        var sessionVm = new SessionOpenViewModel(uow, authService, settingsService);
+                        var sessionDialog = new SessionOpenDialog { DataContext = sessionVm };
+
+                        sessionVm.SessionConfirmed += () => sessionDialog.DialogResult = true;
+                        sessionVm.SessionBypassed += () => sessionDialog.DialogResult = true;
+
+                        bool? sessionResult = sessionDialog.ShowDialog();
+                        if (sessionResult != true)
+                        {
+                            authService.Logout();
+                            continue;
+                        }
+
+                        if (sessionVm.IsBypass)
+                            sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+                        else
+                            sessionState.Open(sessionVm.Result!);
+
+                        break;
+                    }
             }
 
-            // ── 3. Determine session mode ──
-            if (sessionVm.IsBypass)
-            {
-                // IT Tech bypass — no cash session, enter setup mode
-                sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
-            }
-            else
-            {
-                // Normal flow — store full session info
-                sessionState.Open(sessionVm.Result!);
-            }
-
-            // ── 4. Show Main Window ──
+            // ── 3. Show Main Window ──
             var mainVm = ServiceProvider.GetRequiredService<MainViewModel>();
             var mainWindow = new MainWindow(mainVm);
-
             mainWindow.ShowDialog();
 
-            if (!mainVm.LogoutRequested)
+            // ── 4. Handle close reason ──
+            if (mainVm.Reason == MainViewModel.CloseReason.None)
             {
                 Shutdown();
                 return;
             }
 
-            // Logout → clear session, loop back to login
-            sessionState.Close();
+            if (mainVm.Reason == MainViewModel.CloseReason.ZClose)
+            {
+                // Z-close: clear everything
+                sessionState.Close();
+            }
+            else if (mainVm.Reason == MainViewModel.CloseReason.Logout)
+            {
+                // Regular logout
+                if (sessionState.IsSetupMode)
+                {
+                    // IT Tech was in setup mode — just exit setup, preserve session
+                    sessionState.ExitSetupMode();
+                }
+                // If a normal session is open, it stays open for next user
+            }
+
             authService.Logout();
         }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  SESSION ACTION RESOLVER
+    // ═══════════════════════════════════════════════════════
+
+    private enum SessionAction
+    {
+        ShowDialog,       // No session — show normal dialog
+        JoinExisting,     // Same POS — join session
+        BlockedWrongPos,  // Different POS — can't work
+        BlockedNoPos,     // No POS assigned, can't bypass
+        BypassToSetup     // IT Tech — setup mode
+    }
+
+    private static SessionAction ResolveSessionAction(
+        IAuthService authService, CashSessionState sessionState)
+    {
+        // No session open → normal flow
+        if (!sessionState.IsSessionOpen)
+            return SessionAction.ShowDialog;
+
+        var user = authService.CurrentUser;
+        if (user == null)
+            return SessionAction.ShowDialog;
+
+        var openPosId = sessionState.Current!.PointOfSaleId;
+        var userPosId = user.PointOfSaleId;
+        bool canBypass = authService.HasPermission("bypassPosCheck");
+
+        // ── Case 1: User assigned to the SAME POS → join ──
+        if (userPosId.HasValue && userPosId.Value == openPosId)
+            return SessionAction.JoinExisting;
+
+        // ── Case 2: User assigned to DIFFERENT POS ──
+        if (userPosId.HasValue && userPosId.Value != openPosId)
+        {
+            // IT Tech with bypass → can enter setup mode
+            if (canBypass)
+                return SessionAction.BypassToSetup;
+
+            // Regular user → blocked
+            return SessionAction.BlockedWrongPos;
+        }
+
+        // ── Case 3: User has NO POS assigned ──
+        if (!userPosId.HasValue)
+        {
+            // IT Tech → setup mode
+            if (canBypass)
+                return SessionAction.BypassToSetup;
+
+            // Regular user without POS → blocked
+            return SessionAction.BlockedNoPos;
+        }
+
+        return SessionAction.ShowDialog;
     }
 
     private static void ConfigureServices(IServiceCollection services)
@@ -160,12 +336,17 @@ public partial class App : System.Windows.Application
         services.AddTransient<UsersViewModel>();
         services.AddTransient<CategoriesViewModel>();
 
+        // ── Audit ──
+        services.AddSingleton<IAuditWriter, AuditWriter>();
+        services.AddSingleton<IAuditService, AuditService>();
+        services.AddTransient<AuditLogViewModel>();
 
         // ═══ Fenêtres & Pages ═══
         services.AddTransient<MainWindow>();
         services.AddTransient<ClientsPage>();
         services.AddTransient<ReportView>();
         services.AddTransient<InvoiceDocumentView>();
+        services.AddTransient<PosManagementPage>();
     }
 
     private static async Task InitializeDatabaseAsync()

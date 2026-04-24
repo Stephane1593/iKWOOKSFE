@@ -44,14 +44,25 @@ public class CashSessionState
     }
 
     /// <summary>
-    /// IT Tech bypass — no cash session, only configuration access.
-    /// Use <see cref="IsSetupMode"/> to restrict invoicing/POS features.
+    /// IT Tech bypass — enters setup mode.
+    /// If a session is already open, it is preserved (not cleared).
     /// </summary>
     public void EnterSetupMode(string operatorName)
     {
-        Current = null;
+        // ★ Don't clear Current — the session might still be active
+        // from a previous user. IT Tech just layers on top.
         IsSetupMode = true;
         SetupModeOperator = operatorName;
+    }
+
+    /// <summary>
+    /// Exits setup mode without affecting the underlying session.
+    /// Called when IT Tech logs out but a session was still active underneath.
+    /// </summary>
+    public void ExitSetupMode()
+    {
+        IsSetupMode = false;
+        SetupModeOperator = null;
     }
 
     /// <summary>

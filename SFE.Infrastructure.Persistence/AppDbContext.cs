@@ -29,6 +29,7 @@ public class AppDbContext : DbContext
     public DbSet<ReportTaxGroupDetail> ReportTaxGroupDetails { get; set; }
     public DbSet<ReportPaymentSummary> ReportPaymentSummaries { get; set; }
     public DbSet<ArticleReportLine> ArticleReportLines { get; set; }
+    public DbSet<AuditLogEntry> AuditLogEntries { get; set; } = null!;
 
     private readonly string _dbPath;
 

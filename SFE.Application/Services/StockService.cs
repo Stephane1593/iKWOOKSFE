@@ -1,5 +1,4 @@
-﻿// File: SFE.Application/Services/StockService.cs
-using SFE.Application.Events;
+﻿using SFE.Application.Events;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
@@ -9,10 +8,12 @@ namespace SFE.Application.Services;
 public class StockService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuditService _audit;
 
-    public StockService(IUnitOfWork unitOfWork)
+    public StockService(IUnitOfWork unitOfWork, IAuditService audit)
     {
         _unitOfWork = unitOfWork;
+        _audit = audit;
     }
 
     // ══════════════════════════════════════════════
@@ -190,6 +191,11 @@ public class StockService
         await _unitOfWork.StockTransfers.AddAsync(transfer);
         await _unitOfWork.SaveChangesAsync();
 
+        // ── AUDIT ──
+        await _audit.LogAsync(AuditAction.TransferCreated, AuditModule.Stock,
+            transfer.Id.ToString(),
+            $"{transfer.TransferNumber} · POS #{fromPosId} → POS #{toPosId} · {lines.Count} ligne(s)");
+
         // ── EVENT ──
         _unitOfWork.EnqueueEvent(AppEvent.StockTransferCreated, transfer.Id.ToString());
         await _unitOfWork.FlushEventsAsync();
@@ -331,6 +337,12 @@ public class StockService
             // Persist PosStock + movements so GetTotalStockAsync sees them
             await _unitOfWork.SaveChangesAsync();
 
+            // ── AUDIT ──
+            await _audit.LogAsync(AuditAction.TransferReceived, AuditModule.Stock,
+                transfer.Id.ToString(),
+                $"{transfer.TransferNumber} · POS #{transfer.FromPointOfSaleId} → POS #{transfer.ToPointOfSaleId} · " +
+                $"Réceptionné{(isPartial ? " (partiel)" : "")} · {transfer.Lines.Count} ligne(s)");
+
             // Update global product stocks
             await UpdateGlobalStocksAsync(
                 transfer.Lines.Select(l => l.ProductId).Distinct());
@@ -397,6 +409,13 @@ public class StockService
                     transfer.Lines.Select(l => l.ProductId).Distinct());
                 await _unitOfWork.SaveChangesAsync();
             }
+
+            // ── AUDIT ──
+            await _audit.LogAsync(AuditAction.TransferCancelled, AuditModule.Stock,
+                transfer.Id.ToString(),
+                $"{transfer.TransferNumber} · Annulé" +
+                (stockRestored ? " (stock restauré)" : " (brouillon)") +
+                (string.IsNullOrEmpty(reason) ? "" : $" · Raison: {reason}"));
 
             // ── EVENTS ──
             _unitOfWork.EnqueueEvent(AppEvent.StockTransferCancelled, transfer.Id.ToString());
@@ -585,12 +604,28 @@ public class StockService
         };
         await _unitOfWork.StockMovements.AddAsync(movement);
 
-        // First save: persist PosStock + movement
         await _unitOfWork.SaveChangesAsync();
 
-        // Update global product stock (DB can now see the PosStock change)
         await UpdateProductGlobalStockAsync(productId);
         await _unitOfWork.SaveChangesAsync();
+
+        // ── AUDIT ──
+        var auditAction = type switch
+        {
+            StockMovementType.Entry => AuditAction.StockEntry,
+            StockMovementType.Exit => AuditAction.StockExit,
+            StockMovementType.Adjustment => AuditAction.StockAdjustment,
+            StockMovementType.PhysicalCount => AuditAction.StockPhysicalCount,
+            StockMovementType.Initial => AuditAction.StockInitial,
+            StockMovementType.Sale => AuditAction.StockSaleDecrement,
+            StockMovementType.CreditReturn => AuditAction.StockCreditReturn,
+            _ => AuditAction.StockAdjustment
+        };
+
+        await _audit.LogAsync(auditAction, AuditModule.Stock,
+            movement.Id.ToString(),
+            $"Produit #{productId} · POS #{posId} · {type}: {before:G} → {after:G} ({quantity:+0.##;-0.##;0})" +
+            (string.IsNullOrEmpty(reference) ? "" : $" · Réf: {reference}"));
 
         // ── EVENT ──
         _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);

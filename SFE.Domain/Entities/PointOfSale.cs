@@ -98,7 +98,9 @@ public class PointOfSale
     // === Navigation ===
     public Company? Company { get; set; }
 
-    // 🆕
+    // 🆕 Operators assigned to this POS
+    public List<User> Operators { get; set; } = new();
+
     public List<PosStock> PosStocks { get; set; } = new();
     public List<StockMovement> StockMovements { get; set; } = new();
 }

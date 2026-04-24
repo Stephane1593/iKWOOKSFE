@@ -18,14 +18,12 @@
         </Setter>
     </Style>
 
-    <!-- Card compacte (moins de padding) -->
     <Style x:Key="CardCompactStyle" TargetType="Border" BasedOn="{StaticResource CardStyle}">
         <Setter Property="Padding" Value="16"/>
     </Style>
 
     <!-- ══════════ BOUTONS ══════════ -->
 
-    <!-- Bouton principal (indigo) -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="Foreground" Value="White"/>
@@ -70,7 +68,6 @@
         </Setter>
     </Style>
 
-    <!-- Bouton secondaire (contour) -->
     <Style x:Key="SecondaryButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
@@ -100,12 +97,11 @@
         </Setter>
     </Style>
 
-    <!-- Bouton danger (rouge) -->
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
         <Setter Property="Background" Value="{StaticResource ErrorBrush}"/>
     </Style>
 
-    <!-- ══════════ TEXTBOX (champ de texte moderne) ══════════ -->
+    <!-- ══════════ TEXTBOX ══════════ -->
     <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
         <Setter Property="FontSize" Value="14"/>
@@ -174,12 +170,21 @@
     <!-- ══════════ COMBOBOX MODERNE ══════════ -->
     <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="Padding" Value="14,12"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="MinHeight" Value="30"/>
         <Setter Property="BorderThickness" Value="1.5"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Style.Resources>
+            <Style TargetType="Popup">
+                <Setter Property="MinWidth"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+            </Style>
+        </Style.Resources>
     </Style>
 
     <!-- ══════════ SEPARATOR ══════════ -->
@@ -229,6 +234,352 @@
         <Setter Property="Foreground"       Value="#334155"/>
         <Setter Property="FontFamily"       Value="Segoe UI"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!--  SCROLLBAR — Thin, rounded, fade-on-hover         -->
+    <!-- ══════════════════════════════════════════════════ -->
+
+    <Style x:Key="ScrollBarLineButton" TargetType="RepeatButton">
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Setter Property="Width" Value="0"/>
+        <Setter Property="Height" Value="0"/>
+    </Style>
+
+    <Style x:Key="ScrollBarPageButton" TargetType="RepeatButton">
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="Transparent"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ScrollBarThumb" TargetType="Thumb">
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="ThumbBorder" CornerRadius="4" Margin="1">
+                        <Border.Background>
+                            <SolidColorBrush x:Name="ThumbBg" Color="#C0C8D0"/>
+                        </Border.Background>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                Storyboard.TargetProperty="Color"
+                                                To="#8B99A6" Duration="0:0:0.15"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                Storyboard.TargetProperty="Color"
+                                                To="#C0C8D0" Duration="0:0:0.2"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbBorder" Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="#7A8A98"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ScrollBarThumbDark" TargetType="Thumb">
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="ThumbBorder" CornerRadius="4" Margin="1">
+                        <Border.Background>
+                            <SolidColorBrush x:Name="ThumbBg" Color="#2A4D60"/>
+                        </Border.Background>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                Storyboard.TargetProperty="Color"
+                                                To="#3D6B82" Duration="0:0:0.15"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                Storyboard.TargetProperty="Color"
+                                                To="#2A4D60" Duration="0:0:0.2"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbBorder" Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="#4A8BA6"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════ VERTICAL SCROLLBAR (light) ══════════ -->
+    <ControlTemplate x:Key="VerticalScrollBar" TargetType="ScrollBar">
+        <Grid>
+            <Border CornerRadius="4" Background="Transparent"/>
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollBarPageButton}"
+                              Command="ScrollBar.PageUpCommand"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource ScrollBarThumb}" MinHeight="30"/>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollBarPageButton}"
+                              Command="ScrollBar.PageDownCommand"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- ══════════ HORIZONTAL SCROLLBAR (light) ══════════ -->
+    <ControlTemplate x:Key="HorizontalScrollBar" TargetType="ScrollBar">
+        <Grid>
+            <Border CornerRadius="4" Background="Transparent"/>
+            <Track x:Name="PART_Track" IsDirectionReversed="False">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollBarPageButton}"
+                              Command="ScrollBar.PageLeftCommand"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource ScrollBarThumb}" MinWidth="30"/>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollBarPageButton}"
+                              Command="ScrollBar.PageRightCommand"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- ══════════ DEFAULT SCROLLBAR (implicit — works on non-MD pages) ══════════ -->
+    <Style TargetType="ScrollBar">
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Vertical">
+                <Setter Property="Width" Value="8"/>
+                <Setter Property="MinWidth" Value="8"/>
+                <Setter Property="Template" Value="{StaticResource VerticalScrollBar}"/>
+            </Trigger>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Height" Value="8"/>
+                <Setter Property="MinHeight" Value="8"/>
+                <Setter Property="Template" Value="{StaticResource HorizontalScrollBar}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ══════════ DEFAULT SCROLLVIEWER (implicit — works on non-MD pages) ══════════ -->
+    <Style TargetType="ScrollViewer">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <ScrollContentPresenter Grid.Column="0" Grid.Row="0"
+                                            CanContentScroll="{TemplateBinding CanContentScroll}"/>
+
+                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                               Grid.Column="1" Grid.Row="0"
+                               Value="{TemplateBinding VerticalOffset}"
+                               Maximum="{TemplateBinding ScrollableHeight}"
+                               ViewportSize="{TemplateBinding ViewportHeight}"
+                               Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                               Opacity="0.3" Margin="2,4"/>
+
+                        <ScrollBar x:Name="PART_HorizontalScrollBar"
+                               Grid.Column="0" Grid.Row="1"
+                               Orientation="Horizontal"
+                               Value="{TemplateBinding HorizontalOffset}"
+                               Maximum="{TemplateBinding ScrollableWidth}"
+                               ViewportSize="{TemplateBinding ViewportWidth}"
+                               Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"
+                               Opacity="0.3" Margin="4,2"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.2"/>
+                                    <DoubleAnimation Storyboard.TargetName="PART_HorizontalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.2"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="0.3" Duration="0:0:0.4"/>
+                                    <DoubleAnimation Storyboard.TargetName="PART_HorizontalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="0.3" Duration="0:0:0.4"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════ DARK SCROLLBAR (opt-in for dark panels) ══════════ -->
+    <ControlTemplate x:Key="VerticalScrollBarDark" TargetType="ScrollBar">
+        <Grid>
+            <Border CornerRadius="4" Background="Transparent"/>
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollBarPageButton}"
+                              Command="ScrollBar.PageUpCommand"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource ScrollBarThumbDark}" MinHeight="30"/>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollBarPageButton}"
+                              Command="ScrollBar.PageDownCommand"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+        </Grid>
+    </ControlTemplate>
+
+    <Style x:Key="DarkScrollBar" TargetType="ScrollBar">
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Width" Value="8"/>
+        <Setter Property="MinWidth" Value="8"/>
+        <Setter Property="Template" Value="{StaticResource VerticalScrollBarDark}"/>
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!--  KEYED SCROLLBAR/SCROLLVIEWER                                 -->
+    <!--  MaterialDesign overrides the implicit styles above.          -->
+    <!--  Pages that use MD must add these 2 lines in their            -->
+    <!--  <UserControl.Resources> to reclaim the thin scrollbar:       -->
+    <!--                                                               -->
+    <!--    <Style TargetType="ScrollBar"                              -->
+    <!--           BasedOn="{StaticResource ThinScrollBarStyle}"/>     -->
+    <!--    <Style TargetType="ScrollViewer"                           -->
+    <!--           BasedOn="{StaticResource FadeScrollViewerStyle}"/>  -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="ThinScrollBarStyle" TargetType="ScrollBar">
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Vertical">
+                <Setter Property="Width" Value="8"/>
+                <Setter Property="MinWidth" Value="8"/>
+                <Setter Property="Template" Value="{StaticResource VerticalScrollBar}"/>
+            </Trigger>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Height" Value="8"/>
+                <Setter Property="MinHeight" Value="8"/>
+                <Setter Property="Template" Value="{StaticResource HorizontalScrollBar}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="FadeScrollViewerStyle" TargetType="ScrollViewer">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <ScrollContentPresenter Grid.Column="0" Grid.Row="0"
+                            CanContentScroll="{TemplateBinding CanContentScroll}"/>
+
+                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                               Grid.Column="1" Grid.Row="0"
+                               Value="{TemplateBinding VerticalOffset}"
+                               Maximum="{TemplateBinding ScrollableHeight}"
+                               ViewportSize="{TemplateBinding ViewportHeight}"
+                               Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                               Opacity="0.3" Margin="2,4"/>
+
+                        <ScrollBar x:Name="PART_HorizontalScrollBar"
+                               Grid.Column="0" Grid.Row="1"
+                               Orientation="Horizontal"
+                               Value="{TemplateBinding HorizontalOffset}"
+                               Maximum="{TemplateBinding ScrollableWidth}"
+                               ViewportSize="{TemplateBinding ViewportWidth}"
+                               Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"
+                               Opacity="0.3" Margin="4,2"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.2"/>
+                                    <DoubleAnimation Storyboard.TargetName="PART_HorizontalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.2"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="0.3" Duration="0:0:0.4"/>
+                                    <DoubleAnimation Storyboard.TargetName="PART_HorizontalScrollBar"
+                                        Storyboard.TargetProperty="Opacity" To="0.3" Duration="0:0:0.4"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
 </ResourceDictionary>

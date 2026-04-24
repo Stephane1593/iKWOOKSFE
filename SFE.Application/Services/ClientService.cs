@@ -7,10 +7,12 @@ namespace SFE.Application.Services;
 public class ClientService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuditService _audit;
 
-    public ClientService(IUnitOfWork unitOfWork)
+    public ClientService(IUnitOfWork unitOfWork, IAuditService audit)
     {
         _unitOfWork = unitOfWork;
+        _audit = audit;
     }
 
     public async Task<List<Client>> GetAllAsync()
@@ -41,6 +43,13 @@ public class ClientService
         client.CreatedAt = DateTime.UtcNow;
         await _unitOfWork.Clients.AddAsync(client);
         await _unitOfWork.SaveChangesAsync();
+
+        // ── AUDIT ──
+        await _audit.LogAsync(AuditAction.ClientCreated, AuditModule.Clients,
+            client.Id.ToString(),
+            $"Client « {client.Name} » · Type {client.Type}" +
+            (!string.IsNullOrWhiteSpace(client.NIF) ? $" · NIF {client.NIF}" : ""));
+
         return new() { IsValid = true, Client = client };
     }
 
@@ -56,8 +65,35 @@ public class ClientService
                 return new("Un autre client avec ce NIF existe déjà.");
         }
 
+        // Capture old values for audit delta
+        var existing = await _unitOfWork.Clients.GetByIdAsync(client.Id);
+        var changes = new List<string>();
+        if (existing != null)
+        {
+            if (existing.Name != client.Name)
+                changes.Add($"Nom : « {existing.Name} » → « {client.Name} »");
+            if (existing.Type != client.Type)
+                changes.Add($"Type : {existing.Type} → {client.Type}");
+            if (existing.NIF != client.NIF)
+                changes.Add($"NIF : « {existing.NIF ?? "—"} » → « {client.NIF ?? "—"} »");
+            if (existing.Phone != client.Phone)
+                changes.Add($"Tél : « {existing.Phone ?? "—"} » → « {client.Phone ?? "—"} »");
+            if (existing.Email != client.Email)
+                changes.Add($"Email : « {existing.Email ?? "—"} » → « {client.Email ?? "—"} »");
+            if (existing.Address != client.Address)
+                changes.Add($"Adresse modifiée");
+        }
+
         await _unitOfWork.Clients.UpdateAsync(client);
         await _unitOfWork.SaveChangesAsync();
+
+        // ── AUDIT ──
+        var detail = changes.Count > 0
+            ? $"Client « {client.Name} » · {string.Join(" · ", changes)}"
+            : $"Client « {client.Name} » · Aucune modification détectée";
+        await _audit.LogAsync(AuditAction.ClientUpdated, AuditModule.Clients,
+            client.Id.ToString(), detail);
+
         return new() { IsValid = true, Client = client };
     }
 
@@ -65,8 +101,22 @@ public class ClientService
     {
         var client = await _unitOfWork.Clients.GetByIdAsync(id);
         if (client == null) return false;
+
+        // Capture before deletion
+        var name = client.Name;
+        var type = client.Type;
+        var nif = client.NIF;
+
         await _unitOfWork.Clients.DeleteAsync(client);
         await _unitOfWork.SaveChangesAsync();
+
+        // ── AUDIT ──
+        await _audit.LogAsync(AuditAction.ClientDeleted, AuditModule.Clients,
+            id.ToString(),
+            $"Client « {name} » · Type {type}" +
+            (!string.IsNullOrWhiteSpace(nif) ? $" · NIF {nif}" : "") +
+            " · Supprimé");
+
         return true;
     }
 

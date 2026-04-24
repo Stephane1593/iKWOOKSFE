@@ -1,5 +1,4 @@
 ﻿using System.Collections.ObjectModel;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Events;
@@ -14,7 +13,9 @@ public partial class UsersViewModel : BaseViewModel
     private readonly UserService _userService;
     private readonly IAuthService _authService;
 
-    // ═══════ TAB ═══════
+    [ObservableProperty] private ObservableCollection<PointOfSale> _availablePointsOfSale = new();
+    [ObservableProperty] private PointOfSale? _selectedPointOfSale;
+
     [ObservableProperty] private bool _isUsersTab = true;
 
     // ═══════ USER LIST ═══════
@@ -35,8 +36,10 @@ public partial class UsersViewModel : BaseViewModel
     [ObservableProperty] private Role? _formRole;
     [ObservableProperty] private bool _formIsActive = true;
 
+    [ObservableProperty] private PointOfSale? _formPointOfSale;
+
     public ObservableCollection<Role> AvailableRoles { get; } = new();
-    public ObservableCollection<PosAssignmentItem> AvailablePos { get; } = new();
+    public ObservableCollection<PointOfSale> AvailablePos { get; } = new();
 
     // ═══════ ROLE LIST ═══════
     public ObservableCollection<RoleListItem> Roles { get; } = new();
@@ -47,21 +50,31 @@ public partial class UsersViewModel : BaseViewModel
     [ObservableProperty] private bool _isCreatingRole;
     [ObservableProperty] private string _roleFormTitle = "";
     [ObservableProperty] private bool _isProtectedRole;
+    [ObservableProperty] private string _protectedRoleMessage = "";                // ★ NEW
     private int _editingRoleId;
 
     [ObservableProperty] private string _formRoleName = "";
     public ObservableCollection<PermissionItem> FormPermissions { get; } = new();
 
-    // ═══════ CACHED ═══════
+    // ═══════ ROLE-TAB PRIVILEGES ═══════                                         // ★ NEW
+    [ObservableProperty] private bool _canCreateRole;
+
     private List<User> _allUsers = new();
 
-    // ═══════ HELPERS ═══════
     private int CurrentUserId => _authService.CurrentUser?.Id ?? 0;
     private User? CurrentUser => _authService.CurrentUser;
+
     private bool CurrentUserIsSuperAdmin =>
         CurrentUser != null && UserService.IsSuperAdminUser(CurrentUser);
 
-    // ═══════ CONSTRUCTOR ═══════
+    private bool CurrentUserIsITTech
+    {
+        get
+        {
+            var me = _allUsers.FirstOrDefault(u => u.Id == CurrentUserId);
+            return me?.Role != null && UserService.IsITTechRole(me.Role);
+        }
+    }
 
     public UsersViewModel(UserService userService, IAuthService authService)
     {
@@ -78,21 +91,8 @@ public partial class UsersViewModel : BaseViewModel
 
     partial void OnSearchTextChanged(string value) => ApplyUserFilter();
 
-    // ═══════ TAB SWITCHING ═══════
-
-    [RelayCommand]
-    private void SwitchToUsersTab()
-    {
-        IsUsersTab = true;
-        CancelRoleEdit();
-    }
-
-    [RelayCommand]
-    private void SwitchToRolesTab()
-    {
-        IsUsersTab = false;
-        CancelUserEdit();
-    }
+    [RelayCommand] private void SwitchToUsersTab() { IsUsersTab = true; CancelRoleEdit(); }
+    [RelayCommand] private void SwitchToRolesTab() { IsUsersTab = false; CancelUserEdit(); }
 
     // ═══════ LOAD ═══════
 
@@ -105,7 +105,6 @@ public partial class UsersViewModel : BaseViewModel
             _allUsers = await _userService.GetAllWithRolesAsync();
             var allPos = await _userService.GetAllPointsOfSaleAsync();
 
-            // ── Assignable roles depend on who is logged in ──
             AvailableRoles.Clear();
             if (CurrentUser != null)
             {
@@ -114,22 +113,21 @@ public partial class UsersViewModel : BaseViewModel
                     AvailableRoles.Add(r);
             }
 
-            // POS list
             AvailablePos.Clear();
-            foreach (var p in allPos)
-                AvailablePos.Add(new PosAssignmentItem
-                {
-                    PosId = p.Id,
-                    DisplayName = $"{p.Name} ({p.Code})"
-                });
+            foreach (var p in allPos.Where(p => p.IsActive).OrderBy(p => p.Code))
+                AvailablePos.Add(p);
 
-            // All roles (for roles tab)
+            // ★ Compute privilege flags once
+            bool isSA = CurrentUserIsSuperAdmin;
+            bool isIT = CurrentUserIsITTech;
+            CanCreateRole = isSA;                                                  // ★
+
             var allRoles = await _userService.GetAllRolesAsync();
             Roles.Clear();
             foreach (var r in allRoles.OrderBy(r => r.Name))
             {
                 var count = _allUsers.Count(u => u.RoleId == r.Id);
-                Roles.Add(new RoleListItem(r, count));
+                Roles.Add(new RoleListItem(r, count, isSA, isIT));                 // ★
             }
             RoleCount = Roles.Count;
 
@@ -139,10 +137,7 @@ public partial class UsersViewModel : BaseViewModel
         {
             ShowErrorMessage($"Erreur de chargement : {ex.Message}");
         }
-        finally
-        {
-            IsBusy = false;
-        }
+        finally { IsBusy = false; }
     }
 
     private void ApplyUserFilter()
@@ -160,13 +155,11 @@ public partial class UsersViewModel : BaseViewModel
 
         Users.Clear();
         foreach (var u in filtered)
-            Users.Add(new UserListItem(u));
+            Users.Add(new UserListItem(u, CurrentUserIsSuperAdmin, CurrentUserIsITTech));
         UserCount = Users.Count;
     }
 
-    // ══════════════════════════════════════════════════════
-    //  USER COMMANDS
-    // ══════════════════════════════════════════════════════
+    // ═══════ USER COMMANDS ═══════
 
     [RelayCommand]
     private void NewUser()
@@ -183,7 +176,6 @@ public partial class UsersViewModel : BaseViewModel
     private void EditUser(UserListItem? item)
     {
         if (item == null) return;
-
         var user = _allUsers.FirstOrDefault(u => u.Id == item.Id);
         if (user == null) return;
 
@@ -198,11 +190,7 @@ public partial class UsersViewModel : BaseViewModel
         FormFullName = user.FullName;
         FormIsActive = user.IsActive;
         FormRole = AvailableRoles.FirstOrDefault(r => r.Id == user.RoleId);
-
-        // POS assignment
-        var assignedIds = UserService.ParseAssignedPosIds(user.AssignedPosIds);
-        foreach (var pos in AvailablePos)
-            pos.IsAssigned = assignedIds.Contains(pos.PosId);
+        FormPointOfSale = AvailablePos.FirstOrDefault(p => p.Id == user.PointOfSaleId);
 
         ClearStatus();
     }
@@ -211,13 +199,6 @@ public partial class UsersViewModel : BaseViewModel
     private async Task SaveUser()
     {
         ClearStatus();
-
-        var selectedPosIds = AvailablePos
-            .Where(p => p.IsAssigned)
-            .Select(p => p.PosId)
-            .ToArray();
-        var posJson = JsonSerializer.Serialize(selectedPosIds);
-
         ServiceResult result;
 
         if (IsCreatingUser)
@@ -228,7 +209,7 @@ public partial class UsersViewModel : BaseViewModel
                 FullName = FormFullName,
                 RoleId = FormRole?.Id ?? 0,
                 IsActive = FormIsActive,
-                AssignedPosIds = posJson
+                PointOfSaleId = FormPointOfSale?.Id
             };
             result = await _userService.CreateUserAsync(user, FormPassword, CurrentUserId);
         }
@@ -241,7 +222,7 @@ public partial class UsersViewModel : BaseViewModel
                 FullName = FormFullName,
                 RoleId = FormRole?.Id ?? _allUsers.First(u => u.Id == _editingUserId).RoleId,
                 IsActive = FormIsActive,
-                AssignedPosIds = posJson
+                PointOfSaleId = FormPointOfSale?.Id
             };
             var newPwd = string.IsNullOrWhiteSpace(FormPassword) ? null : FormPassword;
             result = await _userService.UpdateUserAsync(user, CurrentUserId, newPwd);
@@ -249,17 +230,12 @@ public partial class UsersViewModel : BaseViewModel
 
         if (result.Success)
         {
-            var msg = IsCreatingUser
-                ? "✓ Utilisateur créé avec succès."
-                : "✓ Utilisateur mis à jour.";
+            var msg = IsCreatingUser ? "✓ Utilisateur créé avec succès." : "✓ Utilisateur mis à jour.";
             IsEditingUser = false;
             await LoadAllAsync();
             _ = ShowSuccessAsync(msg);
         }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
-        }
+        else { ShowErrorMessage(result.ErrorMessage); }
     }
 
     [RelayCommand]
@@ -267,20 +243,14 @@ public partial class UsersViewModel : BaseViewModel
     {
         if (item == null) return;
         ClearStatus();
-
         var result = await _userService.DeleteUserAsync(item.Id, CurrentUserId);
-
         if (result.Success)
         {
-            if (IsEditingUser && _editingUserId == item.Id)
-                CancelUserEdit();
+            if (IsEditingUser && _editingUserId == item.Id) CancelUserEdit();
             await LoadAllAsync();
             _ = ShowSuccessAsync("✓ Utilisateur supprimé.");
         }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
-        }
+        else { ShowErrorMessage(result.ErrorMessage); }
     }
 
     [RelayCommand]
@@ -288,20 +258,13 @@ public partial class UsersViewModel : BaseViewModel
     {
         if (item == null) return;
         ClearStatus();
-
         var result = await _userService.ToggleActiveAsync(item.Id, CurrentUserId);
-
         if (result.Success)
         {
             await LoadAllAsync();
-            _ = ShowSuccessAsync(item.IsActive
-                ? "✓ Utilisateur désactivé."
-                : "✓ Utilisateur activé.");
+            _ = ShowSuccessAsync(item.IsActive ? "✓ Utilisateur désactivé." : "✓ Utilisateur activé.");
         }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
-        }
+        else { ShowErrorMessage(result.ErrorMessage); }
     }
 
     [RelayCommand]
@@ -323,21 +286,21 @@ public partial class UsersViewModel : BaseViewModel
         FormIsActive = true;
         IsProtectedUser = false;
         UserFormTitle = "";
-        foreach (var pos in AvailablePos)
-            pos.IsAssigned = false;
+        FormPointOfSale = null;
     }
 
-    // ══════════════════════════════════════════════════════
-    //  ROLE COMMANDS
-    // ══════════════════════════════════════════════════════
+    // ═══════ ROLE COMMANDS ═══════
 
     [RelayCommand]
     private void NewRole()
     {
+        if (!CanCreateRole) return;                                                // ★ guard
+
         ClearRoleForm();
         IsCreatingRole = true;
         IsEditingRole = true;
         IsProtectedRole = false;
+        ProtectedRoleMessage = "";
         RoleFormTitle = "Nouveau rôle";
         InitPermissionItems(new Dictionary<string, bool>());
     }
@@ -346,18 +309,34 @@ public partial class UsersViewModel : BaseViewModel
     private void EditRole(RoleListItem? item)
     {
         if (item == null) return;
-
         _editingRoleId = item.Id;
         IsCreatingRole = false;
         IsEditingRole = true;
-        IsProtectedRole = item.IsSuperAdmin;
-        RoleFormTitle = item.IsSuperAdmin
-            ? $"🔒 {item.Name} (protégé)"
-            : $"Modifier — {item.Name}";
+
+        // ★ Protected = can't edit (SuperAdmin always, or restricted without privilege)
+        IsProtectedRole = !item.CanEditRole;
+
+        if (IsProtectedRole)
+        {
+            if (item.IsSuperAdmin)
+                ProtectedRoleMessage = "🔒 Rôle SuperAdmin protégé — ce rôle ne peut pas être modifié ni supprimé. Toutes les permissions sont activées en permanence.";
+            else if (item.IsITTech)
+                ProtectedRoleMessage = "🔒 Rôle IT Tech restreint — seul le SuperAdmin peut modifier ce rôle.";
+            else if (item.IsInspecteurDGI)
+                ProtectedRoleMessage = "🔒 Rôle Inspecteur DGI restreint — seul le SuperAdmin ou un IT Tech peut modifier ce rôle.";
+            else
+                ProtectedRoleMessage = "🔒 Vous n'avez pas les droits pour modifier ce rôle.";
+
+            RoleFormTitle = $"🔒 {item.Name} (protégé)";
+        }
+        else
+        {
+            ProtectedRoleMessage = "";
+            RoleFormTitle = $"Modifier — {item.Name}";
+        }
 
         FormRoleName = item.Name;
         InitPermissionItems(UserService.ParsePermissions(item.PermissionsJson));
-
         ClearStatus();
     }
 
@@ -365,28 +344,22 @@ public partial class UsersViewModel : BaseViewModel
     private async Task SaveRole()
     {
         ClearStatus();
-
         var perms = FormPermissions.ToDictionary(p => p.Key, p => p.IsGranted);
         ServiceResult result;
 
         if (IsCreatingRole)
-            result = await _userService.CreateRoleAsync(FormRoleName, perms);
+            result = await _userService.CreateRoleAsync(FormRoleName, perms, CurrentUserId);      // ★
         else
-            result = await _userService.UpdateRoleAsync(_editingRoleId, FormRoleName, perms);
+            result = await _userService.UpdateRoleAsync(_editingRoleId, FormRoleName, perms, CurrentUserId); // ★
 
         if (result.Success)
         {
-            var msg = IsCreatingRole
-                ? "✓ Rôle créé avec succès."
-                : "✓ Rôle mis à jour.";
+            var msg = IsCreatingRole ? "✓ Rôle créé avec succès." : "✓ Rôle mis à jour.";
             IsEditingRole = false;
             await LoadAllAsync();
             _ = ShowSuccessAsync(msg);
         }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
-        }
+        else { ShowErrorMessage(result.ErrorMessage); }
     }
 
     [RelayCommand]
@@ -394,20 +367,14 @@ public partial class UsersViewModel : BaseViewModel
     {
         if (item == null) return;
         ClearStatus();
-
         var result = await _userService.DeleteRoleAsync(item.Id, CurrentUserId);
-
         if (result.Success)
         {
-            if (IsEditingRole && _editingRoleId == item.Id)
-                CancelRoleEdit();
+            if (IsEditingRole && _editingRoleId == item.Id) CancelRoleEdit();
             await LoadAllAsync();
             _ = ShowSuccessAsync("✓ Rôle supprimé.");
         }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
-        }
+        else { ShowErrorMessage(result.ErrorMessage); }
     }
 
     [RelayCommand]
@@ -424,6 +391,7 @@ public partial class UsersViewModel : BaseViewModel
         _editingRoleId = 0;
         FormRoleName = "";
         IsProtectedRole = false;
+        ProtectedRoleMessage = "";
         RoleFormTitle = "";
         FormPermissions.Clear();
     }
@@ -434,12 +402,7 @@ public partial class UsersViewModel : BaseViewModel
         foreach (var (key, label) in UserService.AllPermissions)
         {
             current.TryGetValue(key, out var granted);
-            FormPermissions.Add(new PermissionItem
-            {
-                Key = key,
-                Label = label,
-                IsGranted = granted
-            });
+            FormPermissions.Add(new PermissionItem { Key = key, Label = label, IsGranted = granted });
         }
     }
 }
@@ -454,21 +417,37 @@ public class UserListItem
     public string Username { get; }
     public string FullName { get; }
     public string RoleName { get; }
+    public string PosName { get; }
     public bool IsActive { get; }
     public string ActiveDisplay { get; }
     public string LastLoginDisplay { get; }
     public bool IsSuperAdmin { get; }
+    public bool CanEdit { get; }
+    public bool CanModify { get; }
 
-    public UserListItem(User u)
+    public UserListItem(User u, bool currentUserIsSuperAdmin, bool currentUserIsITTech)
     {
         Id = u.Id;
         Username = u.Username;
         FullName = u.FullName;
         RoleName = u.Role?.Name ?? "—";
+        PosName = u.PointOfSale != null ? $"{u.PointOfSale.Code}" : "—";
         IsActive = u.IsActive;
         ActiveDisplay = u.IsActive ? "Actif" : "Inactif";
         LastLoginDisplay = u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "Jamais";
         IsSuperAdmin = UserService.IsSuperAdminUser(u);
+
+        var isITTech = u.Role != null && UserService.IsITTechRole(u.Role);
+        var isInspecteurDGI = u.Role != null && UserService.IsInspecteurDGIRole(u.Role);
+
+        CanEdit = true;
+        if (IsSuperAdmin && !currentUserIsSuperAdmin) CanEdit = false;
+        if (isITTech && !currentUserIsSuperAdmin) CanEdit = false;
+        if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanEdit = false;
+
+        CanModify = !IsSuperAdmin;
+        if (isITTech && !currentUserIsSuperAdmin) CanModify = false;
+        if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanModify = false;
     }
 }
 
@@ -478,32 +457,42 @@ public class RoleListItem
     public string Name { get; }
     public int UserCount { get; }
     public bool IsSuperAdmin { get; }
+    public bool IsITTech { get; }                                                  // ★ NEW
+    public bool IsInspecteurDGI { get; }                                           // ★ NEW
+    public bool IsRestricted { get; }                                              // ★ NEW
+    public bool CanEditRole { get; }                                               // ★ NEW
+    public bool CanDeleteRole { get; }                                             // ★ NEW
     public string PermissionsJson { get; }
 
-    public RoleListItem(Role r, int userCount)
+    public RoleListItem(Role r, int userCount, bool currentUserIsSA, bool currentUserIsIT) // ★
     {
         Id = r.Id;
         Name = r.Name;
         UserCount = userCount;
-        IsSuperAdmin = UserService.IsSuperAdminRole(r);
         PermissionsJson = r.Permissions;
+
+        IsSuperAdmin = UserService.IsSuperAdminRole(r);
+        IsITTech = UserService.IsITTechRole(r);
+        IsInspecteurDGI = UserService.IsInspecteurDGIRole(r);
+        IsRestricted = IsSuperAdmin || IsITTech || IsInspecteurDGI;
+
+        // ── CanEditRole ──
+        if (IsSuperAdmin) CanEditRole = false;           // nobody edits SuperAdmin role
+        else if (IsITTech) CanEditRole = currentUserIsSA;
+        else if (IsInspecteurDGI) CanEditRole = currentUserIsSA || currentUserIsIT;
+        else CanEditRole = true;
+
+        // ── CanDeleteRole ──
+        if (IsSuperAdmin) CanDeleteRole = false;
+        else if (IsITTech) CanDeleteRole = currentUserIsSA;
+        else if (IsInspecteurDGI) CanDeleteRole = currentUserIsSA || currentUserIsIT;
+        else CanDeleteRole = true;
     }
-}
-
-public partial class PosAssignmentItem : ObservableObject
-{
-    public int PosId { get; set; }
-    public string DisplayName { get; set; } = "";
-
-    [ObservableProperty]
-    private bool _isAssigned;
 }
 
 public partial class PermissionItem : ObservableObject
 {
     public string Key { get; set; } = "";
     public string Label { get; set; } = "";
-
-    [ObservableProperty]
-    private bool _isGranted;
+    [ObservableProperty] private bool _isGranted;
 }

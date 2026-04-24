@@ -1,5 +1,4 @@
-﻿using System.Text.Json;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
@@ -14,44 +13,37 @@ public partial class MainViewModel : BaseViewModel
     private readonly IAuthService _authService;
     private readonly CashSessionState _sessionState;
 
-    // ═══════════════ CURRENT PAGE ═══════════════
     [ObservableProperty] private object? _currentPage;
     [ObservableProperty] private string _currentPageKey = "";
 
-    // ═══════════════ USER INFO ═══════════════
     [ObservableProperty] private string _currentUserName = "";
     [ObservableProperty] private string _currentRoleName = "";
     [ObservableProperty] private string _userInitials = "?";
 
-    // ═══════════════ POS / COMPANY INFO ═══════════════
     [ObservableProperty] private string _currentPosName = "";
     [ObservableProperty] private string _currentPosCode = "";
     [ObservableProperty] private string _currentPosCity = "";
     [ObservableProperty] private string _companyName = "";
 
-    // ═══════════════ DEVICE STATUS ═══════════════
     [ObservableProperty] private string _deviceStatus = "";
     [ObservableProperty] private string _deviceStatusShort = "MCF";
     [ObservableProperty] private bool _isDeviceOnline = true;
 
-    // ═══════════════ SESSION / SETUP MODE ═══════════════
     [ObservableProperty] private bool _isSetupMode;
     [ObservableProperty] private string _sessionBanner = "";
 
-    // ═══════════════ LOGOUT ═══════════════
-    public bool LogoutRequested { get; private set; }
+    // ═══ CLOSE REASON ═══
+    public enum CloseReason { None, Logout, ZClose }
+    public CloseReason Reason { get; private set; }
+    public bool LogoutRequested => Reason != CloseReason.None;
     public event Action? RequestClose;
 
     // ═══════════════════════════════════════════════════════
-    //  PERMISSIONS  (bound to Visibility in XAML)
+    //  PERMISSIONS — individual items (session-gated where needed)
     // ═══════════════════════════════════════════════════════
-
     public bool CanAccessDashboard => _authService.HasPermission("dashboard");
-
-    // POS & Invoicing require an active cash session — blocked in setup mode
     public bool CanAccessPos => _authService.HasPermission("pos") && _sessionState.IsSessionOpen;
     public bool CanAccessInvoicing => _authService.HasPermission("invoicing") && _sessionState.IsSessionOpen;
-
     public bool CanAccessClients => _authService.HasPermission("clients");
     public bool CanAccessSalesHistory => _authService.HasPermission("salesHistory");
     public bool CanAccessProducts => _authService.HasPermission("products");
@@ -62,20 +54,27 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessReportHistory => _authService.HasPermission("reports");
     public bool CanAccessSettings => _authService.HasPermission("settings");
     public bool CanAccessUsers => _authService.HasPermission("users");
+    public bool CanAccessAudit => _authService.HasPermission("audit");
 
-    // ── Navbar group visibility ──
-    public bool CanSeeFichier => CanAccessPos || CanAccessInvoicing;
-    public bool CanSeeEditer => CanAccessProducts || CanAccessClients
-                                || CanAccessStock || CanAccessReports;
-    public bool CanSeeAffichage => CanAccessReports || CanAccessSalesHistory || CanAccessReportHistory;
-    public bool CanSeeOutils => CanAccessSettings || CanAccessUsers;
+    // ═══════════════════════════════════════════════════════
+    //  DROPDOWN TOGGLES — permission only, NO session gate
+    // ═══════════════════════════════════════════════════════
+    public bool CanSeeFichier => _authService.HasPermission("pos")
+                               || _authService.HasPermission("invoicing");
 
-    // ═══════════════ PAGE CACHE ═══════════════
+    public bool CanSeeEditer => _authService.HasPermission("products")
+                               || _authService.HasPermission("clients")
+                               || _authService.HasPermission("stock")
+                               || _authService.HasPermission("reports");
+
+    public bool CanSeeAffichage => _authService.HasPermission("reports")
+                                || _authService.HasPermission("salesHistory");
+
+    public bool CanSeeOutils => _authService.HasPermission("settings")
+                               || _authService.HasPermission("users")
+                               || _authService.HasPermission("audit");
+
     private readonly Dictionary<string, object> _pages = new();
-
-    // ═══════════════════════════════════════════════════════
-    //  CONSTRUCTOR
-    // ═══════════════════════════════════════════════════════
 
     public MainViewModel(IAuthService authService, CashSessionState sessionState)
     {
@@ -105,7 +104,6 @@ public partial class MainViewModel : BaseViewModel
         CurrentRoleName = user.Role?.Name ?? "";
         UserInitials = _authService.GetUserInitials();
 
-        // POS info from session (if a real session is open)
         if (_sessionState.IsSessionOpen && _sessionState.Current != null)
         {
             var s = _sessionState.Current;
@@ -114,7 +112,6 @@ public partial class MainViewModel : BaseViewModel
             CurrentPosCity = s.PointOfSaleCity ?? "";
         }
 
-        // Company info is always useful; fallback POS only when no session
         _ = LoadCompanyAndFallbackPosAsync(user);
     }
 
@@ -124,13 +121,12 @@ public partial class MainViewModel : BaseViewModel
         {
             var uow = App.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-            // Fallback POS from assigned list (only if no session & not setup mode)
             if (!_sessionState.IsSessionOpen && !_sessionState.IsSetupMode)
             {
-                var posIds = JsonSerializer.Deserialize<int[]>(user.AssignedPosIds ?? "[]") ?? [];
-                if (posIds.Length > 0)
+                if (user.PointOfSaleId.HasValue)
                 {
-                    var pos = await uow.PointsOfSale.GetByIdAsync(posIds[0]);
+                    var pos = user.PointOfSale
+                              ?? await uow.PointsOfSale.GetByIdAsync(user.PointOfSaleId.Value);
                     if (pos != null)
                     {
                         CurrentPosName = pos.Name;
@@ -140,14 +136,11 @@ public partial class MainViewModel : BaseViewModel
                 }
             }
 
-            // Company (always loaded)
             var companies = await uow.Companies.GetAllAsync();
             var comp = companies.FirstOrDefault();
             if (comp != null)
             {
                 CompanyName = comp.Name;
-
-                // Only use company as POS fallback in normal mode without session
                 if (string.IsNullOrEmpty(CurrentPosName) && !_sessionState.IsSetupMode)
                 {
                     CurrentPosName = comp.Name;
@@ -167,7 +160,6 @@ public partial class MainViewModel : BaseViewModel
 
     private void NavigateToDefaultPage()
     {
-        // Setup mode → land on Settings (or Dashboard as last resort)
         if (_sessionState.IsSetupMode)
         {
             if (CanAccessSettings) NavigateToPage("Settings");
@@ -176,7 +168,6 @@ public partial class MainViewModel : BaseViewModel
             return;
         }
 
-        // Normal session flow
         if (CanAccessDashboard) NavigateToPage("Dashboard");
         else if (CanAccessPos) NavigateToPage("Cash");
         else if (CanAccessInvoicing) NavigateToPage("Invoicing");
@@ -194,43 +185,26 @@ public partial class MainViewModel : BaseViewModel
         {
             _pages[pageKey] = pageKey switch
             {
-                // ── Tableau de bord ──
                 "Dashboard" => CreatePage<DashboardPage, DashboardViewModel>(),
-
-                // ── Fichier ──
                 "Cash" => CreatePage<PosPage, PosViewModel>(),
                 "Invoicing" => CreatePage<InvoicingPage, InvoicingViewModel>(),
-
-                // ── Éditer ──
                 "Articles" => CreatePage<ProductsPage, ProductsViewModel>(),
                 "Categories" => CreatePage<CategoriesPage, CategoriesViewModel>(),
                 "Clients" => CreateClientsPage(),
                 "Stock" => CreatePage<StockPage, StockViewModel>(),
-
-                // ── Affichage > Rapports (génération) ──
                 "ReportZ" => CreateReportZPage(),
                 "ReportX" => CreatePage<ReportXPage, ReportXPageViewModel>(),
                 "ReportA" => CreatePage<ReportAPage, ReportAPageViewModel>(),
-
-                // ── Affichage > Historique ──
                 "SalesJournal" => CreatePage<SalesHistoryPage, SalesHistoryViewModel>(),
                 "ReportHistory" => CreatePage<ReportView, ReportViewModel>(),
-
-                // ── Outils ──
                 "Settings" => CreatePage<SettingsPage, SettingsViewModel>(),
-                "PosManagement" => new PlaceholderPage("Gestion des points de vente",
-                                       "Configuration et gestion des points de vente."),
                 "Users" => CreatePage<UsersPage, UsersViewModel>(),
-                "AuditLog" => new PlaceholderPage("Journal d'audit",
-                                       "Rapports MCF, rapports e-MCF et journal des activités utilisateurs."),
-
-                // ── Aide ──
-                "UserManual" => new PlaceholderPage("Manuel d'utilisation",
-                                       "Le manuel d'utilisation au format PDF sera intégré ici."),
-
-                // ── Backward compat ──
                 "StockTransfer" => CreatePage<StockTransferPage, StockTransferViewModel>(),
+                "PosManagement" => CreatePage<PosManagementPage, PointOfSaleManagementViewModel>(),
 
+                "AuditLog" => CreatePage<AuditLogPage, AuditLogViewModel>(),
+                "UserManual" => new PlaceholderPage("Manuel d'utilisation",
+                                    "Le manuel d'utilisation au format PDF sera intégré ici."),
                 _ => new PlaceholderPage("Page inconnue", "")
             };
         }
@@ -238,21 +212,17 @@ public partial class MainViewModel : BaseViewModel
         CurrentPage = _pages[pageKey];
         CurrentPageKey = pageKey;
 
-        // Activate cached pages that implement IActivatable
         if (CurrentPage is System.Windows.FrameworkElement { DataContext: IActivatable activatable })
-        {
             _ = activatable.ActivateAsync();
-        }
     }
 
     // ═══════════════════════════════════════════════════════
-    //  CLÔTURE DU RAPPORT Z  (Phase 3 — placeholder)
+    //  CLÔTURE Z
     // ═══════════════════════════════════════════════════════
 
     [RelayCommand]
     private void CloseReportZ()
     {
-        // ── Setup mode — no Z close available ──
         if (_sessionState.IsSetupMode)
         {
             System.Windows.MessageBox.Show(
@@ -263,7 +233,6 @@ public partial class MainViewModel : BaseViewModel
             return;
         }
 
-        // ── No active session ──
         if (!_sessionState.IsSessionOpen)
         {
             System.Windows.MessageBox.Show(
@@ -274,7 +243,6 @@ public partial class MainViewModel : BaseViewModel
             return;
         }
 
-        // ── Confirm intent ──
         var confirm = System.Windows.MessageBox.Show(
             "Voulez-vous clôturer la session et générer le rapport Z ?\n\n" +
             "Cette action est irréversible. Toutes les ventes de la session\n" +
@@ -283,14 +251,11 @@ public partial class MainViewModel : BaseViewModel
             System.Windows.MessageBoxButton.YesNo,
             System.Windows.MessageBoxImage.Question);
 
-        if (confirm != System.Windows.MessageBoxResult.Yes)
-            return;
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
 
-        // ── Open session close dialog ──
         var vm = App.ServiceProvider.GetRequiredService<SessionCloseViewModel>();
         var dialog = new Views.Pages.SessionCloseDialog { DataContext = vm };
 
-        // Try to set owner to current main window
         var mainWindow = System.Windows.Application.Current.Windows
             .OfType<System.Windows.Window>()
             .FirstOrDefault(w => w.IsActive)
@@ -303,24 +268,16 @@ public partial class MainViewModel : BaseViewModel
 
         if (result == true)
         {
-            // Session closed, Z generated → logout
-            LogoutRequested = true;
+            Reason = CloseReason.ZClose;
             RequestClose?.Invoke();
         }
     }
-
-    // ═══════════════════════════════════════════════════════
-    //  À PROPOS
-    // ═══════════════════════════════════════════════════════
 
     [RelayCommand]
     private void ShowAbout()
     {
         System.Windows.MessageBox.Show(
-            "iKWOOK SFE v2.0\n" +
-            "Système de Facturation d'Entreprise\n\n" +
-            "© 2026 · Conforme DGI-RDC\n\n" +
-            "Développé par iKWOOK.\nTous droits réservés.",
+            "iKWOOK SFE v2.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par iKWOOK.\nTous droits réservés.",
             "À propos de iKWOOK SFE",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Information);
@@ -333,7 +290,7 @@ public partial class MainViewModel : BaseViewModel
     [RelayCommand]
     private void Logout()
     {
-        LogoutRequested = true;
+        Reason = CloseReason.Logout;
         RequestClose?.Invoke();
     }
 
@@ -346,8 +303,7 @@ public partial class MainViewModel : BaseViewModel
         where TViewModel : notnull
     {
         var vm = App.ServiceProvider.GetRequiredService<TViewModel>();
-        var page = new TPage { DataContext = vm };
-        return page;
+        return new TPage { DataContext = vm };
     }
 
     private static ClientsPage CreateClientsPage()
@@ -359,14 +315,11 @@ public partial class MainViewModel : BaseViewModel
     private ReportZPage CreateReportZPage()
     {
         var vm = App.ServiceProvider.GetRequiredService<ReportZPageViewModel>();
-
-        // Wire session close event → logout
         vm.SessionClosedByZ += () =>
         {
-            LogoutRequested = true;
+            Reason = CloseReason.ZClose;
             RequestClose?.Invoke();
         };
-
         return new ReportZPage { DataContext = vm };
     }
 }

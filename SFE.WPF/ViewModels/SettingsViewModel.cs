@@ -32,7 +32,7 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _companyEmail = "";
     [ObservableProperty] private string _companyISF = "";
 
-    // 🆕 ══════════ LOGO ══════════
+    // ══════════ LOGO ══════════
     [ObservableProperty] private ImageSource? _companyLogoPreview;
     [ObservableProperty] private bool _hasLogo;
     private byte[]? _companyLogoBytes;
@@ -52,10 +52,10 @@ public partial class SettingsViewModel : BaseViewModel
     // ══════════ MODE DE PRIX ══════════
     [ObservableProperty] private bool _isPriceModeTTC = true;
 
-    // 🆕 ══════════ REMISE ══════════
+    // ══════════ REMISE ══════════
     [ObservableProperty] private bool _discountBeforeTax = true;
 
-    // 🆕 ══════════ DEVISE ══════════
+    // ══════════ DEVISE ══════════
     [ObservableProperty] private Currency _defaultCurrency = Currency.CDF;
     [ObservableProperty] private string _currentExchangeRate = "2800";
     [ObservableProperty] private ExchangeRateMode _exchangeRateMode = ExchangeRateMode.Manual;
@@ -68,10 +68,6 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _loyaltyEarnRate = "1000";
     [ObservableProperty] private string _loyaltyRedeemRate = "500";
     [ObservableProperty] private string _loyaltyMinRedeemPoints = "100";
-
-    // ══════════ POS ══════════
-    [ObservableProperty] private int _activePosCount;
-    [ObservableProperty] private int _totalPosCount;
 
     // ══════════ SAVE STATUS ══════════
     [ObservableProperty] private string _saveStatus = "";
@@ -97,25 +93,21 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _licensePlan = "Free";
     [ObservableProperty] private string _licenseMessage = "";
 
-    public PointOfSaleManagementViewModel PosManagement { get; }
-
     // ══════════════════════════════════════════════════════════════
-    // CONSTRUCTEUR
+    // CONSTRUCTEUR — PosManagement removed
     // ══════════════════════════════════════════════════════════════
 
-    public SettingsViewModel(SettingsService settingsService, PointOfSaleManagementViewModel posManagement)
+    public SettingsViewModel(SettingsService settingsService)
     {
         _settingsService = settingsService;
-        PosManagement = posManagement;
         PageTitle = "Paramètres";
 
         RefreshComPorts();
         _ = LoadSettingsAsync();
-        
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 🆕 LOGO COMMANDS
+    // LOGO COMMANDS
     // ══════════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -212,7 +204,6 @@ public partial class SettingsViewModel : BaseViewModel
         WeakReferenceMessenger.Default.Send(new PriceModeChangedMessage(newMode));
     }
 
-    /// <summary>🆕 Broadcast immédiat quand l'utilisateur change le toggle remise.</summary>
     partial void OnDiscountBeforeTaxChanged(bool value)
     {
         if (_isLoading) return;
@@ -220,7 +211,7 @@ public partial class SettingsViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════════════════════
-    // LOAD SETTINGS
+    // LOAD SETTINGS — POS loading removed
     // ══════════════════════════════════════════════════════════════
 
     private async Task LoadSettingsAsync()
@@ -230,7 +221,6 @@ public partial class SettingsViewModel : BaseViewModel
         try
         {
             var data = await _settingsService.LoadSettingsAsync();
-            await PosManagement.LoadCommand.ExecuteAsync(null);
             _companyId = data.CompanyId;
             _activePosId = data.ActivePosId;
 
@@ -261,7 +251,6 @@ public partial class SettingsViewModel : BaseViewModel
 
             IsPriceModeTTC = data.DefaultPriceMode == PriceMode.TTC;
 
-            // 🆕 Paramètres de calcul
             DiscountBeforeTax = data.DiscountBeforeTax;
             DefaultCurrency = data.DefaultCurrency;
             CurrentExchangeRate = data.CurrentExchangeRate.ToString("F0");
@@ -271,9 +260,6 @@ public partial class SettingsViewModel : BaseViewModel
             LoyaltyEarnRate = data.LoyaltyEarnRate.ToString("0");
             LoyaltyRedeemRate = data.LoyaltyRedeemRate.ToString("0");
             LoyaltyMinRedeemPoints = data.LoyaltyMinRedeemPoints.ToString();
-
-            ActivePosCount = data.ActivePosCount;
-            TotalPosCount = data.TotalPosCount;
 
             IsLoaded = true;
         }
@@ -316,15 +302,12 @@ public partial class SettingsViewModel : BaseViewModel
                 CompanyCity = CompanyCity,
                 CompanyPhone = CompanyPhone,
                 CompanyEmail = CompanyEmail,
-                CompanyLogo = _companyLogoBytes,      // 🆕
+                CompanyLogo = _companyLogoBytes,
                 DefaultPriceMode = IsPriceModeTTC ? PriceMode.TTC : PriceMode.HT,
-
-                // 🆕 Paramètres de calcul
                 DiscountBeforeTax = DiscountBeforeTax,
                 DefaultCurrency = DefaultCurrency,
                 CurrentExchangeRate = rate > 0 ? rate : 2800m,
                 ExchangeRateMode = ExchangeRateMode,
-
                 LoyaltyEnabled = IsLoyaltyEnabled,
                 LoyaltyEarnRate = decimal.TryParse(LoyaltyEarnRate, out var earn) ? earn : 1000m,
                 LoyaltyRedeemRate = decimal.TryParse(LoyaltyRedeemRate, out var redeem) ? redeem : 500m,
@@ -341,7 +324,6 @@ public partial class SettingsViewModel : BaseViewModel
 
             await _settingsService.SaveSettingsAsync(data);
 
-            // Broadcast des changements
             WeakReferenceMessenger.Default.Send(
                 new PriceModeChangedMessage(data.DefaultPriceMode));
             WeakReferenceMessenger.Default.Send(
@@ -362,7 +344,7 @@ public partial class SettingsViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════════════════════
-    // TEST CONNEXION (inchangé)
+    // TEST CONNEXION (unchanged)
     // ══════════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -386,7 +368,6 @@ public partial class SettingsViewModel : BaseViewModel
                 {
                     SaveStatus = "URL et Token obligatoires";
                     ShowSaveError = true;
-
                     TestSuccess = false;
                     TestStatus = "VALIDATION";
                     TestMessage = "L'URL de l'API et le Token JWT sont obligatoires.";
@@ -410,33 +391,24 @@ public partial class SettingsViewModel : BaseViewModel
                     EmcfNIM = status.NIM ?? EmcfNIM;
                     SaveStatus = $"✓ e-MCF connecté — NIM: {status.NIM}";
                     ShowSaveSuccess = true;
-
                     TestSuccess = true;
                     TestStatus = "CONNECTÉ";
                     TestMessage = "Connexion e-MCF réussie. Machine identifiée avec succès.";
                     TestNIM = status.NIM ?? "—";
                     TestServerVersion = "e-MCF (API REST)";
-                    TestDetails = $"Mode : e-MCF (API REST)\n" +
-                                  $"URL : {EmcfApiUrl}\n" +
-                                  $"NIF : {CompanyNIF}\n" +
-                                  $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\n" +
-                                  $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails = $"Mode : e-MCF (API REST)\nURL : {EmcfApiUrl}\nNIF : {CompanyNIF}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"{{ \"success\": true, \"nim\": \"{status.NIM}\" }}";
                 }
                 else
                 {
                     SaveStatus = $"✗ Échec: {status.ErrorMessage}";
                     ShowSaveError = true;
-
                     TestSuccess = false;
                     TestStatus = "ÉCHEC";
                     TestMessage = status.ErrorMessage ?? "Erreur de connexion inconnue.";
                     TestNIM = "—";
                     TestServerVersion = "—";
-                    TestDetails = $"Mode : e-MCF (API REST)\n" +
-                                  $"URL : {EmcfApiUrl}\n" +
-                                  $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\n" +
-                                  $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails = $"Mode : e-MCF (API REST)\nURL : {EmcfApiUrl}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"{{ \"success\": false, \"error\": \"{status.ErrorMessage}\" }}";
                 }
 
@@ -448,7 +420,6 @@ public partial class SettingsViewModel : BaseViewModel
                 {
                     SaveStatus = "Aucun port série disponible.";
                     ShowSaveError = true;
-
                     TestSuccess = false;
                     TestStatus = "VALIDATION";
                     TestMessage = "Aucun port série détecté. Branchez le MCF et cliquez « Rafraîchir ».";
@@ -474,37 +445,24 @@ public partial class SettingsViewModel : BaseViewModel
                 {
                     SaveStatus = $"✓ MCF détecté — NIM: {status.NIM}, NIF: {status.NIF}";
                     ShowSaveSuccess = true;
-
                     TestSuccess = true;
                     TestStatus = "CONNECTÉ";
                     TestMessage = $"MCF détecté et opérationnel sur {SelectedComPort}.";
                     TestNIM = status.NIM ?? "—";
                     TestServerVersion = "MCF (Port Série)";
-                    TestDetails = $"Mode : MCF (Port Série)\n" +
-                                  $"Port : {SelectedComPort}\n" +
-                                  $"Baud Rate : {BaudRate}\n" +
-                                  $"NIF : {status.NIF}\n" +
-                                  $"NIM : {status.NIM}\n" +
-                                  $"Format : 8N1\n" +
-                                  $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\n" +
-                                  $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails = $"Mode : MCF (Port Série)\nPort : {SelectedComPort}\nBaud Rate : {BaudRate}\nNIF : {status.NIF}\nNIM : {status.NIM}\nFormat : 8N1\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"NIM={status.NIM}, NIF={status.NIF}, Success=true";
                 }
                 else
                 {
                     SaveStatus = $"✗ Échec: {status.ErrorMessage}";
                     ShowSaveError = true;
-
                     TestSuccess = false;
                     TestStatus = "ÉCHEC";
                     TestMessage = status.ErrorMessage ?? "Impossible de communiquer avec le MCF.";
                     TestNIM = "—";
                     TestServerVersion = "—";
-                    TestDetails = $"Mode : MCF (Port Série)\n" +
-                                  $"Port : {SelectedComPort}\n" +
-                                  $"Baud Rate : {BaudRate}\n" +
-                                  $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\n" +
-                                  $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails = $"Mode : MCF (Port Série)\nPort : {SelectedComPort}\nBaud Rate : {BaudRate}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"Error: {status.ErrorMessage}";
                 }
 
@@ -519,16 +477,13 @@ public partial class SettingsViewModel : BaseViewModel
             sw.Stop();
             SaveStatus = $"Échec connexion : {ex.Message}";
             ShowSaveError = true;
-
             TestSuccess = false;
             TestStatus = "EXCEPTION";
             TestMessage = ex.Message;
             TestResponseTime = $"{sw.ElapsedMilliseconds} ms";
             TestNIM = "—";
             TestServerVersion = "—";
-            TestDetails = $"Exception : {ex.GetType().Name}\n" +
-                          $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\n" +
-                          $"Temps : {sw.ElapsedMilliseconds} ms";
+            TestDetails = $"Exception : {ex.GetType().Name}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps : {sw.ElapsedMilliseconds} ms";
             TestRawResponse = ex.ToString();
             HasTestResult = true;
         }
@@ -540,7 +495,7 @@ public partial class SettingsViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════════════════════
-    // LICENCE (inchangé)
+    // LICENCE (unchanged)
     // ══════════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -569,14 +524,4 @@ public partial class SettingsViewModel : BaseViewModel
 
         return Task.CompletedTask;
     }
-
-    private async Task InitializeAsync()
-    {
-        await LoadSettingsAsync();
-
-        // 🔑 Passer le CompanyId au sous-VM et charger les POS
-        PosManagement.CompanyId = _companyId;
-        await PosManagement.LoadCommand.ExecuteAsync(null);
-    }
-
 }

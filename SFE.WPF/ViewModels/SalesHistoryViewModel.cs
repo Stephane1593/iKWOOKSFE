@@ -6,6 +6,9 @@ using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Helpers;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace SFE.WPF.ViewModels;
 
@@ -283,33 +286,21 @@ public partial class SalesHistoryViewModel : BaseViewModel
     //  VIEW INVOICE → INLINE DETAIL PANEL
     // ═════════════════════════════════════════════════════
 
+    /// <summary>View invoice — now uses the shared builder too.</summary>
     [RelayCommand]
     private async Task ViewInvoice(InvoiceListItemViewModel? item)
     {
         if (item == null) return;
-
         IsBusy = true;
+        ClearStatus();
+
         try
         {
             var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
             if (invoice == null) return;
 
-            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
-
-            PointOfSale? pos = null;
-            if (invoice.PointOfSaleId > 0)
-                pos = await _unitOfWork.GetRepository<PointOfSale>().GetByIdAsync(invoice.PointOfSaleId);
-
-            decimal exchangeRate = 0;
-            try
-            {
-                var settings = (await _unitOfWork.GetRepository<AppSettings>()
-                    .FindAsync(s => true)).FirstOrDefault();
-                if (settings != null) exchangeRate = settings.CurrentExchangeRate;
-            }
-            catch { }
-
-            DocumentViewModel = InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
+            // Shared builder — single source of truth
+            DocumentViewModel = await BuildDocumentViewModelAsync(invoice);
 
             // Populate detail panel header
             DetailTypeLabel = invoice.Type.Label();
@@ -324,7 +315,6 @@ public partial class SalesHistoryViewModel : BaseViewModel
             DetailTotalTVA = invoice.TotalTVA.ToString("N0") + " CDF";
             DetailTotalTTC = invoice.TotalTTC.ToString("N0") + " CDF";
 
-            // Load line items
             DetailLines.Clear();
             if (invoice.Lines != null)
             {
@@ -341,7 +331,6 @@ public partial class SalesHistoryViewModel : BaseViewModel
                 }
             }
 
-            // Show inline panel
             ShowDetailPanel = true;
             ShowDocument = false;
             SelectedInvoice = item;
@@ -380,17 +369,41 @@ public partial class SalesHistoryViewModel : BaseViewModel
     }
 
     // ═════════════════════════════════════════════════════
-    //  PRINT / EXPORT / COPY
+    //  PRINT / EXPORT / COPY  (FIXED)
     // ═════════════════════════════════════════════════════
+
+    /// <summary>Build a full InvoiceDocumentViewModel for the given invoice,
+    /// loading company + POS + exchange rate consistently.</summary>
+    private async Task<InvoiceDocumentViewModel?> BuildDocumentViewModelAsync(Invoice invoice)
+    {
+        var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+
+        PointOfSale? pos = null;
+        if (invoice.PointOfSaleId > 0)
+            pos = await _unitOfWork.GetRepository<PointOfSale>().GetByIdAsync(invoice.PointOfSaleId);
+
+        decimal exchangeRate = 0;
+        try
+        {
+            var settings = (await _unitOfWork.GetRepository<AppSettings>()
+                .FindAsync(s => true)).FirstOrDefault();
+            if (settings != null) exchangeRate = settings.CurrentExchangeRate;
+        }
+        catch { /* non-blocking */ }
+
+        return InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
+    }
 
     [RelayCommand]
     private void PrintInvoice()
     {
         if (DocumentViewModel == null) return;
+        ClearStatus();
+
         try
         {
             InvoicePrintHelper.Print(DocumentViewModel);
-            StatusMessage = $"✓ Impression lancée — {DocumentViewModel.InvoiceNumber}";
+            StatusMessage = $"✓ Document ouvert pour impression — {DocumentViewModel.InvoiceNumber}";
             ShowSuccess = true;
         }
         catch (Exception ex)
@@ -404,11 +417,16 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private void ExportPdf()
     {
         if (DocumentViewModel == null) return;
+        ClearStatus();
+
         try
         {
-            InvoicePrintHelper.ExportPdf(DocumentViewModel);
-            StatusMessage = $"✓ Export réussi — {DocumentViewModel.InvoiceNumber}";
-            ShowSuccess = true;
+            if (InvoicePrintHelper.ExportPdf(DocumentViewModel))
+            {
+                StatusMessage = $"✓ Export réussi — {DocumentViewModel.InvoiceNumber}";
+                ShowSuccess = true;
+            }
+            // else: user cancelled the SaveFileDialog — do nothing
         }
         catch (Exception ex)
         {
@@ -422,14 +440,28 @@ public partial class SalesHistoryViewModel : BaseViewModel
     {
         if (item == null) return;
         IsBusy = true;
+        ClearStatus();
+
         try
         {
             var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
-            if (invoice == null) { StatusMessage = "Facture introuvable."; ShowError = true; return; }
-            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
-            var vm = InvoiceDocumentViewModel.Create(invoice, company);
+            if (invoice == null)
+            {
+                StatusMessage = "Facture introuvable.";
+                ShowError = true;
+                return;
+            }
+
+            var vm = await BuildDocumentViewModelAsync(invoice);
+            if (vm == null)
+            {
+                StatusMessage = "Impossible de construire le document.";
+                ShowError = true;
+                return;
+            }
+
             InvoicePrintHelper.Print(vm);
-            StatusMessage = $"✓ Impression lancée — {invoice.InvoiceNumber}";
+            StatusMessage = $"✓ Document ouvert — {invoice.InvoiceNumber}";
             ShowSuccess = true;
         }
         catch (Exception ex)
@@ -439,6 +471,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
         finally { IsBusy = false; }
     }
+
+
 
     [RelayCommand]
     private void CopyCodeDEF()

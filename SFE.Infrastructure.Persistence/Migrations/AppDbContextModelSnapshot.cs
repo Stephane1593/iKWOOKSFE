@@ -1017,7 +1017,7 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<bool>("EnableCustomerDisplay")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
-                        .HasDefaultValue(true);
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
@@ -1588,13 +1588,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AssignedPosIds")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("[]");
-
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1611,6 +1604,9 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("PointOfSaleId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("RoleId")
                         .HasColumnType("INTEGER");
 
@@ -1620,6 +1616,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PointOfSaleId");
 
                     b.HasIndex("RoleId");
 
@@ -1836,11 +1834,18 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SFE.Domain.Entities.User", b =>
                 {
+                    b.HasOne("SFE.Domain.Entities.PointOfSale", "PointOfSale")
+                        .WithMany("Operators")
+                        .HasForeignKey("PointOfSaleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SFE.Domain.Entities.Role", "Role")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("PointOfSale");
 
                     b.Navigation("Role");
                 });
@@ -1882,6 +1887,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SFE.Domain.Entities.PointOfSale", b =>
                 {
+                    b.Navigation("Operators");
+
                     b.Navigation("PosStocks");
 
                     b.Navigation("StockMovements");

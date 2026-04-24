@@ -43,34 +43,25 @@ public class CartItemSnapshot
     public ItemType ItemType { get; set; }
     public TaxGroup TaxGroup { get; set; }
     public decimal TaxRate { get; set; }
-
-    // 🆕 Dual price
     public decimal UnitPriceHT { get; set; }
     public decimal UnitPriceTTC { get; set; }
-
-    public string Unit { get; set; } = "";
+    public string Unit { get; set; } = "pce";
     public decimal Quantity { get; set; }
-
-    // 🆕 Remise
     public DiscountType DiscountType { get; set; }
     public decimal DiscountValue { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal AmountHTBeforeDiscount { get; set; }
 
-    // 🆕 Taxe spécifique enrichie
-    public bool HasSpecificTax { get; set; }
+    // V6 : champs typés TS (remplacent HasSpecificTax, SpecificTaxRate, TaxSpecificValue string)
+    public SpecificTaxType SpecificTaxType { get; set; } = SpecificTaxType.None;
+    public decimal SpecificTaxValue { get; set; }
     public string SpecificTaxName { get; set; } = "";
-    public decimal SpecificTaxRate { get; set; }
-    public string TaxSpecificValue { get; set; } = "";
-    public TaxApplicationMode TaxApplicationMode { get; set; }
+    public TaxApplicationMode TaxApplicationMode { get; set; } = TaxApplicationMode.PerArticle;
     public decimal TaxSpecificAmount { get; set; }
 
-    // Montants calculés
     public decimal AmountHT { get; set; }
     public decimal AmountTVA { get; set; }
     public decimal AmountTTC { get; set; }
-
-    // Stock
     public decimal StockQuantity { get; set; }
     public bool TrackStock { get; set; }
 }

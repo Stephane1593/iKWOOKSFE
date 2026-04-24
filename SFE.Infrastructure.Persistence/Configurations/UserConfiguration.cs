@@ -27,9 +27,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(u => u.AssignedPosIds)
-            .HasMaxLength(500)
-            .HasDefaultValue("[]");
+        // 🆕 POS assignment (replaces AssignedPosIds)
+        builder.Property(u => u.PointOfSaleId)
+            .IsRequired(false);
+
+        builder.HasOne(u => u.PointOfSale)
+            .WithMany(p => p.Operators)
+            .HasForeignKey(u => u.PointOfSaleId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne(u => u.Role)
             .WithMany(r => r.Users)

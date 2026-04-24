@@ -71,6 +71,13 @@ public class UnitOfWork : IUnitOfWork
     public IAppSettingsRepository AppSettings =>
         _appSettings ??= new AppSettingsRepository(_context);
 
+    // ── Field ──
+    private IAuditLogRepository? _auditLogs;
+
+    // ── Property (add with the other lazy props) ──
+    public IAuditLogRepository AuditLogs =>
+        _auditLogs ??= new AuditLogRepository(_context);
+
     // ── Enqueue events (services call this instead of publishing directly) ──
 
     public void EnqueueEvent(AppEvent evt, string? entityId = null)

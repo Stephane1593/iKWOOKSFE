@@ -1,5 +1,4 @@
-﻿// File: SFE.Application/Services/ProductService.cs
-using SFE.Application.Events;
+﻿using SFE.Application.Events;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
@@ -9,10 +8,12 @@ namespace SFE.Application.Services;
 public class ProductService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuditService _audit;
 
-    public ProductService(IUnitOfWork unitOfWork)
+    public ProductService(IUnitOfWork unitOfWork, IAuditService audit)
     {
         _unitOfWork = unitOfWork;
+        _audit = audit;
     }
 
     public async Task<List<Product>> GetAllActiveAsync()
@@ -56,6 +57,9 @@ public class ProductService
         _unitOfWork.EnqueueEvent(AppEvent.ProductCreated, product.Id.ToString());
         await _unitOfWork.FlushEventsAsync();
 
+        await _audit.LogAsync(AuditAction.ProductCreated, AuditModule.Products,
+            product.Id.ToString(), $"{product.Code} — {product.Name} · PU: {product.UnitPrice:N2} CDF · Grp: {product.TaxGroup}");
+
         return new ProductSaveResult { Success = true, ProductId = product.Id };
     }
 
@@ -80,6 +84,9 @@ public class ProductService
         _unitOfWork.EnqueueEvent(AppEvent.ProductUpdated, product.Id.ToString());
         await _unitOfWork.FlushEventsAsync();
 
+        await _audit.LogAsync(AuditAction.ProductUpdated, AuditModule.Products,
+            product.Id.ToString(), $"{product.Code} — {product.Name} · PU: {product.UnitPrice:N2} CDF · Grp: {product.TaxGroup}");
+
         return new ProductSaveResult { Success = true, ProductId = product.Id };
     }
 
@@ -96,6 +103,9 @@ public class ProductService
             // ── EVENT ──
             _unitOfWork.EnqueueEvent(AppEvent.ProductDeleted, productId.ToString());
             await _unitOfWork.FlushEventsAsync();
+
+            await _audit.LogAsync(AuditAction.ProductDeleted, AuditModule.Products,
+                product.Id.ToString(), $"{product.Code} — {product.Name} (désactivé)");
         }
     }
 
@@ -114,6 +124,10 @@ public class ProductService
         };
         await _unitOfWork.ProductCategories.AddAsync(category);
         await _unitOfWork.SaveChangesAsync();
+
+        await _audit.LogAsync(AuditAction.CategoryCreated, AuditModule.Products,
+            category.Id.ToString(), $"{category.Icon} {category.Name}");
+
         return category;
     }
 
@@ -549,7 +563,61 @@ public class ProductService
 
         return new ValidationResult { IsValid = true };
     }
+
+    /// <summary>
+    /// Auto-generates the next product code based on the category.
+    /// Detects the existing prefix pattern (e.g. "BRS" for Boissons) from
+    /// existing products, or falls back to the first 3 letters of the category name.
+    /// </summary>
+    public async Task<string> GenerateNextCodeAsync(int categoryId)
+    {
+        var categories = await _unitOfWork.ProductCategories.GetActiveCategoriesAsync();
+        var category = categories.FirstOrDefault(c => c.Id == categoryId);
+
+        var allProducts = await _unitOfWork.Products.GetActiveProductsAsync();
+
+        string prefix = "PRD";
+
+        if (category != null)
+        {
+            // Detect prefix from existing products in this category
+            var existingPrefix = allProducts
+                .Where(p => p.CategoryId == categoryId
+                            && !string.IsNullOrEmpty(p.Code)
+                            && p.Code.Contains('-'))
+                .Select(p => p.Code.Split('-')[0])
+                .GroupBy(p => p)
+                .OrderByDescending(g => g.Count())
+                .FirstOrDefault()?.Key;
+
+            if (!string.IsNullOrEmpty(existingPrefix))
+            {
+                prefix = existingPrefix;
+            }
+            else
+            {
+                // Fallback: first 3 uppercase letters of category name
+                var clean = category.Name.Trim().ToUpperInvariant();
+                prefix = clean.Length >= 3 ? clean.Substring(0, 3) : clean;
+            }
+        }
+
+        // Find max sequence number for this prefix across all products
+        var maxNumber = allProducts
+            .Where(p => !string.IsNullOrEmpty(p.Code) && p.Code.StartsWith(prefix + "-"))
+            .Select(p =>
+            {
+                var parts = p.Code.Split('-');
+                return parts.Length >= 2 && int.TryParse(parts.Last(), out var num) ? num : 0;
+            })
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return $"{prefix}-{maxNumber + 1:D3}";
+    }
 }
+
+
 
 public class ProductSaveResult
 {

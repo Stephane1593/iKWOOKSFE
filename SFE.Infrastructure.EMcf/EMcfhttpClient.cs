@@ -101,6 +101,8 @@ public class EMcfHttpClient : IFiscalDeviceService
 
             var postResp = await _http.PostAsJsonAsync(
                 $"{_invoiceUrl}/", dto, JsonOpts);
+            var rawJson = await postResp.Content.ReadAsStringAsync();
+            Debug.WriteLine($"[FinalizeInvoice] Status: {(int)postResp.StatusCode}, Body: {rawJson}");
 
             if (!postResp.IsSuccessStatusCode)
             {
@@ -238,8 +240,8 @@ public class EMcfHttpClient : IFiscalDeviceService
     {
         try
         {
-            var resp = await _http.GetAsync(
-                $"{_invoiceUrl}/{uid}/CANCEL");
+            var resp = await _http.PutAsync(
+                $"{_invoiceUrl}/{uid}/CANCEL", null);
             return resp.IsSuccessStatusCode;
         }
         catch { return false; }

@@ -2,26 +2,613 @@
 <UserControl x:Class="SFE.WPF.Views.Pages.StockPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:vm="clr-namespace:SFE.WPF.ViewModels"
              Background="{StaticResource BackgroundBrush}">
 
+    <UserControl.Resources>
+
+        <!-- ══════════ TOUCH SCROLLBAR THUMB ══════════ -->
+        <Style x:Key="TouchScrollThumb" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="ThumbBd" CornerRadius="5" Margin="2,0">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="ThumbBg" Color="#C4CDD5"/>
+                            </Border.Background>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#A0AEC0" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#C4CDD5" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="ThumbBd" Property="Background">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="{StaticResource PrimaryColor}"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ VERTICAL TOUCH SCROLLBAR ══════════ -->
+        <Style x:Key="TouchScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="MinWidth" Value="10"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border CornerRadius="5" Background="#F1F5F9" Margin="2,0"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource TouchScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ HORIZONTAL TOUCH SCROLLBAR (thin) ══════════ -->
+        <Style x:Key="TouchScrollBarH" TargetType="ScrollBar">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="MinHeight" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border CornerRadius="3" Background="#F1F5F9" Margin="0,2"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border CornerRadius="3" Background="#C4CDD5" Margin="0,2"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ DATAGRID CELL STYLE ══════════ -->
+        <Style x:Key="GridCellStyle" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ══════════ DATAGRID COLUMN HEADER ══════════ -->
+        <Style x:Key="GridHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="12,14"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="SeparatorVisibility" Value="Collapsed"/>
+        </Style>
+
+        <!-- ══════════ ROW STYLE (animated hover + stock colors) ══════════ -->
+        <Style x:Key="GridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridRow">
+                        <Border x:Name="RowBd" BorderThickness="0,0,0,1"
+                                BorderBrush="#F1F5F9">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="RowBg" Color="Transparent"/>
+                            </Border.Background>
+                            <SelectiveScrollingGrid>
+                                <SelectiveScrollingGrid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </SelectiveScrollingGrid.ColumnDefinitions>
+                                <SelectiveScrollingGrid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </SelectiveScrollingGrid.RowDefinitions>
+                                <DataGridCellsPresenter Grid.Column="1"
+                                    ItemsPanel="{TemplateBinding ItemsPanel}"
+                                    SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                <DataGridDetailsPresenter Grid.Column="1" Grid.Row="1"
+                                    SelectiveScrollingGrid.SelectiveScrollingOrientation=
+                                        "{Binding AreRowDetailsFrozen, ConverterParameter={x:Static SelectiveScrollingOrientation.Vertical},
+                                         Converter={x:Static DataGrid.RowDetailsScrollingConverter},
+                                         RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                    Visibility="{TemplateBinding DetailsVisibility}"/>
+                                <DataGridRowHeader Grid.RowSpan="2"
+                                    SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
+                                    Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row},
+                                                 Converter={x:Static DataGrid.HeadersVisibilityConverter},
+                                                 RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
+                            </SelectiveScrollingGrid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="RowBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#E1F3FB" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="RowBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="Transparent" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="RowBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="#DBEAFE" Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="RowBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="Transparent" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ ICON ACTION BUTTON (smooth hover) ══════════ -->
+        <Style x:Key="ActionIconBtn" TargetType="Button">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="#00E1F3FB"/>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#E1F3FB" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#00E1F3FB" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ QUICK ACTION BUTTON (colored bg) ══════════ -->
+        <Style x:Key="QuickActionBtn" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10"
+                                Padding="16,10"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ POS CHIP (normal state) ══════════ -->
+        <Style x:Key="PosChipBtn" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="16,9"
+                                BorderThickness="2">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="#F8FAFC"/>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush x:Name="BdBr" Color="#E2E8F0"/>
+                            </Border.BorderBrush>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="{StaticResource PrimaryColor}"
+                                                        Duration="0:0:0.12"/>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#EFF6FF" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#E2E8F0" Duration="0:0:0.15"/>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#F8FAFC" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ POS CHIP (selected state — active look) ══════════ -->
+        <Style x:Key="PosChipBtnSelected" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="16,9"
+                                BorderThickness="2">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#E0F2FE" Offset="0"/>
+                                    <GradientStop Color="#DBEAFE" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="{StaticResource PrimaryColor}"/>
+                            </Border.BorderBrush>
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="8"
+                                                  Opacity="0.15" Color="#37B1E4"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ FILTER CHIP (normal) ══════════ -->
+        <Style x:Key="FilterChipBtn" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10"
+                                Padding="14,8"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ FORM FIELD ══════════ -->
+        <Style x:Key="FormField" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <Border.BorderBrush>
+                                <SolidColorBrush x:Name="BdBr" Color="{StaticResource BorderColor}"/>
+                            </Border.BorderBrush>
+                            <Border.BorderThickness>
+                                <Thickness>1.5</Thickness>
+                            </Border.BorderThickness>
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="GotFocus">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="{StaticResource PrimaryColor}"
+                                                        Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="LostFocus">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="{StaticResource BorderColor}"
+                                                        Duration="0:0:0.22"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ MODAL CLOSE BUTTON ══════════ -->
+        <Style x:Key="ModalCloseBtn" TargetType="Button">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="#15FFFFFF"/>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#30FFFFFF" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#15FFFFFF" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ CANCEL BUTTON ══════════ -->
+        <Style x:Key="CancelBtn" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="MinHeight" Value="48"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="16,12">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="#F1F5F9"/>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#E2E8F0" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#F1F5F9" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ SUBMIT BUTTON (gradient) ══════════ -->
+        <Style x:Key="SubmitBtn" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="MinHeight" Value="48"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="16,12">
+                            <Border.Background>
+                                <LinearGradientBrush x:Name="BdGrad" StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop x:Name="G0" Color="#37B1E4" Offset="0"/>
+                                    <GradientStop x:Name="G1" Color="#1A8CBF" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="1" BlurRadius="8"
+                                                  Opacity="0.2" Color="#37B1E4"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="G0"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#2DA0D3" Duration="0:0:0.18"/>
+                                        <ColorAnimation Storyboard.TargetName="G1"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#1579A8" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="G0"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#37B1E4" Duration="0:0:0.22"/>
+                                        <ColorAnimation Storyboard.TargetName="G1"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#1A8CBF" Duration="0:0:0.22"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
     <Grid>
-        <!-- ══════ CONTENU PRINCIPAL ══════ -->
-        <DockPanel Margin="20,16">
+        <!-- ══════ MAIN CONTENT ══════ -->
+        <DockPanel Margin="28,24">
 
-            <!-- ═══ HEADER ═══ -->
-            <Border DockPanel.Dock="Top" Background="White" CornerRadius="14"
-                    Padding="20,16" Margin="0,0,0,14">
+            <!-- ═══════════════════════════════════════ -->
+            <!-- HEADER CARD                             -->
+            <!-- ═══════════════════════════════════════ -->
+            <Border DockPanel.Dock="Top" Background="{StaticResource CardBrush}"
+                    CornerRadius="14" Padding="24,20" Margin="0,0,0,16">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="8" Opacity="0.06" ShadowDepth="2"/>
+                    <DropShadowEffect BlurRadius="14" Opacity="0.06" ShadowDepth="2" Color="#0D2B3E"/>
                 </Border.Effect>
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                <StackPanel>
 
-                    <!-- Titre + Recherche -->
+                    <!-- Row 1: Title + Search + Actions -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -29,76 +616,109 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="📦 Gestion du stock" FontFamily="{StaticResource AppFont}"
-                                       FontSize="20" FontWeight="Bold"/>
-                            <TextBlock Text="Stock par point de vente · Mouvements · Inventaire"
-                                       FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                        <!-- Title -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border CornerRadius="10" Padding="10" Margin="0,0,12,0"
+                                    VerticalAlignment="Center">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                                </Border.Background>
+                                <materialDesign:PackIcon Kind="PackageVariantClosed"
+                                                         Width="22" Height="22"
+                                                         Foreground="{StaticResource PrimaryBrush}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Gestion du stock"
+                                           Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                                <TextBlock Text="Stock par point de vente · Mouvements · Inventaire"
+                                           FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                            </StackPanel>
                         </StackPanel>
 
-                        <!-- Recherche -->
-                        <Border Grid.Column="1" Background="#F3F4F6" CornerRadius="10"
-                                Margin="24,0" Padding="14,0" MaxWidth="350">
+                        <!-- Search -->
+                        <Border Grid.Column="1" CornerRadius="10"
+                                Margin="24,0,16,0" Padding="14,0" MinHeight="44">
+                            <Border.Background>
+                                <SolidColorBrush Color="{StaticResource BackgroundColor}"/>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="{StaticResource BorderLightColor}"/>
+                            </Border.BorderBrush>
+                            <Border.BorderThickness>
+                                <Thickness>1</Thickness>
+                            </Border.BorderThickness>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="🔍" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <materialDesign:PackIcon Kind="Magnify" Width="18" Height="18"
+                                                         Foreground="{StaticResource TextMutedBrush}"
+                                                         VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <TextBox Grid.Column="1"
                                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
                                          FontFamily="{StaticResource AppFont}" FontSize="13"
                                          Background="Transparent" BorderThickness="0"
-                                         VerticalAlignment="Center" Padding="0,10"/>
+                                         VerticalAlignment="Center" Padding="0,10"
+                                         CaretBrush="{StaticResource PrimaryBrush}"/>
                             </Grid>
                         </Border>
 
-                        <!-- Actions rapides -->
+                        <!-- Quick Actions -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <Button Command="{Binding ShowEntryFormCommand}" Margin="0,0,6,0"
-                                    Cursor="Hand" Padding="12,8" BorderThickness="0"
-                                    Background="#ECFDF5" Foreground="#065F46"
-                                    FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold">
+                            <Button Style="{StaticResource QuickActionBtn}"
+                                    Command="{Binding ShowEntryFormCommand}"
+                                    Background="#ECFDF5" Foreground="#065F46" Margin="0,0,8,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="📥" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Entrée"/>
+                                    <materialDesign:PackIcon Kind="PackageDown" Width="16" Height="16"
+                                                             Foreground="#065F46" VerticalAlignment="Center"
+                                                             Margin="0,0,6,0"/>
+                                    <TextBlock Text="Entrée" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding ShowExitFormCommand}" Margin="0,0,6,0"
-                                    Cursor="Hand" Padding="12,8" BorderThickness="0"
-                                    Background="#FEF2F2" Foreground="#991B1B"
-                                    FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold">
+                            <Button Style="{StaticResource QuickActionBtn}"
+                                    Command="{Binding ShowExitFormCommand}"
+                                    Background="#FEF2F2" Foreground="#991B1B" Margin="0,0,8,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="📤" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Sortie"/>
+                                    <materialDesign:PackIcon Kind="PackageUp" Width="16" Height="16"
+                                                             Foreground="#991B1B" VerticalAlignment="Center"
+                                                             Margin="0,0,6,0"/>
+                                    <TextBlock Text="Sortie" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding ShowAdjustmentFormCommand}" Margin="0,0,6,0"
-                                    Cursor="Hand" Padding="12,8" BorderThickness="0"
-                                    Background="#FEF3C7" Foreground="#92400E"
-                                    FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold">
+                            <Button Style="{StaticResource QuickActionBtn}"
+                                    Command="{Binding ShowAdjustmentFormCommand}"
+                                    Background="#FEF3C7" Foreground="#92400E" Margin="0,0,8,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="🔧" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Ajustement"/>
+                                    <materialDesign:PackIcon Kind="Wrench" Width="16" Height="16"
+                                                             Foreground="#92400E" VerticalAlignment="Center"
+                                                             Margin="0,0,6,0"/>
+                                    <TextBlock Text="Ajustement" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding ShowInventoryFormCommand}"
-                                    Cursor="Hand" Padding="12,8" BorderThickness="0"
-                                    Background="#EEF2FF" Foreground="#3730A3"
-                                    FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold">
+                            <Button Style="{StaticResource QuickActionBtn}"
+                                    Command="{Binding ShowInventoryFormCommand}"
+                                    Background="#EEF2FF" Foreground="#3730A3">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="📋" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Inventaire"/>
+                                    <materialDesign:PackIcon Kind="ClipboardListOutline" Width="16" Height="16"
+                                                             Foreground="#3730A3" VerticalAlignment="Center"
+                                                             Margin="0,0,6,0"/>
+                                    <TextBlock Text="Inventaire" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
                         </StackPanel>
                     </Grid>
 
-                    <!-- Sélecteur POS -->
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled" Margin="0,12,0,0" Height="44">
-                        <StackPanel Orientation="Horizontal">
+                    <!-- ── POS SELECTOR (clear active state) ── -->
+                    <Border Background="{StaticResource BackgroundBrush}"
+                            CornerRadius="12" Padding="6" Margin="0,16,0,0">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      PanningMode="HorizontalOnly">
+                            <ScrollViewer.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource TouchScrollBarH}"/>
+                            </ScrollViewer.Resources>
                             <ItemsControl ItemsSource="{Binding PointsOfSale}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -107,248 +727,470 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Margin="0,0,8,0" Cursor="Hand" Padding="14,8"
-                                                BorderThickness="0"
-                                                FontFamily="{StaticResource AppFont}" FontSize="13"
+                                        <Button Margin="0,0,8,0"
                                                 Command="{Binding DataContext.SelectPosCommand,
                                                     RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}">
                                             <Button.Style>
                                                 <Style TargetType="Button">
-                                                    <Setter Property="Background" Value="White"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                    <!-- Default: unselected chip -->
+                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                    <Setter Property="MinHeight" Value="44"/>
+                                                    <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                                                    <Setter Property="FontSize" Value="13"/>
+                                                    <Setter Property="BorderThickness" Value="0"/>
                                                     <Setter Property="Template">
                                                         <Setter.Value>
                                                             <ControlTemplate TargetType="Button">
-                                                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                                        CornerRadius="10" Padding="{TemplateBinding Padding}"
-                                                                        BorderThickness="2" BorderBrush="Transparent">
+                                                                <Border x:Name="Bd" CornerRadius="10" Padding="16,9"
+                                                                        BorderThickness="2">
+                                                                    <Border.Background>
+                                                                        <SolidColorBrush x:Name="BdBg" Color="White"/>
+                                                                    </Border.Background>
+                                                                    <Border.BorderBrush>
+                                                                        <SolidColorBrush x:Name="BdBr" Color="#E2E8F0"/>
+                                                                    </Border.BorderBrush>
                                                                     <ContentPresenter HorizontalAlignment="Center"
                                                                                       VerticalAlignment="Center"/>
                                                                 </Border>
                                                                 <ControlTemplate.Triggers>
-                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                        <Setter TargetName="Bd" Property="BorderBrush"
-                                                                                Value="{StaticResource PrimaryBrush}"/>
-                                                                    </Trigger>
+                                                                    <EventTrigger RoutedEvent="MouseEnter">
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard>
+                                                                                <ColorAnimation Storyboard.TargetName="BdBr"
+                                                                                    Storyboard.TargetProperty="Color"
+                                                                                    To="{StaticResource PrimaryColor}"
+                                                                                    Duration="0:0:0.12"/>
+                                                                                <ColorAnimation Storyboard.TargetName="BdBg"
+                                                                                    Storyboard.TargetProperty="Color"
+                                                                                    To="#EFF6FF" Duration="0:0:0.12"/>
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </EventTrigger>
+                                                                    <EventTrigger RoutedEvent="MouseLeave">
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard>
+                                                                                <ColorAnimation Storyboard.TargetName="BdBr"
+                                                                                    Storyboard.TargetProperty="Color"
+                                                                                    To="#E2E8F0" Duration="0:0:0.15"/>
+                                                                                <ColorAnimation Storyboard.TargetName="BdBg"
+                                                                                    Storyboard.TargetProperty="Color"
+                                                                                    To="White" Duration="0:0:0.15"/>
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </EventTrigger>
                                                                 </ControlTemplate.Triggers>
                                                             </ControlTemplate>
                                                         </Setter.Value>
                                                     </Setter>
+
+                                                    <!-- ★ SELECTED: bold primary look ★ -->
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border CornerRadius="10" Padding="16,9"
+                                                                                BorderThickness="2.5">
+                                                                            <Border.Background>
+                                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                                    <GradientStop Color="#E0F2FE" Offset="0"/>
+                                                                                    <GradientStop Color="#DBEAFE" Offset="1"/>
+                                                                                </LinearGradientBrush>
+                                                                            </Border.Background>
+                                                                            <Border.BorderBrush>
+                                                                                <SolidColorBrush Color="{StaticResource PrimaryColor}"/>
+                                                                            </Border.BorderBrush>
+                                                                            <Border.Effect>
+                                                                                <DropShadowEffect ShadowDepth="0"
+                                                                                    BlurRadius="10" Opacity="0.18"
+                                                                                    Color="#37B1E4"/>
+                                                                            </Border.Effect>
+                                                                            <ContentPresenter HorizontalAlignment="Center"
+                                                                                              VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="🏪" Margin="0,0,6,0"/>
-                                                <TextBlock>
+                                                <materialDesign:PackIcon Kind="StorefrontOutline"
+                                                    Width="16" Height="16" VerticalAlignment="Center"
+                                                    Margin="0,0,8,0">
+                                                    <materialDesign:PackIcon.Style>
+                                                        <Style TargetType="materialDesign:PackIcon">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </materialDesign:PackIcon.Style>
+                                                </materialDesign:PackIcon>
+                                                <TextBlock VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                                                            <Setter Property="FontSize" Value="13"/>
+                                                            <Setter Property="FontWeight" Value="Medium"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
                                                     <Run Text="{Binding Code, Mode=OneWay}"/>
                                                     <Run Text=" — "/>
                                                     <Run Text="{Binding Name, Mode=OneWay}"/>
                                                 </TextBlock>
+                                                <!-- Check icon for selected -->
+                                                <materialDesign:PackIcon Kind="CheckCircle"
+                                                    Width="16" Height="16"
+                                                    Foreground="{StaticResource PrimaryBrush}"
+                                                    VerticalAlignment="Center" Margin="8,0,0,0">
+                                                    <materialDesign:PackIcon.Style>
+                                                        <Style TargetType="materialDesign:PackIcon">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </materialDesign:PackIcon.Style>
+                                                </materialDesign:PackIcon>
                                             </StackPanel>
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Grid>
+                        </ScrollViewer>
+                    </Border>
+
+                </StackPanel>
             </Border>
 
-            <!-- ═══ CARTES KPI ═══ -->
+            <!-- ═══════════════════════════════════════ -->
+            <!-- KPI CARDS                               -->
+            <!-- ═══════════════════════════════════════ -->
             <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Disabled" Margin="0,0,0,14" Height="90">
+                          VerticalScrollBarVisibility="Disabled" Margin="0,0,0,16"
+                          PanningMode="HorizontalOnly">
+                <ScrollViewer.Resources>
+                    <Style TargetType="ScrollBar" BasedOn="{StaticResource TouchScrollBarH}"/>
+                </ScrollViewer.Resources>
                 <StackPanel Orientation="Horizontal">
-                    <Border Background="White" CornerRadius="12" Padding="20,14" Width="180" Margin="0,0,12,0">
+
+                    <!-- Références -->
+                    <Border Background="{StaticResource CardBrush}" CornerRadius="14"
+                            Padding="20,16" Width="190" Margin="0,0,12,0">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="6" Opacity="0.05" ShadowDepth="1"/>
+                            <DropShadowEffect BlurRadius="10" Opacity="0.05" ShadowDepth="2" Color="#0D2B3E"/>
                         </Border.Effect>
-                        <StackPanel>
-                            <TextBlock Text="📦 Références" FontFamily="{StaticResource AppFont}"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding TotalProducts}" FontFamily="{StaticResource AppFont}"
-                                       FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Références" FontFamily="{StaticResource AppFont}"
+                                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding TotalProducts}" FontFamily="{StaticResource AppFont}"
+                                           FontSize="26" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="10" Padding="8"
+                                    VerticalAlignment="Top">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                                </Border.Background>
+                                <materialDesign:PackIcon Kind="PackageVariantClosed"
+                                    Width="20" Height="20" Foreground="{StaticResource PrimaryBrush}"/>
+                            </Border>
+                        </Grid>
                     </Border>
 
-                    <Border Background="White" CornerRadius="12" Padding="20,14" Width="180" Margin="0,0,12,0">
+                    <!-- Stock bas -->
+                    <Border Background="{StaticResource CardBrush}" CornerRadius="14"
+                            Padding="20,16" Width="190" Margin="0,0,12,0">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="6" Opacity="0.05" ShadowDepth="1"/>
+                            <DropShadowEffect BlurRadius="10" Opacity="0.05" ShadowDepth="2" Color="#0D2B3E"/>
                         </Border.Effect>
-                        <StackPanel>
-                            <TextBlock Text="⚠️ Stock bas" FontFamily="{StaticResource AppFont}"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding LowStockCount}" FontFamily="{StaticResource AppFont}"
-                                       FontSize="24" FontWeight="Bold" Foreground="#F59E0B"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Stock bas" FontFamily="{StaticResource AppFont}"
+                                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding LowStockCount}" FontFamily="{StaticResource AppFont}"
+                                           FontSize="26" FontWeight="Bold" Foreground="#F59E0B"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="10" Padding="8"
+                                    VerticalAlignment="Top">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#F59E0B" Opacity="0.08"/>
+                                </Border.Background>
+                                <materialDesign:PackIcon Kind="AlertOutline"
+                                    Width="20" Height="20" Foreground="#F59E0B"/>
+                            </Border>
+                        </Grid>
                     </Border>
 
-                    <Border Background="White" CornerRadius="12" Padding="20,14" Width="180" Margin="0,0,12,0">
+                    <!-- Rupture -->
+                    <Border Background="{StaticResource CardBrush}" CornerRadius="14"
+                            Padding="20,16" Width="190" Margin="0,0,12,0">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="6" Opacity="0.05" ShadowDepth="1"/>
+                            <DropShadowEffect BlurRadius="10" Opacity="0.05" ShadowDepth="2" Color="#0D2B3E"/>
                         </Border.Effect>
-                        <StackPanel>
-                            <TextBlock Text="🚫 Rupture" FontFamily="{StaticResource AppFont}"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding OutOfStockCount}" FontFamily="{StaticResource AppFont}"
-                                       FontSize="24" FontWeight="Bold" Foreground="#EF4444"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Rupture" FontFamily="{StaticResource AppFont}"
+                                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding OutOfStockCount}" FontFamily="{StaticResource AppFont}"
+                                           FontSize="26" FontWeight="Bold" Foreground="#EF4444"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="10" Padding="8"
+                                    VerticalAlignment="Top">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#EF4444" Opacity="0.08"/>
+                                </Border.Background>
+                                <materialDesign:PackIcon Kind="PackageVariantClosedRemove"
+                                    Width="20" Height="20" Foreground="#EF4444"/>
+                            </Border>
+                        </Grid>
                     </Border>
 
-                    <Border Background="White" CornerRadius="12" Padding="20,14" Width="220" Margin="0,0,0,0">
+                    <!-- Valeur stock -->
+                    <Border Background="{StaticResource CardBrush}" CornerRadius="14"
+                            Padding="20,16" Width="230">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="6" Opacity="0.05" ShadowDepth="1"/>
+                            <DropShadowEffect BlurRadius="10" Opacity="0.05" ShadowDepth="2" Color="#0D2B3E"/>
                         </Border.Effect>
-                        <StackPanel>
-                            <TextBlock Text="💰 Valeur stock" FontFamily="{StaticResource AppFont}"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock FontFamily="{StaticResource AppFont}"
-                                       FontSize="22" FontWeight="Bold" Foreground="#10B981"
-                                       Margin="0,4,0,0">
-                                <Run Text="{Binding TotalStockValue, StringFormat=N0, Mode=OneWay}"/>
-                                <Run Text=" CDF" FontSize="12"/>
-                            </TextBlock>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Valeur stock" FontFamily="{StaticResource AppFont}"
+                                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                           FontSize="24" FontWeight="Bold" Foreground="#10B981"
+                                           Margin="0,4,0,0">
+                                    <Run Text="{Binding TotalStockValue, StringFormat=N0, Mode=OneWay}"/>
+                                    <Run Text=" CDF" FontSize="13" FontWeight="Medium"/>
+                                </TextBlock>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="10" Padding="8"
+                                    VerticalAlignment="Top">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#10B981" Opacity="0.08"/>
+                                </Border.Background>
+                                <materialDesign:PackIcon Kind="CurrencyUsd"
+                                    Width="20" Height="20" Foreground="#10B981"/>
+                            </Border>
+                        </Grid>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- ═══ FILTRES ═══ -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                <Button Content="📋 Tout" Command="{Binding FilterAllCommand}"
-                        Padding="12,6" Margin="0,0,6,0" Cursor="Hand"
-                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                        Background="White" BorderThickness="0"/>
-                <Button Content="⚠️ Stock bas" Command="{Binding FilterLowStockCommand}"
-                        Padding="12,6" Margin="0,0,6,0" Cursor="Hand"
-                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                        Background="#FEF3C7" BorderThickness="0"/>
-                <Button Content="🚫 Rupture" Command="{Binding FilterOutOfStockCommand}"
-                        Padding="12,6" Cursor="Hand"
-                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                        Background="#FEE2E2" BorderThickness="0"/>
+            <!-- ═══════════════════════════════════════ -->
+            <!-- FILTERS                                 -->
+            <!-- ═══════════════════════════════════════ -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Style="{StaticResource FilterChipBtn}"
+                        Command="{Binding FilterAllCommand}"
+                        Background="White" Foreground="{StaticResource TextPrimaryBrush}"
+                        Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="FormatListBulleted" Width="15" Height="15"
+                                                 VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="Tout" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource FilterChipBtn}"
+                        Command="{Binding FilterLowStockCommand}"
+                        Background="#FEF3C7" Foreground="#92400E" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="AlertOutline" Width="15" Height="15"
+                                                 VerticalAlignment="Center" Margin="0,0,6,0"
+                                                 Foreground="#92400E"/>
+                        <TextBlock Text="Stock bas" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource FilterChipBtn}"
+                        Command="{Binding FilterOutOfStockCommand}"
+                        Background="#FEE2E2" Foreground="#991B1B">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="PackageVariantClosedRemove" Width="15" Height="15"
+                                                 VerticalAlignment="Center" Margin="0,0,6,0"
+                                                 Foreground="#991B1B"/>
+                        <TextBlock Text="Rupture" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </StackPanel>
 
-            <!-- ═══ STATUS ═══ -->
-            <Border DockPanel.Dock="Top" Margin="0,0,0,8" CornerRadius="8" Padding="12,6"
+            <!-- ═══════════════════════════════════════ -->
+            <!-- STATUS MESSAGES                         -->
+            <!-- ═══════════════════════════════════════ -->
+            <Border DockPanel.Dock="Top" Margin="0,0,0,10" CornerRadius="10" Padding="14,10"
                     Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                    Background="#ECFDF5">
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                           FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                    BorderThickness="1">
+                <Border.Background>
+                    <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.06"/>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.2"/>
+                </Border.BorderBrush>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="CheckCircleOutline" Width="18" Height="18"
+                                             Foreground="{StaticResource SuccessBrush}"
+                                             VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               Foreground="{StaticResource SuccessBrush}"
+                               FontFamily="{StaticResource AppFont}" FontSize="13"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
             </Border>
-            <Border DockPanel.Dock="Top" Margin="0,0,0,8" CornerRadius="8" Padding="12,6"
+
+            <Border DockPanel.Dock="Top" Margin="0,0,0,10" CornerRadius="10" Padding="14,10"
                     Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                    Background="#FEF2F2">
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
-                           FontFamily="{StaticResource AppFont}" FontSize="12"/>
+                    BorderThickness="1">
+                <Border.Background>
+                    <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.06"/>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.2"/>
+                </Border.BorderBrush>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18"
+                                             Foreground="{StaticResource ErrorBrush}"
+                                             VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               Foreground="{StaticResource ErrorBrush}"
+                               FontFamily="{StaticResource AppFont}" FontSize="13"
+                               TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </StackPanel>
             </Border>
 
-            <!-- ═══ TABLEAU STOCK ═══ -->
-            <Border Background="White" CornerRadius="14">
+            <!-- ═══════════════════════════════════════ -->
+            <!-- STOCK DATAGRID                          -->
+            <!-- ═══════════════════════════════════════ -->
+            <Border Background="{StaticResource CardBrush}" CornerRadius="14"
+                    Padding="0" ClipToBounds="True">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="8" Opacity="0.06" ShadowDepth="2"/>
+                    <DropShadowEffect BlurRadius="14" Opacity="0.06" ShadowDepth="2" Color="#0D2B3E"/>
                 </Border.Effect>
-                <DataGrid ItemsSource="{Binding FilteredStockItems}" AutoGenerateColumns="False"
-                          CanUserAddRows="False" CanUserDeleteRows="False"
-                          IsReadOnly="True" GridLinesVisibility="Horizontal"
-                          HeadersVisibility="Column" BorderThickness="0"
-                          FontFamily="{StaticResource AppFont}" FontSize="12"
-                          RowHeight="50" SelectionMode="Single">
 
-                    <DataGrid.RowStyle>
-                        <Style TargetType="DataGridRow">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsOutOfStock}" Value="True">
-                                    <Setter Property="Background" Value="#FFF5F5"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsLowStock}" Value="True">
-                                    <Setter Property="Background" Value="#FFFBEB"/>
-                                </DataTrigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#F9FAFB"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.RowStyle>
+                <DataGrid ItemsSource="{Binding FilteredStockItems}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False" CanUserDeleteRows="False"
+                          CanUserReorderColumns="False" CanUserSortColumns="True"
+                          IsReadOnly="True" GridLinesVisibility="None"
+                          HeadersVisibility="Column" BorderThickness="0"
+                          Background="Transparent"
+                          FontFamily="{StaticResource AppFont}" FontSize="13"
+                          RowHeight="60" SelectionMode="Single" SelectionUnit="FullRow"
+                          ColumnHeaderStyle="{StaticResource GridHeaderStyle}"
+                          CellStyle="{StaticResource GridCellStyle}"
+                          RowStyle="{StaticResource GridRowStyle}"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.CanContentScroll="True"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          EnableRowVirtualization="True">
+
+                    <DataGrid.Resources>
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource TouchScrollBar}"/>
+                    </DataGrid.Resources>
 
                     <DataGrid.Columns>
-                        <!-- Catégorie icône -->
-                        <DataGridTextColumn Header="" Binding="{Binding CategoryIcon}" Width="32">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="FontSize" Value="16"/>
-                                    <Setter Property="HorizontalAlignment" Value="Center"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
 
-                        <!-- Code -->
-                        <DataGridTextColumn Header="Code" Binding="{Binding ProductCode}" Width="80">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="FontFamily" Value="Consolas"/>
-                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Désignation -->
-                        <DataGridTextColumn Header="Désignation" Binding="{Binding ProductName}" Width="*">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="FontWeight" Value="Medium"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Catégorie -->
-                        <DataGridTextColumn Header="Cat." Binding="{Binding CategoryName}" Width="90">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                    <Setter Property="FontSize" Value="11"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Quantité -->
-                        <DataGridTextColumn Header="Stock" Binding="{Binding QuantityDisplay}" Width="80">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="FontWeight" Value="Bold"/>
-                                    <Setter Property="FontSize" Value="14"/>
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Min -->
-                        <DataGridTextColumn Header="Min" Binding="{Binding MinStockLevel, StringFormat=G}" Width="50">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                    <Setter Property="FontSize" Value="11"/>
-                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Statut -->
-                        <DataGridTemplateColumn Header="Statut" Width="85">
+                        <!-- ═══ CATEGORY ICON ═══ -->
+                        <DataGridTemplateColumn Header="" Width="56"
+                                                CanUserSort="False" CanUserResize="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Border CornerRadius="8" Padding="8,3"
-                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border Width="40" Height="40" CornerRadius="10"
+                                            Background="#F1F5F9"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CategoryIcon}" FontSize="18"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ CODE ═══ -->
+                        <DataGridTemplateColumn Header="CODE" Width="90"
+                                                SortMemberPath="ProductCode">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="#F8FAFC" CornerRadius="6"
+                                            Padding="8,4" HorizontalAlignment="Left"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ProductCode}"
+                                                   FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ DESIGNATION + CATEGORY ═══ -->
+                        <DataGridTemplateColumn Header="DÉSIGNATION" Width="*"
+                                                SortMemberPath="ProductName">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ProductName}"
+                                                   FontWeight="SemiBold" FontSize="14"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding CategoryName}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ STOCK (prominent) ═══ -->
+                        <DataGridTemplateColumn Header="STOCK" Width="100"
+                                                SortMemberPath="Quantity">
+                            <DataGridTemplateColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader"
+                                       BasedOn="{StaticResource GridHeaderStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTemplateColumn.HeaderStyle>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border CornerRadius="8" Padding="10,5"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#ECFDF5"/>
+                                                <Setter Property="Background" Value="#F1F5F9"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsOutOfStock}" Value="True">
                                                         <Setter Property="Background" Value="#FEE2E2"/>
@@ -359,261 +1201,469 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="{Binding StatusText}"
-                                                   FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                   FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="{Binding QuantityDisplay}"
+                                                   FontWeight="Bold" FontSize="15"
+                                                   HorizontalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOutOfStock}" Value="True">
+                                                            <Setter Property="Foreground" Value="#EF4444"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                                                            <Setter Property="Foreground" Value="#D97706"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- Valeur -->
-                        <DataGridTextColumn Header="Valeur" Binding="{Binding ValueDisplay}" Width="100">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                    <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                        <!-- ═══ MIN ═══ -->
+                        <DataGridTemplateColumn Header="MIN" Width="65"
+                                                SortMemberPath="MinStockLevel">
+                            <DataGridTemplateColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader"
+                                       BasedOn="{StaticResource GridHeaderStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
                                 </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Dernier mvt -->
-                        <DataGridTextColumn Header="Dern. mvt" Binding="{Binding LastMoveDisplay}" Width="80">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Center"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                    <Setter Property="FontSize" Value="10"/>
-                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <!-- Actions -->
-                        <DataGridTemplateColumn Header="" Width="100">
+                            </DataGridTemplateColumn.HeaderStyle>
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                    <TextBlock Text="{Binding MinStockLevel, StringFormat=G}"
+                                               FontSize="12" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ STATUS (pill badge) ═══ -->
+                        <DataGridTemplateColumn Header="STATUT" Width="105"
+                                                SortMemberPath="StatusText">
+                            <DataGridTemplateColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader"
+                                       BasedOn="{StaticResource GridHeaderStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTemplateColumn.HeaderStyle>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            CornerRadius="8" Padding="10,5" MinWidth="72">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <SolidColorBrush Color="#10B981" Opacity="0.08"/>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOutOfStock}" Value="True">
+                                                        <Setter Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="#EF4444" Opacity="0.08"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                                                        <Setter Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="#F59E0B" Opacity="0.08"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Ellipse Width="7" Height="7" Margin="0,0,7,0"
+                                                     VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#10B981"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOutOfStock}" Value="True">
+                                                                <Setter Property="Fill" Value="#EF4444"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                                                                <Setter Property="Fill" Value="#F59E0B"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding StatusText}"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="#10B981"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOutOfStock}" Value="True">
+                                                                <Setter Property="Foreground" Value="#EF4444"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                                                                <Setter Property="Foreground" Value="#D97706"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ VALUE ═══ -->
+                        <DataGridTemplateColumn Header="VALEUR" Width="115"
+                                                SortMemberPath="StockValue">
+                            <DataGridTemplateColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader"
+                                       BasedOn="{StaticResource GridHeaderStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                </Style>
+                            </DataGridTemplateColumn.HeaderStyle>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ValueDisplay}"
+                                               FontWeight="SemiBold" FontSize="13"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               Foreground="{StaticResource PrimaryBrush}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ LAST MOVE ═══ -->
+                        <DataGridTemplateColumn Header="DERN. MVT" Width="85"
+                                                SortMemberPath="LastMoveDate">
+                            <DataGridTemplateColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader"
+                                       BasedOn="{StaticResource GridHeaderStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTemplateColumn.HeaderStyle>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding LastMoveDisplay}"
+                                               FontSize="11" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- ═══ ACTIONS ═══ -->
+                        <DataGridTemplateColumn Header="" Width="105"
+                                                CanUserSort="False" CanUserResize="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
                                                 VerticalAlignment="Center">
-                                        <Button Content="🏪" FontSize="13" Background="Transparent"
-                                                BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
+                                        <Button Style="{StaticResource ActionIconBtn}"
                                                 ToolTip="Stock dans tous les POS"
                                                 Command="{Binding DataContext.ViewProductStockCommand,
                                                     RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"/>
-                                        <Button Content="📜" FontSize="13" Background="Transparent"
-                                                BorderThickness="0" Cursor="Hand"
-                                                ToolTip="Historique des mouvements"
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="StorefrontOutline"
+                                                Width="18" Height="18"
+                                                Foreground="{StaticResource PrimaryBrush}"/>
+                                        </Button>
+                                        <Button Style="{StaticResource ActionIconBtn}"
+                                                ToolTip="Historique des mouvements" Margin="4,0,0,0"
                                                 Command="{Binding DataContext.ViewHistoryCommand,
                                                     RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"/>
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="History"
+                                                Width="18" Height="18"
+                                                Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        </Button>
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
+
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>
         </DockPanel>
 
         <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- OVERLAY : Formulaire mouvement                             -->
+        <!-- OVERLAY: Movement Form                                     -->
         <!-- ══════════════════════════════════════════════════════════ -->
         <Grid Visibility="{Binding IsMovementFormVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border Background="#80000000"/>
-            <Border Background="White" CornerRadius="16" Padding="28"
+            <!-- Backdrop -->
+            <Border Background="#80000000">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CancelMovementCommand}"/>
+                </Border.InputBindings>
+            </Border>
+
+            <!-- Modal Card -->
+            <Border Background="{StaticResource CardBrush}" CornerRadius="16"
                     VerticalAlignment="Center" HorizontalAlignment="Center"
-                    Width="500" MaxHeight="600">
+                    Width="520" MaxHeight="660" ClipToBounds="True">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="30" Opacity="0.2" ShadowDepth="5"/>
+                    <DropShadowEffect BlurRadius="40" Opacity="0.25" ShadowDepth="8" Color="#0D2B3E"/>
                 </Border.Effect>
-                <StackPanel>
-                    <!-- Titre -->
-                    <Grid Margin="0,0,0,20">
-                        <TextBlock Text="{Binding MovementFormTitle}" FontFamily="{StaticResource AppFont}"
-                                   FontSize="18" FontWeight="Bold"/>
-                        <Button HorizontalAlignment="Right" Content="✕" FontSize="16"
-                                Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                Command="{Binding CancelMovementCommand}"/>
-                    </Grid>
 
-                    <!-- POS actif -->
-                    <Border Background="#EEF2FF" CornerRadius="8" Padding="12,8" Margin="0,0,0,16">
-                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                   Foreground="#3730A3">
-                            <Run Text="🏪 POS : "/>
-                            <Run Text="{Binding SelectedPos.Code, Mode=OneWay}" FontWeight="Bold"/>
-                            <Run Text=" — "/>
-                            <Run Text="{Binding SelectedPos.Name, Mode=OneWay}"/>
-                        </TextBlock>
-                    </Border>
-
-                    <!-- Recherche produit -->
-                    <!-- Recherche produit -->
-                    <StackPanel Margin="0,0,0,12">
-                        <TextBlock Text="Produit *" FontFamily="{StaticResource AppFont}" FontSize="12"
-               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                        <Grid>
-                            <TextBox x:Name="MvtProductSearch"
-                 Text="{Binding ProductSearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}"
-                 FontFamily="{StaticResource AppFont}" FontSize="13" Padding="10,8"/>
-                            <Popup IsOpen="{Binding IsProductSearchOpen, Mode=TwoWay}" StaysOpen="False"
-               PlacementTarget="{Binding ElementName=MvtProductSearch}"
-               Placement="Bottom" Width="{Binding ActualWidth, ElementName=MvtProductSearch}">
-                                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1"
-                    CornerRadius="0,0,8,8" MaxHeight="200">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" Opacity="0.12" ShadowDepth="4"/>
-                                    </Border.Effect>
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding ProductSearchResults}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <!-- ✅ FIXED: Added Command binding + hover template -->
-                                                    <Button HorizontalContentAlignment="Stretch"
-                                        Cursor="Hand" Padding="12,8"
-                                        Command="{Binding DataContext.SelectProductForMovementCommand,
-                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button">
-                                                                <Setter Property="Background" Value="Transparent"/>
-                                                                <Setter Property="BorderThickness" Value="0"/>
-                                                                <Setter Property="Template">
-                                                                    <Setter.Value>
-                                                                        <ControlTemplate TargetType="Button">
-                                                                            <Border x:Name="Bg" 
-                                                                Background="{TemplateBinding Background}"
-                                                                Padding="{TemplateBinding Padding}">
-                                                                                <ContentPresenter 
-                                                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
-                                                                            </Border>
-                                                                            <ControlTemplate.Triggers>
-                                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                                    <Setter TargetName="Bg" 
-                                                                        Property="Background" Value="#F3F4F6"/>
-                                                                                </Trigger>
-                                                                            </ControlTemplate.Triggers>
-                                                                        </ControlTemplate>
-                                                                    </Setter.Value>
-                                                                </Setter>
-                                                            </Style>
-                                                        </Button.Style>
-                                                        <StackPanel>
-                                                            <TextBlock Text="{Binding DisplayText}"
-                                                   FontFamily="{StaticResource AppFont}" FontSize="13"/>
-                                                            <TextBlock FontFamily="Consolas" FontSize="10"
-                                                   Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Stock: "/>
-                                            <Run Text="{Binding StockQuantity, StringFormat=G, Mode=OneWay}"/>
-                                            <Run Text=" "/>
-                                            <Run Text="{Binding Unit, Mode=OneWay}"/>
-                                                            </TextBlock>
-                                                        </StackPanel>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </StackPanel>
-
-                    <!-- Produit sélectionné -->
-                    <Border Background="#F3F4F6" CornerRadius="8" Padding="12,8" Margin="0,0,0,14"
-                            Visibility="{Binding MovementProduct, Converter={StaticResource NullToCollapsedConverter}}">
+                <DockPanel>
+                    <!-- Modal Header -->
+                    <Border DockPanel.Dock="Top" Padding="28,22">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#37B1E4" Offset="0"/>
+                                <GradientStop Color="#1A8CBF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
                         <Grid>
                             <StackPanel>
-                                <TextBlock Text="{Binding MovementProduct.ProductName}"
-                                           FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="SemiBold"/>
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Stock actuel: "/>
-                                    <Run Text="{Binding MovementProduct.Quantity, StringFormat=G, Mode=OneWay}" FontWeight="Bold"/>
-                                    <Run Text=" "/>
-                                    <Run Text="{Binding MovementProduct.Unit, Mode=OneWay}"/>
+                                <TextBlock Text="{Binding MovementFormTitle}"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="18" FontWeight="Bold" Foreground="White"/>
+                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                           FontSize="12" Foreground="#B3E0F5" Margin="0,4,0,0">
+                                    <Run Text="POS : "/>
+                                    <Run Text="{Binding SelectedPos.Code, Mode=OneWay}" FontWeight="Bold"/>
+                                    <Run Text=" — "/>
+                                    <Run Text="{Binding SelectedPos.Name, Mode=OneWay}"/>
                                 </TextBlock>
                             </StackPanel>
+                            <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Style="{StaticResource ModalCloseBtn}"
+                                    Command="{Binding CancelMovementCommand}">
+                                <materialDesign:PackIcon Kind="Close" Width="18" Height="18"
+                                                         Foreground="White"/>
+                            </Button>
                         </Grid>
                     </Border>
 
-                    <!-- Quantité -->
-                    <StackPanel Margin="0,0,0,12">
-                        <TextBlock Text="{Binding MovementQuantityLabel}" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding MovementQuantity, UpdateSourceTrigger=PropertyChanged}"
-                                 FontFamily="{StaticResource AppFont}" FontSize="18" FontWeight="Bold"
-                                 Padding="12,10" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2"/>
-                    </StackPanel>
+                    <!-- Modal Body -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  PanningMode="VerticalOnly">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="ScrollBar" BasedOn="{StaticResource TouchScrollBar}"/>
+                        </ScrollViewer.Resources>
 
-                    <!-- Référence -->
-                    <StackPanel Margin="0,0,0,12">
-                        <TextBlock Text="Référence (bon de livraison, commande...)"
-                                   FontFamily="{StaticResource AppFont}" FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding MovementReference}" FontFamily="{StaticResource AppFont}" Padding="8,6"/>
-                    </StackPanel>
+                        <StackPanel Margin="28,24,28,28">
 
-                    <!-- Notes -->
-                    <StackPanel Margin="0,0,0,16">
-                        <TextBlock Text="Notes" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding MovementNotes}" FontFamily="{StaticResource AppFont}"
-                                 TextWrapping="Wrap" AcceptsReturn="True" MinHeight="50" Padding="8,6"/>
-                    </StackPanel>
+                            <!-- Product search -->
+                            <StackPanel Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <materialDesign:PackIcon Kind="PackageVariantClosed"
+                                        Width="14" Height="14"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Produit *" FontFamily="{StaticResource AppFont}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <Grid>
+                                    <TextBox x:Name="MvtProductSearch"
+                                             Text="{Binding ProductSearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                                             Style="{StaticResource FormField}"/>
+                                    <Popup IsOpen="{Binding IsProductSearchOpen, Mode=TwoWay}"
+                                           StaysOpen="False"
+                                           PlacementTarget="{Binding ElementName=MvtProductSearch}"
+                                           Placement="Bottom"
+                                           Width="{Binding ActualWidth, ElementName=MvtProductSearch}">
+                                        <Border Background="White" BorderBrush="#E5E7EB"
+                                                BorderThickness="1" CornerRadius="0,0,12,12"
+                                                MaxHeight="220">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="16" Opacity="0.12" ShadowDepth="4"/>
+                                            </Border.Effect>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                          PanningMode="VerticalOnly">
+                                                <ItemsControl ItemsSource="{Binding ProductSearchResults}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button HorizontalContentAlignment="Stretch"
+                                                                    Cursor="Hand" MinHeight="48"
+                                                                    Command="{Binding DataContext.SelectProductForMovementCommand,
+                                                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button">
+                                                                        <Setter Property="Background" Value="Transparent"/>
+                                                                        <Setter Property="BorderThickness" Value="0"/>
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="Button">
+                                                                                    <Border x:Name="Bg"
+                                                                                            Background="{TemplateBinding Background}"
+                                                                                            Padding="14,10">
+                                                                                        <ContentPresenter
+                                                                                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                                                                                    </Border>
+                                                                                    <ControlTemplate.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter TargetName="Bg"
+                                                                                                    Property="Background" Value="#F1F5F9"/>
+                                                                                        </Trigger>
+                                                                                    </ControlTemplate.Triggers>
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding DisplayText}"
+                                                                               FontFamily="{StaticResource AppFont}"
+                                                                               FontSize="13" FontWeight="Medium"/>
+                                                                    <TextBlock FontFamily="Consolas" FontSize="10"
+                                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                                               Margin="0,2,0,0">
+                                                                        <Run Text="Stock: "/>
+                                                                        <Run Text="{Binding StockQuantity, StringFormat=G, Mode=OneWay}"/>
+                                                                        <Run Text=" "/>
+                                                                        <Run Text="{Binding Unit, Mode=OneWay}"/>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
 
-                    <!-- Opérateur -->
-                    <StackPanel Margin="0,0,0,20">
-                        <TextBlock Text="Opérateur" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding MovementOperator}" FontFamily="{StaticResource AppFont}" Padding="8,6"/>
-                    </StackPanel>
+                            <!-- Selected product info -->
+                            <Border CornerRadius="10" Padding="14,12" Margin="0,0,0,18"
+                                    Visibility="{Binding MovementProduct, Converter={StaticResource NullToCollapsedConverter}}"
+                                    BorderThickness="1">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.04"/>
+                                </Border.Background>
+                                <Border.BorderBrush>
+                                    <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.15"/>
+                                </Border.BorderBrush>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding MovementProduct.ProductName}"
+                                               FontFamily="{StaticResource AppFont}"
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,4,0,0">
+                                        <Run Text="Stock actuel: "/>
+                                        <Run Text="{Binding MovementProduct.Quantity, StringFormat=G, Mode=OneWay}"
+                                             FontWeight="Bold"/>
+                                        <Run Text=" "/>
+                                        <Run Text="{Binding MovementProduct.Unit, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Boutons -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Content="Annuler" Command="{Binding CancelMovementCommand}"
-                                FontFamily="{StaticResource AppFont}" FontSize="13"
-                                Padding="12,12" Margin="0,0,6,0" Cursor="Hand"
-                                Background="#F3F4F6" BorderThickness="0"/>
-                        <Button Grid.Column="1" Command="{Binding SubmitMovementCommand}"
-                                Padding="12,12" Margin="6,0,0,0" Cursor="Hand" BorderThickness="0">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bg" Background="{TemplateBinding Background}"
-                                                        CornerRadius="10" Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bg" Property="Opacity" Value="0.9"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock Text="✅ Valider le mouvement" FontFamily="{StaticResource AppFont}"
-                                       FontSize="13" FontWeight="Bold" Foreground="White"/>
-                        </Button>
-                    </Grid>
-                </StackPanel>
+                            <!-- Quantity -->
+                            <StackPanel Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <materialDesign:PackIcon Kind="Numeric" Width="14" Height="14"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding MovementQuantityLabel}"
+                                               FontFamily="{StaticResource AppFont}" FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding MovementQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource FormField}"
+                                         FontSize="20" FontWeight="Bold"/>
+                            </StackPanel>
+
+                            <!-- Reference -->
+                            <StackPanel Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <materialDesign:PackIcon Kind="FileDocumentOutline" Width="14" Height="14"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Référence (bon de livraison, commande...)"
+                                               FontFamily="{StaticResource AppFont}" FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding MovementReference}"
+                                         Style="{StaticResource FormField}"/>
+                            </StackPanel>
+
+                            <!-- Notes -->
+                            <StackPanel Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <materialDesign:PackIcon Kind="NoteTextOutline" Width="14" Height="14"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Notes" FontFamily="{StaticResource AppFont}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding MovementNotes}"
+                                         Style="{StaticResource FormField}"
+                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                         MinHeight="60" FontSize="13"/>
+                            </StackPanel>
+
+                            <!-- Operator -->
+                            <StackPanel Margin="0,0,0,24">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <materialDesign:PackIcon Kind="AccountOutline" Width="14" Height="14"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Opérateur" FontFamily="{StaticResource AppFont}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding MovementOperator}"
+                                         Style="{StaticResource FormField}"/>
+                            </StackPanel>
+
+                            <!-- Buttons -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Style="{StaticResource CancelBtn}"
+                                        Command="{Binding CancelMovementCommand}"
+                                        Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Close" Width="16" Height="16"
+                                            Foreground="{StaticResource TextMutedBrush}"
+                                            VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Annuler" VerticalAlignment="Center"
+                                                   FontFamily="{StaticResource AppFont}"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Style="{StaticResource SubmitBtn}"
+                                        Command="{Binding SubmitMovementCommand}"
+                                        Margin="8,0,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Check" Width="16" Height="16"
+                                            Foreground="White" VerticalAlignment="Center"
+                                            Margin="0,0,8,0"/>
+                                        <TextBlock Text="Valider le mouvement"
+                                                   VerticalAlignment="Center" Foreground="White"
+                                                   FontFamily="{StaticResource AppFont}"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
         </Grid>
 
         <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- OVERLAY : Détail stock multi-POS                           -->
+        <!-- OVERLAY: Multi-POS Stock Detail (slide-in panel)           -->
         <!-- ══════════════════════════════════════════════════════════ -->
         <Grid Visibility="{Binding ShowProductDetail, Converter={StaticResource BoolToVisibilityConverter}}">
             <Border Background="#80000000">
@@ -621,47 +1671,64 @@
                     <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDetailCommand}"/>
                 </Border.InputBindings>
             </Border>
-            <Border Background="White" HorizontalAlignment="Right" Width="420"
-                    CornerRadius="16,0,0,16">
+            <Border Background="{StaticResource CardBrush}" HorizontalAlignment="Right"
+                    Width="440" CornerRadius="16,0,0,16" ClipToBounds="True">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="30" Opacity="0.2" ShadowDepth="-5"/>
+                    <DropShadowEffect BlurRadius="40" Opacity="0.2" ShadowDepth="-5" Color="#0D2B3E"/>
                 </Border.Effect>
                 <DockPanel>
-                    <Border DockPanel.Dock="Top" Background="{StaticResource PrimaryBrush}"
-                            Padding="24,20" CornerRadius="16,0,0,0">
+                    <!-- Panel Header -->
+                    <Border DockPanel.Dock="Top" Padding="24,22" CornerRadius="16,0,0,0">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#37B1E4" Offset="0"/>
+                                <GradientStop Color="#1A8CBF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
                         <Grid>
                             <StackPanel>
-                                <TextBlock Text="Stock multi-POS" FontFamily="{StaticResource AppFont}"
-                                           FontSize="12" Foreground="#BFDBFE"/>
-                                <TextBlock Text="{Binding DetailProductName}" FontFamily="{StaticResource AppFont}"
-                                           FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                <TextBlock Text="Stock multi-POS"
+                                           FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="#B3E0F5"/>
+                                <TextBlock Text="{Binding DetailProductName}"
+                                           FontFamily="{StaticResource AppFont}" FontSize="18"
+                                           FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14"
-                                           Foreground="#93C5FD" Margin="0,4,0,0">
+                                           Foreground="#93C5FD" Margin="0,6,0,0">
                                     <Run Text="Total: "/>
-                                    <Run Text="{Binding DetailTotalStock, StringFormat=G, Mode=OneWay}" FontWeight="Bold"/>
+                                    <Run Text="{Binding DetailTotalStock, StringFormat=G, Mode=OneWay}"
+                                         FontWeight="Bold" Foreground="White"/>
                                 </TextBlock>
                             </StackPanel>
                             <Button HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Content="✕" FontSize="18" Foreground="White"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                    Command="{Binding CloseDetailCommand}"/>
+                                    Style="{StaticResource ModalCloseBtn}"
+                                    Command="{Binding CloseDetailCommand}">
+                                <materialDesign:PackIcon Kind="Close" Width="18" Height="18"
+                                                         Foreground="White"/>
+                            </Button>
                         </Grid>
                     </Border>
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
+                    <!-- Panel Body -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  PanningMode="VerticalOnly" Margin="20,16,20,20">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="ScrollBar" BasedOn="{StaticResource TouchScrollBar}"/>
+                        </ScrollViewer.Resources>
                         <ItemsControl ItemsSource="{Binding ProductPosStocks}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Margin="0,0,0,8" CornerRadius="10" Padding="16,12"
+                                    <Border Margin="0,0,0,10" CornerRadius="12" Padding="18,14"
                                             BorderThickness="2">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#FAFAFA"/>
+                                                <Setter Property="Background" Value="#F8FAFC"/>
                                                 <Setter Property="BorderBrush" Value="Transparent"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsCurrentPos}" Value="True">
                                                         <Setter Property="Background" Value="#EFF6FF"/>
-                                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="{StaticResource PrimaryBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -672,36 +1739,52 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <StackPanel VerticalAlignment="Center">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="🏪 " FontSize="12"/>
+                                                    <materialDesign:PackIcon Kind="StorefrontOutline"
+                                                        Width="14" Height="14" Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                                                     <TextBlock Text="{Binding PosCode}" FontFamily="Consolas"
-                                                               FontSize="12" FontWeight="Bold"/>
-                                                    <TextBlock Text=" — " Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                    <TextBlock Text="{Binding PosName}" FontFamily="{StaticResource AppFont}"
+                                                               FontSize="12" FontWeight="Bold"
+                                                               VerticalAlignment="Center"/>
+                                                    <TextBlock Text=" — "
+                                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <TextBlock Text="{Binding PosName}"
+                                                               FontFamily="{StaticResource AppFont}"
                                                                FontSize="12"/>
                                                 </StackPanel>
-                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0">
+                                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Margin="20,3,0,0">
                                                     <Run Text="Min: "/>
                                                     <Run Text="{Binding MinStock, StringFormat=G, Mode=OneWay}"/>
                                                 </TextBlock>
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" FontFamily="{StaticResource AppFont}"
-                                                       FontSize="18" FontWeight="Bold" VerticalAlignment="Center"
-                                                       Margin="0,0,12,0">
+                                            <TextBlock Grid.Column="1"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="20" FontWeight="Bold"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,14,0"
+                                                       Foreground="{StaticResource TextPrimaryBrush}">
                                                 <Run Text="{Binding Quantity, StringFormat=G, Mode=OneWay}"/>
                                             </TextBlock>
-                                            <Border Grid.Column="2" CornerRadius="6" Padding="8,3"
-                                                    VerticalAlignment="Center">
+                                            <Border Grid.Column="2" CornerRadius="8"
+                                                    Padding="10,5" VerticalAlignment="Center">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="#ECFDF5"/>
+                                                        <Setter Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="#10B981" Opacity="0.08"/>
+                                                            </Setter.Value>
+                                                        </Setter>
                                                     </Style>
                                                 </Border.Style>
                                                 <TextBlock Text="{Binding StatusText}"
-                                                           FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                           FontWeight="SemiBold"/>
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="10" FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center"/>
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -714,7 +1797,7 @@
         </Grid>
 
         <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- OVERLAY : Historique mouvements                            -->
+        <!-- OVERLAY: History (slide-in panel)                          -->
         <!-- ══════════════════════════════════════════════════════════ -->
         <Grid Visibility="{Binding ShowHistory, Converter={StaticResource BoolToVisibilityConverter}}">
             <Border Background="#80000000">
@@ -722,65 +1805,91 @@
                     <MouseBinding MouseAction="LeftClick" Command="{Binding CloseHistoryCommand}"/>
                 </Border.InputBindings>
             </Border>
-            <Border Background="White" HorizontalAlignment="Right" Width="560"
-                    CornerRadius="16,0,0,16">
+            <Border Background="{StaticResource CardBrush}" HorizontalAlignment="Right"
+                    Width="580" CornerRadius="16,0,0,16" ClipToBounds="True">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="30" Opacity="0.2" ShadowDepth="-5"/>
+                    <DropShadowEffect BlurRadius="40" Opacity="0.2" ShadowDepth="-5" Color="#0D2B3E"/>
                 </Border.Effect>
                 <DockPanel>
-                    <Border DockPanel.Dock="Top" Background="#1E293B"
-                            Padding="24,20" CornerRadius="16,0,0,0">
+                    <!-- Panel Header -->
+                    <Border DockPanel.Dock="Top" Padding="24,22" CornerRadius="16,0,0,0">
+                        <Border.Background>
+                            <SolidColorBrush Color="#1E293B"/>
+                        </Border.Background>
                         <Grid>
                             <StackPanel>
-                                <TextBlock Text="📜 Historique des mouvements" FontFamily="{StaticResource AppFont}"
-                                           FontSize="12" Foreground="#94A3B8"/>
-                                <TextBlock Text="{Binding HistoryTitle}" FontFamily="{StaticResource AppFont}"
-                                           FontSize="15" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="History" Width="16" Height="16"
+                                        Foreground="#94A3B8" VerticalAlignment="Center"
+                                        Margin="0,0,8,0"/>
+                                    <TextBlock Text="Historique des mouvements"
+                                               FontFamily="{StaticResource AppFont}" FontSize="12"
+                                               Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding HistoryTitle}"
+                                           FontFamily="{StaticResource AppFont}" FontSize="16"
+                                           FontWeight="Bold" Foreground="White" Margin="0,6,0,0"/>
                             </StackPanel>
                             <Button HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Content="✕" FontSize="18" Foreground="White"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                    Command="{Binding CloseHistoryCommand}"/>
+                                    Style="{StaticResource ModalCloseBtn}"
+                                    Command="{Binding CloseHistoryCommand}">
+                                <materialDesign:PackIcon Kind="Close" Width="18" Height="18"
+                                                         Foreground="White"/>
+                            </Button>
                         </Grid>
                     </Border>
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+                    <!-- Panel Body -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  PanningMode="VerticalOnly" Margin="16,12,16,16">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="ScrollBar" BasedOn="{StaticResource TouchScrollBar}"/>
+                        </ScrollViewer.Resources>
                         <ItemsControl ItemsSource="{Binding HistoryItems}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Margin="0,0,0,4" Padding="14,10" Background="#FAFAFA"
-                                            CornerRadius="8" BorderBrush="#F3F4F6" BorderThickness="0,0,0,1">
+                                    <Border Margin="0,0,0,6" Padding="16,12"
+                                            Background="#F8FAFC" CornerRadius="10"
+                                            BorderBrush="#F1F5F9" BorderThickness="0,0,0,1">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="120"/>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="85"/>
                                                 <ColumnDefinition Width="90"/>
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Type -->
-                                            <TextBlock Text="{Binding TypeDisplay}" FontFamily="{StaticResource AppFont}"
-                                                       FontSize="11" VerticalAlignment="Center" FontWeight="Medium"/>
+                                            <TextBlock Text="{Binding TypeDisplay}"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" VerticalAlignment="Center"
+                                                       FontWeight="SemiBold"/>
 
-                                            <!-- Détails -->
+                                            <!-- Details -->
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Reference}" FontFamily="Consolas"
-                                                           FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                <TextBlock Text="{Binding Notes}" FontFamily="{StaticResource AppFont}"
-                                                           FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
-                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Reference}"
+                                                           FontFamily="Consolas" FontSize="10"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBlock Text="{Binding Notes}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,2,0,0"/>
                                             </StackPanel>
 
-                                            <!-- Quantité delta -->
+                                            <!-- Quantity delta -->
                                             <TextBlock Grid.Column="2" Text="{Binding QuantityDisplay}"
-                                                       FontFamily="{StaticResource AppFont}" FontSize="13"
-                                                       FontWeight="Bold" HorizontalAlignment="Right"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14" FontWeight="Bold"
+                                                       HorizontalAlignment="Right"
                                                        VerticalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Foreground" Value="#10B981"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Quantity, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                                            <DataTrigger Binding="{Binding Quantity, Converter={StaticResource IsNegativeConverter}}"
+                                                                         Value="True">
                                                                 <Setter Property="Foreground" Value="#EF4444"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -792,10 +1901,13 @@
                                             <StackPanel Grid.Column="3" VerticalAlignment="Center"
                                                         HorizontalAlignment="Right">
                                                 <TextBlock Text="{Binding CreatedAt, StringFormat=dd/MM/yy}"
-                                                           FontFamily="{StaticResource AppFont}" FontSize="10"/>
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="11" FontWeight="Medium"/>
                                                 <TextBlock Text="{Binding CreatedAt, StringFormat=HH:mm}"
-                                                           FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Margin="0,2,0,0"/>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -807,14 +1919,43 @@
             </Border>
         </Grid>
 
-        <!-- Spinner -->
-        <Border Background="#40000000"
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!-- LOADING SPINNER                                            -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <Border Background="#60000000"
                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="⏳" FontSize="36" HorizontalAlignment="Center"/>
-                <TextBlock Text="Chargement..." FontFamily="{StaticResource AppFont}"
-                           FontSize="14" Foreground="White" Margin="0,8,0,0"/>
-            </StackPanel>
+            <Border Background="{StaticResource CardBrush}" CornerRadius="16"
+                    Padding="32,28" HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="20" Opacity="0.15" ShadowDepth="4"/>
+                </Border.Effect>
+                <StackPanel HorizontalAlignment="Center">
+                    <materialDesign:PackIcon Kind="Loading" Width="36" Height="36"
+                                             Foreground="{StaticResource PrimaryBrush}"
+                                             HorizontalAlignment="Center"
+                                             RenderTransformOrigin="0.5,0.5">
+                        <materialDesign:PackIcon.RenderTransform>
+                            <RotateTransform x:Name="SpinnerRotate"/>
+                        </materialDesign:PackIcon.RenderTransform>
+                        <materialDesign:PackIcon.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="SpinnerRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0" To="360" Duration="0:0:1"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </materialDesign:PackIcon.Triggers>
+                    </materialDesign:PackIcon>
+                    <TextBlock Text="Chargement en cours..."
+                               FontFamily="{StaticResource AppFont}" FontSize="14"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,12,0,0"/>
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </UserControl>

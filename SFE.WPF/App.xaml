@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:SFE.WPF"
              xmlns:converters="clr-namespace:SFE.WPF.Converters"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              ShutdownMode="OnExplicitShutdown"
              Startup="Application_Startup">
     <Application.Resources>
@@ -12,6 +13,11 @@
                 <ResourceDictionary Source="Resources/Colors.xaml"/>
                 <ResourceDictionary Source="Resources/BaseStyles.xaml"/>
                 <ResourceDictionary Source="Resources/ToggleSwitchStyle.xaml"/>
+                <materialDesign:BundledTheme BaseTheme="Light"
+                                             PrimaryColor="LightBlue"
+                                             SecondaryColor="Red"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml"/>
+
             </ResourceDictionary.MergedDictionaries>
             <!-- Convertisseurs disponibles globalement -->
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>

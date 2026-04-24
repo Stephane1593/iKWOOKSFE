@@ -8,10 +8,12 @@ namespace SFE.Application.Services;
 public class ReportService
 {
     private readonly IUnitOfWork _uow;
+    private readonly IAuditService _audit;
 
-    public ReportService(IUnitOfWork uow)
+    public ReportService(IUnitOfWork uow, IAuditService audit)
     {
         _uow = uow;
+        _audit = audit;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -30,6 +32,9 @@ public class ReportService
         report.PrintContent = FormatZXReport(report);
 
         await SaveReportAsync(report);
+        await _audit.LogReportAsync(AuditAction.ReportXGenerated, "X",
+                report.Id, $"Quotidien · {report.TotalInvoiceCount} factures · " +
+                $"TTC net: {report.GrandTotalTTC:N2} CDF");
         return report;
     }
 
@@ -42,6 +47,9 @@ public class ReportService
         report.PrintContent = FormatZXReport(report);
 
         await SaveReportAsync(report);
+        await _audit.LogReportAsync(AuditAction.ReportXGenerated, "X-Périodique",
+                report.Id, $"Périodique du {periodStart:dd/MM/yyyy} au {periodEnd:dd/MM/yyyy} · " +
+                $"{report.TotalInvoiceCount} factures · TTC net: {report.GrandTotalTTC:N2} CDF");
         return report;
     }
 
@@ -56,6 +64,9 @@ public class ReportService
         report.PrintContent = FormatZXReport(report);
 
         await SaveReportAsync(report);
+        await _audit.LogReportAsync(AuditAction.ReportZGenerated, "Z",
+                report.Id, $"{report.TotalInvoiceCount} factures · " +
+                $"TTC net: {report.GrandTotalTTC:N2} CDF");
         return report;
     }
 
@@ -70,6 +81,9 @@ public class ReportService
         report.PrintContent = FormatAReport(report);
 
         await SaveReportAsync(report);
+        await _audit.LogReportAsync(AuditAction.ReportAGenerated, "A",
+                report.Id, $"{report.ArticleLines.Count} articles · " +
+                $"Montant net: {report.ArticleLines.Sum(a => a.TotalAmount):N2} CDF");
         return report;
     }
 
@@ -131,6 +145,12 @@ public class ReportService
         // 6. Format and save
         report.PrintContent = FormatZXReport(report);
         await SaveReportAsync(report);
+
+        await _audit.LogReportAsync(AuditAction.ReportZGenerated, "Z-Session",
+                report.Id, $"Session du {closeData.SessionOpenedAt:dd/MM/yyyy HH:mm} · " +
+                $"PDV #{closeData.PointOfSaleId} · {report.TotalInvoiceCount} factures · " +
+                $"TTC net: {report.GrandTotalTTC:N2} CDF · " +
+                $"Écart caisse: {report.VarianceTotalCDF:N0} CDF");
 
         return report;
     }

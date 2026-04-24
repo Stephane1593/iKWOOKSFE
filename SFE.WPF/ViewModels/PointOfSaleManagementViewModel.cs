@@ -24,6 +24,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         _unitOfWork = unitOfWork;
         _stockService = stockService;
         PageTitle = "Points de vente";
+
+        _ = LoadAsync();   // ← ADD THIS
     }
 
     // ══════════════════════════════════════════════
@@ -139,6 +141,13 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [RelayCommand]
     private async Task LoadAsync()
     {
+
+        if (CompanyId == 0)
+        {
+            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+            if (company != null) CompanyId = company.Id;
+        }
+
         if (!await EnsureCompanyLoadedAsync()) return;
 
         var posList = await _posService.GetAllAsync(CompanyId);
@@ -537,7 +546,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         PrintLine("correctement, votre");
         PrintLine("imprimante est configurée !");
         PrintLine("");
-        PrintLine("--- SFE GECOM ---");
+        PrintLine("--- iKWOOK SFE ---");
         PrintLine("");
 
         // ── Feed 5 lines + Partial cut ──

@@ -1,57 +1,395 @@
 ﻿<UserControl x:Class="SFE.WPF.Views.Pages.SettingsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:enums="clr-namespace:SFE.Domain.Enums;assembly=SFE.Domain"
              Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+
+        <!-- ── Gradient Brushes ── -->
+        <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1E3A5F" Offset="0"/>
+            <GradientStop Color="#2D5F8A" Offset="0.5"/>
+            <GradientStop Color="#1A4D7C" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#2563EB" Offset="0"/>
+            <GradientStop Color="#3B82F6" Offset="0.5"/>
+            <GradientStop Color="#1D4ED8" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#3B82F6" Offset="0"/>
+            <GradientStop Color="#8B5CF6" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SuccessGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#059669" Offset="0"/>
+            <GradientStop Color="#10B981" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GoldGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#D97706" Offset="0"/>
+            <GradientStop Color="#F59E0B" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="PurpleGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#7C3AED" Offset="0"/>
+            <GradientStop Color="#9333EA" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="RoseGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#DB2777" Offset="0"/>
+            <GradientStop Color="#EC4899" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GlassOverlay" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#20FFFFFF" Offset="0"/>
+            <GradientStop Color="#08FFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="CardGlow" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFFFFF" Offset="0"/>
+            <GradientStop Color="#FAFBFD" Offset="0.4"/>
+            <GradientStop Color="#F5F7FA" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SubtleShimmer" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#FFFFFF" Offset="0"/>
+            <GradientStop Color="#F8FAFC" Offset="0.5"/>
+            <GradientStop Color="#F1F5F9" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SeparatorGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="Transparent" Offset="0"/>
+            <GradientStop Color="#E2E8F0" Offset="0.2"/>
+            <GradientStop Color="#CBD5E1" Offset="0.5"/>
+            <GradientStop Color="#E2E8F0" Offset="0.8"/>
+            <GradientStop Color="Transparent" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- ── Premium Card ── -->
+        <Style x:Key="PremiumCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardGlow}"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="28"/>
+            <Setter Property="Margin" Value="0,0,0,20"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="20" ShadowDepth="4"
+                                      Direction="270" Opacity="0.06" Color="#1E3A5F"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Form TextBox ── -->
+        <Style x:Key="FormInput" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#3B82F6"/>
+                                <Setter TargetName="bd" Property="Background" Value="White"/>
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="0"
+                                                          Opacity="0.12" Color="#3B82F6"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Field label ── -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Margin" Value="2,0,0,8"/>
+        </Style>
+
+        <!-- ── Primary gradient button ── -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" CornerRadius="12" Padding="24,13"
+                                Background="{StaticResource PrimaryGradient}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" ShadowDepth="3"
+                                                  Direction="270" Opacity="0.2" Color="#2563EB"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="24" ShadowDepth="5"
+                                                          Direction="270" Opacity="0.3" Color="#2563EB"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Secondary / ghost button ── -->
+        <Style x:Key="BtnSecondary" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="#F1F5F9"
+                                CornerRadius="10" Padding="16,10"
+                                BorderBrush="#E2E8F0" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E2E8F0"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#CBD5E1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Accent button (orange/warm) ── -->
+        <Style x:Key="BtnAccentWarm" TargetType="Button">
+            <Setter Property="Foreground" Value="#C2410C"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" CornerRadius="10" Padding="16,10"
+                                BorderBrush="#FED7AA" BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#FFF7ED" Offset="0"/>
+                                    <GradientStop Color="#FFEDD5" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#FFEDD5" Offset="0"/>
+                                            <GradientStop Color="#FED7AA" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Small icon button ── -->
+        <Style x:Key="SmallIconBtn" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10" Padding="8,6"
+                                ToolTip="{TemplateBinding ToolTip}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#F1F5F9"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#CBD5E1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Inner section panel ── -->
+        <Style x:Key="InnerPanel" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#F8FAFC" Offset="0"/>
+                        <GradientStop Color="#F1F5F9" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28">
         <StackPanel MaxWidth="900">
 
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- TITRE                                                         -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <TextBlock Text="Paramètres" Style="{StaticResource PageTitleStyle}"/>
-            <TextBlock Text="Configurez votre entreprise, points de vente, facturation et préférences"
-                       Style="{StaticResource PageSubtitleStyle}"/>
-
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- SECTION 1 — ENTREPRISE                                        -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                        <Border Background="#EEF2FF" CornerRadius="8" Padding="8" Margin="0,0,12,0">
-                            <TextBlock Text="&#xE770;" FontFamily="{StaticResource IconFont}"
-                                       FontSize="18" Foreground="{StaticResource PrimaryBrush}"/>
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- PAGE HEADER (Gradient bar)                         -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border CornerRadius="18" Margin="0,0,0,24"
+                    Background="{StaticResource HeaderGradient}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="6"
+                                      Direction="270" Opacity="0.18" Color="#1E3A5F"/>
+                </Border.Effect>
+                <Border CornerRadius="18" Background="{StaticResource GlassOverlay}"
+                        Padding="28,26">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="52" Height="52" CornerRadius="14"
+                                Background="#18FFFFFF">
+                            <md:PackIcon Kind="CogOutline" Width="28" Height="28"
+                                         Foreground="White"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Paramètres"
+                                       FontFamily="{StaticResource AppFont}" FontSize="20"
+                                       FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="Configurez votre entreprise, points de vente, facturation et préférences"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="#94B8DB" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- SECTION 1 — ENTREPRISE                             -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border Style="{StaticResource PremiumCard}">
+                <StackPanel>
+                    <!-- Section header -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,22">
+                        <Border Width="44" Height="44" CornerRadius="12">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#EEF2FF" Offset="0"/>
+                                    <GradientStop Color="#DBEAFE" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <md:PackIcon Kind="Domain" Width="22" Height="22"
+                                         Foreground="#2563EB"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                             <TextBlock Text="Informations de l'entreprise"
-                                       Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                       FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Données qui apparaîtront sur vos factures et reçus"
                                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                       Foreground="#94A3B8" Margin="0,3,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
+                    <!-- Gradient separator -->
+                    <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" Margin="0,0,0,22"/>
+
                     <!-- 🆕 LOGO SECTION -->
-                    <Border Background="#F8FAFC" CornerRadius="10" Padding="20" Margin="0,0,0,20"
+                    <Border CornerRadius="14" Padding="22" Margin="0,0,0,22"
                             BorderBrush="#E2E8F0" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#F8FAFC" Offset="0"/>
+                                <GradientStop Color="#F1F5F9" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="18"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Logo preview -->
-                            <Border Width="80" Height="80" CornerRadius="10" ClipToBounds="True"
-                                    Background="#E2E8F0" BorderBrush="#CBD5E1" BorderThickness="1">
+                            <Border Width="84" Height="84" CornerRadius="14" ClipToBounds="True"
+                                    BorderBrush="#CBD5E1" BorderThickness="1">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#E2E8F0" Offset="0"/>
+                                        <GradientStop Color="#CBD5E1" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="2"
+                                                      Direction="270" Opacity="0.06" Color="#1E3A5F"/>
+                                </Border.Effect>
                                 <Grid>
-                                    <!-- Placeholder when no logo -->
-                                    <TextBlock Text="🏢" FontSize="32"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
+                                    <md:PackIcon Kind="OfficeBuilding" Width="36" Height="36"
+                                                 Foreground="#94A3B8"
+                                                 HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <md:PackIcon.Style>
+                                            <Style TargetType="md:PackIcon">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding HasLogo}" Value="True">
@@ -59,9 +397,8 @@
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <!-- Actual logo -->
+                                        </md:PackIcon.Style>
+                                    </md:PackIcon>
                                     <Image Source="{Binding CompanyLogoPreview}"
                                            Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
                                            Visibility="{Binding HasLogo, Converter={StaticResource BoolToVisibilityConverter}}"/>
@@ -72,25 +409,95 @@
                             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                 <TextBlock Text="LOGO DE L'ENTREPRISE"
                                            FontFamily="{StaticResource AppFont}" FontSize="10"
-                                           FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
-                                           Margin="0,0,0,6"/>
+                                           FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,6"/>
                                 <TextBlock Text="Apparaîtra sur les factures et les rapports. Format recommandé : PNG, 200×200 px."
                                            FontFamily="{StaticResource AppFont}" FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
-                                           Margin="0,0,0,10"/>
+                                           Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,14"/>
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="📁 Choisir une image"
-                                            Command="{Binding BrowseLogoCommand}"
-                                            Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                            FontFamily="{StaticResource AppFont}" FontSize="11"
-                                            FontWeight="SemiBold" Padding="12,6" BorderThickness="0"
-                                            Cursor="Hand" Margin="0,0,8,0"/>
-                                    <Button Content="✕ Supprimer"
-                                            Command="{Binding RemoveLogoCommand}"
-                                            Background="#FEE2E2" Foreground="#DC2626"
-                                            FontFamily="{StaticResource AppFont}" FontSize="11"
-                                            Padding="12,6" BorderThickness="0" Cursor="Hand"
-                                            Visibility="{Binding HasLogo, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    <Button Command="{Binding BrowseLogoCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="bd" CornerRadius="10" Padding="14,9"
+                                                                    Background="{StaticResource PrimaryGradient}">
+                                                                <Border.Effect>
+                                                                    <DropShadowEffect BlurRadius="10" ShadowDepth="2"
+                                                                                      Direction="270" Opacity="0.15" Color="#2563EB"/>
+                                                                </Border.Effect>
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="bd" Property="Effect">
+                                                                        <Setter.Value>
+                                                                            <DropShadowEffect BlurRadius="16" ShadowDepth="3"
+                                                                                              Direction="270" Opacity="0.25" Color="#2563EB"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="FolderImage" Width="16" Height="16"
+                                                         Foreground="White" VerticalAlignment="Center"
+                                                         Margin="0,0,6,0"/>
+                                            <TextBlock Text="Choisir une image" FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11" FontWeight="SemiBold" Foreground="White"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding RemoveLogoCommand}" Margin="8,0,0,0"
+                                            Visibility="{Binding HasLogo, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Cursor" Value="Hand"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="bd" CornerRadius="10" Padding="14,9"
+                                                                    BorderBrush="#FECACA" BorderThickness="1">
+                                                                <Border.Background>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                        <GradientStop Color="#FEF2F2" Offset="0"/>
+                                                                        <GradientStop Color="#FEE2E2" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Border.Background>
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="bd" Property="Background">
+                                                                        <Setter.Value>
+                                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                                <GradientStop Color="#FEE2E2" Offset="0"/>
+                                                                                <GradientStop Color="#FECACA" Offset="1"/>
+                                                                            </LinearGradientBrush>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="Close" Width="14" Height="14"
+                                                         Foreground="#DC2626" VerticalAlignment="Center"
+                                                         Margin="0,0,5,0"/>
+                                            <TextBlock Text="Supprimer" FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11" Foreground="#DC2626"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
@@ -98,619 +505,93 @@
 
                     <!-- Company fields -->
                     <UniformGrid Columns="2">
-                        <StackPanel Margin="0,0,12,16">
-                            <TextBlock Text="NOM DE L'ENTREPRISE" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="0,0,10,16">
+                            <TextBlock Text="NOM DE L'ENTREPRISE" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyName, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-                        <StackPanel Margin="12,0,0,16">
-                            <TextBlock Text="NIF (NUMÉRO D'IMPÔT FISCAL)" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="10,0,0,16">
+                            <TextBlock Text="NIF (NUMÉRO D'IMPÔT FISCAL)" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyNIF, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-
-                        <!-- 🆕 ISF field -->
-                        <StackPanel Margin="0,0,12,16">
-                            <TextBlock Text="ISF (IDENTIFIANT SYSTÈME DE FACTURATION)" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="0,0,10,16">
+                            <TextBlock Text="ISF (IDENTIFIANT SYSTÈME DE FACTURATION)" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyISF, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-                        <StackPanel Margin="12,0,0,16">
-                            <TextBlock Text="RCCM" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="10,0,0,16">
+                            <TextBlock Text="RCCM" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyRCCM, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-
-                        <StackPanel Margin="0,0,12,16">
-                            <TextBlock Text="VILLE" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="0,0,10,16">
+                            <TextBlock Text="VILLE" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyCity, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-                        <StackPanel Margin="12,0,0,16">
-                            <TextBlock Text="ADRESSE" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="10,0,0,16">
+                            <TextBlock Text="ADRESSE" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyAddress, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-
-                        <StackPanel Margin="0,0,12,16">
-                            <TextBlock Text="TÉLÉPHONE" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="0,0,10,16">
+                            <TextBlock Text="TÉLÉPHONE" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyPhone, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
-                        <StackPanel Margin="12,0,0,16">
-                            <TextBlock Text="EMAIL" Style="{StaticResource FormLabelStyle}"/>
+                        <StackPanel Margin="10,0,0,16">
+                            <TextBlock Text="EMAIL" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CompanyEmail, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                                     Style="{StaticResource FormInput}"/>
                         </StackPanel>
                     </UniformGrid>
                 </StackPanel>
             </Border>
 
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- SECTION 2 — POINTS DE VENTE & DISPOSITIFS FISCAUX             -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}">
-                <StackPanel DataContext="{Binding PosManagement}">
-
-                    <!-- Header -->
-                    <Grid Margin="0,0,0,20">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Orientation="Horizontal">
-                            <Border Background="#E0E7FF" CornerRadius="8" Padding="8" Margin="0,0,12,0">
-                                <TextBlock Text="&#xE7BF;" FontFamily="{StaticResource IconFont}"
-                               FontSize="18" Foreground="{StaticResource PrimaryBrush}"/>
-                            </Border>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Points de vente"
-                               Style="{StaticResource SectionTitleStyle}" Margin="0"/>
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                               Foreground="{StaticResource TextMutedBrush}">
-                        <Run Text="Chaque POS dispose de sa propre configuration fiscale et imprimante · "/>
-                        <Run Text="{Binding AllPos.Count, Mode=OneWay}"/>
-                        <Run Text=" point(s)"/>
-                                </TextBlock>
-                            </StackPanel>
-                        </StackPanel>
-
-                        <Button Grid.Column="1" VerticalAlignment="Center"
-                    Command="{Binding StartNewPosCommand}"
-                    Background="{StaticResource PrimaryBrush}" Foreground="White"
-                    FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold"
-                    Padding="14,8" BorderThickness="0" Cursor="Hand">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="＋" FontSize="14" Margin="0,0,6,0"/>
-                                <TextBlock Text="Ajouter un POS"/>
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-
-                    <!-- ── Bandeau succès ── -->
-                    <Border Margin="0,0,0,8" CornerRadius="6" Padding="10,6"
-                Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="✓" Foreground="{StaticResource SuccessBrush}"
-                           FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                           FontFamily="{StaticResource AppFont}" FontSize="12"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- ── Bandeau erreur ── -->
-                    <Border Margin="0,0,0,8" CornerRadius="6" Padding="10,6"
-                Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="✗" Foreground="#DC2626"
-                           FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding StatusMessage}" Foreground="#DC2626"
-                           FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- ── Liste des POS ── -->
-                    <ItemsControl ItemsSource="{Binding AllPos}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,0,8" CornerRadius="10" Padding="16,12"
-                            Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <!-- Status dot -->
-                                        <Border Width="8" Height="8" CornerRadius="4" Margin="0,0,12,0"
-                                    VerticalAlignment="Center">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="#10B981"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                            <Setter Property="Background" Value="#9CA3AF"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
-
-                                        <!-- Info -->
-                                        <StackPanel Grid.Column="1">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Code}" FontFamily="Consolas"
-                                               FontSize="13" FontWeight="Bold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                <TextBlock Text=" — " Foreground="{StaticResource TextMutedBrush}"/>
-                                                <TextBlock Text="{Binding Name}" FontFamily="{StaticResource AppFont}"
-                                               FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
-                                               Foreground="{StaticResource TextSecondaryBrush}">
-                                        <Run Text="{Binding City, Mode=OneWay}"/>
-                                                </TextBlock>
-
-                                                <!-- Badge device type -->
-                                                <Border CornerRadius="4" Padding="6,2" Margin="8,0,0,0"
-                                            VerticalAlignment="Center">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="#EEF2FF"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding DeviceType}"
-                                                                 Value="{x:Static enums:DeviceType.Mcf}">
-                                                                    <Setter Property="Background" Value="#FDF4FF"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                   FontWeight="SemiBold">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="📡 e-MCF"/>
-                                                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding DeviceType}"
-                                                                     Value="{x:Static enums:DeviceType.Mcf}">
-                                                                        <Setter Property="Text" Value="🔌 MCF"/>
-                                                                        <Setter Property="Foreground" Value="#9333EA"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Border>
-
-                                                <!-- Badge stock -->
-                                                <Border CornerRadius="4" Padding="6,2" Margin="4,0,0,0"
-                                            VerticalAlignment="Center">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="#ECFDF5"/>
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding ManagesStock}" Value="False">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <TextBlock Text="📦 Stock" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="10" Foreground="#059669"/>
-                                                </Border>
-
-                                                <!-- 🖨 Badge imprimante -->
-                                                <Border CornerRadius="4" Padding="6,2" Margin="4,0,0,0"
-                                            VerticalAlignment="Center">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="#FFF7ED"/>
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding ThermalPrinterName}" Value="">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
-                                                   Foreground="#C2410C">
-                                            <Run Text="🖨"/>
-                                            <Run Text="{Binding PaperWidthMm, Mode=OneWay, StringFormat='{}{0}mm'}"/>
-                                                    </TextBlock>
-                                                </Border>
-                                            </StackPanel>
-                                        </StackPanel>
-
-                                        <!-- Init stock -->
-                                        <Button Grid.Column="2" Content="📦 Init. stock"
-                                    FontFamily="{StaticResource AppFont}" FontSize="11"
-                                    Padding="10,6" Background="#ECFDF5" BorderThickness="0"
-                                    Cursor="Hand" Margin="0,0,6,0" VerticalAlignment="Center"
-                                    Command="{Binding DataContext.InitializeStockCommand,
-                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}">
-                                            <Button.Style>
-                                                <Style TargetType="Button">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding ManagesStock}" Value="False">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
-
-                                        <Button Grid.Column="3" Content="✏️" FontSize="14"
-                                    Background="Transparent" BorderThickness="0"
-                                    Cursor="Hand" Margin="0,0,4,0" VerticalAlignment="Center"
-                                    Command="{Binding DataContext.EditPosCommand,
-                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}"/>
-
-                                        <Button Grid.Column="4" Content="🗑" FontSize="14"
-                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding DataContext.DeactivatePosCommand,
-                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <!-- ══════════════════════════════════════════════════════════ -->
-                    <!-- FORMULAIRE ÉDITION POS                                     -->
-                    <!-- ══════════════════════════════════════════════════════════ -->
-                    <Border Background="#FFFBEB" CornerRadius="12" Padding="24" Margin="0,8,0,0"
-                BorderBrush="#FDE68A" BorderThickness="1"
-                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <StackPanel>
-                            <Grid Margin="0,0,0,16">
-                                <TextBlock Text="{Binding FormTitle}" FontFamily="{StaticResource AppFont}"
-                               FontSize="15" FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <Button Content="✕" HorizontalAlignment="Right" FontSize="14"
-                            Background="Transparent" BorderThickness="0" Cursor="Hand"
-                            Command="{Binding CancelEditCommand}"/>
-                            </Grid>
-
-                            <!-- ────────────────────────────────────────── -->
-                            <!-- BLOC 1 : INFORMATIONS GÉNÉRALES             -->
-                            <!-- ────────────────────────────────────────── -->
-                            <TextBlock Text="I N F O R M A T I O N S   G É N É R A L E S"
-                           FontFamily="{StaticResource AppFont}" FontSize="10"
-                           FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
-                           Margin="0,0,0,10"/>
-
-                            <UniformGrid Columns="3" Margin="0,0,0,12">
-                                <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Text="CODE *" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditCode}" FontFamily="Consolas"
-                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                </StackPanel>
-                                <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Text="NOM *" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditName}"
-                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Text="VILLE" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditCity}"
-                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                </StackPanel>
-                            </UniformGrid>
-
-                            <UniformGrid Columns="2" Margin="0,0,0,12">
-                                <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Text="ADRESSE" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditAddress}"
-                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Text="TÉLÉPHONE" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditPhone}"
-                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                </StackPanel>
-                            </UniformGrid>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                                <CheckBox Content="Gère du stock" IsChecked="{Binding EditManagesStock}"
-                              FontFamily="{StaticResource AppFont}" Margin="0,0,24,0"/>
-                                <CheckBox Content="Autoriser stock négatif" IsChecked="{Binding EditAllowNegativeStock}"
-                              FontFamily="{StaticResource AppFont}"/>
-                            </StackPanel>
-
-                            <Border Height="1" Background="#E5E7EB" Margin="0,0,0,20"/>
-
-                            <!-- ────────────────────────────────────────── -->
-                            <!-- BLOC 2 : DISPOSITIF FISCAL                  -->
-                            <!-- ────────────────────────────────────────── -->
-                            <TextBlock Text="D I S P O S I T I F   F I S C A L"
-                           FontFamily="{StaticResource AppFont}" FontSize="10"
-                           FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"
-                           Margin="0,0,0,12"/>
-
-                            <UniformGrid Columns="2" Margin="0,0,0,16">
-                                <RadioButton GroupName="PosDeviceType"
-                                 IsChecked="{Binding EditIsEmcf}"
-                                 Style="{StaticResource RadioCardStyle}" Margin="0,0,8,0">
-                                    <StackPanel>
-                                        <TextBlock Text="📡 e-MCF" FontFamily="{StaticResource AppFont}"
-                                       FontSize="14" FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="API REST (Internet)" FontFamily="{StaticResource AppFont}"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                       Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                </RadioButton>
-                                <RadioButton GroupName="PosDeviceType"
-                                 IsChecked="{Binding EditIsEmcf, Converter={StaticResource InverseBoolConverter}}"
-                                 Style="{StaticResource RadioCardStyle}" Margin="8,0,0,0">
-                                    <StackPanel>
-                                        <TextBlock Text="🔌 MCF" FontFamily="{StaticResource AppFont}"
-                                       FontSize="14" FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Port série (RS232/USB)" FontFamily="{StaticResource AppFont}"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                       Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                </RadioButton>
-                            </UniformGrid>
-
-                            <!-- Champs e-MCF -->
-                            <Border Background="White" CornerRadius="8" Padding="16"
-                        BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4"
-                        Visibility="{Binding EditIsEmcf, Converter={StaticResource BoolToVisibilityConverter}}">
-                                <StackPanel>
-                                    <TextBlock Text="URL DE L'API e-MCF" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditEmcfUrl, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,12"/>
-                                    <UniformGrid Columns="2">
-                                        <StackPanel Margin="0,0,8,0">
-                                            <TextBlock Text="TOKEN JWT" Style="{StaticResource FormLabelStyle}"/>
-                                            <TextBox Text="{Binding EditEmcfToken, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Margin="8,0,0,0">
-                                            <TextBlock Text="NIM" Style="{StaticResource FormLabelStyle}"/>
-                                            <TextBox Text="{Binding EditEmcfNim, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
-                                        </StackPanel>
-                                    </UniformGrid>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Note MCF -->
-                            <Border Background="White" CornerRadius="8" Padding="16"
-                        BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding EditIsEmcf}" Value="False">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock TextWrapping="Wrap" FontFamily="{StaticResource AppFont}"
-                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
-                        <Run Text="Le port COM et le baud rate se configurent dans la section "/>
-                        <Run Text="« Test de connexion »" FontWeight="SemiBold"/>
-                        <Run Text=" ci-dessous. Enregistrez d'abord ce POS, puis testez la connexion."/>
-                                </TextBlock>
-                            </Border>
-
-                            <Border Height="1" Background="#E5E7EB" Margin="0,20,0,20"/>
-
-                            <!-- ────────────────────────────────────────── -->
-                            <!-- BLOC 3 : 🖨 IMPRIMANTE THERMIQUE           -->
-                            <!-- ────────────────────────────────────────── -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                                <Border Background="#FFF7ED" CornerRadius="6" Padding="6" Margin="0,0,10,0">
-                                    <TextBlock Text="🖨" FontSize="16"/>
-                                </Border>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Imprimante thermique"
-                                   FontFamily="{StaticResource AppFont}" FontSize="13"
-                                   FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Configuration de l'impression des reçus pour ce POS"
-                                   FontFamily="{StaticResource AppFont}" FontSize="11"
-                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <Border Background="White" CornerRadius="10" Padding="20"
-                        BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,4">
-                                <StackPanel>
-
-                                    <!-- Imprimante + boutons détection -->
-                                    <TextBlock Text="NOM DE L'IMPRIMANTE WINDOWS"
-                                   Style="{StaticResource FormLabelStyle}"/>
-                                    <Grid Margin="0,0,0,4">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <ComboBox IsEditable="True"
-                                      Text="{Binding EditPrinterName, UpdateSourceTrigger=PropertyChanged}"
-                                      ItemsSource="{Binding DetectedPrinters}"
-                                      Style="{StaticResource ModernComboBoxStyle}"/>
-                                        <Button Grid.Column="1" Content="🔍 Détecter"
-                                    Command="{Binding AutoDetectPrinterCommand}"
-                                    FontFamily="{StaticResource AppFont}" FontSize="11"
-                                    Background="#EEF2FF" Foreground="{StaticResource PrimaryBrush}"
-                                    Padding="10,6" BorderThickness="0" Cursor="Hand"
-                                    Margin="8,0,0,0" VerticalAlignment="Stretch"/>
-                                        <Button Grid.Column="2" Content="🔄"
-                                    ToolTip="Rafraîchir la liste des imprimantes"
-                                    Command="{Binding RefreshPrinterListCommand}"
-                                    FontSize="13" Background="Transparent"
-                                    BorderThickness="1" BorderBrush="{StaticResource BorderBrush}"
-                                    Padding="8,4" Cursor="Hand" Margin="4,0,0,0"
-                                    VerticalAlignment="Stretch"/>
-                                    </Grid>
-                                    <TextBlock Text="Laissez vide pour auto-détection au démarrage. Ex: EPSON TM-T88V, POS-80C"
-                                   FontFamily="{StaticResource AppFont}" FontSize="10"
-                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,16"/>
-
-                                    <!-- Largeur / Copies / Code page -->
-                                    <UniformGrid Columns="3" Margin="0,0,0,14">
-                                        <StackPanel Margin="0,0,8,0">
-                                            <TextBlock Text="LARGEUR PAPIER" Style="{StaticResource FormLabelStyle}"/>
-                                            <ComboBox ItemsSource="{Binding PaperWidths}"
-                                          SelectedItem="{Binding EditPaperWidth}"
-                                          Style="{StaticResource ModernComboBoxStyle}">
-                                                <ComboBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock FontFamily="{StaticResource AppFont}">
-                                                <Run Text="{Binding Mode=OneWay}"/>
-                                                <Run Text=" mm"/>
-                                                        </TextBlock>
-                                                    </DataTemplate>
-                                                </ComboBox.ItemTemplate>
-                                            </ComboBox>
-                                        </StackPanel>
-                                        <StackPanel Margin="0,0,8,0">
-                                            <TextBlock Text="COPIES AUTO" Style="{StaticResource FormLabelStyle}"/>
-                                            <ComboBox ItemsSource="{Binding PrintCopiesOptions}"
-                                          SelectedItem="{Binding EditPrintCopies}"
-                                          Style="{StaticResource ModernComboBoxStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <TextBlock Text="PAGE DE CODE" Style="{StaticResource FormLabelStyle}"/>
-                                            <ComboBox ItemsSource="{Binding CodePages}"
-                                          SelectedItem="{Binding EditCodePage}"
-                                          Style="{StaticResource ModernComboBoxStyle}"/>
-                                        </StackPanel>
-                                    </UniformGrid>
-
-                                    <!-- Options (checkboxes) -->
-                                    <Border Background="#F8FAFC" CornerRadius="8" Padding="16" Margin="0,0,0,14">
-                                        <UniformGrid Columns="2" Rows="2">
-                                            <CheckBox Content="Impression auto après normalisation"
-                                          IsChecked="{Binding EditAutoPrint}"
-                                          FontFamily="{StaticResource AppFont}" FontSize="12"
-                                          Margin="0,0,0,10"/>
-                                            <CheckBox Content="Imprimer le logo entreprise"
-                                          IsChecked="{Binding EditPrintLogo}"
-                                          FontFamily="{StaticResource AppFont}" FontSize="12"
-                                          Margin="0,0,0,10"/>
-                                            <CheckBox Content="Affichage client (écran secondaire)"
-                                          IsChecked="{Binding EditEnableCustomerDisplay}"
-                                          FontFamily="{StaticResource AppFont}" FontSize="12"/>
-                                            <StackPanel Orientation="Horizontal">
-                                                <CheckBox Content="Tiroir-caisse"
-                                              IsChecked="{Binding EditEnableCashDrawer}"
-                                              FontFamily="{StaticResource AppFont}" FontSize="12"
-                                              Margin="0,0,12,0"/>
-                                                <StackPanel Orientation="Horizontal"
-                                                Visibility="{Binding EditEnableCashDrawer,
-                                                    Converter={StaticResource BoolToVisibilityConverter}}">
-                                                    <TextBlock Text="Pin:" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                                   VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                    <ComboBox ItemsSource="{Binding CashDrawerPins}"
-                                                  SelectedItem="{Binding EditCashDrawerPin}"
-                                                  Width="55" Padding="4,2"
-                                                  FontFamily="{StaticResource AppFont}" FontSize="11"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </UniformGrid>
-                                    </Border>
-
-                                    <!-- Pied de ticket -->
-                                    <TextBlock Text="TEXTE PIED DE TICKET" Style="{StaticResource FormLabelStyle}"/>
-                                    <TextBox Text="{Binding EditFooterText, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource ModernTextBoxStyle}"
-                                 MaxLength="500" Margin="0,0,0,14"/>
-
-                                    <!-- Bouton test impression -->
-                                    <Button Command="{Binding TestPrintCommand}"
-                                HorizontalAlignment="Left"
-                                Background="#FFF7ED" Foreground="#C2410C"
-                                FontFamily="{StaticResource AppFont}" FontSize="12"
-                                Padding="14,8" BorderThickness="1" BorderBrush="#FED7AA"
-                                Cursor="Hand">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🖨" FontSize="14" Margin="0,0,8,0"/>
-                                            <TextBlock Text="Imprimer un ticket test"/>
-                                        </StackPanel>
-                                    </Button>
-
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Boutons formulaire -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                                <Button Content="Annuler" Command="{Binding CancelEditCommand}"
-                            FontFamily="{StaticResource AppFont}" Padding="16,8" Margin="0,0,8,0"
-                            Background="#F3F4F6" BorderThickness="0" Cursor="Hand"/>
-                                <Button Content="💾 Enregistrer" Command="{Binding SavePosCommand}"
-                            Background="{StaticResource PrimaryBrush}" Foreground="White"
-                            FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
-                            Padding="16,8" BorderThickness="0" Cursor="Hand"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Message vide -->
-                    <Border Margin="0,4,0,0" Padding="20" CornerRadius="8" Background="#F9FAFB">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding AllPos.Count}" Value="0">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="Aucun point de vente configuré. Cliquez « Ajouter un POS » pour commencer."
-                       FontFamily="{StaticResource AppFont}" FontSize="13"
-                       Foreground="{StaticResource TextMutedBrush}"
-                       HorizontalAlignment="Center" FontStyle="Italic"/>
-                    </Border>
-
-                </StackPanel>
-            </Border>
-
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- SECTION 3 — TEST DE CONNEXION AU DISPOSITIF FISCAL            -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}">
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- SECTION 3 — TEST DE CONNEXION DISPOSITIF FISCAL    -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border Style="{StaticResource PremiumCard}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <Border Background="#FDF2F8" CornerRadius="8" Padding="8" Margin="0,0,12,0">
-                            <TextBlock Text="&#xE945;" FontFamily="{StaticResource IconFont}"
-                                       FontSize="18" Foreground="{StaticResource AccentBrush}"/>
+                    <!-- Section header -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="44" Height="44" CornerRadius="12">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#FDF2F8" Offset="0"/>
+                                    <GradientStop Color="#FCE7F3" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <md:PackIcon Kind="AccessPointNetwork" Width="22" Height="22"
+                                         Foreground="#DB2777"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                             <TextBlock Text="Test de connexion au dispositif fiscal"
-                                       Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                       FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Vérifiez que votre dispositif e-MCF ou MCF répond correctement"
                                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                       Foreground="#94A3B8" Margin="0,3,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Background="#EFF6FF" CornerRadius="8" Padding="14" Margin="0,12,0,20"
+                    <!-- Gradient separator -->
+                    <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" Margin="0,10,0,20"/>
+
+                    <!-- Info banner -->
+                    <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,22"
                             BorderBrush="#BFDBFE" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#EFF6FF" Offset="0"/>
+                                <GradientStop Color="#DBEAFE" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="ℹ️" FontSize="14" Margin="0,0,10,0" VerticalAlignment="Top"/>
+                            <md:PackIcon Kind="InformationOutline" Width="20" Height="20"
+                                         Foreground="#1E40AF" Margin="0,0,12,0" VerticalAlignment="Top"/>
                             <TextBlock TextWrapping="Wrap" FontFamily="{StaticResource AppFont}"
                                        FontSize="12" Foreground="#1E40AF">
                                 <Run Text="Cette section permet de tester la connexion avec votre dispositif fiscal. "/>
@@ -721,55 +602,74 @@
                         </StackPanel>
                     </Border>
 
-                    <UniformGrid Columns="2" Margin="0,0,0,20">
+                    <!-- Device type selector -->
+                    <UniformGrid Columns="2" Margin="0,0,0,22">
                         <RadioButton GroupName="DeviceType" IsChecked="{Binding IsEmcfSelected}"
                                      Style="{StaticResource RadioCardStyle}" Margin="0,0,8,0">
                             <StackPanel>
-                                <TextBlock Text="📡 e-MCF" FontFamily="{StaticResource AppFont}"
-                                           FontSize="16" FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <md:PackIcon Kind="AccessPoint" Width="20" Height="20"
+                                                 Foreground="#2563EB" Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"/>
+                                    <TextBlock Text="e-MCF" FontFamily="{StaticResource AppFont}"
+                                               FontSize="16" FontWeight="Bold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </StackPanel>
                                 <TextBlock Text="API REST distante (HTTPS)"
                                            FontFamily="{StaticResource AppFont}" FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                                           Foreground="#94A3B8" Margin="0,2,0,0"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton GroupName="DeviceType"
                                      IsChecked="{Binding IsEmcfSelected, Converter={StaticResource InverseBoolConverter}}"
                                      Style="{StaticResource RadioCardStyle}" Margin="8,0,0,0">
                             <StackPanel>
-                                <TextBlock Text="🔌 MCF" FontFamily="{StaticResource AppFont}"
-                                           FontSize="16" FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <md:PackIcon Kind="SerialPort" Width="20" Height="20"
+                                                 Foreground="#9333EA" Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"/>
+                                    <TextBlock Text="MCF" FontFamily="{StaticResource AppFont}"
+                                               FontSize="16" FontWeight="Bold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </StackPanel>
                                 <TextBlock Text="Appareil physique (RS232/USB)"
                                            FontFamily="{StaticResource AppFont}" FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                                           Foreground="#94A3B8" Margin="0,2,0,0"/>
                             </StackPanel>
                         </RadioButton>
                     </UniformGrid>
 
                     <!-- Config e-MCF -->
                     <StackPanel Visibility="{Binding IsEmcfSelected, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Border Background="#F8FAFC" CornerRadius="8" Padding="20"
-                                BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+                        <Border Style="{StaticResource InnerPanel}">
                             <StackPanel>
-                                <TextBlock Text="URL DE L'API" Style="{StaticResource FormLabelStyle}"/>
+                                <TextBlock Text="URL DE L'API" Style="{StaticResource FieldLabel}"/>
                                 <TextBox Text="{Binding EmcfApiUrl, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,12"/>
+                                         Style="{StaticResource FormInput}" Margin="0,0,0,14"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,8,0">
-                                        <TextBlock Text="TOKEN JWT" Style="{StaticResource FormLabelStyle}"/>
+                                        <TextBlock Text="TOKEN JWT" Style="{StaticResource FieldLabel}"/>
                                         <TextBox Text="{Binding EmcfToken, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource ModernTextBoxStyle}"/>
+                                                 Style="{StaticResource FormInput}"/>
                                     </StackPanel>
                                     <StackPanel Margin="8,0,0,0">
-                                        <TextBlock Text="NIM" Style="{StaticResource FormLabelStyle}"/>
+                                        <TextBlock Text="NIM" Style="{StaticResource FieldLabel}"/>
                                         <TextBox Text="{Binding EmcfNIM, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource ModernTextBoxStyle}"/>
+                                                 Style="{StaticResource FormInput}"/>
                                     </StackPanel>
                                 </UniformGrid>
-                                <Button Content="🔗 Tester la connexion e-MCF" Margin="0,16,0,0"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Command="{Binding TestConnectionCommand}" HorizontalAlignment="Left"/>
+                                <Button Margin="0,18,0,0" HorizontalAlignment="Left"
+                                        Command="{Binding TestConnectionCommand}"
+                                        Style="{StaticResource BtnSecondary}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <md:PackIcon Kind="LanConnect" Width="16" Height="16"
+                                                     Foreground="#2563EB" VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                                        <TextBlock Text="Tester la connexion e-MCF"
+                                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                   Foreground="#2563EB" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -786,12 +686,11 @@
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
-                        <Border Background="#F8FAFC" CornerRadius="8" Padding="20"
-                                BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+                        <Border Style="{StaticResource InnerPanel}">
                             <StackPanel>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,8,16">
-                                        <TextBlock Text="PORT COM" Style="{StaticResource FormLabelStyle}"/>
+                                        <TextBlock Text="PORT COM" Style="{StaticResource FieldLabel}"/>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -800,106 +699,173 @@
                                             <ComboBox ItemsSource="{Binding AvailableComPorts}"
                                                       SelectedItem="{Binding SelectedComPort}"
                                                       Style="{StaticResource ModernComboBoxStyle}"/>
-                                            <Button Grid.Column="1" Content="🔄" ToolTip="Rafraîchir les ports"
+                                            <Button Grid.Column="1" ToolTip="Rafraîchir les ports"
                                                     Command="{Binding RefreshComPortsCommand}"
-                                                    Background="Transparent" BorderThickness="1"
-                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                    FontSize="14" Padding="8,4" Margin="6,0,0,0"
-                                                    Cursor="Hand" VerticalAlignment="Stretch"/>
+                                                    Style="{StaticResource SmallIconBtn}"
+                                                    Margin="6,0,0,0" VerticalAlignment="Stretch">
+                                                <md:PackIcon Kind="Refresh" Width="16" Height="16"
+                                                             Foreground="#64748B"/>
+                                            </Button>
                                         </Grid>
                                     </StackPanel>
                                     <StackPanel Margin="8,0,0,16">
-                                        <TextBlock Text="BAUD RATE" Style="{StaticResource FormLabelStyle}"/>
+                                        <TextBlock Text="BAUD RATE" Style="{StaticResource FieldLabel}"/>
                                         <ComboBox ItemsSource="{Binding AvailableBaudRates}"
                                                   SelectedItem="{Binding BaudRate}"
                                                   Style="{StaticResource ModernComboBoxStyle}"/>
                                     </StackPanel>
                                 </UniformGrid>
                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
-                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12">
+                                           Foreground="#94A3B8" Margin="0,0,0,14">
                                     <Run Text="Format: 8N1 · "/>
                                     <Run Text="{Binding AvailableComPorts.Count, Mode=OneWay,
                                                StringFormat='{}{0} port(s) détecté(s)'}"/>
                                 </TextBlock>
-                                <Button Content="🔌 Tester la connexion MCF"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Command="{Binding TestConnectionCommand}" HorizontalAlignment="Left"/>
+                                <Button HorizontalAlignment="Left"
+                                        Command="{Binding TestConnectionCommand}"
+                                        Style="{StaticResource BtnSecondary}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <md:PackIcon Kind="SerialPort" Width="16" Height="16"
+                                                     Foreground="#9333EA" VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                                        <TextBlock Text="Tester la connexion MCF"
+                                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                   Foreground="#9333EA" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
-                    <!-- Indicateur test en cours -->
-                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0"
-                                Visibility="{Binding IsTestingConnection, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Border Background="#EEF2FF" CornerRadius="12" Padding="6,3" Margin="0,0,8,0">
-                            <TextBlock Text="⏳" FontSize="14"/>
-                        </Border>
-                        <TextBlock Text="Test de connexion en cours..."
-                                   FontFamily="{StaticResource AppFont}" FontSize="13"
-                                   Foreground="{StaticResource PrimaryBrush}" FontStyle="Italic"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
+                    <!-- Testing indicator -->
+                    <Border Margin="0,16,0,0" CornerRadius="12" Padding="16,14"
+                            Visibility="{Binding IsTestingConnection, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#EFF6FF" Offset="0"/>
+                                <GradientStop Color="#DBEAFE" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="TimerSand" Width="20" Height="20"
+                                         Foreground="#2563EB" Margin="0,0,12,0"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="Test de connexion en cours…"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="#2563EB" FontStyle="Italic"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
-                    <!-- Résultat du test -->
-                    <Border Margin="0,16,0,0" CornerRadius="10" Padding="20"
+                    <!-- Test result -->
+                    <Border Margin="0,16,0,0" CornerRadius="14" Padding="22"
                             Visibility="{Binding HasTestResult, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Border.Style>
                             <Style TargetType="Border">
-                                <Setter Property="Background" Value="#F7FAFC"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                <Setter Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#F8FAFC" Offset="0"/>
+                                            <GradientStop Color="#F1F5F9" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="BorderBrush" Value="#E2E8F0"/>
                                 <Setter Property="BorderThickness" Value="1"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding TestSuccess}" Value="True">
-                                        <Setter Property="Background" Value="#F0FFF4"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#ECFDF5" Offset="0"/>
+                                                    <GradientStop Color="#D1FAE5" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="BorderBrush" Value="#86EFAC"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding TestSuccess}" Value="False">
-                                        <Setter Property="Background" Value="#FFF5F5"/>
-                                        <Setter Property="BorderBrush" Value="#FC8181"/>
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#FEF2F2" Offset="0"/>
+                                                    <GradientStop Color="#FEE2E2" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="BorderBrush" Value="#FECACA"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
+
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <TextBlock FontSize="22" Margin="0,0,12,0" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="❌"/>
+                            <!-- Result title -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                <Border Width="44" Height="44" CornerRadius="12"
+                                        VerticalAlignment="Center" Margin="0,0,14,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#FEE2E2"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding TestSuccess}" Value="True">
-                                                    <Setter Property="Text" Value="✅"/>
+                                                    <Setter Property="Background" Value="#D1FAE5"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                    </Border.Style>
+                                    <Grid>
+                                        <md:PackIcon Kind="CheckCircle" Width="24" Height="24"
+                                                     Foreground="#059669"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Visibility="{Binding TestSuccess, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <md:PackIcon Kind="CloseCircle" Width="24" Height="24"
+                                                     Foreground="#DC2626"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <md:PackIcon.Style>
+                                                <Style TargetType="md:PackIcon">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding TestSuccess}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </md:PackIcon.Style>
+                                        </md:PackIcon>
+                                    </Grid>
+                                </Border>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Text" Value="Connexion échouée"/>
-                                                <Setter Property="Foreground" Value="#E53E3E"/>
+                                                <Setter Property="Foreground" Value="#DC2626"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding TestSuccess}" Value="True">
                                                         <Setter Property="Text" Value="Connexion réussie"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                        <Setter Property="Foreground" Value="#059669"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="{Binding TestStatus}" FontFamily="{StaticResource AppFont}"
-                                               FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                               FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </StackPanel>
 
                             <TextBlock Text="{Binding TestMessage}" TextWrapping="Wrap"
                                        FontFamily="{StaticResource AppFont}" FontSize="13"
-                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,18"/>
 
-                            <Border Background="White" CornerRadius="8" Padding="16"
-                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <!-- Details card -->
+                            <Border Background="White" CornerRadius="12" Padding="18"
+                                    BorderBrush="#E2E8F0" BorderThickness="1">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="2"
+                                                      Direction="270" Opacity="0.04" Color="#1E3A5F"/>
+                                </Border.Effect>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -908,45 +874,53 @@
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="10"/>
                                         <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="10"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Text="Temps de réponse" FontFamily="{StaticResource AppFont}"
-                                               FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#64748B"/>
                                     <TextBlock Grid.Column="2" Text="{Binding TestResponseTime}"
                                                FontFamily="{StaticResource AppFont}" FontSize="12"/>
                                     <TextBlock Grid.Row="2" Text="NIM" FontFamily="{StaticResource AppFont}"
-                                               FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#64748B"/>
                                     <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding TestNIM}"
                                                FontFamily="{StaticResource AppFont}" FontSize="12"
-                                               FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
+                                               FontWeight="Bold" Foreground="#2563EB"/>
                                     <TextBlock Grid.Row="4" Text="Type" FontFamily="{StaticResource AppFont}"
-                                               FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#64748B"/>
                                     <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding TestServerVersion}"
                                                FontFamily="{StaticResource AppFont}" FontSize="12"/>
                                 </Grid>
                             </Border>
 
-                            <Expander Margin="0,12,0,0" IsExpanded="False">
+                            <Expander Margin="0,14,0,0" IsExpanded="False">
                                 <Expander.Header>
-                                    <TextBlock Text="📋 Détails complets" FontFamily="{StaticResource AppFont}"
-                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <md:PackIcon Kind="ClipboardTextOutline" Width="16" Height="16"
+                                                     Foreground="#64748B" VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                                        <TextBlock Text="Détails complets" FontFamily="{StaticResource AppFont}"
+                                                   FontSize="12" Foreground="#64748B"/>
+                                    </StackPanel>
                                 </Expander.Header>
-                                <StackPanel Margin="0,8,0,0">
+                                <StackPanel Margin="0,10,0,0">
                                     <TextBlock Text="{Binding TestDetails}" TextWrapping="Wrap"
                                                FontFamily="{StaticResource AppFont}" FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+                                               Foreground="#94A3B8" Margin="0,0,0,12"/>
                                     <TextBlock Text="RÉPONSE BRUTE" FontFamily="{StaticResource AppFont}"
                                                FontSize="10" FontWeight="Bold"
-                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
-                                    <Border Background="#1A202C" CornerRadius="6" Padding="12">
+                                               Foreground="#94A3B8" Margin="0,0,0,8"/>
+                                    <Border CornerRadius="10" Padding="16">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#1A202C" Offset="0"/>
+                                                <GradientStop Color="#0F172A" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
                                         <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
-                                            <TextBlock Text="{Binding TestRawResponse}" Foreground="#A0AEC0"
+                                            <TextBlock Text="{Binding TestRawResponse}" Foreground="#94A3B8"
                                                        FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"/>
                                         </ScrollViewer>
                                     </Border>
@@ -957,33 +931,45 @@
                 </StackPanel>
             </Border>
 
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- SECTION 4 — FACTURATION & CALCUL                              -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}">
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- SECTION 4 — FACTURATION & CALCUL                   -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border Style="{StaticResource PremiumCard}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                        <Border Background="#ECFDF5" CornerRadius="8" Padding="8" Margin="0,0,12,0">
-                            <TextBlock Text="&#xE8C7;" FontFamily="{StaticResource IconFont}"
-                                       FontSize="18" Foreground="{StaticResource SuccessBrush}"/>
+                    <!-- Section header -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="44" Height="44" CornerRadius="12">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#ECFDF5" Offset="0"/>
+                                    <GradientStop Color="#D1FAE5" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <md:PackIcon Kind="CalculatorVariant" Width="22" Height="22"
+                                         Foreground="#059669"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                             <TextBlock Text="Facturation et calcul"
-                                       Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                       FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Mode de prix, calcul de la remise, devise et taux de change"
                                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                       Foreground="#94A3B8" Margin="0,3,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Background="#F8FAFC" CornerRadius="10" Padding="20" Margin="0,0,0,16">
+                    <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" Margin="0,10,0,22"/>
+
+                    <!-- Price mode toggle -->
+                    <Border Style="{StaticResource InnerPanel}" Margin="0,0,0,14">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15"
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14"
                                            FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -997,7 +983,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                           Foreground="#94A3B8" Margin="0,4,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text"
@@ -1013,26 +999,27 @@
                                 </TextBlock>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="HT" FontFamily="{StaticResource AppFont}" FontSize="13"
-                                           FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"
+                                <TextBlock Text="HT" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           FontWeight="Bold" Foreground="#64748B"
                                            VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <ToggleButton IsChecked="{Binding IsPriceModeTTC}"
                                               Style="{StaticResource ToggleSwitchStyle}"/>
-                                <TextBlock Text="TTC" FontFamily="{StaticResource AppFont}" FontSize="13"
-                                           FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"
+                                <TextBlock Text="TTC" FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           FontWeight="Bold" Foreground="#64748B"
                                            VerticalAlignment="Center" Margin="10,0,0,0"/>
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <Border Background="#F8FAFC" CornerRadius="10" Padding="20" Margin="0,0,0,16">
+                    <!-- Discount toggle -->
+                    <Border Style="{StaticResource InnerPanel}" Margin="0,0,0,14">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15"
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14"
                                            FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -1046,7 +1033,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                           Foreground="#94A3B8" Margin="0,4,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text"
@@ -1063,36 +1050,37 @@
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="Après" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontWeight="Bold" Foreground="#64748B"
                                            VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <ToggleButton IsChecked="{Binding DiscountBeforeTax}"
                                               Style="{StaticResource ToggleSwitchStyle}"/>
                                 <TextBlock Text="Avant" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontWeight="Bold" Foreground="#64748B"
                                            VerticalAlignment="Center" Margin="10,0,0,0"/>
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <Border Background="#F8FAFC" CornerRadius="10" Padding="20">
+                    <!-- Currency & exchange rate -->
+                    <Border Style="{StaticResource InnerPanel}">
                         <StackPanel>
                             <TextBlock Text="DEVISE ET TAUX DE CHANGE"
-                                       FontFamily="{StaticResource AppFont}" FontSize="10" FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="10"
+                                       FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,14"/>
                             <UniformGrid Columns="3">
                                 <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Text="DEVISE PRINCIPALE" Style="{StaticResource FormLabelStyle}"/>
+                                    <TextBlock Text="DEVISE PRINCIPALE" Style="{StaticResource FieldLabel}"/>
                                     <ComboBox ItemsSource="{Binding Currencies}"
                                               SelectedItem="{Binding DefaultCurrency}"
                                               Style="{StaticResource ModernComboBoxStyle}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Text="TAUX DE CHANGE (CDF/USD)" Style="{StaticResource FormLabelStyle}"/>
+                                    <TextBlock Text="TAUX DE CHANGE (CDF/USD)" Style="{StaticResource FieldLabel}"/>
                                     <TextBox Text="{Binding CurrentExchangeRate, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource ModernTextBoxStyle}"/>
+                                             Style="{StaticResource FormInput}"/>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="MODE" Style="{StaticResource FormLabelStyle}"/>
+                                    <TextBlock Text="MODE" Style="{StaticResource FieldLabel}"/>
                                     <ComboBox ItemsSource="{Binding ExchangeRateModes}"
                                               SelectedItem="{Binding ExchangeRateMode}"
                                               Style="{StaticResource ModernComboBoxStyle}"/>
@@ -1103,26 +1091,38 @@
                 </StackPanel>
             </Border>
 
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- SECTION 5 — FIDÉLITÉ                                          -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}">
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- SECTION 5 — FIDÉLITÉ                               -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border Style="{StaticResource PremiumCard}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                        <Border Background="#FEF3C7" CornerRadius="8" Padding="8" Margin="0,0,12,0">
-                            <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}"
-                                       FontSize="18" Foreground="{StaticResource WarningBrush}"/>
+                    <!-- Section header -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="44" Height="44" CornerRadius="12">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#FEF3C7" Offset="0"/>
+                                    <GradientStop Color="#FDE68A" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <md:PackIcon Kind="StarCircle" Width="22" Height="22"
+                                         Foreground="#D97706"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                             <TextBlock Text="Programme de fidélité"
-                                       Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                       FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Récompensez vos clients réguliers avec des points"
                                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                       Foreground="#94A3B8" Margin="0,3,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Background="#F8FAFC" CornerRadius="10" Padding="20" Margin="0,0,0,20">
+                    <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" Margin="0,10,0,22"/>
+
+                    <!-- Enable toggle -->
+                    <Border Style="{StaticResource InnerPanel}" Margin="0,0,0,18">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -1130,23 +1130,23 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Activer le programme de fidélité"
-                                           FontFamily="{StaticResource AppFont}" FontSize="15"
+                                           FontFamily="{StaticResource AppFont}" FontSize="14"
                                            FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <TextBlock Text="Les clients pourront accumuler et utiliser des points"
                                            FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                           Foreground="#94A3B8" Margin="0,4,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="13"
-                                           FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Désactivé"/>
-                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                            <Setter Property="Foreground" Value="#94A3B8"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsLoyaltyEnabled}" Value="True">
                                                     <Setter Property="Text" Value="Activé"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                    <Setter Property="Foreground" Value="#059669"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1158,6 +1158,7 @@
                         </Grid>
                     </Border>
 
+                    <!-- Loyalty fields -->
                     <StackPanel>
                         <StackPanel.Style>
                             <Style TargetType="StackPanel">
@@ -1170,150 +1171,275 @@
                             </Style>
                         </StackPanel.Style>
                         <UniformGrid Columns="2">
-                            <StackPanel Margin="0,0,12,16">
+                            <StackPanel Margin="0,0,10,16">
                                 <TextBlock Text="TAUX D'ACCUMULATION (1 POINT PAR X CDF)"
-                                           Style="{StaticResource FormLabelStyle}"/>
+                                           Style="{StaticResource FieldLabel}"/>
                                 <TextBox Text="{Binding LoyaltyEarnRate, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
+                                         Style="{StaticResource FormInput}"/>
                             </StackPanel>
-                            <StackPanel Margin="12,0,0,16">
+                            <StackPanel Margin="10,0,0,16">
                                 <TextBlock Text="VALEUR DE RÉDEMPTION (1 POINT = X CDF)"
-                                           Style="{StaticResource FormLabelStyle}"/>
+                                           Style="{StaticResource FieldLabel}"/>
                                 <TextBox Text="{Binding LoyaltyRedeemRate, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
+                                         Style="{StaticResource FormInput}"/>
                             </StackPanel>
                         </UniformGrid>
                         <StackPanel>
                             <TextBlock Text="MINIMUM DE POINTS POUR UTILISER"
-                                       Style="{StaticResource FormLabelStyle}"/>
+                                       Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding LoyaltyMinRedeemPoints, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource ModernTextBoxStyle}"
+                                     Style="{StaticResource FormInput}"
                                      MaxWidth="300" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- SECTION 6 — LICENCE                                           -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}">
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- SECTION 6 — LICENCE                                -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border Style="{StaticResource PremiumCard}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                        <Border Background="#FDF4FF" CornerRadius="8" Padding="8" Margin="0,0,12,0">
-                            <TextBlock Text="&#xE8D7;" FontFamily="{StaticResource IconFont}"
-                                       FontSize="18" Foreground="#9333EA"/>
+                    <!-- Section header -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="44" Height="44" CornerRadius="12">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#F5F3FF" Offset="0"/>
+                                    <GradientStop Color="#EDE9FE" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <md:PackIcon Kind="ShieldKey" Width="22" Height="22"
+                                         Foreground="#7C3AED"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                             <TextBlock Text="Licence"
-                                       Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                       FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Gérez votre licence d'utilisation"
                                        FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                       Foreground="#94A3B8" Margin="0,3,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Background="#F8FAFC" CornerRadius="10" Padding="20" Margin="0,0,0,20"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" Margin="0,10,0,22"/>
+
+                    <!-- License status panel -->
+                    <Border CornerRadius="14" Padding="22" Margin="0,0,0,22"
+                            BorderBrush="#E2E8F0" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#F5F3FF" Offset="0"/>
+                                <GradientStop Color="#EFF6FF" Offset="0.5"/>
+                                <GradientStop Color="#F8FAFC" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="2"
+                                              Direction="270" Opacity="0.04" Color="#7C3AED"/>
+                        </Border.Effect>
                         <UniformGrid Columns="2">
                             <StackPanel>
                                 <TextBlock Text="PLAN ACTUEL" FontFamily="{StaticResource AppFont}"
-                                           FontSize="10" FontWeight="Bold"
-                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                           FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
                                 <TextBlock Text="{Binding LicensePlan}" FontFamily="{StaticResource AppFont}"
-                                           FontSize="20" FontWeight="Bold"
-                                           Foreground="{StaticResource PrimaryBrush}" Margin="0,6,0,0"/>
+                                           FontSize="22" FontWeight="Bold"
+                                           Foreground="#7C3AED" Margin="0,8,0,0"/>
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Text="STATUT" FontFamily="{StaticResource AppFont}"
-                                           FontSize="10" FontWeight="Bold"
-                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                           FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
                                 <TextBlock Text="{Binding LicenseStatus}" FontFamily="{StaticResource AppFont}"
-                                           FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
-                                           Margin="0,6,0,0"/>
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0"/>
                             </StackPanel>
                         </UniformGrid>
                     </Border>
 
-                    <TextBlock Text="CLÉ DE LICENCE" Style="{StaticResource FormLabelStyle}"/>
+                    <!-- License key input -->
+                    <TextBlock Text="CLÉ DE LICENCE" Style="{StaticResource FieldLabel}"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox Text="{Binding LicenseKey, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource ModernTextBoxStyle}" FontFamily="Consolas"/>
-                        <Button Grid.Column="1" Content="🔓 Activer"
-                                Style="{StaticResource PrimaryButtonStyle}"
-                                Command="{Binding ActivateLicenseCommand}"
-                                Margin="12,0,0,0" Padding="24,0"/>
+                                 Style="{StaticResource FormInput}" FontFamily="Consolas"/>
+                        <Button Grid.Column="1" Command="{Binding ActivateLicenseCommand}"
+                                Margin="12,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" CornerRadius="12" Padding="22,12">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                            <GradientStop Color="#7C3AED" Offset="0"/>
+                                                            <GradientStop Color="#9333EA" Offset="1"/>
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
+                                                    <Border.Effect>
+                                                        <DropShadowEffect BlurRadius="14" ShadowDepth="3"
+                                                                          Direction="270" Opacity="0.2" Color="#7C3AED"/>
+                                                    </Border.Effect>
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Effect">
+                                                            <Setter.Value>
+                                                                <DropShadowEffect BlurRadius="22" ShadowDepth="5"
+                                                                                  Direction="270" Opacity="0.3" Color="#7C3AED"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <md:PackIcon Kind="KeyVariant" Width="16" Height="16"
+                                             Foreground="White" VerticalAlignment="Center"
+                                             Margin="0,0,8,0"/>
+                                <TextBlock Text="Activer" FontFamily="{StaticResource AppFont}"
+                                           FontSize="13" FontWeight="SemiBold" Foreground="White"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
 
-                    <TextBlock Text="{Binding LicenseMessage}" Margin="0,8,0,0"
-                               FontFamily="{StaticResource AppFont}" FontSize="12"
-                               TextWrapping="Wrap" Foreground="#E53E3E">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Visible"/>
+                    <!-- License message -->
+                    <Border Margin="0,12,0,0" CornerRadius="12" Padding="16,14">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding LicenseMessage}" Value="">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                        </Border.Style>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#FEF2F2" Offset="0"/>
+                                <GradientStop Color="#FEE2E2" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="AlertCircle" Width="18" Height="18"
+                                         Foreground="#DC2626" Margin="0,0,10,0"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding LicenseMessage}" Foreground="#DC2626"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       FontWeight="Medium" TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <!-- BOUTON ENREGISTRER GLOBAL                                     -->
-            <!-- ══════════════════════════════════════════════════════════════ -->
-            <Grid Margin="0,8,0,32">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <!-- ═══════════════════════════════════════════════════ -->
+            <!-- GLOBAL SAVE BAR                                    -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <Border CornerRadius="16" Padding="20,18" Margin="0,4,0,32"
+                    BorderBrush="#E2E8F0" BorderThickness="1">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#FFFFFF" Offset="0"/>
+                        <GradientStop Color="#F8FAFC" Offset="0.5"/>
+                        <GradientStop Color="#F1F5F9" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" ShadowDepth="4"
+                                      Direction="270" Opacity="0.06" Color="#1E3A5F"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowSaveSuccess}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                    <TextBlock Text="✓" Foreground="{StaticResource SuccessBrush}"
-                               FontSize="16" FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding SaveStatus}" FontFamily="{StaticResource AppFont}"
-                               FontSize="14" Foreground="{StaticResource SuccessBrush}"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+                    <!-- Success message -->
+                    <Border CornerRadius="10" Padding="14,10" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowSaveSuccess}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#ECFDF5" Offset="0"/>
+                                <GradientStop Color="#D1FAE5" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="CheckCircle" Width="20" Height="20"
+                                         Foreground="#059669" Margin="0,0,10,0"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding SaveStatus}" FontFamily="{StaticResource AppFont}"
+                                       FontSize="13" FontWeight="SemiBold" Foreground="#059669"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowSaveError}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                    <TextBlock Text="✗" Foreground="#DC2626"
-                               FontSize="16" FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding SaveStatus}" FontFamily="{StaticResource AppFont}"
-                               FontSize="14" Foreground="#DC2626" VerticalAlignment="Center"/>
-                </StackPanel>
+                    <!-- Error message -->
+                    <Border CornerRadius="10" Padding="14,10" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowSaveError}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#FEF2F2" Offset="0"/>
+                                <GradientStop Color="#FEE2E2" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="AlertCircle" Width="20" Height="20"
+                                         Foreground="#DC2626" Margin="0,0,10,0"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding SaveStatus}" FontFamily="{StaticResource AppFont}"
+                                       FontSize="13" FontWeight="SemiBold" Foreground="#DC2626"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
-                <Button Grid.Column="1" Content="💾  Enregistrer les paramètres"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        Command="{Binding SaveSettingsCommand}" Padding="32,14"/>
-            </Grid>
+                    <!-- Save button -->
+                    <Button Grid.Column="1" Style="{StaticResource BtnPrimary}"
+                            Command="{Binding SaveSettingsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="ContentSave" Width="18" Height="18"
+                                         Foreground="White" VerticalAlignment="Center"
+                                         Margin="0,0,10,0"/>
+                            <TextBlock Text="Enregistrer les paramètres"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       FontWeight="SemiBold" Foreground="White"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
 
         </StackPanel>
     </ScrollViewer>

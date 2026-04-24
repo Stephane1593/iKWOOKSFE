@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
+using SFE.Domain.Enums;
 
 namespace SFE.Application.Services;
 
@@ -29,7 +30,14 @@ public class AuthService : IAuthService
         var hash = HashPassword(password);
         var user = await uow.Users.AuthenticateAsync(username, hash);
 
-        if (user == null) return null;
+        var audit = _sp.GetRequiredService<IAuditService>();   // ← single declaration
+
+        if (user == null)
+        {
+            audit.Log(AuditAction.UserLoginFailed, AuditModule.Authentication,
+                $"Échec de connexion — identifiant: {username}");
+            return null;
+        }
 
         _currentUser = user;
         _permCache = null;
@@ -38,14 +46,24 @@ public class AuthService : IAuthService
         await uow.SaveChangesAsync();
 
         UserChanged?.Invoke();
+
+        await audit.LogAsync(AuditAction.UserLogin, AuditModule.Authentication,
+            $"Connexion de {user.FullName} ({user.Username})",
+            "User", user.Id.ToString());
+
         return user;
     }
 
     public void Logout()
     {
+        var name = _currentUser?.FullName ?? "?";
         _currentUser = null;
         _permCache = null;
         UserChanged?.Invoke();
+
+        var audit = _sp.GetRequiredService<IAuditService>();
+        audit.Log(AuditAction.UserLogout, AuditModule.Authentication,
+            $"Déconnexion de {name}");
     }
 
     public bool HasPermission(string permission)
@@ -74,5 +92,25 @@ public class AuthService : IAuthService
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
         return Convert.ToHexString(bytes).ToLower();
+    }
+
+    // Optional: in AuthService
+
+    public async Task RefreshCurrentUserAsync()
+    {
+        if (_currentUser == null) return;
+
+        var uow = _sp.GetRequiredService<IUnitOfWork>();
+        var fresh = await uow.Users.GetByIdAsync(_currentUser.Id);
+
+        if (fresh == null || !fresh.IsActive)
+        {
+            Logout();
+            return;
+        }
+
+        _currentUser = fresh;
+        _permCache = null;
+        UserChanged?.Invoke();
     }
 }

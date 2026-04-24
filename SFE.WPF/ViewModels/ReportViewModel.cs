@@ -1,14 +1,14 @@
 ﻿using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using SFE.Application.Interfaces;
-using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -203,6 +203,9 @@ public partial class ReportViewModel : BaseViewModel
         }
     }
 
+    /// <summary>
+    /// Generates a temp PDF and opens it in the system viewer for preview + print.
+    /// </summary>
     [RelayCommand]
     private void PrintReport()
     {
@@ -214,26 +217,21 @@ public partial class ReportViewModel : BaseViewModel
 
         try
         {
-            var pd = new PrintDialog();
-            if (pd.ShowDialog() != true) return;
+            string tempDir = Path.Combine(Path.GetTempPath(), "SFE_Reports");
+            Directory.CreateDirectory(tempDir);
+            CleanOldTempFiles(tempDir, TimeSpan.FromDays(1));
 
-            var doc = new FlowDocument
-            {
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 10,
-                PagePadding = new Thickness(40, 30, 40, 30),
-                ColumnWidth = double.MaxValue
-            };
-            doc.Blocks.Add(new Paragraph(new Run(SelectedReport.PrintContent))
-            {
-                LineHeight = 14
-            });
+            string tempPath = Path.Combine(tempDir,
+                SanitizeFileName($"{PreviewTitle}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
 
-            var paginator = ((IDocumentPaginatorSource)doc).DocumentPaginator;
-            paginator.PageSize = new Size(pd.PrintableAreaWidth, pd.PrintableAreaHeight);
-            pd.PrintDocument(paginator, PreviewTitle);
+            GenerateReportPdf(
+                SelectedReport.PrintContent,
+                PreviewTitle,
+                PreviewSubtitle,
+                tempPath);
 
-            ShowStatus($"✓ {PreviewTitle} envoyé à l'imprimante", false);
+            Process.Start(new ProcessStartInfo(tempPath) { UseShellExecute = true });
+            ShowStatus($"✓ {PreviewTitle} ouvert pour impression", false);
         }
         catch (Exception ex)
         {
@@ -241,6 +239,9 @@ public partial class ReportViewModel : BaseViewModel
         }
     }
 
+    /// <summary>
+    /// Save dialog → PDF (default) or TXT, then auto-opens the file.
+    /// </summary>
     [RelayCommand]
     private void ExportReport()
     {
@@ -252,22 +253,106 @@ public partial class ReportViewModel : BaseViewModel
 
         try
         {
+            string baseName = SanitizeFileName(
+                $"{SelectedReport.TypeBadge}-Rapport-{SelectedReport.ReportNumber}" +
+                $"_{SelectedReport.GeneratedAt:yyyyMMdd_HHmm}");
+
             var dlg = new SaveFileDialog
             {
-                FileName = $"{SelectedReport.TypeBadge}-Rapport-{SelectedReport.ReportNumber}_{SelectedReport.GeneratedAt:yyyyMMdd_HHmm}",
-                DefaultExt = ".txt",
-                Filter = "Fichier texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*"
+                FileName = baseName,
+                DefaultExt = ".pdf",
+                Filter = "Document PDF (*.pdf)|*.pdf|Fichier texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*"
             };
 
             if (dlg.ShowDialog() != true) return;
 
-            File.WriteAllText(dlg.FileName, SelectedReport.PrintContent);
+            string ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+
+            if (ext == ".txt")
+            {
+                File.WriteAllText(dlg.FileName, SelectedReport.PrintContent);
+            }
+            else
+            {
+                GenerateReportPdf(
+                    SelectedReport.PrintContent,
+                    PreviewTitle,
+                    PreviewSubtitle,
+                    dlg.FileName);
+            }
+
+            Process.Start(new ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
             ShowStatus($"✓ Exporté : {Path.GetFileName(dlg.FileName)}", false);
         }
         catch (Exception ex)
         {
             ShowStatus($"Erreur export : {ex.Message}", true);
         }
+    }
+
+    // ══════════════════════════════════════════════
+    //  PDF GENERATION (QuestPDF)
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Generates a properly paginated PDF from the monospaced report text.
+    /// </summary>
+    private static void GenerateReportPdf(
+        string textContent,
+        string title,
+        string subtitle,
+        string outputPath)
+    {
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.MarginVertical(30);
+                page.MarginHorizontal(35);
+
+                page.DefaultTextStyle(ts => ts.FontSize(8));
+
+                // ── Header ──
+                page.Header().Column(col =>
+                {
+                    col.Item().Text(title)
+                        .FontSize(13)
+                        .Bold()
+                        .FontColor(Colors.Grey.Darken3);
+
+                    if (!string.IsNullOrEmpty(subtitle))
+                    {
+                        col.Item().PaddingTop(2).Text(subtitle)
+                            .FontSize(8)
+                            .FontColor(Colors.Grey.Medium);
+                    }
+
+                    col.Item().PaddingTop(6)
+                        .LineHorizontal(0.5f)
+                        .LineColor(Colors.Grey.Lighten2);
+
+                    col.Item().PaddingBottom(8);
+                });
+
+                // ── Content — monospaced report text ──
+                page.Content().Text(textContent)
+                    .FontFamily("Courier New")
+                    .FontSize(8)
+                    .LineHeight(1.35f);
+
+                // ── Footer — page numbers ──
+                page.Footer().AlignCenter().Text(text =>
+                {
+                    text.DefaultTextStyle(ts => ts.FontSize(7).FontColor(Colors.Grey.Medium));
+                    text.Span("Page ");
+                    text.CurrentPageNumber();
+                    text.Span(" / ");
+                    text.TotalPages();
+                });
+            });
+        })
+        .GeneratePdf(outputPath);
     }
 
     // ══════════════════════════════════════════════
@@ -286,5 +371,30 @@ public partial class ReportViewModel : BaseViewModel
         StatusMessage = "";
         ShowSuccess = false;
         ShowError = false;
+    }
+
+    // ══════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (char c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+        return name;
+    }
+
+    private static void CleanOldTempFiles(string directory, TimeSpan maxAge)
+    {
+        try
+        {
+            var cutoff = DateTime.Now - maxAge;
+            foreach (var file in Directory.GetFiles(directory, "*.pdf"))
+            {
+                if (File.GetCreationTime(file) < cutoff)
+                    File.Delete(file);
+            }
+        }
+        catch { /* non-critical */ }
     }
 }

@@ -1,163 +1,510 @@
 ﻿<UserControl x:Class="SFE.WPF.Views.Pages.UsersPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:vm="clr-namespace:SFE.WPF.ViewModels"
              Background="{StaticResource BackgroundBrush}">
 
-    <Grid Margin="24,20">
+    <UserControl.Resources>
+
+        <!-- ── Gradient Brushes ── -->
+        <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1E3A5F" Offset="0"/>
+            <GradientStop Color="#2D5F8A" Offset="0.5"/>
+            <GradientStop Color="#1A4D7C" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#2563EB" Offset="0"/>
+            <GradientStop Color="#3B82F6" Offset="0.5"/>
+            <GradientStop Color="#1D4ED8" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#3B82F6" Offset="0"/>
+            <GradientStop Color="#8B5CF6" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SuccessGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#059669" Offset="0"/>
+            <GradientStop Color="#10B981" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="DangerGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#DC2626" Offset="0"/>
+            <GradientStop Color="#EF4444" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GoldGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#D97706" Offset="0"/>
+            <GradientStop Color="#F59E0B" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SubtleShimmer" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#FFFFFF" Offset="0"/>
+            <GradientStop Color="#F8FAFC" Offset="0.5"/>
+            <GradientStop Color="#F1F5F9" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GlassOverlay" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#20FFFFFF" Offset="0"/>
+            <GradientStop Color="#08FFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="CardGlow" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFFFFF" Offset="0"/>
+            <GradientStop Color="#FAFBFD" Offset="0.4"/>
+            <GradientStop Color="#F5F7FA" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SeparatorGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="Transparent" Offset="0"/>
+            <GradientStop Color="#E2E8F0" Offset="0.2"/>
+            <GradientStop Color="#CBD5E1" Offset="0.5"/>
+            <GradientStop Color="#E2E8F0" Offset="0.8"/>
+            <GradientStop Color="Transparent" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- ── Premium card ── -->
+        <Style x:Key="PremiumCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardGlow}"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="20" ShadowDepth="4"
+                                      Direction="270" Opacity="0.06" Color="#1E3A5F"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Tab button ── -->
+        <Style x:Key="TabBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="12,12,0,0" Padding="22,14"
+                                BorderThickness="0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#10FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Grid action icon button ── -->
+        <Style x:Key="GridIconBtn" TargetType="Button">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="10" ToolTip="{TemplateBinding ToolTip}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#F1F5F9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Close icon button (light on dark) ── -->
+        <Style x:Key="CloseIconBtn" TargetType="Button">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Field label ── -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="2,0,0,8"/>
+        </Style>
+
+        <!-- ── Form TextBox ── -->
+        <Style x:Key="FormInput" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#3B82F6"/>
+                                <Setter TargetName="bd" Property="Background" Value="White"/>
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="0"
+                                                          Opacity="0.12" Color="#3B82F6"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Form ComboBox ── -->
+        <Style x:Key="FormCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="MinHeight" Value="44"/>
+        </Style>
+
+        <!-- ── Primary gradient button ── -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" CornerRadius="12" Padding="22,13"
+                                Background="{StaticResource PrimaryGradient}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" ShadowDepth="3"
+                                                  Direction="270" Opacity="0.2" Color="#2563EB"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="24" ShadowDepth="5"
+                                                          Direction="270" Opacity="0.3" Color="#2563EB"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Ghost / secondary button ── -->
+        <Style x:Key="BtnGhost" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="#F1F5F9"
+                                CornerRadius="12" Padding="20,13"
+                                BorderBrush="#E2E8F0" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E2E8F0"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#CBD5E1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ══════════════════════════════════════════ -->
-        <!-- HEADER + TAB BAR                           -->
-        <!-- ══════════════════════════════════════════ -->
-        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <!-- ═══════════════════════════════════════════════ -->
+        <!-- HEADER  +  TAB BAR  (gradient)                 -->
+        <!-- ═══════════════════════════════════════════════ -->
+        <Border Grid.Row="0" CornerRadius="18" Margin="0,0,0,20"
+                Background="{StaticResource HeaderGradient}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="30" ShadowDepth="6"
+                                  Direction="270" Opacity="0.18" Color="#1E3A5F"/>
+            </Border.Effect>
 
-                <!-- Title row -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="🛡️" FontSize="22" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="Gestion des utilisateurs et rôles"
-                               Style="{StaticResource SectionTitleStyle}" VerticalAlignment="Center"/>
-                </StackPanel>
+            <!-- Glass overlay -->
+            <Border CornerRadius="18" Background="{StaticResource GlassOverlay}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                <!-- Tabs -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
-                    <!-- Users Tab Button -->
-                    <Button Command="{Binding SwitchToUsersTabCommand}" Cursor="Hand"
-                            Padding="16,8" Margin="0,0,4,0" BorderThickness="0">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Background" Value="#F1F5F9"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                <Setter Property="FontSize" Value="13"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                                    CornerRadius="8,8,0,0" Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="bd" Property="Background" Value="#E2E8F0"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsUsersTab}" Value="True">
-                                        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="👥" Margin="0,0,6,0"/>
-                            <TextBlock Text="Utilisateurs"/>
-                            <Border Background="#FFFFFF30" CornerRadius="8" Padding="6,1" Margin="8,0,0,0">
-                                <TextBlock Text="{Binding UserCount}" FontSize="11"/>
-                            </Border>
+                    <!-- ── Title row ── -->
+                    <StackPanel Orientation="Horizontal" Margin="28,24,28,0">
+                        <Border Width="48" Height="48" CornerRadius="14"
+                                Background="#18FFFFFF">
+                            <md:PackIcon Kind="ShieldAccount" Width="26" Height="26"
+                                         Foreground="White"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Gestion des utilisateurs et rôles"
+                                       FontFamily="{StaticResource AppFont}" FontSize="18"
+                                       FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="Créez des comptes, attribuez des rôles et gérez les permissions"
+                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                       Foreground="#94B8DB" Margin="0,3,0,0"/>
                         </StackPanel>
-                    </Button>
+                    </StackPanel>
 
-                    <!-- Roles Tab Button -->
-                    <Button Command="{Binding SwitchToRolesTabCommand}" Cursor="Hand"
-                            Padding="16,8" Margin="0,0,4,0" BorderThickness="0">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Background" Value="#F1F5F9"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                <Setter Property="FontSize" Value="13"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                                    CornerRadius="8,8,0,0" Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="bd" Property="Background" Value="#E2E8F0"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
+                    <!-- ── Gradient separator ── -->
+                    <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom"
+                               Margin="28,18,28,0" Opacity="0.2" Fill="White"/>
+
+                    <!-- ── Tab bar ── -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="20,10,20,0">
+
+                        <!-- Users tab -->
+                        <Button Command="{Binding SwitchToUsersTabCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TabBtn}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsUsersTab}" Value="True">
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="Background" Value="#20FFFFFF"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <md:PackIcon Kind="AccountGroup" Width="18" Height="18"
+                                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Utilisateurs" VerticalAlignment="Center"/>
+                                <Border CornerRadius="10" Padding="9,4" Margin="10,0,0,0"
+                                        VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#15FFFFFF"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsUsersTab}" Value="True">
+                                                    <Setter Property="Background" Value="#25FFFFFF"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding UserCount}" FontSize="11"
+                                               FontWeight="Bold" FontFamily="{StaticResource AppFont}"
+                                               Foreground="White"/>
+                                </Border>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Roles tab -->
+                        <Button Command="{Binding SwitchToRolesTabCommand}" Margin="4,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TabBtn}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsUsersTab}" Value="False">
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="Background" Value="#20FFFFFF"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <md:PackIcon Kind="KeyChainVariant" Width="18" Height="18"
+                                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Rôles" VerticalAlignment="Center"/>
+                                <Border CornerRadius="10" Padding="9,4" Margin="10,0,0,0"
+                                        VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#15FFFFFF"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsUsersTab}" Value="False">
+                                                    <Setter Property="Background" Value="#25FFFFFF"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding RoleCount}" FontSize="11"
+                                               FontWeight="Bold" FontFamily="{StaticResource AppFont}"
+                                               Foreground="White"/>
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Active tab indicator line -->
+                    <Border Grid.Row="1" VerticalAlignment="Bottom"
+                            Height="3" CornerRadius="2,2,0,0"
+                            Width="120" Margin="0,0,0,0"
+                            Background="White" Opacity="0.9">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="HorizontalAlignment" Value="Left"/>
+                                <Setter Property="Margin" Value="32,0,0,0"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsUsersTab}" Value="False">
-                                        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Margin" Value="180,0,0,0"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Button.Style>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="🔑" Margin="0,0,6,0"/>
-                            <TextBlock Text="Rôles"/>
-                            <Border Background="#FFFFFF30" CornerRadius="8" Padding="6,1" Margin="8,0,0,0">
-                                <TextBlock Text="{Binding RoleCount}" FontSize="11"/>
-                            </Border>
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Grid>
+                        </Border.Style>
+                    </Border>
+                </Grid>
+            </Border>
         </Border>
 
-        <!-- ══════════════════════════════════════════ -->
-        <!-- TAB CONTENT                                -->
-        <!-- ══════════════════════════════════════════ -->
+        <!-- ═══════════════════════════════════════════════ -->
+        <!-- TAB CONTENT                                    -->
+        <!-- ═══════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
 
-            <!-- ======================================== -->
-            <!--  USERS TAB                                -->
-            <!-- ======================================== -->
-            <Grid Visibility="{Binding IsUsersTab, Converter={StaticResource BoolToVisibilityConverter}}">
+            <!-- ════════════════════════════════════════════ -->
+            <!--  USERS TAB                                  -->
+            <!-- ════════════════════════════════════════════ -->
+            <Grid Visibility="{Binding IsUsersTab,
+                      Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" MinWidth="480"/>
-                    <ColumnDefinition Width="380"/>
+                    <ColumnDefinition Width="400"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT — User List -->
-                <DockPanel Grid.Column="0" Margin="0,0,16,0">
+                <!-- LEFT — User list -->
+                <DockPanel Grid.Column="0" Margin="0,0,20,0">
 
-                    <!-- Search bar -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardCompactStyle}" Margin="0,0,0,12">
+                    <!-- Search + New -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PremiumCard}"
+                            Padding="10" Margin="0,0,0,16">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
-                                     FontFamily="{StaticResource AppFont}" Padding="10,8"
-                                     ToolTip="Rechercher par nom, identifiant ou rôle..."/>
-                            <Button Grid.Column="1" Content="+ Nouvel utilisateur"
-                                    Command="{Binding NewUserCommand}" Margin="8,0,0,0"
-                                    Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                    FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
-                                    Padding="16,8" BorderThickness="0" Cursor="Hand"/>
+
+                            <!-- Search box -->
+                            <Border Background="#F8FAFC" CornerRadius="12"
+                                    BorderBrush="#E2E8F0" BorderThickness="1" Padding="4,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <md:PackIcon Kind="Magnify" Width="20" Height="20"
+                                                 Foreground="#94A3B8"
+                                                 VerticalAlignment="Center" Margin="10,0,6,0"/>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding SearchText,
+                                                 UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                             FontFamily="{StaticResource AppFont}" FontSize="13"
+                                             Padding="4,12" BorderThickness="0" Background="Transparent"
+                                             md:HintAssist.Hint="Rechercher par nom, identifiant ou rôle…"/>
+                                </Grid>
+                            </Border>
+
+                            <Button Grid.Column="1" Command="{Binding NewUserCommand}"
+                                    Style="{StaticResource BtnPrimary}" Margin="12,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <md:PackIcon Kind="AccountPlus" Width="18" Height="18"
+                                                 VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Nouvel utilisateur" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                         </Grid>
                     </Border>
 
-                    <!-- DataGrid -->
-                    <Border Style="{StaticResource CardStyle}">
-                        <DataGrid ItemsSource="{Binding Users}" AutoGenerateColumns="False"
-                                  CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                                  BorderThickness="0" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                  SelectionMode="Single">
+                    <!-- User DataGrid -->
+                    <Border Style="{StaticResource PremiumCard}" Padding="0"
+                            ClipToBounds="True">
+                        <DataGrid ItemsSource="{Binding Users}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False" CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column"
+                                  BorderThickness="0"
+                                  FontFamily="{StaticResource AppFont}" FontSize="13"
+                                  SelectionMode="Single"
+                                  RowHeight="54"
+                                  ColumnHeaderHeight="46"
+                                  HorizontalGridLinesBrush="#F1F5F9"
+                                  Background="Transparent">
 
                             <DataGrid.InputBindings>
                                 <MouseBinding Gesture="LeftDoubleClick"
@@ -166,36 +513,99 @@
                                                   RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                             </DataGrid.InputBindings>
 
+                            <DataGrid.ColumnHeaderStyle>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="Background" Value="#F8FAFC"/>
+                                    <Setter Property="Foreground" Value="#64748B"/>
+                                    <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                                    <Setter Property="FontSize" Value="11"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                    <Setter Property="Padding" Value="16,14"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                                    <Setter Property="SeparatorVisibility" Value="Collapsed"/>
+                                </Style>
+                            </DataGrid.ColumnHeaderStyle>
+
+                            <DataGrid.CellStyle>
+                                <Style TargetType="DataGridCell">
+                                    <Setter Property="Padding" Value="16,0"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Setter Property="Focusable" Value="False"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="DataGridCell">
+                                                <Border Padding="{TemplateBinding Padding}"
+                                                        Background="{TemplateBinding Background}">
+                                                    <ContentPresenter VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#EFF6FF"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource TextPrimaryBrush}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.CellStyle>
+
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#FAFBFD"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#EFF6FF"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+
                             <DataGrid.Columns>
-                                <!-- Username -->
-                                <DataGridTemplateColumn Header="Identifiant" Width="130">
+
+                                <!-- Identifiant -->
+                                <DataGridTemplateColumn Header="IDENTIFIANT" Width="130">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="🔒" FontSize="11" Margin="0,0,4,0"
-                                                           ToolTip="Compte protégé"
-                                                           Visibility="{Binding IsSuperAdmin,
-                                                               Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                                <TextBlock Text="{Binding Username}" FontWeight="SemiBold"
+                                            <StackPanel Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <md:PackIcon Kind="ShieldLock" Width="14" Height="14"
+                                                             Foreground="#D97706" Margin="0,0,6,0"
+                                                             ToolTip="Compte protégé"
+                                                             Visibility="{Binding IsSuperAdmin,
+                                                                 Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                <TextBlock Text="{Binding Username}"
+                                                           FontWeight="SemiBold"
                                                            FontFamily="{StaticResource AppFont}"/>
                                             </StackPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTextColumn Header="Nom complet" Binding="{Binding FullName}" Width="*">
+                                <!-- Nom complet -->
+                                <DataGridTextColumn Header="NOM COMPLET"
+                                                    Binding="{Binding FullName}" Width="*">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="FontWeight" Value="SemiBold"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
                                         </Style>
                                     </DataGridTextColumn.ElementStyle>
                                 </DataGridTextColumn>
 
-                                <!-- Role badge -->
-                                <DataGridTemplateColumn Header="Rôle" Width="120">
+                                <!-- Rôle -->
+                                <DataGridTemplateColumn Header="RÔLE" Width="130">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Border CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <Border CornerRadius="8" Padding="10,5"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Center">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Background" Value="#EFF6FF"/>
@@ -207,10 +617,11 @@
                                                     </Style>
                                                 </Border.Style>
                                                 <TextBlock Text="{Binding RoleName}" FontSize="11"
-                                                           FontWeight="Bold" FontFamily="{StaticResource AppFont}">
+                                                           FontWeight="Bold"
+                                                           FontFamily="{StaticResource AppFont}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                                            <Setter Property="Foreground" Value="#2563EB"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsSuperAdmin}" Value="True">
                                                                     <Setter Property="Foreground" Value="#B45309"/>
@@ -224,11 +635,25 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <!-- Active badge -->
-                                <DataGridTemplateColumn Header="Statut" Width="75">
+                                <!-- POS -->
+                                <DataGridTemplateColumn Header="POS" Width="90">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Border CornerRadius="4" Padding="6,2" HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding PosName}"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="Consolas" FontWeight="SemiBold"
+                                                       FontSize="12" Foreground="#2563EB"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Statut -->
+                                <DataGridTemplateColumn Header="STATUT" Width="85">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="8" Padding="10,5"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Background" Value="#FEE2E2"/>
@@ -240,7 +665,8 @@
                                                     </Style>
                                                 </Border.Style>
                                                 <TextBlock Text="{Binding ActiveDisplay}" FontSize="11"
-                                                           FontWeight="Bold" FontFamily="{StaticResource AppFont}">
+                                                           FontWeight="Bold"
+                                                           FontFamily="{StaticResource AppFont}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="#DC2626"/>
@@ -257,232 +683,416 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
-                                <DataGridTextColumn Header="Dernière connexion" Binding="{Binding LastLoginDisplay}" Width="130"/>
-
-                                <!-- Actions -->
-                                <DataGridTemplateColumn Header="" Width="90">
+                                <!-- Dernière connexion -->
+                                <DataGridTemplateColumn Header="DERNIÈRE CONNEXION" Width="140">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <Button Content="✏️" FontSize="13" Background="Transparent"
-                                                        BorderThickness="0" Cursor="Hand" Padding="4,2"
+                                            <TextBlock Text="{Binding LastLoginDisplay}" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#94A3B8"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Actions -->
+                                <DataGridTemplateColumn Header="" Width="140">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                <Button Style="{StaticResource GridIconBtn}"
                                                         ToolTip="Modifier"
+                                                        IsEnabled="{Binding CanEdit}"
                                                         Command="{Binding DataContext.EditUserCommand,
                                                             RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        CommandParameter="{Binding}"/>
-                                                <Button Content="⏻" FontSize="13" Background="Transparent"
-                                                        BorderThickness="0" Cursor="Hand" Padding="4,2"
-                                                        ToolTip="Activer / Désactiver"
+                                                        CommandParameter="{Binding}">
+                                                    <md:PackIcon Kind="PencilOutline" Width="18" Height="18"
+                                                                 Foreground="#3B82F6"/>
+                                                </Button>
+                                                <Button Style="{StaticResource GridIconBtn}"
+                                                        ToolTip="Activer / Désactiver" Margin="2,0"
+                                                        IsEnabled="{Binding CanModify}"
                                                         Command="{Binding DataContext.ToggleUserActiveCommand,
                                                             RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        CommandParameter="{Binding}"/>
-                                                <Button Content="🗑️" FontSize="13" Background="Transparent"
-                                                        BorderThickness="0" Cursor="Hand" Padding="4,2"
+                                                        CommandParameter="{Binding}">
+                                                    <md:PackIcon Kind="PowerStandby" Width="18" Height="18"
+                                                                 Foreground="#F59E0B"/>
+                                                </Button>
+                                                <Button Style="{StaticResource GridIconBtn}"
                                                         ToolTip="Supprimer"
+                                                        IsEnabled="{Binding CanModify}"
                                                         Command="{Binding DataContext.DeleteUserCommand,
                                                             RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        CommandParameter="{Binding}"/>
+                                                        CommandParameter="{Binding}">
+                                                    <md:PackIcon Kind="TrashCanOutline" Width="18" Height="18"
+                                                                 Foreground="#EF4444"/>
+                                                </Button>
                                             </StackPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
+
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>
                 </DockPanel>
 
-                <!-- RIGHT — User Form -->
-                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <!-- RIGHT — User form -->
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                              Padding="0,0,4,0">
                     <Grid>
                         <!-- Empty state -->
-                        <StackPanel Visibility="{Binding IsEditingUser, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                                    VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,60,0,0">
-                            <TextBlock Text="👤" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
-                            <TextBlock Text="Sélectionnez un utilisateur ou créez-en un nouveau"
+                        <StackPanel Visibility="{Binding IsEditingUser,
+                                        Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Margin="0,80,0,0">
+                            <Border Width="80" Height="80" CornerRadius="24"
+                                    HorizontalAlignment="Center">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#EFF6FF" Offset="0"/>
+                                        <GradientStop Color="#F1F5F9" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <md:PackIcon Kind="AccountEdit" Width="38" Height="38"
+                                             Foreground="#94A3B8"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Sélectionnez un utilisateur&#x0a;ou créez-en un nouveau"
                                        FontFamily="{StaticResource AppFont}" FontSize="13"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,12,0,0"
-                                       TextWrapping="Wrap"/>
+                                       Foreground="#94A3B8" HorizontalAlignment="Center"
+                                       TextAlignment="Center" Margin="0,18,0,0" LineHeight="22"/>
                         </StackPanel>
 
-                        <!-- Form -->
-                        <Border Style="{StaticResource CardStyle}"
-                                Visibility="{Binding IsEditingUser, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <!-- Edit form -->
+                        <Border Style="{StaticResource PremiumCard}" Padding="0"
+                                Visibility="{Binding IsEditingUser,
+                                    Converter={StaticResource BoolToVisibilityConverter}}">
                             <StackPanel>
-                                <!-- Title -->
-                                <Grid>
-                                    <TextBlock Text="{Binding UserFormTitle}" Style="{StaticResource SectionTitleStyle}"/>
-                                    <Button Content="✕" HorizontalAlignment="Right" FontSize="14"
-                                            Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                            Command="{Binding CancelUserEditCommand}"
-                                            Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </Grid>
-
-                                <!-- Protected banner -->
-                                <Border Background="#FEF3C7" CornerRadius="6" Padding="10,8" Margin="0,8,0,0"
-                                        Visibility="{Binding IsProtectedUser, Converter={StaticResource BoolToVisibilityConverter}}">
-                                    <TextBlock Text="🔒 Compte SuperAdmin protégé — seuls le nom et le mot de passe peuvent être modifiés."
-                                               FontFamily="{StaticResource AppFont}" FontSize="11"
-                                               Foreground="#92400E" TextWrapping="Wrap"/>
-                                </Border>
-
-                                <!-- Username -->
-                                <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Text="Nom d'utilisateur *" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding FormUsername, UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="{StaticResource AppFont}" Padding="8,6"
-                                             IsEnabled="{Binding IsProtectedUser, Converter={StaticResource InverseBoolConverter}}"/>
-                                </StackPanel>
-
-                                <!-- Password -->
-                                <StackPanel Margin="0,10,0,0">
-                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="Nouveau mot de passe (laisser vide = inchangé)"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsCreatingUser}" Value="True">
-                                                        <Setter Property="Text" Value="Mot de passe * (min. 4 caractères)"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <TextBox Text="{Binding FormPassword, UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="{StaticResource AppFont}" Padding="8,6"/>
-                                </StackPanel>
-
-                                <!-- Full Name -->
-                                <StackPanel Margin="0,10,0,0">
-                                    <TextBlock Text="Nom complet *" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding FormFullName, UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="{StaticResource AppFont}" Padding="8,6"/>
-                                </StackPanel>
-
-                                <!-- Role -->
-                                <StackPanel Margin="0,10,0,0">
-                                    <TextBlock Text="Rôle *" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                    <ComboBox ItemsSource="{Binding AvailableRoles}"
-                                              SelectedItem="{Binding FormRole}"
-                                              DisplayMemberPath="Name"
-                                              FontFamily="{StaticResource AppFont}" Padding="8,6"
-                                              IsEnabled="{Binding IsProtectedUser, Converter={StaticResource InverseBoolConverter}}"/>
-                                </StackPanel>
-
-                                <!-- Active toggle -->
-                                <StackPanel Margin="0,12,0,0" Orientation="Horizontal"
-                                            IsEnabled="{Binding IsProtectedUser, Converter={StaticResource InverseBoolConverter}}">
-                                    <CheckBox IsChecked="{Binding FormIsActive}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Compte actif" FontFamily="{StaticResource AppFont}" FontSize="13"
-                                               Margin="8,0,0,0" VerticalAlignment="Center"/>
-                                </StackPanel>
-
-                                <!-- POS Assignment -->
-                                <StackPanel Margin="0,14,0,0">
-                                    <TextBlock Text="Points de vente assignés" FontFamily="{StaticResource AppFont}"
-                                               FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                                    <Border Background="#F8FAFC" CornerRadius="6" Padding="10,8"
-                                            MaxHeight="160">
-                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                            <ItemsControl ItemsSource="{Binding AvailablePos}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <CheckBox IsChecked="{Binding IsAssigned}" Margin="0,3"
-                                                                  FontFamily="{StaticResource AppFont}" FontSize="12">
-                                                            <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap"/>
-                                                        </CheckBox>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </ScrollViewer>
-                                    </Border>
-                                    <TextBlock Text="Si aucun POS n'est sélectionné, l'utilisateur devra en choisir un à la connexion."
-                                               FontFamily="{StaticResource AppFont}" FontSize="10"
-                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"
-                                               TextWrapping="Wrap" FontStyle="Italic"/>
-                                </StackPanel>
-
-                                <!-- Buttons -->
-                                <Grid Margin="0,20,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Content="Annuler" Command="{Binding CancelUserEditCommand}"
-                                            FontFamily="{StaticResource AppFont}" Padding="14,8"
-                                            Background="#F3F4F6" BorderThickness="0" Cursor="Hand"
-                                            HorizontalAlignment="Left"/>
-                                    <Button Grid.Column="1" Command="{Binding SaveUserCommand}"
-                                            Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                            FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
-                                            Padding="20,8" BorderThickness="0" Cursor="Hand">
+                                <!-- Form header gradient -->
+                                <Border CornerRadius="16,16,0,0" Padding="24,18">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#EFF6FF" Offset="0"/>
+                                            <GradientStop Color="#F8FAFC" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid>
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="💾" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Enregistrer"/>
+                                            <Border Width="40" Height="40" CornerRadius="12"
+                                                    Background="{StaticResource PrimaryGradient}">
+                                                <md:PackIcon Kind="AccountEdit" Width="20" Height="20"
+                                                             Foreground="White"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding UserFormTitle}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="15" FontWeight="Bold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Remplissez les informations ci-dessous"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="11" Foreground="#94A3B8"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
                                         </StackPanel>
-                                    </Button>
-                                </Grid>
+                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Style="{StaticResource CloseIconBtn}"
+                                                Command="{Binding CancelUserEditCommand}">
+                                            <md:PackIcon Kind="Close" Width="18" Height="18"
+                                                         Foreground="#94A3B8"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
 
-                                <!-- Status -->
-                                <Border Margin="0,12,0,0" CornerRadius="6" Padding="10,8"
-                                        Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        Background="#ECFDF5">
-                                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                                               FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
-                                </Border>
-                                <Border Margin="0,12,0,0" CornerRadius="6" Padding="10,8"
-                                        Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        Background="#FEF2F2">
-                                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
-                                               FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
-                                </Border>
+                                <!-- Gradient separator -->
+                                <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}"/>
+
+                                <!-- Form body -->
+                                <StackPanel Margin="24,20,24,24">
+
+                                    <!-- Protected banner -->
+                                    <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,10"
+                                            Visibility="{Binding IsProtectedUser,
+                                                Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FEF3C7" Offset="0"/>
+                                                <GradientStop Color="#FDE68A" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="ShieldLock" Width="20" Height="20"
+                                                         Foreground="#92400E" Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"/>
+                                            <TextBlock Text="Compte SuperAdmin protégé — seuls le nom et le mot de passe peuvent être modifiés."
+                                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                       Foreground="#92400E" TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Username -->
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="Nom d'utilisateur *"
+                                                   Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding FormUsername,
+                                                     UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource FormInput}"
+                                                 IsEnabled="{Binding IsProtectedUser,
+                                                     Converter={StaticResource InverseBoolConverter}}"/>
+                                    </StackPanel>
+
+                                    <!-- Password -->
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock>
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock"
+                                                       BasedOn="{StaticResource FieldLabel}">
+                                                    <Setter Property="Text"
+                                                            Value="Nouveau mot de passe (vide = inchangé)"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCreatingUser}" Value="True">
+                                                            <Setter Property="Text"
+                                                                    Value="Mot de passe * (min. 4 caractères)"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Text="{Binding FormPassword,
+                                                     UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource FormInput}"/>
+                                    </StackPanel>
+
+                                    <!-- Full name -->
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock Text="Nom complet *"
+                                                   Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding FormFullName,
+                                                     UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource FormInput}"/>
+                                    </StackPanel>
+
+                                    <!-- Role -->
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock Text="Rôle *" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox ItemsSource="{Binding AvailableRoles}"
+                                                  SelectedItem="{Binding FormRole}"
+                                                  DisplayMemberPath="Name"
+                                                  Style="{StaticResource FormCombo}"
+                                                  IsEnabled="{Binding IsProtectedUser,
+                                                      Converter={StaticResource InverseBoolConverter}}"/>
+                                    </StackPanel>
+
+                                    <!-- Active -->
+                                    <Border CornerRadius="12" Padding="16,14" Margin="0,18,0,0"
+                                            IsEnabled="{Binding IsProtectedUser,
+                                                Converter={StaticResource InverseBoolConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#F8FAFC" Offset="0"/>
+                                                <GradientStop Color="#F1F5F9" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox IsChecked="{Binding FormIsActive}"
+                                                      VerticalAlignment="Center"/>
+                                            <TextBlock Text="Compte actif"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13" FontWeight="Medium"
+                                                       Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Point of sale -->
+                                    <StackPanel Margin="0,18,0,0">
+                                        <TextBlock Text="Point de vente assigné"
+                                                   Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox ItemsSource="{Binding AvailablePos}"
+                                                  SelectedItem="{Binding FormPointOfSale}"
+                                                  Style="{StaticResource FormCombo}"
+                                                  IsEnabled="{Binding IsProtectedUser,
+                                                      Converter={StaticResource InverseBoolConverter}}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Code}"
+                                                                   FontWeight="Bold"
+                                                                   FontFamily="{StaticResource AppFont}"/>
+                                                        <TextBlock Text=" — " Foreground="#94A3B8"/>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontFamily="{StaticResource AppFont}"/>
+                                                        <TextBlock Text=" · " Foreground="#94A3B8"/>
+                                                        <TextBlock Text="{Binding City}"
+                                                                   Foreground="#64748B"
+                                                                   FontFamily="{StaticResource AppFont}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Text="Point de vente où cet utilisateur travaillera. Laissez vide si non assigné."
+                                                   FontFamily="{StaticResource AppFont}" FontSize="11"
+                                                   Foreground="#94A3B8" Margin="2,8,0,0"
+                                                   TextWrapping="Wrap" FontStyle="Italic"/>
+                                    </StackPanel>
+
+                                    <!-- Gradient separator -->
+                                    <Rectangle Height="1" Margin="0,24,0,0"
+                                               Fill="{StaticResource SeparatorGradient}"/>
+
+                                    <!-- Buttons -->
+                                    <Grid Margin="0,20,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Content="Annuler" Style="{StaticResource BtnGhost}"
+                                                Command="{Binding CancelUserEditCommand}"/>
+                                        <Button Grid.Column="2" Style="{StaticResource BtnPrimary}"
+                                                Command="{Binding SaveUserCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <md:PackIcon Kind="ContentSave" Width="18" Height="18"
+                                                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Enregistrer" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Success -->
+                                    <Border Margin="0,18,0,0" CornerRadius="12" Padding="16,14"
+                                            Visibility="{Binding ShowSuccess,
+                                                Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#ECFDF5" Offset="0"/>
+                                                <GradientStop Color="#D1FAE5" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="CheckCircle" Width="20" Height="20"
+                                                         Foreground="#059669" Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding StatusMessage}"
+                                                       Foreground="#059669"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" FontWeight="Medium"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Error -->
+                                    <Border Margin="0,18,0,0" CornerRadius="12" Padding="16,14"
+                                            Visibility="{Binding ShowError,
+                                                Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FEF2F2" Offset="0"/>
+                                                <GradientStop Color="#FEE2E2" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="AlertCircle" Width="20" Height="20"
+                                                         Foreground="#DC2626" Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding StatusMessage}"
+                                                       Foreground="#DC2626"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" FontWeight="Medium"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Grid>
                 </ScrollViewer>
             </Grid>
 
-            <!-- ======================================== -->
-            <!--  ROLES TAB                                -->
-            <!-- ======================================== -->
-            <Grid Visibility="{Binding IsUsersTab, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+            <!-- ════════════════════════════════════════════ -->
+            <!--  ROLES TAB                                  -->
+            <!-- ════════════════════════════════════════════ -->
+            <Grid Visibility="{Binding IsUsersTab,
+                      Converter={StaticResource InverseBoolToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="320"/>
+                    <ColumnDefinition Width="360"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT — Role List -->
-                <DockPanel Grid.Column="0" Margin="0,0,16,0">
+                <!-- LEFT — Role list -->
+                <DockPanel Grid.Column="0" Margin="0,0,20,0">
 
-                    <Button DockPanel.Dock="Top" Content="+ Nouveau rôle"
-                            Command="{Binding NewRoleCommand}" Margin="0,0,0,12"
-                            Background="{StaticResource PrimaryBrush}" Foreground="White"
-                            FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
-                            Padding="14,8" BorderThickness="0" Cursor="Hand"
-                            HorizontalAlignment="Stretch"/>
+                    <!-- New role button -->
+                    <Button DockPanel.Dock="Top" Style="{StaticResource BtnPrimary}"
+                            Command="{Binding NewRoleCommand}" Margin="0,0,0,16"
+                            HorizontalAlignment="Stretch"
+                            IsEnabled="{Binding CanCreateRole}"
+                            Visibility="{Binding CanCreateRole,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <md:PackIcon Kind="Plus" Width="18" Height="18"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Nouveau rôle" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
 
-                    <Border Style="{StaticResource CardStyle}">
+                    <Border Style="{StaticResource PremiumCard}" Padding="14">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Roles}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="0,0,0,6" CornerRadius="8" Padding="12,10" Cursor="Hand"
-                                                BorderThickness="1" BorderBrush="{StaticResource BorderLightBrush}">
+                                        <Border Margin="0,0,0,10" Padding="16,14"
+                                                CornerRadius="14" BorderThickness="1" Cursor="Hand">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="8" ShadowDepth="2"
+                                                                  Direction="270" Opacity="0.04"
+                                                                  Color="#1E3A5F"/>
+                                            </Border.Effect>
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="White"/>
+                                                    <Setter Property="Background"
+                                                            Value="{StaticResource SubtleShimmer}"/>
+                                                    <Setter Property="BorderBrush" Value="#E2E8F0"/>
                                                     <Style.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="#F8FAFC"/>
+                                                            <Setter Property="BorderBrush" Value="#93C5FD"/>
+                                                            <Setter Property="Background" Value="White"/>
                                                         </Trigger>
                                                         <DataTrigger Binding="{Binding IsSuperAdmin}" Value="True">
                                                             <Setter Property="BorderBrush" Value="#FDE68A"/>
-                                                            <Setter Property="Background" Value="#FFFBEB"/>
+                                                            <Setter Property="Background">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#FFFBEB" Offset="0"/>
+                                                                        <GradientStop Color="#FEF3C7" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsITTech}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#93C5FD"/>
+                                                            <Setter Property="Background">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#EFF6FF" Offset="0"/>
+                                                                        <GradientStop Color="#DBEAFE" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsInspecteurDGI}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#C4B5FD"/>
+                                                            <Setter Property="Background">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#F5F3FF" Offset="0"/>
+                                                                        <GradientStop Color="#EDE9FE" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -496,34 +1106,136 @@
 
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
 
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="🔒" FontSize="11" Margin="0,0,4,0"
-                                                                   Visibility="{Binding IsSuperAdmin,
-                                                                       Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13"
-                                                                   FontFamily="{StaticResource AppFont}"/>
+                                                <!-- Role icon -->
+                                                <Border Width="42" Height="42" CornerRadius="12"
+                                                        Margin="0,0,14,0" VerticalAlignment="Center">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#F1F5F9"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSuperAdmin}" Value="True">
+                                                                    <Setter Property="Background" Value="#FDE68A"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsITTech}" Value="True">
+                                                                    <Setter Property="Background" Value="#BFDBFE"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsInspecteurDGI}" Value="True">
+                                                                    <Setter Property="Background" Value="#DDD6FE"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <Grid>
+                                                        <md:PackIcon Kind="ShieldCrown" Width="22" Height="22"
+                                                                     Foreground="#D97706"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"
+                                                                     Visibility="{Binding IsSuperAdmin,
+                                                                         Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                        <md:PackIcon Kind="Wrench" Width="22" Height="22"
+                                                                     Foreground="#2563EB"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"
+                                                                     Visibility="{Binding IsITTech,
+                                                                         Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                        <md:PackIcon Kind="MagnifyScan" Width="22" Height="22"
+                                                                     Foreground="#7C3AED"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"
+                                                                     Visibility="{Binding IsInspecteurDGI,
+                                                                         Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                        <!-- Default for custom roles -->
+                                                        <md:PackIcon Kind="AccountKey" Width="22" Height="22"
+                                                                     Foreground="#64748B"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center">
+                                                            <md:PackIcon.Style>
+                                                                <Style TargetType="md:PackIcon">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsSuperAdmin}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsITTech}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsInspecteurDGI}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </md:PackIcon.Style>
+                                                        </md:PackIcon>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Role info -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"
+                                                               FontSize="13"
+                                                               FontFamily="{StaticResource AppFont}"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                                                   FontSize="11" Foreground="#94A3B8">
+                                                            <Run Text="{Binding UserCount, Mode=OneWay}"/>
+                                                            <Run Text=" utilisateur(s)"/>
+                                                        </TextBlock>
+                                                        <!-- Restricted badge -->
+                                                        <Border CornerRadius="8" Padding="8,3"
+                                                                Margin="8,0,0,0" VerticalAlignment="Center">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsITTech}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Setter Property="Background" Value="#DBEAFE"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsInspecteurDGI}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Setter Property="Background" Value="#EDE9FE"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock Text="restreint" FontSize="10"
+                                                                       FontWeight="Bold"
+                                                                       FontFamily="{StaticResource AppFont}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="#6B7280"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsITTech}" Value="True">
+                                                                                <Setter Property="Foreground" Value="#2563EB"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsInspecteurDGI}" Value="True">
+                                                                                <Setter Property="Foreground" Value="#7C3AED"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
                                                     </StackPanel>
-                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
-                                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0">
-                                                        <Run Text="{Binding UserCount, Mode=OneWay}"/>
-                                                        <Run Text=" utilisateur(s)"/>
-                                                    </TextBlock>
                                                 </StackPanel>
 
-                                                <Button Grid.Column="1" Content="🗑️" FontSize="12"
-                                                        Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                                        Padding="4,2" VerticalAlignment="Center"
+                                                <!-- Delete -->
+                                                <Button Grid.Column="2"
+                                                        Style="{StaticResource GridIconBtn}"
                                                         ToolTip="Supprimer le rôle"
-                                                        Visibility="{Binding IsSuperAdmin,
-                                                            Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                                                        Visibility="{Binding CanDeleteRole,
+                                                            Converter={StaticResource BoolToVisibilityConverter}}"
                                                         Command="{Binding DataContext.DeleteRoleCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"/>
+                                                        CommandParameter="{Binding}">
+                                                    <md:PackIcon Kind="TrashCanOutline" Width="18" Height="18"
+                                                                 Foreground="#EF4444"/>
+                                                </Button>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -533,121 +1245,264 @@
                     </Border>
                 </DockPanel>
 
-                <!-- RIGHT — Role Form / Permission Editor -->
-                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <!-- RIGHT — Role form / Permission editor -->
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                              Padding="0,0,4,0">
                     <Grid>
                         <!-- Empty state -->
-                        <StackPanel Visibility="{Binding IsEditingRole, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                                    VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,60,0,0">
-                            <TextBlock Text="🔑" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
-                            <TextBlock Text="Sélectionnez un rôle pour voir et modifier ses permissions"
+                        <StackPanel Visibility="{Binding IsEditingRole,
+                                        Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Margin="0,80,0,0">
+                            <Border Width="80" Height="80" CornerRadius="24"
+                                    HorizontalAlignment="Center">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#EFF6FF" Offset="0"/>
+                                        <GradientStop Color="#F5F3FF" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <md:PackIcon Kind="KeyChainVariant" Width="38" Height="38"
+                                             Foreground="#94A3B8"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Sélectionnez un rôle pour voir&#x0a;et modifier ses permissions"
                                        FontFamily="{StaticResource AppFont}" FontSize="13"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,12,0,0"
-                                       TextWrapping="Wrap"/>
+                                       Foreground="#94A3B8" HorizontalAlignment="Center"
+                                       TextAlignment="Center" Margin="0,18,0,0" LineHeight="22"/>
                         </StackPanel>
 
-                        <!-- Form -->
-                        <Border Style="{StaticResource CardStyle}"
-                                Visibility="{Binding IsEditingRole, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <!-- Role edit form -->
+                        <Border Style="{StaticResource PremiumCard}" Padding="0"
+                                Visibility="{Binding IsEditingRole,
+                                    Converter={StaticResource BoolToVisibilityConverter}}">
                             <StackPanel>
-                                <!-- Title -->
-                                <Grid>
-                                    <TextBlock Text="{Binding RoleFormTitle}" Style="{StaticResource SectionTitleStyle}"/>
-                                    <Button Content="✕" HorizontalAlignment="Right" FontSize="14"
-                                            Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                            Command="{Binding CancelRoleEditCommand}"
-                                            Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </Grid>
 
-                                <!-- Protected banner -->
-                                <Border Background="#FEF3C7" CornerRadius="6" Padding="10,8" Margin="0,8,0,0"
-                                        Visibility="{Binding IsProtectedRole, Converter={StaticResource BoolToVisibilityConverter}}">
-                                    <TextBlock Text="🔒 Rôle SuperAdmin protégé — ce rôle ne peut pas être modifié ni supprimé. Toutes les permissions sont activées en permanence."
-                                               FontFamily="{StaticResource AppFont}" FontSize="11"
-                                               Foreground="#92400E" TextWrapping="Wrap"/>
-                                </Border>
-
-                                <!-- Role Name -->
-                                <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Text="Nom du rôle *" FontFamily="{StaticResource AppFont}" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding FormRoleName, UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="{StaticResource AppFont}" Padding="8,6"
-                                             IsEnabled="{Binding IsProtectedRole, Converter={StaticResource InverseBoolConverter}}"/>
-                                </StackPanel>
-
-                                <!-- Permissions -->
-                                <StackPanel Margin="0,16,0,0">
-                                    <TextBlock Text="Permissions" FontFamily="{StaticResource AppFont}" FontSize="14"
-                                               FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"
-                                               Margin="0,0,0,10"/>
-
-                                    <ItemsControl ItemsSource="{Binding FormPermissions}"
-                                                  IsEnabled="{Binding IsProtectedRole, Converter={StaticResource InverseBoolConverter}}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <UniformGrid Columns="2"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Margin="2,3" Padding="8,6" CornerRadius="6">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="#F8FAFC"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsGranted}" Value="True">
-                                                                    <Setter Property="Background" Value="#ECFDF5"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <CheckBox IsChecked="{Binding IsGranted}"
-                                                              FontFamily="{StaticResource AppFont}" FontSize="12">
-                                                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                                                    </CheckBox>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-
-                                <!-- Buttons (hidden for protected) -->
-                                <Grid Margin="0,20,0,0"
-                                      Visibility="{Binding IsProtectedRole, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Content="Annuler" Command="{Binding CancelRoleEditCommand}"
-                                            FontFamily="{StaticResource AppFont}" Padding="14,8"
-                                            Background="#F3F4F6" BorderThickness="0" Cursor="Hand"
-                                            HorizontalAlignment="Left"/>
-                                    <Button Grid.Column="1" Command="{Binding SaveRoleCommand}"
-                                            Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                            FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"
-                                            Padding="20,8" BorderThickness="0" Cursor="Hand">
+                                <!-- Form header gradient -->
+                                <Border CornerRadius="16,16,0,0" Padding="24,18">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#F5F3FF" Offset="0"/>
+                                            <GradientStop Color="#EFF6FF" Offset="0.5"/>
+                                            <GradientStop Color="#F8FAFC" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid>
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="💾" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Enregistrer"/>
+                                            <Border Width="40" Height="40" CornerRadius="12">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#3B82F6" Offset="0"/>
+                                                        <GradientStop Color="#8B5CF6" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <md:PackIcon Kind="ShieldKey" Width="20" Height="20"
+                                                             Foreground="White"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding RoleFormTitle}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="15" FontWeight="Bold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Configurez le nom et les permissions"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="11" Foreground="#94A3B8"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
                                         </StackPanel>
-                                    </Button>
-                                </Grid>
+                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Style="{StaticResource CloseIconBtn}"
+                                                Command="{Binding CancelRoleEditCommand}">
+                                            <md:PackIcon Kind="Close" Width="18" Height="18"
+                                                         Foreground="#94A3B8"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
 
-                                <!-- Status -->
-                                <Border Margin="0,12,0,0" CornerRadius="6" Padding="10,8"
-                                        Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        Background="#ECFDF5">
-                                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                                               FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
-                                </Border>
-                                <Border Margin="0,12,0,0" CornerRadius="6" Padding="10,8"
-                                        Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        Background="#FEF2F2">
-                                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
-                                               FontFamily="{StaticResource AppFont}" FontSize="12" TextWrapping="Wrap"/>
-                                </Border>
+                                <!-- Gradient separator -->
+                                <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}"/>
+
+                                <!-- Form body -->
+                                <StackPanel Margin="24,20,24,24">
+
+                                    <!-- Protected banner -->
+                                    <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,10"
+                                            Visibility="{Binding IsProtectedRole,
+                                                Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FEF3C7" Offset="0"/>
+                                                <GradientStop Color="#FDE68A" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="ShieldLock" Width="20" Height="20"
+                                                         Foreground="#92400E" Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ProtectedRoleMessage}"
+                                                       FontFamily="{StaticResource AppFont}" FontSize="12"
+                                                       Foreground="#92400E" TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Role name -->
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="Nom du rôle *"
+                                                   Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding FormRoleName,
+                                                     UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource FormInput}"
+                                                 IsEnabled="{Binding IsProtectedRole,
+                                                     Converter={StaticResource InverseBoolConverter}}"/>
+                                    </StackPanel>
+
+                                    <!-- Permissions section -->
+                                    <StackPanel Margin="0,24,0,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                            <Border Width="32" Height="32" CornerRadius="10">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#3B82F6" Offset="0"/>
+                                                        <GradientStop Color="#8B5CF6" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <md:PackIcon Kind="ShieldKey" Width="16" Height="16"
+                                                             Foreground="White"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="Permissions" Margin="12,0,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14" FontWeight="Bold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding FormPermissions}"
+                                                      IsEnabled="{Binding IsProtectedRole,
+                                                          Converter={StaticResource InverseBoolConverter}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Columns="2"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="4,5" Padding="14,12"
+                                                            CornerRadius="12" Cursor="Hand"
+                                                            BorderThickness="1">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="#F8FAFC"/>
+                                                                <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsGranted}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="#86EFAC"/>
+                                                                        <Setter Property="Background">
+                                                                            <Setter.Value>
+                                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                                    <GradientStop Color="#ECFDF5" Offset="0"/>
+                                                                                    <GradientStop Color="#D1FAE5" Offset="1"/>
+                                                                                </LinearGradientBrush>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </DataTrigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="#93C5FD"/>
+                                                                    </Trigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <CheckBox IsChecked="{Binding IsGranted}"
+                                                                  FontFamily="{StaticResource AppFont}"
+                                                                  FontSize="12"
+                                                                  VerticalContentAlignment="Center">
+                                                            <TextBlock Text="{Binding Label}"
+                                                                       TextWrapping="Wrap"
+                                                                       Margin="6,0,0,0"/>
+                                                        </CheckBox>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- Gradient separator -->
+                                    <Rectangle Height="1" Margin="0,24,0,0"
+                                               Fill="{StaticResource SeparatorGradient}"
+                                               Visibility="{Binding IsProtectedRole,
+                                                   Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+
+                                    <!-- Buttons (hidden for protected) -->
+                                    <Grid Margin="0,20,0,0"
+                                          Visibility="{Binding IsProtectedRole,
+                                              Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Content="Annuler" Style="{StaticResource BtnGhost}"
+                                                Command="{Binding CancelRoleEditCommand}"/>
+                                        <Button Grid.Column="2" Style="{StaticResource BtnPrimary}"
+                                                Command="{Binding SaveRoleCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <md:PackIcon Kind="ContentSave" Width="18" Height="18"
+                                                             VerticalAlignment="Center"
+                                                             Margin="0,0,8,0"/>
+                                                <TextBlock Text="Enregistrer"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Success -->
+                                    <Border Margin="0,18,0,0" CornerRadius="12" Padding="16,14"
+                                            Visibility="{Binding ShowSuccess,
+                                                Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#ECFDF5" Offset="0"/>
+                                                <GradientStop Color="#D1FAE5" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="CheckCircle" Width="20" Height="20"
+                                                         Foreground="#059669" Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding StatusMessage}"
+                                                       Foreground="#059669"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" FontWeight="Medium"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Error -->
+                                    <Border Margin="0,18,0,0" CornerRadius="12" Padding="16,14"
+                                            Visibility="{Binding ShowError,
+                                                Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FEF2F2" Offset="0"/>
+                                                <GradientStop Color="#FEE2E2" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="AlertCircle" Width="20" Height="20"
+                                                         Foreground="#DC2626" Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding StatusMessage}"
+                                                       Foreground="#DC2626"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12" FontWeight="Medium"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -655,6 +1510,5 @@
             </Grid>
 
         </Grid>
-
     </Grid>
 </UserControl>

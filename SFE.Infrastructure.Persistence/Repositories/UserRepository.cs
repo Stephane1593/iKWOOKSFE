@@ -21,6 +21,7 @@ public class UserRepository : Repository<User>, IUserRepository
     {
         return await _dbSet
             .Include(u => u.Role)
+            .Include(u => u.PointOfSale)
             .FirstOrDefaultAsync(u => u.Username == username
                                    && u.PasswordHash == passwordHash
                                    && u.IsActive);
@@ -39,6 +40,25 @@ public class UserRepository : Repository<User>, IUserRepository
     {
         return await _dbSet
             .Include(u => u.Role)
+            .OrderBy(u => u.FullName)
+            .ToListAsync();
+    }
+
+    // 🆕
+    public async Task<User?> GetWithPosAndRoleAsync(int userId)
+    {
+        return await _dbSet
+            .Include(u => u.Role)
+            .Include(u => u.PointOfSale)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+    }
+
+    // 🆕
+    public async Task<List<User>> GetByPointOfSaleAsync(int posId)
+    {
+        return await _dbSet
+            .Include(u => u.Role)
+            .Where(u => u.PointOfSaleId == posId && u.IsActive)
             .OrderBy(u => u.FullName)
             .ToListAsync();
     }

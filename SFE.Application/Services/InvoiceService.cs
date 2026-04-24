@@ -9,12 +9,14 @@ public class InvoiceService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFiscalDeviceService _fiscalDevice;
     private readonly StockService _stockService;
+    private readonly IAuditService _auditService;
 
-    public InvoiceService(IUnitOfWork unitOfWork, IFiscalDeviceService fiscalDevice, StockService stockService)
+    public InvoiceService(IUnitOfWork unitOfWork, IFiscalDeviceService fiscalDevice, StockService stockService, IAuditService auditService)
     {
         _unitOfWork = unitOfWork;
         _fiscalDevice = fiscalDevice;
         _stockService = stockService;
+        _auditService = auditService;
     }
 
     public async Task<string> GenerateInvoiceNumberAsync(InvoiceType type)
@@ -192,6 +194,12 @@ public class InvoiceService
         await _unitOfWork.Invoices.AddAsync(invoice);
         await _unitOfWork.SaveChangesAsync();
 
+        // 11. ✅ Audit — journal électronique (DGI §19)
+        var auditAction = invoice.IsCreditNote ? AuditAction.CreditNoteNormalized
+            : invoice.IsAdvanceInvoice ? AuditAction.AdvanceInvoiceNormalized
+            : AuditAction.InvoiceNormalized;
+        await _auditService.LogInvoiceAsync(auditAction, invoice);
+
         return new NormalizationResult
         {
             Success = true,
@@ -207,10 +215,11 @@ public class InvoiceService
 
     public void RecalculateTotals(Invoice invoice)
     {
-        decimal totalHTBefore = 0, totalDiscount = 0;
-        decimal totalHT = 0, totalTVA = 0, totalTTC = 0;
-        decimal totalFixedTS = 0, totalPercentTS = 0;
-
+        // ═══════════════════════════════════════════════════════
+        //  Pass 1 : CalculateLineFull for every line
+        //           OnTotal lines → TaxSpecificAmount = 0
+        //           PerArticle lines → TS included (V10: Ceil2 for %)
+        // ═══════════════════════════════════════════════════════
         foreach (var line in invoice.Lines)
         {
             var input = new LineCalculationInput
@@ -237,73 +246,121 @@ public class InvoiceService
             line.AmountTVA = calc.AmountTVA;
             line.TaxSpecificAmount = calc.TaxSpecificAmount;
             line.AmountTTC = calc.AmountTTC;
+        }
 
-            totalHTBefore += calc.AmountHTBeforeDiscount;
-            totalDiscount += calc.DiscountAmount;
-            totalHT += calc.AmountHT;
-            totalTVA += calc.AmountTVA;
-            totalTTC += calc.AmountTTC;
+        // V10: Pass 1.5 REMOVED — CalculateLineFull now produces correct
+        // values for PerArticle + TS% at the source using Ceil2.
 
-            if (line.TaxApplicationMode == TaxApplicationMode.PerArticle)
+        // ═══════════════════════════════════════════════════════
+        //  Pass 2 : OnTotal TS distribution
+        //
+        //  V10: TS% uses Ceil2 per-line (two-step forward + reverse).
+        //  FixedPerUnit uses prorata distribution with R2.
+        // ═══════════════════════════════════════════════════════
+        var onTotalGroups = invoice.Lines
+            .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
+                      && l.SpecificTaxType != SpecificTaxType.None
+                      && l.SpecificTaxValue > 0)
+            .GroupBy(l => l.SpecificTaxName ?? $"__auto_{l.SpecificTaxType}_{l.SpecificTaxValue}");
+
+        foreach (var grp in onTotalGroups)
+        {
+            var lines = grp.ToList();
+            var representative = lines.First();
+
+            if (representative.SpecificTaxType == SpecificTaxType.Percentage)
             {
-                switch (line.SpecificTaxType)
+                // ────────────────────────────────────────────────
+                //  TS Percentage — V10: Ceil2 two-step + reverse
+                // ────────────────────────────────────────────────
+                decimal tsRate = representative.SpecificTaxValue / 100m;
+
+                foreach (var line in lines)
                 {
-                    case SpecificTaxType.FixedPerUnit:
-                        totalFixedTS += calc.TaxSpecificAmount;
-                        break;
-                    case SpecificTaxType.Percentage:
-                        totalPercentTS += calc.TaxSpecificAmount;
-                        break;
+                    decimal goodsHT = line.AmountHT; // Pure goods, no TS (OnTotal → hasTS=false)
+                    decimal vatRate = line.TaxRate / 100m;
+
+                    // 1) TS with Ceil2
+                    decimal ts = TaxCalculator.Ceil2(goodsHT * tsRate);
+
+                    // 2) TTC with Ceil2
+                    decimal baseHT = goodsHT + ts;
+                    decimal ttc = TaxCalculator.Ceil2(baseHT * (1m + vatRate));
+
+                    // 3) Reverse-derive HT and TVA
+                    decimal ht = TaxCalculator.R2(ttc / (1m + vatRate));
+                    decimal tva = ttc - ht;
+
+                    line.TaxSpecificAmount = ts;
+                    line.AmountHT = ht;
+                    line.AmountTVA = tva;
+                    line.AmountTTC = ttc;
+                }
+            }
+            else if (representative.SpecificTaxType == SpecificTaxType.FixedPerUnit)
+            {
+                // ────────────────────────────────────────────────
+                //  TS Fixed per unit — prorata distribution
+                // ────────────────────────────────────────────────
+                decimal groupQty = lines.Sum(l => l.Quantity);
+                decimal tsForGroup = TaxCalculator.R2(groupQty * representative.SpecificTaxValue);
+
+                decimal groupHT = lines.Sum(l => l.AmountHT);
+                decimal distributed = 0m;
+
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    var line = lines[i];
+                    decimal share;
+
+                    if (i < lines.Count - 1)
+                    {
+                        share = groupHT > 0
+                            ? TaxCalculator.R2(tsForGroup * line.AmountHT / groupHT)
+                            : TaxCalculator.R2(tsForGroup / lines.Count);
+                        distributed += share;
+                    }
+                    else
+                    {
+                        share = tsForGroup - distributed;
+                    }
+
+                    decimal goodsHT = line.AmountHT;
+                    decimal vatRate = line.TaxRate / 100m;
+
+                    line.TaxSpecificAmount = share;
+
+                    decimal newBase = goodsHT + share;
+                    decimal newTTC = TaxCalculator.R2(newBase * (1m + vatRate));
+                    decimal newTVA = newTTC - newBase;
+
+                    line.AmountHT = newBase;
+                    line.AmountTVA = newTVA;
+                    line.AmountTTC = newTTC;
+
+                    if (line.AmountHT + line.AmountTVA != line.AmountTTC)
+                        line.AmountTVA = line.AmountTTC - line.AmountHT;
                 }
             }
         }
 
-        // Pass 2: OnTotal
-        var onTotalGroups = invoice.Lines
-            .Where(l => l.SpecificTaxType != SpecificTaxType.None
-                        && l.TaxApplicationMode == TaxApplicationMode.OnTotal)
-            .GroupBy(l => l.SpecificTaxName ?? $"__auto_{l.SpecificTaxType}_{l.SpecificTaxValue}");
+        // ═══════════════════════════════════════════════════════
+        //  Pass 3 : Totaux
+        // ═══════════════════════════════════════════════════════
+        invoice.TotalHTBeforeDiscount = invoice.Lines.Sum(l => l.AmountHTBeforeDiscount);
+        invoice.TotalDiscount = invoice.Lines.Sum(l => l.DiscountAmount);
+        invoice.TotalHT = invoice.Lines.Sum(l => l.AmountHT);
+        invoice.TotalTVA = invoice.Lines.Sum(l => l.AmountTVA);
+        invoice.TotalTTC = invoice.Lines.Sum(l => l.AmountTTC);
+        invoice.TotalSpecificTax = invoice.Lines.Sum(l => l.TaxSpecificAmount);
 
-        foreach (var group in onTotalGroups)
-        {
-            var representative = group.First();
-            decimal onTotalAmount;
+        invoice.TotalFixedSpecificTax = invoice.Lines
+            .Where(l => l.SpecificTaxType == SpecificTaxType.FixedPerUnit)
+            .Sum(l => l.TaxSpecificAmount);
 
-            switch (representative.SpecificTaxType)
-            {
-                case SpecificTaxType.FixedPerUnit:
-                    {
-                        decimal totalQuantity = group.Sum(l => l.Quantity);
-                        onTotalAmount = Math.Round(totalQuantity * representative.SpecificTaxValue, 2);
-                        totalFixedTS += onTotalAmount;
-                        break;
-                    }
-                case SpecificTaxType.Percentage:
-                    {
-                        decimal groupHT = group.Sum(l => l.AmountHT);
-                        onTotalAmount = Math.Round(groupHT * representative.SpecificTaxValue / 100m, 2);
-                        totalPercentTS += onTotalAmount;
-                        break;
-                    }
-                default:
-                    onTotalAmount = 0;
-                    break;
-            }
-
-            totalTTC += onTotalAmount;
-
-            if (onTotalAmount > 0)
-                DistributeOnTotalTaxToLines(group, representative.SpecificTaxType, onTotalAmount);
-        }
-
-        invoice.TotalHTBeforeDiscount = totalHTBefore;
-        invoice.TotalDiscount = totalDiscount;
-        invoice.TotalHT = totalHT;
-        invoice.TotalTVA = totalTVA;
-        invoice.TotalFixedSpecificTax = totalFixedTS;
-        invoice.TotalPercentSpecificTax = totalPercentTS;
-        invoice.TotalSpecificTax = totalFixedTS + totalPercentTS;
-        invoice.TotalTTC = totalTTC;
+        invoice.TotalPercentSpecificTax = invoice.Lines
+            .Where(l => l.SpecificTaxType == SpecificTaxType.Percentage)
+            .Sum(l => l.TaxSpecificAmount);
     }
 
     private static void DistributeOnTotalTaxToLines(

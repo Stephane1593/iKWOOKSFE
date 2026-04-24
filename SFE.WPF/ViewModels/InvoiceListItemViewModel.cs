@@ -139,4 +139,6 @@ public partial class InvoiceListItemViewModel : ObservableObject
         PaymentType.Autre => "💰",
         _ => "💰"
     };
+
+
 }

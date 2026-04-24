@@ -3,24 +3,47 @@
 namespace SFE.Application.Services;
 
 /// <summary>
-/// Moteur de calcul fiscal conforme DGI RDC — V3.
+/// Moteur de calcul fiscal conforme DGI RDC — V10.
 ///
-/// Chaîne de calcul (DiscountBeforeTax = true, défaut) :
-///   HT brut → Remise → HT net → T.S.(PerArticle) → TVA → TTC
+/// V10 vs V6–V9 :
+///   TS Percentage uses Ceil2 (arrondi par excès) at the SOURCE
+///   inside CalculateLineFull, matching the VSDC exactly.
+///   All fragile post-fix passes are eliminated.
 ///
-/// Chaîne alternative (DiscountBeforeTax = false) :
-///   HT brut → T.S. → TVA → TTC brut → Remise → TTC net
-///   (HT et TVA fiscaux restent non remisés)
+///   Formula (TS Percentage):
+///     TS  = Ceil2(goodsHT × tsRate)
+///     TTC = Ceil2((goodsHT + TS) × (1 + vatRate))   ← two-step
+///     HT  = R2(TTC / (1 + vatRate))                  ← reverse
+///     TVA = TTC − HT
 ///
-/// Groupe N : montant entier considéré comme TVA.
-/// Arrondi : 2 décimales, TVA arrondie vers le haut si nécessaire (DGI).
+///   Formula (TS FixedPerUnit) — unchanged:
+///     TS  = R2(value × qty)
+///     HT  = goodsHT + TS
+///     TTC = R2(HT × (1 + vatRate))
+///     TVA = TTC − HT
 ///
-/// Taxe spécifique :
-///   - Percentage   : montant = baseHT × value / 100
-///   - FixedPerUnit : montant = value × quantity
+/// ⚠ AmountHT includes TS (HT fiscal = goodsHT + TS).
+///   AmountHTCommercial = AmountHT − TaxSpecificAmount.
 /// </summary>
 public static class TaxCalculator
 {
+    // ═══════════════════════════════════════════════════
+    //  ARRONDI
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// Standard round to 2 decimals, AwayFromZero — matches WinDev Arrondi().
+    /// </summary>
+    public static decimal R2(decimal value) =>
+        Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// Ceiling to 2 decimals — matches VSDC "arrondi par excès"
+    /// used for TS percentage and TTC when TS% is present.
+    /// </summary>
+    public static decimal Ceil2(decimal v) =>
+        Math.Ceiling(v * 100m) / 100m;
+
     // ═══════════════════════════════════════════════════
     //  TAUX ET LABELS
     // ═══════════════════════════════════════════════════
@@ -71,165 +94,240 @@ public static class TaxCalculator
         mode == PriceMode.TTC ? "TTC" : "HT";
 
     // ═══════════════════════════════════════════════════
-    //  CALCUL PRINCIPAL — Ligne complète
+    //  VALIDATION — type d'article vs groupe de taxation
     // ═══════════════════════════════════════════════════
 
-    /// <summary>
-    /// Calcul complet d'une ligne de facture :
-    /// remise, taxe spécifique, TVA, TTC.
-    ///
-    /// Quand TaxApplicationMode == OnTotal la T.S. n'est PAS incluse
-    /// dans le résultat de la ligne (TaxSpecificAmount = 0).
-    /// Elle sera calculée et distribuée au niveau facture
-    /// par InvoicingViewModel.RecalculateTotals().
-    /// </summary>
+    public static bool IsItemTypeValidForGroup(ItemType itemType, TaxGroup group)
+    {
+        bool isLOrN = group == TaxGroup.L || group == TaxGroup.N;
+        return itemType switch
+        {
+            ItemType.TAX => isLOrN,
+            _ => !isLOrN
+        };
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  CALCUL PRINCIPAL — Ligne complète (V10)
+    // ═══════════════════════════════════════════════════
+
     public static LineCalculationResult CalculateLineFull(LineCalculationInput input)
     {
         var result = new LineCalculationResult();
 
-        // ── Groupe N : montant entier = TVA ──
+        // ── Groupe N : montant entier = TVA (spec 1.5.8) ──
         if (input.TaxGroup == TaxGroup.N)
         {
-            var amount = Math.Round(input.UnitPriceHT * input.Quantity, 2);
-            result.AmountHTBeforeDiscount = 0;
-            result.DiscountAmount = 0;
-            result.AmountHT = 0;
+            decimal unitPrice = input.PriceMode == PriceMode.TTC
+                ? input.UnitPriceTTC
+                : input.UnitPriceHT;
+            decimal amount = R2(unitPrice * input.Quantity);
+            result.AmountHTBeforeDiscount = 0m;
+            result.DiscountAmount = 0m;
+            result.AmountHT = 0m;
             result.AmountTVA = amount;
-            result.TaxSpecificAmount = 0;
+            result.TaxSpecificAmount = 0m;
             result.AmountTTC = amount;
             return result;
         }
 
+        bool isTTC = input.PriceMode == PriceMode.TTC;
         decimal rate = input.TaxRate / 100m;
-        decimal grossHT = Math.Round(input.UnitPriceHT * input.Quantity, 2);
-        result.AmountHTBeforeDiscount = grossHT;
 
-        // ── T.S. par ligne sauf si le mode est explicitement OnTotal
-        //    (auquel cas elle sera calculée au niveau facture). ──
+        // ── grossAmount = R2(PU × Qty) ──
+        decimal unitPriceUsed = isTTC ? input.UnitPriceTTC : input.UnitPriceHT;
+        decimal grossAmount = R2(unitPriceUsed * input.Quantity);
+
+        // AmountHTBeforeDiscount : HT commercial pur (sans TS, sans remise)
+        result.AmountHTBeforeDiscount = isTTC && rate > 0m
+            ? R2(grossAmount / (1m + rate))
+            : grossAmount;
+
+        // ── TS en ligne ? (désactivée si OnTotal) ──
         bool hasTS = input.SpecificTaxType != SpecificTaxType.None
-                     && input.SpecificTaxValue > 0
+                     && input.SpecificTaxValue > 0m
                      && input.TaxApplicationMode != TaxApplicationMode.OnTotal;
 
         if (input.DiscountType == DiscountType.None || input.DiscountBeforeTax)
         {
-            // ═══ REMISE AVANT TAXE (ou pas de remise) ═══
-
-            // 1. Remise sur montant HT brut
-            result.DiscountAmount = CalculateDiscountAmount(
-                grossHT, input.DiscountType, input.DiscountValue);
-
-            // 2. HT net (après remise)
-            result.AmountHT = grossHT - result.DiscountAmount;
-
-            // 3. Taxe spécifique PerArticle → base = HT net
-            result.TaxSpecificAmount = 0m;
-            if (hasTS)
-            {
-                result.TaxSpecificAmount = ComputeSpecificTax(
-                    input.SpecificTaxType, input.SpecificTaxValue,
-                    result.AmountHT, input.Quantity);
-            }
-
-            // 4. TVA = (HT net + T.S.) × taux
-            decimal baseTVA = result.AmountHT + result.TaxSpecificAmount;
-            result.AmountTVA = Math.Round(baseTVA * rate, 2);
-
-            // 5. TTC = HT net + T.S. + TVA
-            result.AmountTTC = result.AmountHT + result.TaxSpecificAmount + result.AmountTVA;
+            CalculateDiscountBeforeTax(input, result, grossAmount, rate, isTTC, hasTS);
         }
         else
         {
-            // ═══ REMISE APRÈS TAXE ═══
-
-            // 1. HT fiscal = brut (non remisé)
-            result.AmountHT = grossHT;
-
-            // 2. Taxe spécifique sur HT brut
-            result.TaxSpecificAmount = 0m;
-            if (hasTS)
-            {
-                result.TaxSpecificAmount = ComputeSpecificTax(
-                    input.SpecificTaxType, input.SpecificTaxValue,
-                    grossHT, input.Quantity);
-            }
-
-            // 3. TVA sur (HT brut + T.S.)
-            decimal baseTVA = grossHT + result.TaxSpecificAmount;
-            result.AmountTVA = Math.Round(baseTVA * rate, 2);
-
-            // 4. TTC brut (avant remise commerciale)
-            decimal grossTTC = grossHT + result.TaxSpecificAmount + result.AmountTVA;
-
-            // 5. Remise calculée sur TTC brut
-            result.DiscountAmount = CalculateDiscountAmount(
-                grossTTC, input.DiscountType, input.DiscountValue);
-
-            // 6. TTC final
-            result.AmountTTC = grossTTC - result.DiscountAmount;
-        }
-
-        // ── Vérification arrondi DGI (mode TTC, sans remise, sans T.S.) ──
-        bool noTS = input.SpecificTaxType == SpecificTaxType.None
-                    || input.SpecificTaxValue <= 0;
-
-        if (input.PriceMode == PriceMode.TTC
-            && input.DiscountType == DiscountType.None
-            && noTS
-            && rate > 0)
-        {
-            decimal expectedTTC = Math.Round(input.UnitPriceTTC * input.Quantity, 2);
-            if (result.AmountHT + result.AmountTVA != expectedTTC)
-            {
-                result.AmountTVA = expectedTTC - result.AmountHT;
-                result.AmountTTC = expectedTTC;
-            }
+            CalculateDiscountAfterTax(input, result, grossAmount, rate, isTTC, hasTS);
         }
 
         return result;
     }
 
+    // ─────────────────────────────────────────────────
+    //  Branche 1 : pas de remise ou remise avant taxe
+    // ─────────────────────────────────────────────────
+    private static void CalculateDiscountBeforeTax(
+        LineCalculationInput input, LineCalculationResult result,
+        decimal grossAmount, decimal rate, bool isTTC, bool hasTS)
+    {
+        // ── 1. Remise sur montant brut ──
+        result.DiscountAmount = CalculateDiscountAmount(
+            grossAmount, input.DiscountType, input.DiscountValue);
+        decimal netAmount = grossAmount - result.DiscountAmount;
+
+        // ── 2. Extraire le HT marchandise ──
+        decimal goodsHT = isTTC && rate > 0m
+            ? R2(netAmount / (1m + rate))
+            : netAmount;
+
+        // ── 3. Taxe spécifique — V10: Ceil2 pour pourcentage ──
+        result.TaxSpecificAmount = hasTS
+            ? ComputeSpecificTax(input.SpecificTaxType, input.SpecificTaxValue,
+                                 goodsHT, input.Quantity)
+            : 0m;
+
+        // ── 4. Calcul HT / TVA / TTC ──
+        if (hasTS && result.TaxSpecificAmount > 0m)
+        {
+            if (input.SpecificTaxType == SpecificTaxType.Percentage)
+            {
+                // ── V10: Two-step Ceil2 forward + reverse ──
+                // TS  = Ceil2(goodsHT × tsRate)  [already done above]
+                // TTC = Ceil2((goodsHT + TS) × (1+vat))
+                // HT  = R2(TTC / (1+vat))
+                // TVA = TTC − HT
+                decimal ts = result.TaxSpecificAmount;
+                decimal baseHT = goodsHT + ts;
+                result.AmountTTC = Ceil2(baseHT * (1m + rate));
+                result.AmountHT = R2(result.AmountTTC / (1m + rate));
+                result.AmountTVA = result.AmountTTC - result.AmountHT;
+            }
+            else
+            {
+                // ── FixedPerUnit: standard R2 ──
+                result.AmountHT = goodsHT + result.TaxSpecificAmount;
+                result.AmountTTC = R2(result.AmountHT * (1m + rate));
+                result.AmountTVA = result.AmountTTC - result.AmountHT;
+            }
+        }
+        else if (isTTC)
+        {
+            // ── Sans TS, mode TTC : préserver le TTC utilisateur ──
+            result.AmountTTC = netAmount;
+            result.AmountHT = goodsHT;
+            result.AmountTVA = result.AmountTTC - result.AmountHT;
+        }
+        else
+        {
+            // ── Sans TS, mode HT ──
+            result.AmountHT = netAmount;
+            result.AmountTTC = R2(result.AmountHT * (1m + rate));
+            result.AmountTVA = result.AmountTTC - result.AmountHT;
+        }
+
+        // ── Garde arrondi DGI (spec 1.5.7) ──
+        if (result.AmountHT + result.AmountTVA != result.AmountTTC)
+        {
+            result.AmountTVA = result.AmountTTC - result.AmountHT;
+        }
+    }
+
+    // ─────────────────────────────────────────────────
+    //  Branche 2 : remise après taxe
+    // ─────────────────────────────────────────────────
+    private static void CalculateDiscountAfterTax(
+        LineCalculationInput input, LineCalculationResult result,
+        decimal grossAmount, decimal rate, bool isTTC, bool hasTS)
+    {
+        // ── 1. Extraire HT marchandise ──
+        decimal goodsHT = isTTC && rate > 0m
+            ? R2(grossAmount / (1m + rate))
+            : grossAmount;
+
+        // ── 2. TS — V10: Ceil2 pour pourcentage ──
+        result.TaxSpecificAmount = hasTS
+            ? ComputeSpecificTax(input.SpecificTaxType, input.SpecificTaxValue,
+                                 goodsHT, input.Quantity)
+            : 0m;
+
+        // ── 3. Calcul complet sur brut (non remisé) ──
+        decimal grossTTC;
+
+        if (hasTS && result.TaxSpecificAmount > 0m)
+        {
+            if (input.SpecificTaxType == SpecificTaxType.Percentage)
+            {
+                // ── V10: Two-step Ceil2 forward + reverse ──
+                decimal ts = result.TaxSpecificAmount;
+                decimal baseHT = goodsHT + ts;
+                grossTTC = Ceil2(baseHT * (1m + rate));
+                result.AmountHT = R2(grossTTC / (1m + rate));
+                result.AmountTVA = grossTTC - result.AmountHT;
+            }
+            else
+            {
+                result.AmountHT = goodsHT + result.TaxSpecificAmount;
+                grossTTC = R2(result.AmountHT * (1m + rate));
+                result.AmountTVA = grossTTC - result.AmountHT;
+            }
+        }
+        else if (isTTC)
+        {
+            grossTTC = grossAmount;
+            result.AmountHT = goodsHT;
+            result.AmountTVA = grossTTC - result.AmountHT;
+        }
+        else
+        {
+            result.AmountHT = grossAmount;
+            grossTTC = R2(result.AmountHT * (1m + rate));
+            result.AmountTVA = grossTTC - result.AmountHT;
+        }
+
+        // Garde arrondi DGI sur le brut
+        if (result.AmountHT + result.AmountTVA != grossTTC)
+        {
+            result.AmountTVA = grossTTC - result.AmountHT;
+            grossTTC = result.AmountHT + result.AmountTVA;
+        }
+
+        // ── 4. Remise sur TTC brut ──
+        result.DiscountAmount = CalculateDiscountAmount(
+            grossTTC, input.DiscountType, input.DiscountValue);
+
+        // ── 5. TTC final ──
+        result.AmountTTC = grossTTC - result.DiscountAmount;
+    }
+
     // ═══════════════════════════════════════════════════
-    //  TAXE SPÉCIFIQUE — Calcul typé (PerArticle)
+    //  TAXE SPÉCIFIQUE — Calcul typé (V10: Ceil2 pour %)
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// Calcule le montant de la taxe spécifique pour une ligne (PerArticle).
+    /// Calcule la TS.
+    /// V10: Percentage uses Ceil2 (arrondi par excès) to match VSDC.
     /// </summary>
-    /// <param name="type">Percentage ou FixedPerUnit</param>
-    /// <param name="value">Taux (ex: 10 pour 10 %) ou montant fixe par unité</param>
-    /// <param name="amountHT">Base HT de la ligne</param>
-    /// <param name="quantity">Quantité</param>
     public static decimal ComputeSpecificTax(
-        SpecificTaxType type, decimal value, decimal amountHT, decimal quantity)
+        SpecificTaxType type, decimal value, decimal baseAmount, decimal quantity)
     {
         if (value <= 0m)
             return 0m;
 
         return type switch
         {
-            SpecificTaxType.Percentage =>
-                Math.Round(amountHT * value / 100m, 2),
-
-            SpecificTaxType.FixedPerUnit =>
-                Math.Round(value * quantity, 2),
-
+            SpecificTaxType.Percentage => Ceil2(baseAmount * value / 100m),
+            SpecificTaxType.FixedPerUnit => R2(value * quantity),
             _ => 0m
         };
     }
 
     // ═══════════════════════════════════════════════════
-    //  TAXE SPÉCIFIQUE — Calcul OnTotal (niveau facture)
+    //  TAXE SPÉCIFIQUE — OnTotal (niveau facture)
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// Calcule la taxe spécifique en mode OnTotal (sur le sous-total groupé).
-    ///   - Percentage   : groupHT × taux / 100
-    ///   - FixedPerUnit : value × groupQuantity  (somme des quantités du groupe)
+    /// TS au niveau facture (OnTotal).
+    /// V10: Percentage uses Ceil2 for consistency.
+    /// Note: OnTotal Percentage path in RecalculateTotals computes per-line,
+    ///       so this is mainly used for FixedPerUnit.
     /// </summary>
-    /// <param name="type">Type de T.S.</param>
-    /// <param name="value">Taux ou montant fixe par unité</param>
-    /// <param name="groupHT">Sous-total HT du groupe</param>
-    /// <param name="groupQuantity">Somme des quantités du groupe</param>
     public static decimal ComputeOnTotalSpecificTax(
         SpecificTaxType type, decimal value, decimal groupHT, decimal groupQuantity)
     {
@@ -238,12 +336,8 @@ public static class TaxCalculator
 
         return type switch
         {
-            SpecificTaxType.Percentage =>
-                Math.Round(groupHT * value / 100m, 2),
-
-            SpecificTaxType.FixedPerUnit =>
-                Math.Round(value * groupQuantity, 2),
-
+            SpecificTaxType.Percentage => Ceil2(groupHT * value / 100m),
+            SpecificTaxType.FixedPerUnit => R2(value * groupQuantity),
             _ => 0m
         };
     }
@@ -252,121 +346,50 @@ public static class TaxCalculator
     //  HELPERS PUBLICS
     // ═══════════════════════════════════════════════════
 
-    /// <summary>
-    /// Calcule le montant de remise selon le type et la valeur.
-    /// La remise est plafonnée au montant de base (jamais négatif).
-    /// </summary>
     public static decimal CalculateDiscountAmount(
         decimal baseAmount, DiscountType type, decimal value)
     {
-        if (baseAmount <= 0 || value <= 0)
+        if (baseAmount <= 0m || value <= 0m)
             return 0m;
 
         return type switch
         {
-            DiscountType.Percentage => Math.Round(
-                baseAmount * Math.Min(value, 100m) / 100m, 2),
-            DiscountType.FixedAmount => Math.Round(
-                Math.Min(value, baseAmount), 2),
+            DiscountType.Percentage => R2(baseAmount * Math.Min(value, 100m) / 100m),
+            DiscountType.FixedAmount => R2(Math.Min(value, baseAmount)),
             _ => 0m
         };
     }
 
-    /// <summary>
-    /// Garantit la paire HT/TTC — sans taxe spécifique.
-    /// </summary>
     public static (decimal ht, decimal ttc) EnsureDualPrices(
         decimal inputPrice, PriceMode mode, decimal taxRate)
-        => EnsureDualPrices(inputPrice, mode, taxRate,
-            SpecificTaxType.None, 0m);
-
-    /// <summary>
-    /// Garantit la paire HT/TTC en tenant compte de la TVA ET de la taxe spécifique.
-    ///
-    /// Formules (PerArticle, par unité, qty=1) :
-    ///   TS Percentage  : TTC = HT × (1 + TS%/100) × (1 + TVA%/100)
-    ///   TS FixedPerUnit: TTC = (HT + TS_fixe) × (1 + TVA%/100)
-    ///
-    /// Pour le mode OnTotal, l'appelant passe SpecificTaxType.None
-    /// (la TS est calculée au niveau facture).
-    /// </summary>
-    public static (decimal ht, decimal ttc) EnsureDualPrices(
-        decimal inputPrice,
-        PriceMode mode,
-        decimal taxRate,
-        SpecificTaxType specificTaxType,
-        decimal specificTaxValue)
     {
         decimal rate = taxRate / 100m;
 
-        switch (specificTaxType)
+        if (mode == PriceMode.TTC)
         {
-            case SpecificTaxType.Percentage when specificTaxValue > 0:
-                {
-                    decimal tsRate = specificTaxValue / 100m;
-                    if (mode == PriceMode.TTC)
-                    {
-                        decimal ttc = inputPrice;
-                        decimal divisor = (1m + tsRate) * (1m + rate);
-                        decimal ht = divisor > 0m
-                            ? Math.Round(ttc / divisor, 2)
-                            : ttc;
-                        return (Math.Max(0m, ht), ttc);
-                    }
-                    else
-                    {
-                        decimal ht = inputPrice;
-                        decimal ttc = Math.Round(ht * (1m + tsRate) * (1m + rate), 2);
-                        return (ht, ttc);
-                    }
-                }
-
-            case SpecificTaxType.FixedPerUnit when specificTaxValue > 0:
-                {
-                    if (mode == PriceMode.TTC)
-                    {
-                        decimal ttc = inputPrice;
-                        decimal divisor = 1m + rate;
-                        decimal baseBeforeTva = divisor > 0m ? ttc / divisor : ttc;
-                        decimal ht = Math.Round(baseBeforeTva - specificTaxValue, 2);
-                        return (Math.Max(0m, ht), ttc);
-                    }
-                    else
-                    {
-                        decimal ht = inputPrice;
-                        decimal ttc = Math.Round((ht + specificTaxValue) * (1m + rate), 2);
-                        return (ht, ttc);
-                    }
-                }
-
-            default:
-                {
-                    if (mode == PriceMode.TTC)
-                    {
-                        decimal ttc = inputPrice;
-                        decimal ht = rate > 0m
-                            ? Math.Round(ttc / (1m + rate), 2)
-                            : ttc;
-                        return (ht, ttc);
-                    }
-                    else
-                    {
-                        decimal ht = inputPrice;
-                        decimal ttc = Math.Round(ht * (1m + rate), 2);
-                        return (ht, ttc);
-                    }
-                }
+            decimal ttc = inputPrice;
+            decimal ht = rate > 0m ? R2(ttc / (1m + rate)) : ttc;
+            return (ht, ttc);
+        }
+        else
+        {
+            decimal ht = inputPrice;
+            decimal ttc = R2(ht * (1m + rate));
+            return (ht, ttc);
         }
     }
 
+    public static (decimal ht, decimal ttc) EnsureDualPrices(
+        decimal inputPrice, PriceMode mode, decimal taxRate,
+        SpecificTaxType specificTaxType, decimal specificTaxValue)
+    {
+        return EnsureDualPrices(inputPrice, mode, taxRate);
+    }
+
     // ═══════════════════════════════════════════════════
-    //  RÉTROCOMPATIBILITÉ — Parse ancien format string
+    //  RÉTROCOMPATIBILITÉ
     // ═══════════════════════════════════════════════════
 
-    /// <summary>
-    /// Convertit l'ancien format string ("10%" ou "230") vers le couple typé.
-    /// Utile pour la migration de données existantes.
-    /// </summary>
     public static (SpecificTaxType type, decimal value) ParseLegacySpecificTax(
         string? taxSpecificValue)
     {
@@ -403,9 +426,6 @@ public static class TaxCalculator
 //  MODÈLES I/O
 // ═══════════════════════════════════════════════════
 
-/// <summary>
-/// Données d'entrée pour le calcul d'une ligne.
-/// </summary>
 public class LineCalculationInput
 {
     public decimal UnitPriceHT { get; set; }
@@ -415,42 +435,27 @@ public class LineCalculationInput
     public decimal TaxRate { get; set; }
     public PriceMode PriceMode { get; set; } = PriceMode.TTC;
 
-    // Remise
     public DiscountType DiscountType { get; set; } = DiscountType.None;
     public decimal DiscountValue { get; set; }
     public bool DiscountBeforeTax { get; set; } = true;
 
-    // ── Taxe spécifique — typée ──
     public SpecificTaxType SpecificTaxType { get; set; } = SpecificTaxType.None;
     public decimal SpecificTaxValue { get; set; }
     public TaxApplicationMode TaxApplicationMode { get; set; } = TaxApplicationMode.PerArticle;
 
-    // ── Compat (lues par CartItemViewModel.Recalculate + TaxCalculator) ──
+    // Compat legacy
     public bool HasSpecificTax { get; set; }
     public decimal SpecificTaxRate { get; set; }
     public string TaxSpecificValue { get; set; } = "";
 }
 
-/// <summary>
-/// Résultat du calcul complet d'une ligne.
-/// </summary>
 public class LineCalculationResult
 {
-    /// <summary>Qty × UnitPriceHT (avant remise)</summary>
     public decimal AmountHTBeforeDiscount { get; set; }
-
-    /// <summary>Montant de la remise (sur HT ou TTC selon DiscountBeforeTax)</summary>
     public decimal DiscountAmount { get; set; }
-
-    /// <summary>Montant HT net (base fiscale)</summary>
     public decimal AmountHT { get; set; }
-
-    /// <summary>Montant TVA</summary>
     public decimal AmountTVA { get; set; }
-
-    /// <summary>Taxe spécifique PerArticle (0 si OnTotal — distribué au niveau facture)</summary>
     public decimal TaxSpecificAmount { get; set; }
-
-    /// <summary>Total TTC final (après toutes taxes et remises)</summary>
     public decimal AmountTTC { get; set; }
+    public decimal AmountHTCommercial => AmountHT - TaxSpecificAmount;
 }
