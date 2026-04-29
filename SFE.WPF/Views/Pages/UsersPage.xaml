@@ -740,7 +740,8 @@
 
                 <!-- RIGHT — User form -->
                 <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
-                              Padding="0,0,4,0">
+                              Padding="0,0,4,0"
+                              PanningMode="VerticalOnly">
                     <Grid>
                         <!-- Empty state -->
                         <StackPanel Visibility="{Binding IsEditingUser,
@@ -1040,7 +1041,7 @@
                     </Button>
 
                     <Border Style="{StaticResource PremiumCard}" Padding="14">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
                             <ItemsControl ItemsSource="{Binding Roles}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -1247,7 +1248,7 @@
 
                 <!-- RIGHT — Role form / Permission editor -->
                 <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
-                              Padding="0,0,4,0">
+                              Padding="0,0,4,0" PanningMode="VerticalOnly">
                     <Grid>
                         <!-- Empty state -->
                         <StackPanel Visibility="{Binding IsEditingRole,

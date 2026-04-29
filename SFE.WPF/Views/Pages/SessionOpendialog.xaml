@@ -342,6 +342,7 @@
 
         <!-- ══════════ DIALOG SCROLLVIEWER (fade-on-hover) ══════════ -->
         <Style x:Key="DialogScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="PanningMode" Value="VerticalOnly"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollViewer">

@@ -430,7 +430,7 @@
                                                           ShadowDepth="4" Color="#0D2B3E"/>
                                     </Border.Effect>
                                     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                                  MaxHeight="200">
+                                                  MaxHeight="200" PanningMode="VerticalOnly">
                                         <StackPanel IsItemsHost="True"
                                                     KeyboardNavigation.DirectionalNavigation="Contained"/>
                                     </ScrollViewer>

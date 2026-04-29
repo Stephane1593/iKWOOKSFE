@@ -150,7 +150,6 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         DetailContent = item.PrintContent;
         ShowDetailPanel = true;
 
-        // Also select it in the grid
         SelectedReport = item;
     }
 
@@ -166,7 +165,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Opens the detail in a pop-out dialog (the existing ReportDetailDialog).
+    /// Opens the detail in a pop-out dialog.
     /// </summary>
     [RelayCommand]
     private void PopOutDetail()
@@ -199,8 +198,12 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         }
     }
 
+    // ═══════════════════════════════════════
+    //  PRINT — SINGLE OR ALL
+    // ═══════════════════════════════════════
+
     /// <summary>
-    /// Generates a temp PDF and opens it in the system viewer for preview + print.
+    /// Print a single report. Falls back to DetailItem → SelectedReport.
     /// </summary>
     [RelayCommand]
     private void PrintReport(ReportListItem? item)
@@ -223,7 +226,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
             string tempPath = Path.Combine(tempDir,
                 SanitizeFileName($"{title}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
 
-            GenerateReportPdf(item.PrintContent, title, item, tempPath);
+            GenerateSingleReportPdf(item.PrintContent, title, item, tempPath);
 
             Process.Start(new ProcessStartInfo(tempPath) { UseShellExecute = true });
             ShowStatus($"✓ {title} ouvert pour impression.", false);
@@ -235,7 +238,47 @@ public abstract partial class BaseReportListViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Save dialog → PDF (default) or TXT, then auto-opens the file.
+    /// Print ALL reports in the list as a single multi-page PDF.
+    /// Each report starts on its own page.
+    /// </summary>
+    [RelayCommand]
+    private void PrintAllReports()
+    {
+        var printable = Reports.Where(r => !string.IsNullOrEmpty(r.PrintContent)).ToList();
+
+        if (printable.Count == 0)
+        {
+            ShowStatus("Aucun rapport à imprimer.", true);
+            return;
+        }
+
+        try
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "SFE_Reports");
+            Directory.CreateDirectory(tempDir);
+            CleanOldTempFiles(tempDir, TimeSpan.FromDays(1));
+
+            string fileName = SanitizeFileName(
+                $"{TypePrefix}-TousRapports_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+            string tempPath = Path.Combine(tempDir, fileName);
+
+            GenerateMultiReportPdf(printable, tempPath);
+
+            Process.Start(new ProcessStartInfo(tempPath) { UseShellExecute = true });
+            ShowStatus($"✓ {printable.Count} rapport(s) ouverts pour impression.", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Erreur d'impression groupée : {ex.Message}", true);
+        }
+    }
+
+    // ═══════════════════════════════════════
+    //  EXPORT — SINGLE OR ALL
+    // ═══════════════════════════════════════
+
+    /// <summary>
+    /// Export a single report via SaveFileDialog.
     /// </summary>
     [RelayCommand]
     private void ExportReport(ReportListItem? item)
@@ -270,7 +313,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
             else
             {
                 string title = $"{TypePrefix}-Rapport N°{item.ReportNumber}";
-                GenerateReportPdf(item.PrintContent, title, item, dlg.FileName);
+                GenerateSingleReportPdf(item.PrintContent, title, item, dlg.FileName);
             }
 
             Process.Start(new ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
@@ -282,14 +325,62 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Export ALL reports in the list as a single PDF or concatenated TXT.
+    /// </summary>
+    [RelayCommand]
+    private void ExportAllReports()
+    {
+        var printable = Reports.Where(r => !string.IsNullOrEmpty(r.PrintContent)).ToList();
+
+        if (printable.Count == 0)
+        {
+            ShowStatus("Aucun rapport à exporter.", true);
+            return;
+        }
+
+        try
+        {
+            string baseName = SanitizeFileName(
+                $"{TypePrefix}-TousRapports_{DateTime.Now:yyyyMMdd_HHmm}");
+
+            var dlg = new SaveFileDialog
+            {
+                FileName = baseName,
+                DefaultExt = ".pdf",
+                Filter = "Document PDF (*.pdf)|*.pdf|Fichier texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            string ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+
+            if (ext == ".txt")
+            {
+                ExportAllAsTxt(printable, dlg.FileName);
+            }
+            else
+            {
+                GenerateMultiReportPdf(printable, dlg.FileName);
+            }
+
+            Process.Start(new ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+            ShowStatus($"✓ {printable.Count} rapport(s) exportés : {Path.GetFileName(dlg.FileName)}", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Erreur d'export groupé : {ex.Message}", true);
+        }
+    }
+
     // ═══════════════════════════════════════
     //  PDF GENERATION (QuestPDF)
     // ═══════════════════════════════════════
 
     /// <summary>
-    /// Generates a properly paginated PDF from the monospaced report text.
+    /// Generates a single-report PDF.
     /// </summary>
-    private void GenerateReportPdf(
+    private void GenerateSingleReportPdf(
         string textContent,
         string title,
         ReportListItem item,
@@ -302,22 +393,19 @@ public abstract partial class BaseReportListViewModel : ObservableObject
                 page.Size(PageSizes.A4);
                 page.MarginVertical(30);
                 page.MarginHorizontal(35);
-
                 page.DefaultTextStyle(ts => ts.FontSize(8));
 
                 // ── Header ──
                 page.Header().Column(col =>
                 {
                     col.Item().Text(title)
-                        .FontSize(13)
-                        .Bold()
+                        .FontSize(13).Bold()
                         .FontColor(Colors.Grey.Darken3);
 
                     col.Item().PaddingTop(2).Text(text =>
                     {
                         text.Span($"{item.DateDisplay}  •  {item.OperatorName}")
-                            .FontSize(8)
-                            .FontColor(Colors.Grey.Medium);
+                            .FontSize(8).FontColor(Colors.Grey.Medium);
                     });
 
                     col.Item().PaddingTop(6)
@@ -327,13 +415,13 @@ public abstract partial class BaseReportListViewModel : ObservableObject
                     col.Item().PaddingBottom(8);
                 });
 
-                // ── Content — monospaced report text ──
+                // ── Content ──
                 page.Content().Text(textContent)
                     .FontFamily("Courier New")
                     .FontSize(8)
                     .LineHeight(1.35f);
 
-                // ── Footer — page numbers ──
+                // ── Footer ──
                 page.Footer().AlignCenter().Text(text =>
                 {
                     text.DefaultTextStyle(ts => ts.FontSize(7).FontColor(Colors.Grey.Medium));
@@ -345,6 +433,97 @@ public abstract partial class BaseReportListViewModel : ObservableObject
             });
         })
         .GeneratePdf(outputPath);
+    }
+
+    /// <summary>
+    /// Generates a multi-report PDF. Each report gets its own page section
+    /// with a distinct header, and page numbering is continuous across all.
+    /// </summary>
+    private void GenerateMultiReportPdf(
+        IReadOnlyList<ReportListItem> items,
+        string outputPath)
+    {
+        Document.Create(container =>
+        {
+            foreach (var item in items)
+            {
+                string title = $"{TypePrefix}-Rapport N°{item.ReportNumber}";
+
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.MarginVertical(30);
+                    page.MarginHorizontal(35);
+                    page.DefaultTextStyle(ts => ts.FontSize(8));
+
+                    // ── Header (per-report) ──
+                    page.Header().Column(col =>
+                    {
+                        col.Item().Text(title)
+                            .FontSize(13).Bold()
+                            .FontColor(Colors.Grey.Darken3);
+
+                        col.Item().PaddingTop(2).Text(text =>
+                        {
+                            text.Span($"{item.DateDisplay}  •  {item.OperatorName}")
+                                .FontSize(8).FontColor(Colors.Grey.Medium);
+                        });
+
+                        col.Item().PaddingTop(6)
+                            .LineHorizontal(0.5f)
+                            .LineColor(Colors.Grey.Lighten2);
+
+                        col.Item().PaddingBottom(8);
+                    });
+
+                    // ── Content ──
+                    page.Content().Text(item.PrintContent ?? "")
+                        .FontFamily("Courier New")
+                        .FontSize(8)
+                        .LineHeight(1.35f);
+
+                    // ── Footer — continuous page numbering ──
+                    page.Footer().AlignCenter().Text(text =>
+                    {
+                        text.DefaultTextStyle(ts => ts.FontSize(7).FontColor(Colors.Grey.Medium));
+                        text.Span("Page ");
+                        text.CurrentPageNumber();
+                        text.Span(" / ");
+                        text.TotalPages();
+                    });
+                });
+            }
+        })
+        .GeneratePdf(outputPath);
+    }
+
+    /// <summary>
+    /// Concatenates all reports into a single TXT file separated by dividers.
+    /// </summary>
+    private void ExportAllAsTxt(IReadOnlyList<ReportListItem> items, string outputPath)
+    {
+        using var writer = new StreamWriter(outputPath, false, System.Text.Encoding.UTF8);
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+
+            writer.WriteLine(new string('═', 60));
+            writer.WriteLine($"  {TypePrefix}-Rapport N°{item.ReportNumber}");
+            writer.WriteLine($"  {item.DateDisplay}  •  {item.OperatorName}");
+            writer.WriteLine(new string('═', 60));
+            writer.WriteLine();
+            writer.WriteLine(item.PrintContent ?? "(Contenu vide)");
+
+            if (i < items.Count - 1)
+            {
+                writer.WriteLine();
+                writer.WriteLine();
+                writer.WriteLine(new string('-', 60));
+                writer.WriteLine();
+                writer.WriteLine();
+            }
+        }
     }
 
     // ═══════════════════════════════════════
@@ -382,7 +561,6 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         return name;
     }
 
-    /// <summary>Delete temp PDFs older than <paramref name="maxAge"/>.</summary>
     private static void CleanOldTempFiles(string directory, TimeSpan maxAge)
     {
         try

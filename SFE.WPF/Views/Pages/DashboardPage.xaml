@@ -34,7 +34,8 @@
 
         <!-- ═══ MAIN SCROLLABLE CONTENT ═══ -->
         <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
+                      HorizontalScrollBarVisibility="Disabled"
+                      PanningMode="VerticalOnly">
             <StackPanel MaxWidth="1400" Margin="32,24,32,32">
 
                 <!-- ══════════ HEADER ══════════ -->

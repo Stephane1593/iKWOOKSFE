@@ -291,7 +291,7 @@
 
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28" PanningMode="VerticalOnly">
         <StackPanel MaxWidth="900">
 
             <!-- ═══════════════════════════════════════════════════ -->

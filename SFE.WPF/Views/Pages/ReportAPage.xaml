@@ -916,35 +916,33 @@
 
                         <!-- Table Footer -->
                         <Border Grid.Row="1" Padding="16,12"
-                                BorderBrush="#F1F5F9" BorderThickness="0,1,0,0"
-                                Background="#FAFBFC">
+        BorderBrush="#F1F5F9" BorderThickness="0,1,0,0"
+        Background="#FAFBFC">
                             <StackPanel Orientation="Horizontal"
-                                        HorizontalAlignment="Right">
+                HorizontalAlignment="Right">
                                 <Button Style="{StaticResource GhostBtn}"
-                                        Command="{Binding PrintReportCommand}"
-                                        CommandParameter="{Binding SelectedReport}"
-                                        IsEnabled="{Binding HasSelectedReport}"
-                                        Margin="0,0,8,0">
+                Command="{Binding PrintAllReportsCommand}"
+                IsEnabled="{Binding IsEmpty, Converter={StaticResource InverseBoolConverter}}"
+                Margin="0,0,8,0">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Kind="Printer"
-                                            Width="15" Height="15"
-                                            VerticalAlignment="Center" Margin="0,0,6,0"
-                                            Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="Imprimer" VerticalAlignment="Center"
-                                                   FontFamily="{StaticResource AppFont}"/>
+                                        <materialDesign:PackIcon Kind="PrinterEye"
+                    Width="15" Height="15"
+                    VerticalAlignment="Center" Margin="0,0,6,0"
+                    Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Tout imprimer" VerticalAlignment="Center"
+                           FontFamily="{StaticResource AppFont}"/>
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource GhostBtn}"
-                                        Command="{Binding ExportReportCommand}"
-                                        CommandParameter="{Binding SelectedReport}"
-                                        IsEnabled="{Binding HasSelectedReport}">
+                Command="{Binding ExportAllReportsCommand}"
+                IsEnabled="{Binding IsEmpty, Converter={StaticResource InverseBoolConverter}}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Kind="FileExportOutline"
-                                            Width="15" Height="15"
-                                            VerticalAlignment="Center" Margin="0,0,6,0"
-                                            Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="Exporter" VerticalAlignment="Center"
-                                                   FontFamily="{StaticResource AppFont}"/>
+                                        <materialDesign:PackIcon Kind="DatabaseExportOutline"
+                    Width="15" Height="15"
+                    VerticalAlignment="Center" Margin="0,0,6,0"
+                    Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Tout exporter" VerticalAlignment="Center"
+                           FontFamily="{StaticResource AppFont}"/>
                                     </StackPanel>
                                 </Button>
                             </StackPanel>

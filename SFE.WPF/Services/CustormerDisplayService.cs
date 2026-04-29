@@ -1,18 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using SFE.WPF.ViewModels;
-using SFE.WPF.Views;
 using SFE.WPF.Views.Pages;
 
 namespace SFE.WPF.Services;
 
-/// <summary>
-/// Manages the customer-facing display window on the secondary screen.
-/// Singleton — created at startup, survives across page navigations.
-/// </summary>
 public class CustomerDisplayService : IDisposable
 {
     private CustomerDisplayWindow? _window;
@@ -22,59 +18,148 @@ public class CustomerDisplayService : IDisposable
     public bool IsOpen => _window != null && _window.IsVisible;
 
     /// <summary>
-    /// Opens the customer display on the secondary monitor (if available).
-    /// Safe to call multiple times — only opens once.
+    /// Returns a diagnostic string showing all detected monitors.
+    /// Use this to debug why the small screen isn't found.
     /// </summary>
+    public string DiagnoseScreens()
+    {
+        var monitors = GetAllMonitors();
+        if (monitors.Count == 0)
+            return "No monitors detected at all!";
+
+        var lines = new List<string> { $"Detected {monitors.Count} monitor(s):" };
+        foreach (var m in monitors)
+        {
+            int w = m.WorkArea.Right - m.WorkArea.Left;
+            int h = m.WorkArea.Bottom - m.WorkArea.Top;
+            lines.Add($"  • {(m.IsPrimary ? "PRIMARY" : "SECONDARY")} " +
+                       $"— {w}x{h} at ({m.WorkArea.Left},{m.WorkArea.Top})");
+        }
+
+        var secondary = monitors.FirstOrDefault(m => !m.IsPrimary);
+        if (secondary == null)
+            lines.Add("⚠ NO secondary monitor found! Check: Settings → Display → Extend these displays");
+        else
+            lines.Add("✓ Secondary monitor found — customer display should work");
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
     public void Open(string companyName)
     {
-        if (IsOpen) return;
-
-        var secondary = FindSecondaryMonitor();
-        if (secondary == null) return;
-
-        _viewModel = new CustomerDisplayViewModel { CompanyName = companyName };
-
-        _window = new CustomerDisplayWindow
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
-            DataContext = _viewModel,
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            Left = secondary.Value.Left,
-            Top = secondary.Value.Top,
-            Width = secondary.Value.Width,
-            Height = secondary.Value.Height,
-            WindowState = WindowState.Maximized
-        };
+            if (IsOpen)
+            {
+                _viewModel!.CompanyName = companyName;
+                return;
+            }
 
-        _window.Closed += (_, _) => { _window = null; _viewModel = null; };
-        _window.Show();
-        _viewModel.SetIdle();
+            _viewModel = new CustomerDisplayViewModel { CompanyName = companyName };
+
+            _window = new CustomerDisplayWindow
+            {
+                DataContext = _viewModel,
+                WindowStartupLocation = WindowStartupLocation.Manual
+            };
+
+            _window.Closed += (_, _) => { _window = null; _viewModel = null; };
+
+            // ── Find secondary monitor ──
+            var secondary = FindSecondaryMonitor();
+
+            if (secondary != null)
+            {
+                // Found the customer screen — go fullscreen on it
+                _window.WindowStyle = WindowStyle.None;
+                _window.ResizeMode = ResizeMode.NoResize;
+                _window.Left = secondary.Value.Left;
+                _window.Top = secondary.Value.Top;
+                _window.Width = secondary.Value.Width;
+                _window.Height = secondary.Value.Height;
+                _window.Show();
+                _window.WindowState = WindowState.Maximized;
+            }
+            else
+            {
+                // No secondary screen — show floating window so user can see it
+                // This helps during development or when screen is set to "Duplicate"
+                _window.WindowStyle = WindowStyle.ToolWindow;
+                _window.Width = 500;
+                _window.Height = 350;
+                _window.Left = SystemParameters.PrimaryScreenWidth - 520;
+                _window.Top = 20;
+                _window.Show();
+            }
+
+            _viewModel.SetIdle();
+        });
     }
 
     public void UpdateCart(IEnumerable<CartItemViewModel> items,
         decimal grandTotal, string label, int count)
     {
-        _viewModel?.UpdateCart(items, grandTotal, label, count);
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            _viewModel?.UpdateCart(items, grandTotal, label, count);
+        });
     }
 
     public void ShowNormalized(decimal total, string codeDEFDGI, string? qrContent)
     {
-        _viewModel?.ShowNormalized(total, codeDEFDGI, qrContent);
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            _viewModel?.ShowNormalized(total, codeDEFDGI, qrContent);
+        });
     }
 
-    public void SetIdle() => _viewModel?.SetIdle();
+    public void SetIdle()
+    {
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            _viewModel?.SetIdle();
+        });
+    }
 
     public void Close()
     {
-        _window?.Close();
-        _window = null;
-        _viewModel = null;
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            _window?.Close();
+            _window = null;
+            _viewModel = null;
+        });
     }
 
     public void Dispose() => Close();
 
-    // ── Multi-monitor detection via Win32 ──────────────────────────
+    // ══════════════════════════════════════════════════════════
+    //  MONITOR DETECTION (Win32 — no WinForms needed)
+    // ══════════════════════════════════════════════════════════
 
     private static Rect? FindSecondaryMonitor()
+    {
+        var monitors = GetAllMonitors();
+
+        // Find non-primary, prefer smallest (customer displays are small)
+        var secondary = monitors
+            .Where(m => !m.IsPrimary)
+            .OrderBy(m => (m.WorkArea.Right - m.WorkArea.Left) *
+                          (m.WorkArea.Bottom - m.WorkArea.Top))
+            .FirstOrDefault();
+
+        if (secondary == null) return null;
+
+        double dpi = GetDpiScale();
+        return new Rect(
+            secondary.WorkArea.Left / dpi,
+            secondary.WorkArea.Top / dpi,
+            (secondary.WorkArea.Right - secondary.WorkArea.Left) / dpi,
+            (secondary.WorkArea.Bottom - secondary.WorkArea.Top) / dpi
+        );
+    }
+
+    private static List<MonitorInfo> GetAllMonitors()
     {
         var monitors = new List<MonitorInfo>();
 
@@ -87,32 +172,46 @@ public class CustomerDisplayService : IDisposable
                     monitors.Add(new MonitorInfo
                     {
                         WorkArea = mi.rcWork,
+                        Monitor = mi.rcMonitor,
                         IsPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0
                     });
                 }
                 return true;
             }, IntPtr.Zero);
 
-        var secondary = monitors.FirstOrDefault(m => !m.IsPrimary);
-        if (secondary == null) return null;
-
-        // Convert device pixels → WPF DIPs
-        double dpiScale = GetDpiScale();
-        return new Rect(
-            secondary.WorkArea.Left / dpiScale,
-            secondary.WorkArea.Top / dpiScale,
-            (secondary.WorkArea.Right - secondary.WorkArea.Left) / dpiScale,
-            (secondary.WorkArea.Bottom - secondary.WorkArea.Top) / dpiScale
-        );
+        return monitors;
     }
 
     private static double GetDpiScale()
     {
-        var source = PresentationSource.FromVisual(System.Windows.Application.Current.MainWindow);
-        return source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+        try
+        {
+            var mainWindow = System.Windows.Application.Current?.MainWindow;
+            if (mainWindow != null)
+            {
+                var source = PresentationSource.FromVisual(mainWindow);
+                if (source?.CompositionTarget != null)
+                    return source.CompositionTarget.TransformToDevice.M11;
+            }
+        }
+        catch { }
+
+        // Fallback: use Win32 to get system DPI
+        IntPtr hdc = GetDC(IntPtr.Zero);
+        if (hdc != IntPtr.Zero)
+        {
+            try
+            {
+                int dpi = GetDeviceCaps(hdc, 88); // LOGPIXELSX = 88
+                return dpi / 96.0;
+            }
+            finally { ReleaseDC(IntPtr.Zero, hdc); }
+        }
+
+        return 1.0;
     }
 
-    // ── P/Invoke declarations ──────────────────────────────────────
+    // ── P/Invoke ──
 
     private const int MONITORINFOF_PRIMARY = 0x00000001;
 
@@ -125,6 +224,15 @@ public class CustomerDisplayService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -144,6 +252,7 @@ public class CustomerDisplayService : IDisposable
     private class MonitorInfo
     {
         public RECT WorkArea { get; set; }
+        public RECT Monitor { get; set; }
         public bool IsPrimary { get; set; }
     }
 }

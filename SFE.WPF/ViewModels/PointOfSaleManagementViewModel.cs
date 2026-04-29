@@ -459,8 +459,15 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         void Write(params byte[] data) => ms.Write(data, 0, data.Length);
 
         Encoding enc;
-        try { enc = Encoding.GetEncoding(codePage); }
-        catch { enc = Encoding.GetEncoding(858); }
+        try
+        {
+            enc = Encoding.GetEncoding(codePage);
+        }
+        catch
+        {
+            // Ultimate fallback: ASCII never fails
+            enc = Encoding.GetEncoding(437);       // or Encoding.ASCII
+        }
 
         void PrintLine(string text)
         {

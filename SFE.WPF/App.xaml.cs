@@ -11,6 +11,7 @@ using SFE.WPF.Services;
 using SFE.WPF.Views;
 using SFE.WPF.Views.Pages;
 using QuestPDF.Infrastructure;
+using System.Text;
 
 namespace SFE.WPF;
 
@@ -20,6 +21,7 @@ public partial class App : System.Windows.Application
 
     private async void Application_Startup(object sender, StartupEventArgs e)
     {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         var services = new ServiceCollection();
         ConfigureServices(services);
         ServiceProvider = services.BuildServiceProvider();

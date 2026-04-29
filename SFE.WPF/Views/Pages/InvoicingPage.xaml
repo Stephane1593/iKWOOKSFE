@@ -731,7 +731,8 @@
         <ScrollViewer Grid.Column="0"
                       Style="{StaticResource InvPanelScroll}"
                       VerticalScrollBarVisibility="Auto"
-                      Padding="32,28,16,28">
+                      Padding="32,28,16,28"
+                      PanningMode="VerticalOnly">
             <StackPanel>
 
                 <!-- ═══════════════════════════════════════════ -->
@@ -1327,7 +1328,7 @@
                                             <Border.BorderBrush>
                                                 <SolidColorBrush Color="{StaticResource BorderLightColor}"/>
                                             </Border.BorderBrush>
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
                                                 <ItemsControl ItemsSource="{Binding ClientSearchResults}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
@@ -1658,7 +1659,7 @@
                                             <Border.BorderBrush>
                                                 <SolidColorBrush Color="{StaticResource BorderLightColor}"/>
                                             </Border.BorderBrush>
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
                                                 <ItemsControl ItemsSource="{Binding ProductSearchResults}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
@@ -2167,7 +2168,8 @@
         <ScrollViewer Grid.Column="1"
                       Style="{StaticResource InvPanelScroll}"
                       VerticalScrollBarVisibility="Auto"
-                      Padding="16,28,32,28">
+                      Padding="16,28,32,28"
+                      PanningMode="VerticalOnly">
             <StackPanel>
 
                 <!-- ═══ TAX SUMMARY ═══ -->

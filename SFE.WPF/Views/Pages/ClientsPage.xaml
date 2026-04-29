@@ -730,7 +730,7 @@
                     </Border>
 
                     <!-- ── Scrollable Form Body ── -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
                         <StackPanel Margin="24,20,24,24">
 
                             <!-- Type -->
