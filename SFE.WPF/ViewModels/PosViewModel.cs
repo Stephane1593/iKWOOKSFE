@@ -43,6 +43,9 @@ public partial class PosViewModel : BaseViewModel,
     public ObservableCollection<string> AvailableOperators { get; } = new();
     private bool _discountBeforeTax = true;
 
+    public event Action? CartPulseRequested;
+    public event Action? TotalPulseRequested;
+
     // ══════ CATALOGUE ══════
     public ObservableCollection<ProductCategory> Categories { get; } = new();
     public ObservableCollection<Product> DisplayProducts { get; } = new();
@@ -628,6 +631,24 @@ public partial class PosViewModel : BaseViewModel,
             CartItems.Add(item);
         }
         RecalculateTotals();
+        PlayAddSound();
+        TriggerCartPulse();
+        TotalPulseRequested?.Invoke();
+    }
+
+    // ✅ POS Beep
+    private void PlayAddSound()
+    {
+        try
+        {
+            System.Media.SystemSounds.Asterisk.Play();
+        }
+        catch { }
+    }
+
+    private void TriggerCartPulse()
+    {
+        CartPulseRequested?.Invoke();
     }
 
     [RelayCommand]
