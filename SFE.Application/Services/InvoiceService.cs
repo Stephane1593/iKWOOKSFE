@@ -25,13 +25,9 @@ public class InvoiceService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 LOOKUP FACTURE ORIGINALE (pour FA/EA)
+    //  LOOKUP FACTURE ORIGINALE (pour FA/EA)
     // ══════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Recherche la facture originale par Code DEF/DGI.
-    /// Retourne null si introuvable ou non normalisée.
-    /// </summary>
     public async Task<Invoice?> LookupOriginalInvoiceAsync(string codeDEFDGI)
     {
         if (string.IsNullOrWhiteSpace(codeDEFDGI))
@@ -42,7 +38,6 @@ public class InvoiceService
         if (invoice == null || invoice.Status != InvoiceStatus.Normalized)
             return null;
 
-        // Only FV, FT, EV, ET can be referenced (not another credit note)
         if (invoice.Type.IsCreditNote())
             return null;
 
@@ -50,13 +45,9 @@ public class InvoiceService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 CUMUL DES QUANTITÉS DÉJÀ REMBOURSÉES (pour FA/EA)
+    //  CUMUL DES QUANTITÉS DÉJÀ REMBOURSÉES (pour FA/EA)
     // ══════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Retourne un dictionnaire {articleCode → quantité cumulée déjà remboursée}
-    /// pour toutes les FA/EA normalisées référençant la même facture originale.
-    /// </summary>
     public async Task<Dictionary<string, decimal>> GetCumulativeRefundedQuantitiesAsync(string originalCodeDEFDGI)
     {
         var creditNotes = await _unitOfWork.Invoices.GetCreditNotesForOriginalAsync(originalCodeDEFDGI);
@@ -80,12 +71,9 @@ public class InvoiceService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 AVANCES — Récupérer les FT/ET d'un groupe
+    //  AVANCES — Récupérer les FT/ET d'un groupe
     // ══════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Retourne toutes les factures d'acompte (FT/ET) normalisées d'un groupe.
-    /// </summary>
     public async Task<List<Invoice>> GetAdvancesForGroupAsync(string advanceGroupId)
     {
         if (string.IsNullOrWhiteSpace(advanceGroupId))
@@ -94,46 +82,35 @@ public class InvoiceService
         return await _unitOfWork.Invoices.GetAdvancesByGroupAsync(advanceGroupId);
     }
 
-    /// <summary>
-    /// Calcule le total des acomptes déjà versés pour un groupe.
-    /// </summary>
     public async Task<decimal> GetTotalAdvancesPaidAsync(string advanceGroupId)
     {
         var advances = await GetAdvancesForGroupAsync(advanceGroupId);
         return advances.Sum(a => a.TotalTTC);
     }
 
-    /// <summary>
-    /// Génère un nouvel identifiant de groupe d'avances.
-    /// </summary>
     public string GenerateAdvanceGroupId()
     {
         return $"ADV-{DateTime.Now.Year}/{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
     }
 
     // ══════════════════════════════════════════════════════════
-    //  NORMALISATION — Flux complet (🐛 FIX stock)
+    //  NORMALISATION — Flux complet
     // ══════════════════════════════════════════════════════════
 
     public async Task<NormalizationResult> NormalizeInvoiceAsync(Invoice invoice)
     {
-        // 1. Recalculer les totaux AVANT validation
         RecalculateTotals(invoice);
 
-        // 2. Validation
-        var validation = await ValidateInvoiceAsync(invoice); // 🆕 async for credit note lookup
+        var validation = await ValidateInvoiceAsync(invoice);
         if (!validation.IsValid)
             return new NormalizationResult { Success = false, ErrorMessage = validation.ErrorMessage };
 
-        // 3. Charger l'entreprise
         var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
         if (company == null)
             return new NormalizationResult { Success = false, ErrorMessage = "Entreprise non configurée." };
 
-        // 4. Construire la requête fiscale
         var request = BuildFiscalRequest(invoice, company);
 
-        // 5. Envoyer au dispositif fiscal
         invoice.Status = InvoiceStatus.Pending;
         var submitResult = await _fiscalDevice.SubmitInvoiceAsync(request);
 
@@ -149,7 +126,6 @@ public class InvoiceService
 
         invoice.EmcfUid = submitResult.Uid ?? "";
 
-        // 6. Vérification des montants retournés
         if (submitResult.TotalTTC > 0 &&
             (Math.Abs(submitResult.TotalTTC - invoice.TotalTTC) > 0.01m ||
              Math.Abs(submitResult.TotalTVA - invoice.TotalTVA) > 0.01m))
@@ -164,7 +140,6 @@ public class InvoiceService
             };
         }
 
-        // 7. Confirmer (finaliser)
         var finalizeResult = await _fiscalDevice.FinalizeInvoiceAsync(
             invoice.EmcfUid, invoice.TotalTTC, invoice.TotalTVA);
 
@@ -178,7 +153,6 @@ public class InvoiceService
             };
         }
 
-        // 8. Enregistrer les éléments de sécurité
         invoice.CodeDEFDGI = finalizeResult.CodeDEFDGI ?? "";
         invoice.QRCodeContent = finalizeResult.QRCode ?? "";
         invoice.NIM = finalizeResult.NIM ?? "";
@@ -187,14 +161,11 @@ public class InvoiceService
         invoice.Status = InvoiceStatus.Normalized;
         invoice.NormalizedAt = DateTime.Now;
 
-        // 9. 🐛 FIX: Stock AVANT la sauvegarde (était après return)
         await ApplyStockMovementsAsync(invoice);
 
-        // 10. Sauvegarder en base
         await _unitOfWork.Invoices.AddAsync(invoice);
         await _unitOfWork.SaveChangesAsync();
 
-        // 11. ✅ Audit — journal électronique (DGI §19)
         var auditAction = invoice.IsCreditNote ? AuditAction.CreditNoteNormalized
             : invoice.IsAdvanceInvoice ? AuditAction.AdvanceInvoiceNormalized
             : AuditAction.InvoiceNormalized;
@@ -210,15 +181,15 @@ public class InvoiceService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  RECALCUL DES TOTAUX (unchanged — keeping as-is)
+    //  RECALCUL DES TOTAUX — V13: Two-component TVA in TTC mode
     // ══════════════════════════════════════════════════════════
 
     public void RecalculateTotals(Invoice invoice)
     {
+        bool isTTC = invoice.PriceMode == PriceMode.TTC;
+
         // ═══════════════════════════════════════════════════════
         //  Pass 1 : CalculateLineFull for every line
-        //           OnTotal lines → TaxSpecificAmount = 0
-        //           PerArticle lines → TS included (V10: Ceil2 for %)
         // ═══════════════════════════════════════════════════════
         foreach (var line in invoice.Lines)
         {
@@ -248,14 +219,8 @@ public class InvoiceService
             line.AmountTTC = calc.AmountTTC;
         }
 
-        // V10: Pass 1.5 REMOVED — CalculateLineFull now produces correct
-        // values for PerArticle + TS% at the source using Ceil2.
-
         // ═══════════════════════════════════════════════════════
         //  Pass 2 : OnTotal TS distribution
-        //
-        //  V10: TS% uses Ceil2 per-line (two-step forward + reverse).
-        //  FixedPerUnit uses prorata distribution with R2.
         // ═══════════════════════════════════════════════════════
         var onTotalGroups = invoice.Lines
             .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
@@ -270,36 +235,53 @@ public class InvoiceService
 
             if (representative.SpecificTaxType == SpecificTaxType.Percentage)
             {
-                // ────────────────────────────────────────────────
-                //  TS Percentage — V10: Ceil2 two-step + reverse
-                // ────────────────────────────────────────────────
                 decimal tsRate = representative.SpecificTaxValue / 100m;
 
                 foreach (var line in lines)
                 {
-                    decimal goodsHT = line.AmountHT;
                     decimal vatRate = line.TaxRate / 100m;
 
-                    decimal ts = TaxCalculator.Ceil2(goodsHT * tsRate);
-                    decimal ht = goodsHT + ts;
-                    decimal tva = TaxCalculator.R2(ht * vatRate);
-                    decimal ttc = ht + tva;
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = line.AmountTTC;
+                        decimal goodsHT = line.AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
 
-                    line.TaxSpecificAmount = ts;
-                    line.AmountHT = ht;
-                    line.AmountTVA = tva;
-                    line.AmountTTC = ttc;
+                        decimal ts = TaxCalculator.R2(goodsTTC * tsRate);
+                        decimal tvaTS = TaxCalculator.R2(ts * vatRate);
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = goodsHT + ts;
+                        line.AmountTVA = tvaGoods + tvaTS;
+                        line.AmountTTC = line.AmountHT + line.AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = line.AmountHT;
+                        decimal ts = TaxCalculator.R2(goodsHT * tsRate);
+                        decimal ht = goodsHT + ts;
+                        decimal tva = TaxCalculator.R2(ht * vatRate);
+                        decimal ttc = ht + tva;
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = ht;
+                        line.AmountTVA = tva;
+                        line.AmountTTC = ttc;
+                    }
+
+                    if (line.AmountHT + line.AmountTVA != line.AmountTTC)
+                        line.AmountTVA = line.AmountTTC - line.AmountHT;
                 }
             }
             else if (representative.SpecificTaxType == SpecificTaxType.FixedPerUnit)
             {
-                // ────────────────────────────────────────────────
-                //  TS Fixed per unit — prorata distribution
-                // ────────────────────────────────────────────────
                 decimal groupQty = lines.Sum(l => l.Quantity);
                 decimal tsForGroup = TaxCalculator.R2(groupQty * representative.SpecificTaxValue);
 
-                decimal groupHT = lines.Sum(l => l.AmountHT);
+                decimal distributionBase = isTTC
+                    ? lines.Sum(l => l.AmountTTC)
+                    : lines.Sum(l => l.AmountHT);
+
                 decimal distributed = 0m;
 
                 for (int i = 0; i < lines.Count; i++)
@@ -309,8 +291,9 @@ public class InvoiceService
 
                     if (i < lines.Count - 1)
                     {
-                        share = groupHT > 0
-                            ? TaxCalculator.R2(tsForGroup * line.AmountHT / groupHT)
+                        decimal lineBase = isTTC ? line.AmountTTC : line.AmountHT;
+                        share = distributionBase > 0
+                            ? TaxCalculator.R2(tsForGroup * lineBase / distributionBase)
                             : TaxCalculator.R2(tsForGroup / lines.Count);
                         distributed += share;
                     }
@@ -319,18 +302,31 @@ public class InvoiceService
                         share = tsForGroup - distributed;
                     }
 
-                    decimal goodsHT = line.AmountHT;
                     decimal vatRate = line.TaxRate / 100m;
-
                     line.TaxSpecificAmount = share;
 
-                    decimal newBase = goodsHT + share;
-                    decimal newTTC = TaxCalculator.R2(newBase * (1m + vatRate));
-                    decimal newTVA = newTTC - newBase;
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = line.AmountTTC;
+                        decimal goodsHT = line.AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
+                        decimal tvaTS = TaxCalculator.R2(share * vatRate);
 
-                    line.AmountHT = newBase;
-                    line.AmountTVA = newTVA;
-                    line.AmountTTC = newTTC;
+                        line.AmountHT = goodsHT + share;
+                        line.AmountTVA = tvaGoods + tvaTS;
+                        line.AmountTTC = line.AmountHT + line.AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = line.AmountHT;
+                        decimal newBase = goodsHT + share;
+                        decimal newTTC = TaxCalculator.R2(newBase * (1m + vatRate));
+                        decimal newTVA = newTTC - newBase;
+
+                        line.AmountHT = newBase;
+                        line.AmountTVA = newTVA;
+                        line.AmountTTC = newTTC;
+                    }
 
                     if (line.AmountHT + line.AmountTVA != line.AmountTTC)
                         line.AmountTVA = line.AmountTTC - line.AmountHT;
@@ -339,7 +335,62 @@ public class InvoiceService
         }
 
         // ═══════════════════════════════════════════════════════
-        //  Pass 3 : Totaux
+        //  Pass 3 (NEW V14): Group-level DGI rounding alignment
+        //
+        //  The fiscal device computes TVA per TAX GROUP (not per line):
+        //    TTC mode: groupHT = R2(groupTTC / (1+rate)), groupTVA = groupTTC - groupHT
+        //    HT mode:  groupTVA = R2(groupHT × rate), groupTTC = groupHT + groupTVA
+        //
+        //  Per-line rounding can accumulate a ±0.01 difference vs group-level.
+        //  We adjust the last line in each group to absorb this difference.
+        // ═══════════════════════════════════════════════════════
+        var taxGroups = invoice.Lines
+            .Where(l => l.TaxGroup != TaxGroup.N && l.TaxRate > 0)
+            .GroupBy(l => l.TaxGroup);
+
+        foreach (var group in taxGroups)
+        {
+            var groupLines = group.OrderBy(l => l.LineNumber).ToList();
+            if (groupLines.Count == 0) continue;
+
+            decimal rate = groupLines.First().TaxRate / 100m;
+
+            if (isTTC)
+            {
+                // Device: groupHT = R2(groupTTC / (1+rate)), groupTVA = groupTTC - groupHT
+                decimal groupTTC = groupLines.Sum(l => l.AmountTTC);
+                decimal expectedHT = TaxCalculator.R2(groupTTC / (1m + rate));
+                decimal expectedTVA = groupTTC - expectedHT;
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountHT -= diff; // TTC stays fixed
+                }
+            }
+            else
+            {
+                // Device: groupTVA = R2(groupHT × rate), groupTTC = groupHT + groupTVA
+                decimal groupHT = groupLines.Sum(l => l.AmountHT);
+                decimal expectedTVA = TaxCalculator.R2(groupHT * rate);
+                decimal expectedTTC = groupHT + expectedTVA;
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountTTC += diff; // HT stays fixed
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  Pass 4 : Totaux
         // ═══════════════════════════════════════════════════════
         invoice.TotalHTBeforeDiscount = invoice.Lines.Sum(l => l.AmountHTBeforeDiscount);
         invoice.TotalDiscount = invoice.Lines.Sum(l => l.DiscountAmount);
@@ -357,45 +408,12 @@ public class InvoiceService
             .Sum(l => l.TaxSpecificAmount);
     }
 
-    private static void DistributeOnTotalTaxToLines(
-        IGrouping<string, InvoiceLine> group,
-        SpecificTaxType taxType,
-        decimal totalAmount)
-    {
-        var lines = group.ToList();
-        decimal distributionBase = taxType == SpecificTaxType.FixedPerUnit
-            ? lines.Sum(l => l.Quantity)
-            : lines.Sum(l => l.AmountHT);
-
-        if (distributionBase == 0) return;
-
-        decimal distributed = 0;
-        for (int i = 0; i < lines.Count; i++)
-        {
-            var line = lines[i];
-            decimal lineBase = taxType == SpecificTaxType.FixedPerUnit ? line.Quantity : line.AmountHT;
-
-            decimal lineShare;
-            if (i == lines.Count - 1)
-                lineShare = totalAmount - distributed;
-            else
-            {
-                lineShare = Math.Round(totalAmount * (lineBase / distributionBase), 2);
-                distributed += lineShare;
-            }
-
-            line.TaxSpecificAmount = lineShare;
-            line.AmountTTC += lineShare;
-        }
-    }
-
     // ══════════════════════════════════════════════════════════
-    //  🆕 VALIDATION — Async (credit note lookup)
+    //  VALIDATION — Async (credit note lookup)
     // ══════════════════════════════════════════════════════════
 
     private async Task<ValidationResult> ValidateInvoiceAsync(Invoice invoice)
     {
-        // ── Basic rules ──
         if (invoice.Lines.Count == 0)
             return new("La facture doit contenir au moins un article.");
 
@@ -429,7 +447,6 @@ public class InvoiceService
             }
         }
 
-        // ── OnTotal coherence ──
         var onTotalGroups = invoice.Lines
             .Where(l => l.SpecificTaxType != SpecificTaxType.None
                         && l.TaxApplicationMode == TaxApplicationMode.OnTotal
@@ -444,7 +461,6 @@ public class InvoiceService
                 return new($"T.S. « {group.Key} » incohérente : type/valeur doivent être identiques.");
         }
 
-        // ── Client rules ──
         switch (invoice.ClientType)
         {
             case ClientType.PM:
@@ -473,14 +489,10 @@ public class InvoiceService
                 break;
         }
 
-        // ── Group D → Comment A ──
         if (invoice.Lines.Any(l => l.TaxGroup == TaxGroup.D)
             && string.IsNullOrWhiteSpace(invoice.CommentA))
             return new("La référence du document de dérogation DGI (Ligne A) est obligatoire pour le groupe D.");
 
-        // ══════════════════════════════════════════════════════════
-        //  🆕 EXPORT — Les types EV/EA/ET doivent utiliser le groupe E
-        // ══════════════════════════════════════════════════════════
         if (invoice.Type.IsExport())
         {
             var nonExportLines = invoice.Lines
@@ -491,9 +503,6 @@ public class InvoiceService
                            $"Article « {nonExportLines.First().Name} » est dans le groupe {nonExportLines.First().TaxGroup}.");
         }
 
-        // ══════════════════════════════════════════════════════════
-        //  🆕 FACTURE D'AVOIR — Validation complète (§25a-25e)
-        // ══════════════════════════════════════════════════════════
         if (invoice.Type == InvoiceType.FA || invoice.Type == InvoiceType.EA)
         {
             if (invoice.CreditNoteNature == null)
@@ -502,17 +511,14 @@ public class InvoiceService
             if (string.IsNullOrWhiteSpace(invoice.OriginalInvoiceReference))
                 return new("La référence de la facture originale est obligatoire.");
 
-            // §27 — RRR : la référence doit être exactement "RRR"
             if (invoice.CreditNoteNature == Domain.Enums.CreditNoteNature.RRR)
             {
                 if (invoice.OriginalInvoiceReference.Trim().ToUpper() != "RRR")
                     return new("Pour une facture d'avoir de type RRR (Rabais/Remise/Ristourne), " +
                                "la référence de la facture originale doit être « RRR ».");
-                // RRR = pas de validation article-par-article
             }
             else
             {
-                // §25a — La référence doit exister et être valide
                 var originalInvoice = await _unitOfWork.Invoices.GetByCodeDEFDGIAsync(
                     invoice.OriginalInvoiceReference.Trim());
 
@@ -525,19 +531,16 @@ public class InvoiceService
                 if (originalInvoice.Type.IsCreditNote())
                     return new("Impossible de créer une facture d'avoir sur une autre facture d'avoir.");
 
-                // Cohérence export : FA→FV, EA→EV
                 if (invoice.Type == InvoiceType.EA && !originalInvoice.Type.IsExport())
                     return new("Une facture d'avoir à l'exportation (EA) doit référencer une facture d'exportation.");
                 if (invoice.Type == InvoiceType.FA && originalInvoice.Type.IsExport())
                     return new("Utilisez le type EA pour les avoirs sur factures d'exportation.");
 
-                // §25d — Quantités cumulées déjà remboursées
                 var cumulativeRefunded = await GetCumulativeRefundedQuantitiesAsync(
                     invoice.OriginalInvoiceReference.Trim());
 
                 foreach (var line in invoice.Lines)
                 {
-                    // §25b — L'article doit exister sur la facture originale
                     var originalLine = originalInvoice.Lines.FirstOrDefault(
                         ol => ol.Code.Equals(line.Code, StringComparison.OrdinalIgnoreCase));
 
@@ -545,19 +548,16 @@ public class InvoiceService
                         return new($"L'article « {line.Name} » (code: {line.Code}) n'existe pas " +
                                    $"sur la facture originale {invoice.OriginalInvoiceReference}.");
 
-                    // §25c — Quantité ≤ quantité originale
                     if (line.Quantity > originalLine.Quantity)
                         return new($"L'article « {line.Name} » : quantité à rembourser ({line.Quantity:G}) " +
                                    $"dépasse la quantité originale ({originalLine.Quantity:G}).");
 
-                    // §25d — Quantités cumulées ≤ quantité originale
                     decimal alreadyRefunded = cumulativeRefunded.GetValueOrDefault(line.Code, 0m);
                     if (alreadyRefunded + line.Quantity > originalLine.Quantity)
                         return new($"L'article « {line.Name} » : cumul des remboursements " +
                                    $"({alreadyRefunded:G} + {line.Quantity:G} = {alreadyRefunded + line.Quantity:G}) " +
                                    $"dépasse la quantité originale ({originalLine.Quantity:G}).");
 
-                    // §25e — Prix unitaire identique à l'original
                     if (invoice.PriceMode == PriceMode.HT)
                     {
                         if (Math.Abs(line.UnitPriceHT - originalLine.UnitPriceHT) > 0.01m)
@@ -572,25 +572,16 @@ public class InvoiceService
                     }
                 }
 
-                // Store the original invoice ID for traceability
                 invoice.OriginalInvoiceId = originalInvoice.Id;
             }
         }
 
-        // ══════════════════════════════════════════════════════════
-        //  🆕 FACTURE D'ACOMPTE — Validation
-        // ══════════════════════════════════════════════════════════
         if (invoice.Type == InvoiceType.FT || invoice.Type == InvoiceType.ET)
         {
-            // Advance invoices must have at least one payment
             if (invoice.Payments.Count == 0)
                 return new("Une facture d'acompte doit contenir au moins un paiement.");
-
-            // If linked to a group, validate cumulative doesn't exceed target
-            // (This is optional business logic — the spec doesn't mandate it)
         }
 
-        // ── Payment total ──
         decimal totalPaid = invoice.Payments.Sum(p => p.Amount);
         if (totalPaid < invoice.TotalTTC)
             return new($"Le total des paiements ({totalPaid:N2}) est inférieur au total TTC ({invoice.TotalTTC:N2}).");
@@ -613,14 +604,10 @@ public class InvoiceService
             InvoiceType = invoice.Type.ToString(),
             OperatorId = invoice.OperatorId,
             OperatorName = invoice.OperatorName,
-
-            // ── Devise : toujours renseignée ──
             CurrencyCode = string.IsNullOrEmpty(invoice.CurrencyCode)
                 ? "CDF" : invoice.CurrencyCode,
             CurrencyRate = invoice.CurrencyRate,
             CurrencyDate = invoice.CurrencyDate ?? DateTime.Now,
-
-            // ── Commentaires : toujours renseignés ("" si vide) ──
             CommentA = invoice.CommentA ?? "",
             CommentB = invoice.CommentB ?? "",
             CommentC = invoice.CommentC ?? "",
@@ -631,7 +618,6 @@ public class InvoiceService
             CommentH = invoice.CommentH ?? ""
         };
 
-        // ── Référence FA/EA : toujours renseignée ("" si non-avoir) ──
         if (invoice.Type == InvoiceType.FA || invoice.Type == InvoiceType.EA)
         {
             request.Reference = invoice.OriginalInvoiceReference ?? "";
@@ -653,27 +639,24 @@ public class InvoiceService
             request.ReferenceDesc = "";
         }
 
-        // ── Client : toujours présent ──
         request.Client = new FiscalClientInfo
         {
             Type = invoice.ClientType.ToString(),
             TypeDesc = GetClientTypeDesc(invoice.ClientType),
             NIF = invoice.ClientNIF ?? "",
             Name = string.IsNullOrWhiteSpace(invoice.ClientName)
-                ? invoice.ClientType.ToString()    // "PP" si anonyme (conforme au sample)
+                ? invoice.ClientType.ToString()
                 : invoice.ClientName,
             Address = invoice.ClientAddress ?? "",
             Contact = string.Join(" ", new[] { invoice.ClientPhone, invoice.ClientEmail }
                 .Where(s => !string.IsNullOrEmpty(s)))
         };
 
-        // ── Articles ──
         foreach (var line in invoice.Lines.OrderBy(l => l.LineNumber))
         {
             decimal baseUnitPrice = invoice.PriceMode == PriceMode.TTC
                 ? line.UnitPriceTTC : line.UnitPriceHT;
 
-            // ⚠ rawPrice = toujours le prix unitaire brut (pleine précision)
             decimal rawPrice = baseUnitPrice;
             decimal effectivePrice = baseUnitPrice;
             string priceModification = "";
@@ -708,14 +691,13 @@ public class InvoiceService
                 TaxRate = line.TaxRate,
                 Price = effectivePrice,
                 Quantity = line.Quantity,
-                TaxSpecificValue = fiscalTsValue,                          // null → "0%" dans MapToDto
-                TaxSpecificAmount = line.TaxSpecificAmount,                // 0 si aucune
-                OriginalPrice = rawPrice,                                   // ⚠ TOUJOURS (pleine précision)
-                PriceModification = priceModification                       // ⚠ TOUJOURS ("" si pas de modif)
+                TaxSpecificValue = fiscalTsValue,
+                TaxSpecificAmount = line.TaxSpecificAmount,
+                OriginalPrice = rawPrice,
+                PriceModification = priceModification
             });
         }
 
-        // ── Paiements ──
         foreach (var payment in invoice.Payments)
         {
             string paymentCurrency = string.IsNullOrEmpty(payment.CurrencyCode)
@@ -730,17 +712,14 @@ public class InvoiceService
             {
                 Name = GetPaymentName(payment.PaymentType),
                 Amount = payment.Amount,
-                CurrencyCode = paymentCurrency,         // ⚠ Toujours présent
-                CurrencyRate = paymentRate               // ⚠ Toujours présent
+                CurrencyCode = paymentCurrency,
+                CurrencyRate = paymentRate
             });
         }
 
         return request;
     }
 
-    // ═══════════════════════════════════════════
-    // 🆕 Credit Note Nature → Description (DGI 2026 §III)
-    // ═══════════════════════════════════════════
     private static string GetCreditNoteNatureDesc(CreditNoteNature nature) => nature switch
     {
         CreditNoteNature.COR => "Correction",

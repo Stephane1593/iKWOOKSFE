@@ -75,6 +75,13 @@ public partial class InvoiceDocumentViewModel : ObservableObject
     // ═══════ AMOUNT IN WORDS ═══════
     [ObservableProperty] private string _amountInWords = "";
 
+    // ═══════ SOURCE DATA (for native PDF generation) ═══════
+    public Invoice? SourceInvoice { get; set; }
+    public Company? SourceCompany { get; set; }
+    public PointOfSale? SourcePos { get; set; }
+    public decimal SourceExchangeRate { get; set; }
+    public byte[]? SourceLogoBytes { get; set; }
+
     // ═══════ COLLECTIONS ═══════
     public ObservableCollection<DocLineViewModel> Lines { get; } = new();
     public ObservableCollection<DocPaymentViewModel> Payments { get; } = new();
@@ -117,7 +124,6 @@ public partial class InvoiceDocumentViewModel : ObservableObject
 
             // Normalization
             CodeDEFDGI = invoice.CodeDEFDGI ?? "",
-            //DefNid = invoice.DefNid ?? invoice.NIM ?? "",
             Nim = invoice.NIM ?? "",
             Counters = invoice.Counters ?? "",
             NormalizedAt = invoice.NormalizedAt,
@@ -202,6 +208,15 @@ public partial class InvoiceDocumentViewModel : ObservableObject
 
         // Tax breakdown
         BuildTaxBreakdown(vm, invoice);
+
+        // ═══════════════════════════════════════════════════════
+        // SOURCE DATA — for InvoicePrinterHelper / QuestPDF
+        // ═══════════════════════════════════════════════════════
+        vm.SourceInvoice = invoice;
+        vm.SourceCompany = company;
+        vm.SourcePos = pos;
+        vm.SourceExchangeRate = exchangeRate;
+        vm.SourceLogoBytes = company?.Logo;
 
         return vm;
     }

@@ -374,6 +374,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
     /// <summary>Build a full InvoiceDocumentViewModel for the given invoice,
     /// loading company + POS + exchange rate consistently.</summary>
+    /// <summary>Build a full InvoiceDocumentViewModel, storing raw data
+    /// for both on-screen display AND native QuestPDF PDF generation.</summary>
     private async Task<InvoiceDocumentViewModel?> BuildDocumentViewModelAsync(Invoice invoice)
     {
         var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
@@ -391,7 +393,31 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
         catch { /* non-blocking */ }
 
-        return InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
+        // — Load company logo bytes —
+        byte[]? logoBytes = null;
+        try
+        {
+            if (company != null && company.Logo != null && company.Logo.Length > 0)
+            {
+                logoBytes = company.Logo;
+            }
+        }
+        catch { /* non-blocking */ }
+
+        // ── Create the view-model (for on-screen WPF display) ──
+        var vm = InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
+
+        if (vm != null)
+        {
+            // ── Attach raw source data for QuestPDF native PDF generation ──
+            vm.SourceInvoice = invoice;
+            vm.SourceCompany = company;
+            vm.SourcePos = pos;
+            vm.SourceExchangeRate = exchangeRate;
+            vm.SourceLogoBytes = logoBytes;
+        }
+
+        return vm;
     }
 
     [RelayCommand]

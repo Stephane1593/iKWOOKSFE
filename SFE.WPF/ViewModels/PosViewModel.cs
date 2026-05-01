@@ -977,6 +977,8 @@ public partial class PosViewModel : BaseViewModel,
     // ══════════════════════════════════════════════════════════
     private void RecalculateTotals()
     {
+        bool isTTC = PriceMode == PriceMode.TTC;
+
         // ═══════════════════════════════════════════════════════
         //  1. Remettre les lignes OnTotal à leur état de base
         // ═══════════════════════════════════════════════════════
@@ -988,13 +990,8 @@ public partial class PosViewModel : BaseViewModel,
             }
         }
 
-        // V10: Pass 1.5 REMOVED — CartItemViewModel.Recalculate now
-        // uses the fixed CalculateLineFull which produces correct
-        // values for PerArticle + TS% at the source using Ceil2.
-
         // ═══════════════════════════════════════════════════════
-        //  2. Distribuer la TS OnTotal et recalculer TVA / TTC
-        //     V10: TS% → Ceil2 two-step + reverse
+        //  2. Distribuer la TS OnTotal
         // ═══════════════════════════════════════════════════════
         var onTotalGroups = CartItems
             .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
@@ -1012,30 +1009,49 @@ public partial class PosViewModel : BaseViewModel,
 
                 foreach (var line in lines)
                 {
-                    decimal goodsHT = line.AmountHT;
                     decimal vatRate = line.TaxRate / 100m;
 
-                    decimal ts = TaxCalculator.Ceil2(goodsHT * tsRate);
-                    decimal ht = goodsHT + ts;
-                    decimal tva = TaxCalculator.R2(ht * vatRate);
-                    decimal ttc = ht + tva;
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = line.AmountTTC;
+                        decimal goodsHT = line.AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
 
-                    line.TaxSpecificAmount = ts;
-                    line.AmountHT = ht;
-                    line.AmountTVA = tva;
-                    line.AmountTTC = ttc;
+                        decimal ts = TaxCalculator.R2(goodsTTC * tsRate);
+                        decimal tvaTS = TaxCalculator.R2(ts * vatRate);
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = goodsHT + ts;
+                        line.AmountTVA = tvaGoods + tvaTS;
+                        line.AmountTTC = line.AmountHT + line.AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = line.AmountHT;
+                        decimal ts = TaxCalculator.R2(goodsHT * tsRate);
+                        decimal ht = goodsHT + ts;
+                        decimal tva = TaxCalculator.R2(ht * vatRate);
+                        decimal ttc = ht + tva;
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = ht;
+                        line.AmountTVA = tva;
+                        line.AmountTTC = ttc;
+                    }
+
+                    if (line.AmountHT + line.AmountTVA != line.AmountTTC)
+                        line.AmountTVA = line.AmountTTC - line.AmountHT;
                 }
             }
             else
             {
-                decimal groupHT = lines.Sum(l => l.AmountHT);
                 decimal groupQty = lines.Sum(l => l.Quantity);
-
                 decimal tsForGroup = TaxCalculator.ComputeOnTotalSpecificTax(
-                    grp.Key.SpecificTaxType,
-                    grp.Key.SpecificTaxValue,
-                    groupHT,
-                    groupQty);
+                    grp.Key.SpecificTaxType, grp.Key.SpecificTaxValue, 0m, groupQty);
+
+                decimal distributionBase = isTTC
+                    ? lines.Sum(l => l.AmountTTC)
+                    : lines.Sum(l => l.AmountHT);
 
                 decimal distributed = 0m;
 
@@ -1044,8 +1060,9 @@ public partial class PosViewModel : BaseViewModel,
                     decimal share;
                     if (i < lines.Count - 1)
                     {
-                        share = groupHT > 0
-                            ? TaxCalculator.R2(tsForGroup * lines[i].AmountHT / groupHT)
+                        decimal lineBase = isTTC ? lines[i].AmountTTC : lines[i].AmountHT;
+                        share = distributionBase > 0
+                            ? TaxCalculator.R2(tsForGroup * lineBase / distributionBase)
                             : TaxCalculator.R2(tsForGroup / lines.Count);
                         distributed += share;
                     }
@@ -1054,16 +1071,31 @@ public partial class PosViewModel : BaseViewModel,
                         share = tsForGroup - distributed;
                     }
 
-                    decimal originalGoodsHT = lines[i].AmountHT;
+                    decimal vatRate = lines[i].TaxRate / 100m;
                     lines[i].TaxSpecificAmount = share;
 
-                    decimal newBase = originalGoodsHT + share;
-                    decimal newTTC = TaxCalculator.R2(newBase * (1m + lines[i].TaxRate / 100m));
-                    decimal newTVA = newTTC - newBase;
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = lines[i].AmountTTC;
+                        decimal goodsHT = lines[i].AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
+                        decimal tvaTS = TaxCalculator.R2(share * vatRate);
 
-                    lines[i].AmountHT = newBase;
-                    lines[i].AmountTVA = newTVA;
-                    lines[i].AmountTTC = newTTC;
+                        lines[i].AmountHT = goodsHT + share;
+                        lines[i].AmountTVA = tvaGoods + tvaTS;
+                        lines[i].AmountTTC = lines[i].AmountHT + lines[i].AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = lines[i].AmountHT;
+                        decimal newBase = goodsHT + share;
+                        decimal newTTC = TaxCalculator.R2(newBase * (1m + vatRate));
+                        decimal newTVA = newTTC - newBase;
+
+                        lines[i].AmountHT = newBase;
+                        lines[i].AmountTVA = newTVA;
+                        lines[i].AmountTTC = newTTC;
+                    }
 
                     if (lines[i].AmountHT + lines[i].AmountTVA != lines[i].AmountTTC)
                         lines[i].AmountTVA = lines[i].AmountTTC - lines[i].AmountHT;
@@ -1072,7 +1104,54 @@ public partial class PosViewModel : BaseViewModel,
         }
 
         // ═══════════════════════════════════════════════════════
-        //  3. Totaux
+        //  3. (NEW V14) Group-level DGI rounding alignment
+        //  The fiscal device computes TVA per tax group, not per line.
+        //  Adjust last line in each group to match device totals.
+        // ═══════════════════════════════════════════════════════
+        var taxGroups = CartItems
+            .Where(l => l.TaxGroup != TaxGroup.N && l.TaxRate > 0)
+            .GroupBy(l => l.TaxGroup);
+
+        foreach (var group in taxGroups)
+        {
+            var groupLines = group.ToList();
+            if (groupLines.Count == 0) continue;
+
+            decimal rate = groupLines.First().TaxRate / 100m;
+
+            if (isTTC)
+            {
+                decimal groupTTC = groupLines.Sum(l => l.AmountTTC);
+                decimal expectedHT = TaxCalculator.R2(groupTTC / (1m + rate));
+                decimal expectedTVA = groupTTC - expectedHT;
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountHT -= diff;
+                }
+            }
+            else
+            {
+                decimal groupHT = groupLines.Sum(l => l.AmountHT);
+                decimal expectedTVA = TaxCalculator.R2(groupHT * rate);
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountTTC += diff;
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  4. Totaux
         // ═══════════════════════════════════════════════════════
         TotalHTBeforeDiscount = CartItems.Sum(c => c.AmountHTBeforeDiscount);
         TotalDiscount = CartItems.Sum(c => c.DiscountAmount);

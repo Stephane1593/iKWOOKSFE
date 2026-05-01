@@ -156,6 +156,7 @@
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Width" Value="40" />
             <Setter Property="Height" Value="40" />
+            <Setter Property="ToolTip" Value="Fermer" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -889,24 +890,28 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Center"
+                                    ToolTip="Heure et date actuelles">
                             <TextBlock FontFamily="Consolas"
                                        FontSize="22"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource PrimaryBrush}"
-                                       Text="{Binding CurrentTime}" />
+                                       Text="{Binding CurrentTime}"
+                                       ToolTip="{Binding CurrentTime}" />
                             <TextBlock Margin="0,2,0,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="{Binding CurrentDate}" />
+                                       Text="{Binding CurrentDate}"
+                                       ToolTip="{Binding CurrentDate}" />
                         </StackPanel>
 
                         <Border Grid.Column="1"
                                 Margin="16,0,0,0"
                                 Padding="12,6"
                                 VerticalAlignment="Center"
-                                CornerRadius="8">
+                                CornerRadius="8"
+                                ToolTip="Mode de tarification actuel (TTC ou HT)">
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Background">
@@ -949,7 +954,8 @@
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="12"
                                            FontWeight="Bold"
-                                           Text="{Binding PriceModeDisplay}">
+                                           Text="{Binding PriceModeDisplay}"
+                                           ToolTip="{Binding PriceModeDisplay}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{StaticResource PrimaryDarkBrush}" />
@@ -970,7 +976,8 @@
                                 Margin="18,0"
                                 Padding="14,0"
                                 Background="{StaticResource BackgroundBrush}"
-                                CornerRadius="10">
+                                CornerRadius="10"
+                                ToolTip="Rechercher un produit par nom ou code">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -990,7 +997,8 @@
                                          BorderThickness="0"
                                          FontFamily="{StaticResource AppFont}"
                                          FontSize="14"
-                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                                         ToolTip="Tapez pour rechercher un produit" />
                                 <Popup Grid.Column="1"
                                        MinWidth="400"
                                        AllowsTransparency="True"
@@ -1016,7 +1024,8 @@
                                                     <DataTemplate>
                                                         <Button Command="{Binding DataContext.AddToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                 CommandParameter="{Binding}"
-                                                                Style="{StaticResource PopupItemBtn}">
+                                                                Style="{StaticResource PopupItemBtn}"
+                                                                ToolTip="{Binding Name}">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="*" />
@@ -1027,11 +1036,13 @@
                                                                                FontSize="13"
                                                                                FontWeight="Medium"
                                                                                Text="{Binding Name}"
-                                                                               TextTrimming="CharacterEllipsis" />
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               ToolTip="{Binding Name}" />
                                                                     <TextBlock Margin="0,2,0,0"
                                                                                FontFamily="Consolas"
                                                                                FontSize="11"
-                                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                                               ToolTip="{Binding Code}">
                                                                         <Run Text="{Binding Code, Mode=OneWay}" />
                                                                     </TextBlock>
                                                                 </StackPanel>
@@ -1039,7 +1050,8 @@
                                                                         Margin="12,0,0,0"
                                                                         Padding="10,4"
                                                                         VerticalAlignment="Center"
-                                                                        CornerRadius="6">
+                                                                        CornerRadius="6"
+                                                                        ToolTip="Prix unitaire TTC en CDF">
                                                                     <Border.Background>
                                                                         <SolidColorBrush Opacity="0.08"
                                                                                          Color="{StaticResource PrimaryColor}" />
@@ -1063,7 +1075,8 @@
 
                         <StackPanel Grid.Column="3"
                                     HorizontalAlignment="Right"
-                                    VerticalAlignment="Center">
+                                    VerticalAlignment="Center"
+                                    ToolTip="Résumé des ventes du jour">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon Width="14"
                                                          Height="14"
@@ -1073,7 +1086,8 @@
                                                          Kind="ChartBarStacked" />
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="12"
-                                           Foreground="{StaticResource TextMutedBrush}">
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           ToolTip="Nombre de ventes aujourd'hui">
                                     <Run Text="{Binding TodaySalesCount, Mode=OneWay}" />
                                     <Run Text=" ventes" />
                                 </TextBlock>
@@ -1083,7 +1097,8 @@
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource PrimaryBrush}">
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       ToolTip="Total des ventes du jour en CDF">
                                 <Run Text="{Binding TodaySalesTotal, StringFormat=N0, Mode=OneWay}" />
                                 <Run Text=" CDF" />
                             </TextBlock>
@@ -1093,7 +1108,8 @@
                     <Border Margin="0,14,0,0"
                             Padding="14,10"
                             BorderThickness="1"
-                            CornerRadius="10">
+                            CornerRadius="10"
+                            ToolTip="Point de vente sélectionné pour cette session">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background">
@@ -1140,27 +1156,32 @@
                                         VerticalAlignment="Center"
                                         Background="{StaticResource PrimaryLightBrush}"
                                         CornerRadius="4"
+                                        ToolTip="Code du point de vente"
                                         Visibility="{Binding SelectedPointOfSale, Converter={StaticResource IsNotNullToVisibilityConverter}}">
                                     <TextBlock FontFamily="Consolas"
                                                FontSize="10"
                                                FontWeight="Bold"
                                                Foreground="{StaticResource PrimaryDarkBrush}"
-                                               Text="{Binding SelectedPointOfSale.Code}" />
+                                               Text="{Binding SelectedPointOfSale.Code}"
+                                               ToolTip="{Binding SelectedPointOfSale.Code}" />
                                 </Border>
                                 <TextBlock VerticalAlignment="Center"
                                            FontFamily="{StaticResource AppFont}"
                                            FontSize="12"
                                            FontWeight="SemiBold"
-                                           Text="{Binding SelectedPointOfSale.Name}" />
+                                           Text="{Binding SelectedPointOfSale.Name}"
+                                           ToolTip="{Binding SelectedPointOfSale.Name}" />
                             </StackPanel>
                             <TextBlock Margin="24,3,0,0"
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="10"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Text="{Binding SelectedPosInfo}"
+                                       ToolTip="{Binding SelectedPosInfo}"
                                        Visibility="{Binding SelectedPointOfSale, Converter={StaticResource IsNotNullToVisibilityConverter}}" />
                             <StackPanel Margin="24,3,0,0"
-                                        Orientation="Horizontal">
+                                        Orientation="Horizontal"
+                                        ToolTip="Erreur : Aucun point de vente n'est configuré. Veuillez configurer un point de vente dans les paramètres.">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -1182,7 +1203,8 @@
                                            FontSize="11"
                                            FontStyle="Italic"
                                            Foreground="#DC2626"
-                                           Text="Aucun point de vente configuré" />
+                                           Text="Aucun point de vente configuré"
+                                           ToolTip="Erreur : Aucun point de vente n'est configuré. Veuillez en sélectionner un dans les paramètres pour pouvoir effectuer des ventes." />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -1197,10 +1219,8 @@
                           HorizontalScrollBarVisibility="Auto"
                           PanningMode="HorizontalOnly"
                           VerticalScrollBarVisibility="Disabled">
-                <!--  ↑ Removed Height="52", added ClipToBounds="False", changed PanningMode to HorizontalOnly (horizontal scroll)  -->
                 <StackPanel Margin="0,4,0,8"
                             Orientation="Horizontal">
-                    <!--  ↑ top margin 4 gives shadow room above too  -->
 
                     <Button MinHeight="68"
                             Margin="0,0,10,0"
@@ -1210,7 +1230,8 @@
                             Cursor="Hand"
                             FontFamily="{StaticResource AppFont}"
                             FontSize="15"
-                            FontWeight="SemiBold">
+                            FontWeight="SemiBold"
+                            ToolTip="Afficher uniquement les produits favoris">
                         <Button.Style>
                             <Style TargetType="Button">
                                 <Setter Property="Background" Value="{StaticResource CardBrush}" />
@@ -1270,7 +1291,8 @@
                             Cursor="Hand"
                             FontFamily="{StaticResource AppFont}"
                             FontSize="15"
-                            Foreground="{StaticResource TextPrimaryBrush}" />
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            ToolTip="Afficher tous les produits" />
 
                     <ItemsControl ItemsSource="{Binding Categories}">
                         <ItemsControl.ItemsPanel>
@@ -1290,7 +1312,8 @@
                                         Cursor="Hand"
                                         FontFamily="{StaticResource AppFont}"
                                         FontSize="15"
-                                        Foreground="{StaticResource TextPrimaryBrush}">
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        ToolTip="{Binding Name}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Margin="0,0,6,0"
                                                    Text="{Binding Icon}" />
@@ -1320,7 +1343,8 @@
                                     BorderThickness="0"
                                     Command="{Binding DataContext.AddToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"
-                                    Cursor="Hand">
+                                    Cursor="Hand"
+                                    ToolTip="{Binding Name}">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="CardBorder"
@@ -1337,26 +1361,30 @@
                                                            FontWeight="Medium"
                                                            Text="{Binding Name}"
                                                            TextTrimming="CharacterEllipsis"
-                                                           TextWrapping="Wrap" />
+                                                           TextWrapping="Wrap"
+                                                           ToolTip="{Binding Name}" />
                                                 <TextBlock Grid.Row="1"
                                                            VerticalAlignment="Center"
                                                            FontFamily="Consolas"
                                                            FontSize="10"
-                                                           Foreground="{StaticResource TextMutedBrush}">
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           ToolTip="{Binding Code}">
                                                     <Run Text="{Binding Code, Mode=OneWay}" />
                                                 </TextBlock>
                                                 <Grid Grid.Row="2">
                                                     <TextBlock FontFamily="{StaticResource AppFont}"
                                                                FontSize="15"
                                                                FontWeight="Bold"
-                                                               Foreground="{StaticResource PrimaryBrush}">
+                                                               Foreground="{StaticResource PrimaryBrush}"
+                                                               ToolTip="Prix unitaire TTC en CDF">
                                                         <Run Text="{Binding UnitPriceTtcCdf, StringFormat=N0, Mode=OneWay}" />
                                                     </TextBlock>
                                                     <TextBlock HorizontalAlignment="Right"
                                                                VerticalAlignment="Bottom"
                                                                FontFamily="{StaticResource AppFont}"
                                                                FontSize="10"
-                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               ToolTip="Groupe de taxe applicable">
                                                         <Run Text="{Binding TaxGroup, Mode=OneWay}" />
                                                     </TextBlock>
                                                 </Grid>
@@ -1401,15 +1429,11 @@
 
             <Border CornerRadius="16"
                     Style="{StaticResource PosCard}">
-                <!--  ★★★ FIX: Replaced DockPanel with Grid + RowDefinitions ★★★  -->
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <!--  Row 0: Cart Header  -->
                         <RowDefinition Height="*" />
-                        <!--  Row 1: Cart Items (scrollable)  -->
                         <RowDefinition Height="1.8*" />
-                        <!--  Row 2: Cart Footer / Totals / Payment  -->
                     </Grid.RowDefinitions>
 
                     <!--  ────── ROW 0: CART HEADER ──────  -->
@@ -1429,7 +1453,7 @@
                                 <Grid>
                                     <StackPanel VerticalAlignment="Center"
                                                 Orientation="Horizontal">
-                                        <Grid>
+                                        <Grid ToolTip="Nombre d'articles dans le panier">
                                             <materialDesign:PackIcon x:Name="CartIcon"
                                                                      Width="22"
                                                                      Height="22"
@@ -1466,7 +1490,8 @@
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Text="Panier" />
+                                                   Text="Panier"
+                                                   ToolTip="Panier de la vente en cours" />
                                     </StackPanel>
                                 </Grid>
                                 <StackPanel Grid.Column="2"
@@ -1474,7 +1499,7 @@
                                             Orientation="Horizontal">
                                     <Button Command="{Binding ToggleClientPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Client">
+                                            ToolTip="Sélectionner ou gérer le client">
                                         <materialDesign:PackIcon Width="19"
                                                                  Height="19"
                                                                  Foreground="{StaticResource TextSecondaryBrush}"
@@ -1482,7 +1507,7 @@
                                     </Button>
                                     <Button Command="{Binding ToggleCommentPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Commentaires">
+                                            ToolTip="Ajouter des commentaires à la facture">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
                                                                  Foreground="{StaticResource TextSecondaryBrush}"
@@ -1490,7 +1515,7 @@
                                     </Button>
                                     <Button Command="{Binding ToggleDiscountPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Remise"
+                                            ToolTip="Appliquer une remise sur l'article sélectionné"
                                             Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
@@ -1499,7 +1524,7 @@
                                     </Button>
                                     <Button Command="{Binding ToggleHeldPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="En attente">
+                                            ToolTip="Voir les ventes mises en attente">
                                         <Grid>
                                             <materialDesign:PackIcon Width="18"
                                                                      Height="18"
@@ -1525,7 +1550,7 @@
                                     </Button>
                                     <Button Command="{Binding TogglePendingPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Factures en attente">
+                                            ToolTip="Voir les factures en attente de normalisation">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
                                                                  Foreground="{StaticResource TextSecondaryBrush}"
@@ -1533,6 +1558,7 @@
                                     </Button>
                                     <Button Command="{Binding ClearCartCommand}"
                                             Style="{StaticResource PosIconBtn}"
+                                            ToolTip="Vider tout le panier"
                                             Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
@@ -1546,7 +1572,8 @@
                                 <TextBlock VerticalAlignment="Center"
                                            FontFamily="{StaticResource AppFont}"
                                            FontSize="11"
-                                           Foreground="{StaticResource TextMutedBrush}">
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           ToolTip="Nombre de lignes et d'articles dans le panier">
                                     <Run Text="{Binding CartItemCount, Mode=OneWay}" />
                                     <Run Text=" ligne(s) ·" />
                                     <Run Text="{Binding TotalArticles, Mode=OneWay}" />
@@ -1557,7 +1584,8 @@
                                            FontFamily="Consolas"
                                            FontSize="10"
                                            Foreground="{StaticResource TextMutedBrush}"
-                                           Text="{Binding InvoiceNumber}" />
+                                           Text="{Binding InvoiceNumber}"
+                                           ToolTip="{Binding InvoiceNumber}" />
                             </Grid>
 
                             <!--  Client badge  -->
@@ -1565,6 +1593,7 @@
                                     Margin="0,12,0,0"
                                     Padding="14,10"
                                     CornerRadius="10"
+                                    ToolTip="Client associé à cette vente"
                                     Visibility="{Binding HasClientSelected, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Border.Background>
                                     <SolidColorBrush Opacity="0.06"
@@ -1583,13 +1612,15 @@
                                                    FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   Text="{Binding ClientName}" />
+                                                   Text="{Binding ClientName}"
+                                                   ToolTip="{Binding ClientName}" />
                                         <TextBlock Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="10"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="{Binding ClientTypeMention}" />
+                                                   Text="{Binding ClientTypeMention}"
+                                                   ToolTip="{Binding ClientTypeMention}" />
                                     </StackPanel>
                                     <Button Width="36"
                                             Height="36"
@@ -1597,7 +1628,8 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Command="{Binding ClearClientCommand}"
-                                            Cursor="Hand">
+                                            Cursor="Hand"
+                                            ToolTip="Retirer le client de cette vente">
                                         <materialDesign:PackIcon Width="14"
                                                                  Height="14"
                                                                  Foreground="#DC2626"
@@ -1613,6 +1645,7 @@
                                         Margin="0,0,8,0"
                                         Padding="12,7"
                                         CornerRadius="8"
+                                        ToolTip="Cette vente est un avoir (note de crédit)"
                                         Visibility="{Binding IsCreditNote, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <Border.Background>
                                         <SolidColorBrush Opacity="0.08"
@@ -1622,7 +1655,8 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Command="{Binding ToggleCreditNotePanelCommand}"
-                                            Cursor="Hand">
+                                            Cursor="Hand"
+                                            ToolTip="Cliquer pour gérer les paramètres de l'avoir">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="14"
                                                                      Height="14"
@@ -1641,6 +1675,7 @@
                                 <Border MinHeight="36"
                                         Padding="12,7"
                                         CornerRadius="8"
+                                        ToolTip="Cette vente est un acompte"
                                         Visibility="{Binding IsAdvanceInvoice, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <Border.Background>
                                         <SolidColorBrush Opacity="0.08"
@@ -1650,7 +1685,8 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Command="{Binding ToggleAdvancePanelCommand}"
-                                            Cursor="Hand">
+                                            Cursor="Hand"
+                                            ToolTip="Cliquer pour gérer les paramètres de l'acompte">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="14"
                                                                      Height="14"
@@ -1739,7 +1775,7 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid>
+                                <Grid ToolTip="{Binding Name}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -1750,11 +1786,13 @@
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Text="{Binding Name}"
-                                                   TextTrimming="CharacterEllipsis" />
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Name}" />
                                         <TextBlock Margin="0,2,0,0"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextMutedBrush}">
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   ToolTip="Quantité et groupe de taxe">
                                             <Run Text="{Binding QuantityDisplay, Mode=OneWay}" />
                                             <Run Text=" · Grp " />
                                             <Run Text="{Binding TaxGroupLabel, Mode=OneWay}" />
@@ -1763,6 +1801,7 @@
                                                 Padding="6,2"
                                                 HorizontalAlignment="Left"
                                                 CornerRadius="4"
+                                                ToolTip="{Binding DiscountDisplay}"
                                                 Visibility="{Binding HasDiscount, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <Border.Background>
                                                 <SolidColorBrush Opacity="0.08"
@@ -1786,7 +1825,8 @@
                                                 BorderThickness="0"
                                                 Command="{Binding DataContext.DecrementQuantityCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
-                                                Cursor="Hand">
+                                                Cursor="Hand"
+                                                ToolTip="Diminuer la quantité">
                                             <TextBlock HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        FontSize="18"
@@ -1800,7 +1840,8 @@
                                                    FontSize="15"
                                                    FontWeight="Bold"
                                                    Text="{Binding Quantity, StringFormat=G}"
-                                                   TextAlignment="Center" />
+                                                   TextAlignment="Center"
+                                                   ToolTip="Quantité actuelle" />
                                         <Button Width="42"
                                                 Height="42"
                                                 Padding="0"
@@ -1808,7 +1849,8 @@
                                                 BorderThickness="0"
                                                 Command="{Binding DataContext.IncrementQuantityCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
-                                                Cursor="Hand">
+                                                Cursor="Hand"
+                                                ToolTip="Augmenter la quantité">
                                             <TextBlock HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        FontSize="18"
@@ -1824,7 +1866,8 @@
                                                    FontSize="15"
                                                    FontWeight="Bold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   Text="{Binding AmountTTC, StringFormat='{}{0:N0}'}" />
+                                                   Text="{Binding AmountTTC, StringFormat='{}{0:N0}'}"
+                                                   ToolTip="Montant TTC de cette ligne" />
                                         <Button MinHeight="26"
                                                 Padding="0"
                                                 HorizontalAlignment="Right"
@@ -1833,6 +1876,7 @@
                                                 Command="{Binding DataContext.RemoveFromCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 Cursor="Hand"
+                                                ToolTip="Retirer cet article du panier"
                                                 Visibility="{Binding DataContext.IsNormalized, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolConverter}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="10"
@@ -1861,6 +1905,7 @@
                                 Padding="14,10"
                                 CornerRadius="8"
                                 DockPanel.Dock="Bottom"
+                                ToolTip="{Binding StatusMessage}"
                                 Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
                                 <SolidColorBrush Opacity="0.06"
@@ -1877,13 +1922,15 @@
                                            FontSize="11"
                                            Foreground="{StaticResource SuccessBrush}"
                                            Text="{Binding StatusMessage}"
-                                           TextWrapping="Wrap" />
+                                           TextWrapping="Wrap"
+                                           ToolTip="{Binding StatusMessage}" />
                             </StackPanel>
                         </Border>
                         <Border Margin="28,0,28,6"
                                 Padding="14,10"
                                 CornerRadius="8"
                                 DockPanel.Dock="Bottom"
+                                ToolTip="{Binding StatusMessage}"
                                 Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
                                 <SolidColorBrush Opacity="0.06"
@@ -1900,7 +1947,8 @@
                                            FontSize="11"
                                            Foreground="{StaticResource ErrorBrush}"
                                            Text="{Binding StatusMessage}"
-                                           TextWrapping="Wrap" />
+                                           TextWrapping="Wrap"
+                                           ToolTip="{Binding StatusMessage}" />
                             </StackPanel>
                         </Border>
 
@@ -1915,6 +1963,7 @@
                                 <!--  Discount sub-total  -->
                                 <Grid MinHeight="28"
                                       Margin="0,0,0,8"
+                                      ToolTip="Sous-total avant application des remises"
                                       Visibility="{Binding HasAnyDiscount, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <TextBlock VerticalAlignment="Center"
                                                FontFamily="{StaticResource AppFont}"
@@ -1927,10 +1976,12 @@
                                                FontSize="11"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                Text="{Binding TotalHTBeforeDiscount, StringFormat='{}{0:N0}'}"
-                                               TextDecorations="Strikethrough" />
+                                               TextDecorations="Strikethrough"
+                                               ToolTip="{Binding TotalHTBeforeDiscount, StringFormat='{}{0:N0} CDF'}" />
                                 </Grid>
                                 <Grid MinHeight="28"
                                       Margin="0,0,0,8"
+                                      ToolTip="Montant total de la remise appliquée"
                                       Visibility="{Binding HasAnyDiscount, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <StackPanel VerticalAlignment="Center"
                                                 Orientation="Horizontal">
@@ -1951,12 +2002,14 @@
                                                FontSize="11"
                                                FontWeight="SemiBold"
                                                Foreground="#DC2626"
-                                               Text="{Binding TotalDiscount, StringFormat='-{0:N0}'}" />
+                                               Text="{Binding TotalDiscount, StringFormat='-{0:N0}'}"
+                                               ToolTip="{Binding TotalDiscount, StringFormat='-{0:N0} CDF'}" />
                                 </Grid>
 
                                 <!--  HT  -->
                                 <Grid MinHeight="30"
-                                      Margin="0,0,0,8">
+                                      Margin="0,0,0,8"
+                                      ToolTip="Total Hors Taxes">
                                     <TextBlock VerticalAlignment="Center"
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
@@ -1967,12 +2020,14 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               Text="{Binding TotalHT, StringFormat='{}{0:N0}'}" />
+                                               Text="{Binding TotalHT, StringFormat='{}{0:N0}'}"
+                                               ToolTip="{Binding TotalHT, StringFormat='{}{0:N0} CDF'}" />
                                 </Grid>
 
                                 <!--  TVA  -->
                                 <Grid MinHeight="30"
-                                      Margin="0,0,0,8">
+                                      Margin="0,0,0,8"
+                                      ToolTip="Taxe sur la Valeur Ajoutée">
                                     <TextBlock VerticalAlignment="Center"
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
@@ -1983,12 +2038,14 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                Foreground="{StaticResource PrimaryBrush}"
-                                               Text="{Binding TotalTVA, StringFormat='{}{0:N0}'}" />
+                                               Text="{Binding TotalTVA, StringFormat='{}{0:N0}'}"
+                                               ToolTip="{Binding TotalTVA, StringFormat='{}{0:N0} CDF'}" />
                                 </Grid>
 
                                 <!--  Specific tax  -->
                                 <Grid MinHeight="30"
                                       Margin="0,0,0,8"
+                                      ToolTip="Montant de la taxe spécifique applicable"
                                       Visibility="{Binding HasAnySpecificTax, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <StackPanel VerticalAlignment="Center"
                                                 Orientation="Horizontal">
@@ -2008,14 +2065,16 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                Foreground="#92400E"
-                                               Text="{Binding TotalSpecificTax, StringFormat='{}{0:N0}'}" />
+                                               Text="{Binding TotalSpecificTax, StringFormat='{}{0:N0}'}"
+                                               ToolTip="{Binding TotalSpecificTax, StringFormat='{}{0:N0} CDF'}" />
                                 </Grid>
 
                                 <!--  ── Grand Total ──  -->
                                 <Border Margin="0,10,0,10"
                                         Padding="22,18"
                                         CornerRadius="14"
-                                        RenderTransformOrigin="0.5,0.5">
+                                        RenderTransformOrigin="0.5,0.5"
+                                        ToolTip="Montant total de la facture">
                                     <Border.RenderTransform>
                                         <ScaleTransform x:Name="TotalScale" ScaleX="1" ScaleY="1"/>
                                     </Border.RenderTransform>
@@ -2045,13 +2104,15 @@
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="15"
                                                    FontWeight="Bold"
-                                                   Text="{Binding GrandTotalLabel}" />
+                                                   Text="{Binding GrandTotalLabel}"
+                                                   ToolTip="{Binding GrandTotalLabel}" />
                                         <TextBlock HorizontalAlignment="Right"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="24"
                                                    FontWeight="Bold"
-                                                   Foreground="{StaticResource PrimaryBrush}">
+                                                   Foreground="{StaticResource PrimaryBrush}"
+                                                   ToolTip="{Binding GrandTotal, StringFormat='{}{0:N0} CDF'}">
                                             <Run Text="{Binding GrandTotal, StringFormat=N0, Mode=OneWay}" />
                                             <Run FontSize="14"
                                                  Text=" CDF" />
@@ -2064,7 +2125,8 @@
                                         Margin="0,0,0,12"
                                         Padding="18,12"
                                         BorderThickness="1"
-                                        CornerRadius="10">
+                                        CornerRadius="10"
+                                        ToolTip="Équivalent du total dans la devise alternative">
                                     <Border.Background>
                                         <SolidColorBrush Color="{StaticResource BackgroundColor}" />
                                     </Border.Background>
@@ -2082,7 +2144,8 @@
                                                                      Kind="SwapHorizontal" />
                                             <TextBlock FontFamily="{StaticResource AppFont}"
                                                        FontSize="11"
-                                                       Foreground="{StaticResource TextMutedBrush}">
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       ToolTip="{Binding AlternateCurrencyLabel}">
                                                 <Run Text="{Binding AlternateCurrencyLabel, Mode=OneWay}" />
                                             </TextBlock>
                                         </StackPanel>
@@ -2090,7 +2153,8 @@
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="14"
-                                                   FontWeight="Bold">
+                                                   FontWeight="Bold"
+                                                   ToolTip="{Binding TotalInAlternateCurrency, StringFormat='{}{0:N2}'}">
                                             <Run Text="{Binding TotalInAlternateCurrency, StringFormat=N2, Mode=OneWay}" />
                                             <Run FontSize="9"
                                                  Text=" " />
@@ -2104,6 +2168,7 @@
                                 <Border Margin="0,0,0,12"
                                         Padding="20,14"
                                         CornerRadius="12"
+                                        ToolTip="Montant total TTC à encaisser du client"
                                         Visibility="{Binding IsHtMode, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <Border.Background>
                                         <SolidColorBrush Opacity="0.06"
@@ -2129,7 +2194,8 @@
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="17"
                                                    FontWeight="Bold"
-                                                   Foreground="#065F46">
+                                                   Foreground="#065F46"
+                                                   ToolTip="{Binding TotalTTC, StringFormat='{}{0:N0} CDF'}">
                                             <Run Text="{Binding TotalTTC, StringFormat=N0, Mode=OneWay}" />
                                             <Run FontSize="11"
                                                  Text=" CDF" />
@@ -2149,18 +2215,21 @@
                                         </Grid.ColumnDefinitions>
                                         <ComboBox ItemsSource="{Binding PaymentTypes}"
                                                   SelectedItem="{Binding SelectedPaymentType}"
-                                                  Style="{StaticResource PosComboBox}" />
+                                                  Style="{StaticResource PosComboBox}"
+                                                  ToolTip="Sélectionner le mode de paiement" />
                                         <ComboBox Grid.Column="2"
                                                   ItemsSource="{Binding InvoiceTypes}"
                                                   SelectedItem="{Binding InvoiceType}"
-                                                  Style="{StaticResource PosComboBox}" />
+                                                  Style="{StaticResource PosComboBox}"
+                                                  ToolTip="Sélectionner le type de facture" />
                                     </Grid>
 
                                     <!--  Split payment toggle  -->
                                     <Button Margin="0,0,0,14"
                                             HorizontalContentAlignment="Center"
                                             Command="{Binding ToggleSplitPaymentCommand}"
-                                            Style="{StaticResource PosGhostBtn}">
+                                            Style="{StaticResource PosGhostBtn}"
+                                            ToolTip="Diviser le paiement en plusieurs modes (espèces, carte, etc.)">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="14"
                                                                      Height="14"
@@ -2202,7 +2271,8 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid MinHeight="40"
-                                                          Margin="0,4">
+                                                          Margin="0,4"
+                                                          ToolTip="{Binding Label}">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="Auto" />
@@ -2211,14 +2281,16 @@
                                                         <TextBlock VerticalAlignment="Center"
                                                                    FontFamily="{StaticResource AppFont}"
                                                                    FontSize="12"
-                                                                   Text="{Binding Label}" />
+                                                                   Text="{Binding Label}"
+                                                                   ToolTip="{Binding Label}" />
                                                         <TextBlock Grid.Column="1"
                                                                    Margin="0,0,10,0"
                                                                    VerticalAlignment="Center"
                                                                    FontFamily="{StaticResource AppFont}"
                                                                    FontSize="12"
                                                                    FontWeight="SemiBold"
-                                                                   Text="{Binding Amount, StringFormat=N0}" />
+                                                                   Text="{Binding Amount, StringFormat=N0}"
+                                                                   ToolTip="{Binding Amount, StringFormat='{}{0:N0} CDF'}" />
                                                         <Button Grid.Column="2"
                                                                 Width="36"
                                                                 Height="36"
@@ -2226,7 +2298,8 @@
                                                                 BorderThickness="0"
                                                                 Command="{Binding DataContext.RemovePaymentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                 CommandParameter="{Binding}"
-                                                                Cursor="Hand">
+                                                                Cursor="Hand"
+                                                                ToolTip="Supprimer ce paiement">
                                                             <materialDesign:PackIcon Width="14"
                                                                                      Height="14"
                                                                                      Foreground="#EF4444"
@@ -2243,11 +2316,12 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox Style="{StaticResource PosTextBox}"
                                                      Text="{Binding PaymentAmount}"
-                                                     ToolTip="Vide = reste à payer" />
+                                                     ToolTip="Montant à ajouter (laisser vide = reste à payer)" />
                                             <Button Grid.Column="1"
                                                     Margin="12,0,0,0"
                                                     Command="{Binding AddPaymentCommand}"
-                                                    Style="{StaticResource PosMiniBtn}">
+                                                    Style="{StaticResource PosMiniBtn}"
+                                                    ToolTip="Ajouter ce montant comme paiement fractionné">
                                                 <StackPanel Orientation="Horizontal">
                                                     <materialDesign:PackIcon Width="14"
                                                                              Height="14"
@@ -2262,7 +2336,8 @@
                                             </Button>
                                         </Grid>
                                         <Grid MinHeight="38"
-                                              Margin="0,0,0,12">
+                                              Margin="0,0,0,12"
+                                              ToolTip="Montant restant à payer pour compléter la facture">
                                             <TextBlock VerticalAlignment="Center"
                                                        FontFamily="{StaticResource AppFont}"
                                                        FontSize="13"
@@ -2296,7 +2371,8 @@
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="12"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="Montant reçu" />
+                                                   Text="Montant reçu"
+                                                   ToolTip="Saisissez le montant reçu du client" />
                                         <Grid Margin="0,0,0,12">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -2309,7 +2385,8 @@
                                                      FontFamily="{StaticResource AppFont}"
                                                      FontSize="20"
                                                      FontWeight="SemiBold"
-                                                     Text="{Binding ReceivedAmount, UpdateSourceTrigger=PropertyChanged}">
+                                                     Text="{Binding ReceivedAmount, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Montant reçu du client en CDF">
                                                 <TextBox.Template>
                                                     <ControlTemplate TargetType="TextBox">
                                                         <Border x:Name="Bd"
@@ -2336,7 +2413,8 @@
                                             <Button Grid.Column="1"
                                                     Margin="12,0,0,0"
                                                     Command="{Binding SetExactAmountCommand}"
-                                                    Style="{StaticResource PosGhostBtn}">
+                                                    Style="{StaticResource PosGhostBtn}"
+                                                    ToolTip="Remplir automatiquement avec le montant exact à payer">
                                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                                            FontSize="12"
                                                            Text="= Exact" />
@@ -2349,27 +2427,32 @@
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="1000"
                                                     Content="1 000"
-                                                    Style="{StaticResource PosChipBtn}" />
+                                                    Style="{StaticResource PosChipBtn}"
+                                                    ToolTip="Définir le montant reçu à 1 000 CDF" />
                                             <Button Margin="0,0,8,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="5000"
                                                     Content="5 000"
-                                                    Style="{StaticResource PosChipBtn}" />
+                                                    Style="{StaticResource PosChipBtn}"
+                                                    ToolTip="Définir le montant reçu à 5 000 CDF" />
                                             <Button Margin="0,0,8,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="10000"
                                                     Content="10 000"
-                                                    Style="{StaticResource PosChipBtn}" />
+                                                    Style="{StaticResource PosChipBtn}"
+                                                    ToolTip="Définir le montant reçu à 10 000 CDF" />
                                             <Button Margin="0,0,8,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="20000"
                                                     Content="20 000"
-                                                    Style="{StaticResource PosChipBtn}" />
+                                                    Style="{StaticResource PosChipBtn}"
+                                                    ToolTip="Définir le montant reçu à 20 000 CDF" />
                                             <Button Margin="0,0,0,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="50000"
                                                     Content="50 000"
-                                                    Style="{StaticResource PosChipBtn}" />
+                                                    Style="{StaticResource PosChipBtn}"
+                                                    ToolTip="Définir le montant reçu à 50 000 CDF" />
                                         </WrapPanel>
                                     </StackPanel>
 
@@ -2377,6 +2460,7 @@
                                     <Border Margin="0,0,0,14"
                                             Padding="20,14"
                                             CornerRadius="12"
+                                            ToolTip="Monnaie à rendre au client"
                                             Visibility="{Binding ShowChange, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Border.Background>
                                             <SolidColorBrush Opacity="0.08"
@@ -2402,7 +2486,8 @@
                                                        FontFamily="{StaticResource AppFont}"
                                                        FontSize="17"
                                                        FontWeight="Bold"
-                                                       Foreground="#92400E">
+                                                       Foreground="#92400E"
+                                                       ToolTip="{Binding ChangeAmount, StringFormat='{}{0:N0} CDF à rendre'}">
                                                 <Run Text="{Binding ChangeAmount, StringFormat=N0, Mode=OneWay}" />
                                                 <Run Text=" CDF" />
                                             </TextBlock>
@@ -2417,7 +2502,8 @@
                                         </Grid.ColumnDefinitions>
                                         <Button Margin="0,0,12,0"
                                                 Command="{Binding RequestHoldCommand}"
-                                                Style="{StaticResource PosHoldBtn}">
+                                                Style="{StaticResource PosHoldBtn}"
+                                                ToolTip="Mettre cette vente en attente pour y revenir plus tard">
                                             <materialDesign:PackIcon Width="22"
                                                                      Height="22"
                                                                      Foreground="White"
@@ -2426,7 +2512,8 @@
                                         <Button Grid.Column="1"
                                                 HorizontalContentAlignment="Center"
                                                 Command="{Binding ProcessSaleCommand}"
-                                                Style="{StaticResource PosProcessBtn}">
+                                                Style="{StaticResource PosProcessBtn}"
+                                                ToolTip="Valider et normaliser la vente auprès du dispositif DEF/DGI">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="20"
                                                                          Height="20"
@@ -2448,7 +2535,8 @@
                                 <StackPanel Visibility="{Binding IsNormalized, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <Border Margin="0,0,0,14"
                                             Padding="20,16"
-                                            CornerRadius="12">
+                                            CornerRadius="12"
+                                            ToolTip="Code de validation DEF/DGI de cette facture">
                                         <Border.Background>
                                             <SolidColorBrush Opacity="0.05"
                                                              Color="{StaticResource SuccessColor}" />
@@ -2464,7 +2552,8 @@
                                                        FontFamily="Consolas"
                                                        FontSize="13"
                                                        FontWeight="Bold"
-                                                       Text="{Binding CodeDEFDGI}" />
+                                                       Text="{Binding CodeDEFDGI}"
+                                                       ToolTip="{Binding CodeDEFDGI}" />
                                         </StackPanel>
                                     </Border>
                                     <Grid Margin="0,0,0,14">
@@ -2482,42 +2571,49 @@
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="11"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="NIM:" />
+                                                   Text="NIM:"
+                                                   ToolTip="Numéro d'Identification Machine" />
                                         <TextBlock Grid.Column="1"
                                                    VerticalAlignment="Center"
                                                    FontFamily="Consolas"
                                                    FontSize="11"
-                                                   Text="{Binding Nim}" />
+                                                   Text="{Binding Nim}"
+                                                   ToolTip="{Binding Nim}" />
                                         <TextBlock Grid.Row="1"
                                                    Margin="0,0,12,0"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="11"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="Compteurs:" />
+                                                   Text="Compteurs:"
+                                                   ToolTip="Compteurs de facturation du dispositif" />
                                         <TextBlock Grid.Row="1"
                                                    Grid.Column="1"
                                                    VerticalAlignment="Center"
                                                    FontFamily="Consolas"
                                                    FontSize="11"
-                                                   Text="{Binding Counters}" />
+                                                   Text="{Binding Counters}"
+                                                   ToolTip="{Binding Counters}" />
                                         <TextBlock Grid.Row="2"
                                                    Margin="0,0,12,0"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="11"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="Date DEF:" />
+                                                   Text="Date DEF:"
+                                                   ToolTip="Date et heure enregistrées par le dispositif DEF" />
                                         <TextBlock Grid.Row="2"
                                                    Grid.Column="1"
                                                    VerticalAlignment="Center"
                                                    FontFamily="Consolas"
                                                    FontSize="11"
-                                                   Text="{Binding DeviceDateTime}" />
+                                                   Text="{Binding DeviceDateTime}"
+                                                   ToolTip="{Binding DeviceDateTime}" />
                                     </Grid>
                                     <Button HorizontalContentAlignment="Center"
                                             Command="{Binding NewSaleCommand}"
-                                            Style="{StaticResource PosPrimaryBtn}">
+                                            Style="{StaticResource PosPrimaryBtn}"
+                                            ToolTip="Commencer une nouvelle vente (réinitialiser le panier)">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="18"
                                                                      Height="18"
@@ -2540,6 +2636,7 @@
                                         HorizontalContentAlignment="Center"
                                         Command="{Binding ReprintReceiptCommand}"
                                         Style="{StaticResource PosGhostBtn}"
+                                        ToolTip="Imprimer un duplicata du reçu sur l'imprimante thermique"
                                         Visibility="{Binding HasThermalPrinter, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Width="15"
@@ -2559,7 +2656,8 @@
                                 <Border Margin="0,12,0,0"
                                         Padding="10,6"
                                         HorizontalAlignment="Center"
-                                        CornerRadius="8">
+                                        CornerRadius="8"
+                                        ToolTip="{Binding ThermalPrinterName}">
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Background">
@@ -2601,7 +2699,8 @@
                                         <TextBlock FontFamily="{StaticResource AppFont}"
                                                    FontSize="9"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="{Binding ThermalPrinterName}" />
+                                                   Text="{Binding ThermalPrinterName}"
+                                                   ToolTip="{Binding ThermalPrinterName}" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -2609,7 +2708,6 @@
                     </DockPanel>
 
                 </Grid>
-                <!--  ★★★ END FIX ★★★  -->
             </Border>
 
             <!--  ══════════════════════════════════════════════════════  -->
@@ -2641,7 +2739,8 @@
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="17"
                                            FontWeight="Bold"
-                                           Text="Client" />
+                                           Text="Client"
+                                           ToolTip="Panneau de gestion du client" />
                             </StackPanel>
                             <Button HorizontalAlignment="Right"
                                     Command="{Binding ToggleClientPanelCommand}"
@@ -2656,11 +2755,13 @@
                         <StackPanel Margin="28,20,28,20">
                             <!--  Search  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Rechercher" />
+                                       Text="Rechercher"
+                                       ToolTip="Rechercher un client existant" />
                             <Grid Margin="0,0,0,18">
                                 <TextBox x:Name="PosClientSearch"
                                          Style="{StaticResource PosTextBox}"
-                                         Text="{Binding ClientSearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}" />
+                                         Text="{Binding ClientSearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                         ToolTip="Tapez le nom, NIF ou téléphone du client pour le rechercher" />
                                 <Popup Width="{Binding ActualWidth, ElementName=PosClientSearch}"
                                        AllowsTransparency="True"
                                        IsOpen="{Binding IsClientSearchOpen, Mode=TwoWay}"
@@ -2683,17 +2784,20 @@
                                                     <DataTemplate>
                                                         <Button Command="{Binding DataContext.SelectClientCommand, RelativeSource={RelativeSource AncestorType=Popup}}"
                                                                 CommandParameter="{Binding}"
-                                                                Style="{StaticResource PopupItemBtn}">
+                                                                Style="{StaticResource PopupItemBtn}"
+                                                                ToolTip="{Binding Name}">
                                                             <StackPanel>
                                                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                                                            FontSize="14"
                                                                            FontWeight="Medium"
                                                                            Text="{Binding Name}"
-                                                                           TextTrimming="CharacterEllipsis" />
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           ToolTip="{Binding Name}" />
                                                                 <TextBlock Margin="0,2,0,0"
                                                                            FontFamily="Consolas"
                                                                            FontSize="11"
-                                                                           Foreground="{StaticResource TextMutedBrush}">
+                                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                                           ToolTip="Type de client et NIF">
                                                                     <Run Text="{Binding Type}" />
                                                                     <Run Text=" · NIF: " />
                                                                     <Run Text="{Binding NIF, TargetNullValue='-'}" />
@@ -2710,38 +2814,48 @@
 
                             <!--  Type  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Type client" />
+                                       Text="Type client"
+                                       ToolTip="Type de client (personne physique, morale, etc.)" />
                             <ComboBox Margin="0,0,0,18"
                                       ItemsSource="{Binding ClientTypes}"
                                       SelectedItem="{Binding SelectedClientType}"
-                                      Style="{StaticResource PosComboBox}" />
+                                      Style="{StaticResource PosComboBox}"
+                                      ToolTip="Sélectionner le type de client" />
 
                             <!--  NIF  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="NIF" />
+                                       Text="NIF"
+                                       ToolTip="Numéro d'Identification Fiscale du client" />
                             <TextBox Margin="0,0,0,18"
                                      Style="{StaticResource PosTextBox}"
-                                     Text="{Binding ClientNIF}" />
+                                     Text="{Binding ClientNIF}"
+                                     ToolTip="Saisir le NIF du client" />
 
                             <!--  Name  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Nom / Dénomination" />
+                                       Text="Nom / Dénomination"
+                                       ToolTip="Nom complet ou dénomination sociale du client" />
                             <TextBox Margin="0,0,0,18"
                                      Style="{StaticResource PosTextBox}"
-                                     Text="{Binding ClientName}" />
+                                     Text="{Binding ClientName}"
+                                     ToolTip="Saisir le nom ou la dénomination du client" />
 
                             <!--  Phone  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Téléphone" />
+                                       Text="Téléphone"
+                                       ToolTip="Numéro de téléphone du client" />
                             <TextBox Margin="0,0,0,18"
                                      Style="{StaticResource PosTextBox}"
-                                     Text="{Binding ClientPhone}" />
+                                     Text="{Binding ClientPhone}"
+                                     ToolTip="Saisir le numéro de téléphone du client" />
 
                             <!--  Address  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Adresse" />
+                                       Text="Adresse"
+                                       ToolTip="Adresse physique du client" />
                             <TextBox Style="{StaticResource PosTextBox}"
-                                     Text="{Binding ClientAddress}" />
+                                     Text="{Binding ClientAddress}"
+                                     ToolTip="Saisir l'adresse du client" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -2759,7 +2873,8 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Button Command="{Binding SaveClientInlineCommand}"
-                                    Style="{StaticResource PosSuccessBtn}">
+                                    Style="{StaticResource PosSuccessBtn}"
+                                    ToolTip="Enregistrer les informations du client">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Width="15"
                                                              Height="15"
@@ -2775,7 +2890,8 @@
                             </Button>
                             <Button Grid.Column="2"
                                     Command="{Binding ClearClientCommand}"
-                                    Style="{StaticResource PosDangerBtn}">
+                                    Style="{StaticResource PosDangerBtn}"
+                                    ToolTip="Vider tous les champs client et dissocier le client de la vente">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Width="14"
                                                              Height="14"
@@ -2817,7 +2933,8 @@
                                            FontSize="17"
                                            FontWeight="Bold"
                                            Foreground="{StaticResource AccentBrush}"
-                                           Text="Avoir" />
+                                           Text="Avoir"
+                                           ToolTip="Panneau de gestion des avoirs (notes de crédit)" />
                             </StackPanel>
                             <Button HorizontalAlignment="Right"
                                     Command="{Binding ToggleCreditNotePanelCommand}"
@@ -2829,14 +2946,17 @@
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="28,20,28,24">
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Nature" />
+                                       Text="Nature"
+                                       ToolTip="Nature de l'avoir (retour, remise, erreur, etc.)" />
                             <ComboBox Margin="0,0,0,18"
                                       ItemsSource="{Binding CreditNoteNatures}"
                                       SelectedItem="{Binding SelectedCreditNoteNature}"
-                                      Style="{StaticResource PosComboBox}" />
+                                      Style="{StaticResource PosComboBox}"
+                                      ToolTip="Sélectionner la nature de l'avoir" />
 
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="Code DEF/DGI original" />
+                                       Text="Code DEF/DGI original"
+                                       ToolTip="Code DEF/DGI de la facture originale à annuler" />
                             <Grid Margin="0,0,0,18">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -2845,11 +2965,13 @@
                                 <TextBox FontFamily="Consolas"
                                          IsEnabled="{Binding IsRRR, Converter={StaticResource InverseBoolConverter}}"
                                          Style="{StaticResource PosTextBox}"
-                                         Text="{Binding OriginalReference, UpdateSourceTrigger=PropertyChanged}" />
+                                         Text="{Binding OriginalReference, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Saisir le code DEF/DGI de la facture originale" />
                                 <Button Grid.Column="1"
                                         Margin="10,0,0,0"
                                         Command="{Binding LookupOriginalInvoiceCommand}"
                                         Style="{StaticResource PosMiniBtn}"
+                                        ToolTip="Rechercher et charger la facture originale à partir du code"
                                         Visibility="{Binding RequiresOriginalLookup, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Width="14"
@@ -2868,6 +2990,7 @@
                             <Border Margin="0,0,0,18"
                                     Padding="16,14"
                                     CornerRadius="12"
+                                    ToolTip="Facture originale chargée avec succès"
                                     Visibility="{Binding IsOriginalLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Border.Background>
                                     <SolidColorBrush Opacity="0.06"
@@ -2892,7 +3015,8 @@
                                                FontSize="11"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                Text="{Binding OriginalInvoiceSummary}"
-                                               TextWrapping="Wrap" />
+                                               TextWrapping="Wrap"
+                                               ToolTip="{Binding OriginalInvoiceSummary}" />
                                 </StackPanel>
                             </Border>
 
@@ -2901,7 +3025,8 @@
                                     <DataTemplate>
                                         <Border MinHeight="56"
                                                 Padding="8,12"
-                                                BorderThickness="0,0,0,1">
+                                                BorderThickness="0,0,0,1"
+                                                ToolTip="{Binding DisplayName}">
                                             <Border.BorderBrush>
                                                 <SolidColorBrush Color="{StaticResource BorderLightColor}" />
                                             </Border.BorderBrush>
@@ -2913,18 +3038,21 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <CheckBox VerticalAlignment="Center"
-                                                          IsChecked="{Binding IsSelected}" />
+                                                          IsChecked="{Binding IsSelected}"
+                                                          ToolTip="Cocher pour inclure cet article dans l'avoir" />
                                                 <StackPanel Grid.Column="1"
                                                             VerticalAlignment="Center">
                                                     <TextBlock FontFamily="{StaticResource AppFont}"
                                                                FontSize="12"
                                                                FontWeight="Medium"
-                                                               Text="{Binding DisplayName}" />
+                                                               Text="{Binding DisplayName}"
+                                                               ToolTip="{Binding DisplayName}" />
                                                     <TextBlock Margin="0,2,0,0"
                                                                FontFamily="{StaticResource AppFont}"
                                                                FontSize="10"
                                                                Foreground="{StaticResource TextMutedBrush}"
-                                                               Text="{Binding DisplayQuantity}" />
+                                                               Text="{Binding DisplayQuantity}"
+                                                               ToolTip="{Binding DisplayQuantity}" />
                                                 </StackPanel>
                                                 <TextBox Grid.Column="2"
                                                          MinHeight="40"
@@ -2932,7 +3060,8 @@
                                                          Padding="10,6"
                                                          FontSize="13"
                                                          Style="{StaticResource PosTextBox}"
-                                                         Text="{Binding SelectedQuantity, UpdateSourceTrigger=PropertyChanged}" />
+                                                         Text="{Binding SelectedQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="Quantité à retourner" />
                                                 <TextBlock Grid.Column="3"
                                                            Margin="6,0,0,0"
                                                            VerticalAlignment="Center"
@@ -2940,7 +3069,8 @@
                                                            FontSize="11"
                                                            FontWeight="SemiBold"
                                                            Foreground="{StaticResource PrimaryBrush}"
-                                                           Text="{Binding DisplayPrice}" />
+                                                           Text="{Binding DisplayPrice}"
+                                                           ToolTip="{Binding DisplayPrice}" />
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -2950,7 +3080,8 @@
                             <Button Margin="0,18,0,0"
                                     HorizontalContentAlignment="Center"
                                     Command="{Binding AddAllSelectedCreditNoteLinesCommand}"
-                                    Style="{StaticResource PosAccentBtn}">
+                                    Style="{StaticResource PosAccentBtn}"
+                                    ToolTip="Ajouter tous les articles cochés au panier de l'avoir">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Width="15"
                                                              Height="15"
@@ -2992,7 +3123,8 @@
                                            FontSize="17"
                                            FontWeight="Bold"
                                            Foreground="#7C3AED"
-                                           Text="Acompte" />
+                                           Text="Acompte"
+                                           ToolTip="Panneau de gestion des acomptes" />
                             </StackPanel>
                             <Button HorizontalAlignment="Right"
                                     Command="{Binding ToggleAdvancePanelCommand}"
@@ -3004,11 +3136,13 @@
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="28,20,28,24">
                             <TextBlock Style="{StaticResource PosFieldLabel}"
-                                       Text="ID du groupe" />
+                                       Text="ID du groupe"
+                                       ToolTip="Identifiant du groupe d'acomptes" />
                             <TextBox Margin="0,0,0,16"
                                      FontFamily="Consolas"
                                      Style="{StaticResource PosTextBox}"
-                                     Text="{Binding AdvanceGroupId, UpdateSourceTrigger=PropertyChanged}" />
+                                     Text="{Binding AdvanceGroupId, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Saisir ou afficher l'identifiant du groupe d'acomptes" />
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -3016,7 +3150,8 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Button Command="{Binding CreateNewAdvanceGroupCommand}"
-                                        Style="{StaticResource PosPurpleBtn}">
+                                        Style="{StaticResource PosPurpleBtn}"
+                                        ToolTip="Créer un nouveau groupe d'acomptes">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Width="14"
                                                                  Height="14"
@@ -3030,7 +3165,8 @@
                                 </Button>
                                 <Button Grid.Column="2"
                                         Command="{Binding LoadAdvanceGroupCommand}"
-                                        Style="{StaticResource PosGhostBtn}">
+                                        Style="{StaticResource PosGhostBtn}"
+                                        ToolTip="Charger un groupe d'acomptes existant">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Width="14"
                                                                  Height="14"
@@ -3050,11 +3186,13 @@
                                                 Margin="0,4"
                                                 Padding="16,12"
                                                 Background="#F5F3FF"
-                                                CornerRadius="10">
+                                                CornerRadius="10"
+                                                ToolTip="{Binding InvoiceNumber}">
                                             <Grid>
                                                 <TextBlock VerticalAlignment="Center"
                                                            FontFamily="{StaticResource AppFont}"
-                                                           FontSize="12">
+                                                           FontSize="12"
+                                                           ToolTip="{Binding InvoiceNumber}">
                                                     <Run FontWeight="SemiBold"
                                                          Text="{Binding InvoiceNumber}" />
                                                     <Run Text=" — " />
@@ -3065,7 +3203,8 @@
                                                            FontFamily="{StaticResource AppFont}"
                                                            FontSize="14"
                                                            FontWeight="Bold"
-                                                           Foreground="#7C3AED">
+                                                           Foreground="#7C3AED"
+                                                           ToolTip="{Binding Amount, StringFormat='{}{0:N0} CDF'}">
                                                     <Run Text="{Binding Amount, StringFormat=N0}" />
                                                     <Run FontSize="10"
                                                          Text=" CDF" />
@@ -3103,7 +3242,8 @@
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="17"
                                            FontWeight="Bold"
-                                           Text="Commentaires" />
+                                           Text="Commentaires"
+                                           ToolTip="Ajouter des commentaires à la facture (lignes A à H)" />
                             </StackPanel>
                             <Button HorizontalAlignment="Right"
                                     Command="{Binding ToggleCommentPanelCommand}"
@@ -3118,64 +3258,81 @@
                                        FontFamily="{StaticResource AppFont}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
-                                       Text="{Binding CommentALabel}" />
+                                       Text="{Binding CommentALabel}"
+                                       ToolTip="Commentaire principal de la facture" />
                             <TextBox Margin="0,0,0,18"
                                      Style="{StaticResource PosTextBox}"
-                                     Text="{Binding CommentA, UpdateSourceTrigger=PropertyChanged}" />
+                                     Text="{Binding CommentA, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Saisir le commentaire principal (ligne A)" />
                             <Expander Padding="0,8,0,0"
                                       FontFamily="{StaticResource AppFont}"
                                       FontSize="12"
                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                      Header="Lignes B–H">
+                                      Header="Lignes B–H"
+                                      ToolTip="Développer pour voir les lignes de commentaires supplémentaires">
                                 <StackPanel Margin="0,12,0,0">
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="B" />
+                                               Text="B"
+                                               ToolTip="Ligne de commentaire B" />
                                     <TextBox MinHeight="40"
                                              Margin="0,0,0,12"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentB}" />
+                                             Text="{Binding CommentB}"
+                                             ToolTip="Saisir le commentaire ligne B" />
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="C" />
+                                               Text="C"
+                                               ToolTip="Ligne de commentaire C" />
                                     <TextBox MinHeight="40"
                                              Margin="0,0,0,12"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentC}" />
+                                             Text="{Binding CommentC}"
+                                             ToolTip="Saisir le commentaire ligne C" />
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="D" />
+                                               Text="D"
+                                               ToolTip="Ligne de commentaire D" />
                                     <TextBox MinHeight="40"
                                              Margin="0,0,0,12"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentD}" />
+                                             Text="{Binding CommentD}"
+                                             ToolTip="Saisir le commentaire ligne D" />
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="E" />
+                                               Text="E"
+                                               ToolTip="Ligne de commentaire E" />
                                     <TextBox MinHeight="40"
                                              Margin="0,0,0,12"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentE}" />
+                                             Text="{Binding CommentE}"
+                                             ToolTip="Saisir le commentaire ligne E" />
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="F" />
+                                               Text="F"
+                                               ToolTip="Ligne de commentaire F" />
                                     <TextBox MinHeight="40"
                                              Margin="0,0,0,12"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentF}" />
+                                             Text="{Binding CommentF}"
+                                             ToolTip="Saisir le commentaire ligne F" />
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="G" />
+                                               Text="G"
+                                               ToolTip="Ligne de commentaire G" />
                                     <TextBox MinHeight="40"
                                              Margin="0,0,0,12"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentG}" />
+                                             Text="{Binding CommentG}"
+                                             ToolTip="Saisir le commentaire ligne G" />
                                     <TextBlock Style="{StaticResource PosFieldLabel}"
-                                               Text="H" />
+                                               Text="H"
+                                               ToolTip="Ligne de commentaire H" />
                                     <TextBox MinHeight="40"
                                              Padding="12,8"
                                              Style="{StaticResource PosTextBox}"
-                                             Text="{Binding CommentH}" />
+                                             Text="{Binding CommentH}"
+                                             ToolTip="Saisir le commentaire ligne H" />
                                 </StackPanel>
                             </Expander>
                         </StackPanel>
@@ -3205,7 +3362,8 @@
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="17"
                                            FontWeight="Bold"
-                                           Text="Factures en attente" />
+                                           Text="Factures en attente"
+                                           ToolTip="Factures envoyées au dispositif DEF mais pas encore confirmées" />
                             </StackPanel>
                             <Button HorizontalAlignment="Right"
                                     Command="{Binding TogglePendingPanelCommand}"
@@ -3219,7 +3377,8 @@
                             <Button Margin="0,0,0,16"
                                     HorizontalContentAlignment="Center"
                                     Command="{Binding CheckPendingInvoicesCommand}"
-                                    Style="{StaticResource PosMiniBtn}">
+                                    Style="{StaticResource PosMiniBtn}"
+                                    ToolTip="Interroger le dispositif DEF pour vérifier les factures en attente">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Width="15"
                                                              Height="15"
@@ -3239,7 +3398,8 @@
                                                 Margin="0,4"
                                                 Padding="16,14"
                                                 BorderThickness="1"
-                                                CornerRadius="10">
+                                                CornerRadius="10"
+                                                ToolTip="{Binding Uid}">
                                             <Border.Background>
                                                 <SolidColorBrush Opacity="0.05"
                                                                  Color="{StaticResource WarningColor}" />
@@ -3256,20 +3416,23 @@
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock FontFamily="Consolas"
                                                                FontSize="12"
-                                                               FontWeight="SemiBold">
+                                                               FontWeight="SemiBold"
+                                                               ToolTip="{Binding Uid}">
                                                         <Run Text="UID: " /><Run Text="{Binding Uid}" />
                                                     </TextBlock>
                                                     <TextBlock Margin="0,2,0,0"
                                                                FontFamily="{StaticResource AppFont}"
                                                                FontSize="10"
-                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               ToolTip="{Binding DateDisplay}">
                                                         <Run Text="{Binding DateDisplay}" />
                                                     </TextBlock>
                                                 </StackPanel>
                                                 <Button Grid.Column="1"
                                                         Command="{Binding DataContext.CancelPendingInvoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding Uid}"
-                                                        Style="{StaticResource PosDangerBtn}">
+                                                        Style="{StaticResource PosDangerBtn}"
+                                                        ToolTip="Annuler cette facture en attente">
                                                     <StackPanel Orientation="Horizontal">
                                                         <materialDesign:PackIcon Width="12"
                                                                                  Height="12"
@@ -3295,11 +3458,12 @@
                                 <TextBox FontFamily="Consolas"
                                          Style="{StaticResource PosTextBox}"
                                          Text="{Binding CancelUid, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="UID manuel" />
+                                         ToolTip="Saisir manuellement l'UID de la facture à annuler" />
                                 <Button Grid.Column="1"
                                         Margin="10,0,0,0"
                                         Command="{Binding CancelPendingInvoiceCommand}"
-                                        Style="{StaticResource PosAccentBtn}">
+                                        Style="{StaticResource PosAccentBtn}"
+                                        ToolTip="Annuler la facture en attente avec l'UID saisi">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Width="14"
                                                                  Height="14"
@@ -3316,6 +3480,7 @@
                             <Border Margin="0,12,0,0"
                                     Padding="14,10"
                                     CornerRadius="10"
+                                    ToolTip="{Binding PendingStatusMessage}"
                                     Visibility="{Binding ShowPendingSuccess, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Border.Background>
                                     <SolidColorBrush Opacity="0.06"
@@ -3332,12 +3497,14 @@
                                                FontSize="11"
                                                Foreground="{StaticResource SuccessBrush}"
                                                Text="{Binding PendingStatusMessage}"
-                                               TextWrapping="Wrap" />
+                                               TextWrapping="Wrap"
+                                               ToolTip="{Binding PendingStatusMessage}" />
                                 </StackPanel>
                             </Border>
                             <Border Margin="0,12,0,0"
                                     Padding="14,10"
                                     CornerRadius="10"
+                                    ToolTip="{Binding PendingStatusMessage}"
                                     Visibility="{Binding ShowPendingError, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Border.Background>
                                     <SolidColorBrush Opacity="0.06"
@@ -3354,7 +3521,8 @@
                                                FontSize="11"
                                                Foreground="{StaticResource ErrorBrush}"
                                                Text="{Binding PendingStatusMessage}"
-                                               TextWrapping="Wrap" />
+                                               TextWrapping="Wrap"
+                                               ToolTip="{Binding PendingStatusMessage}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -3385,7 +3553,8 @@
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="17"
                                            FontWeight="Bold"
-                                           Text="Remise" />
+                                           Text="Remise"
+                                           ToolTip="Appliquer une remise sur l'article sélectionné" />
                             </StackPanel>
                             <Button HorizontalAlignment="Right"
                                     Command="{Binding ToggleDiscountPanelCommand}"
@@ -3399,16 +3568,19 @@
                             <Border Margin="0,0,0,20"
                                     Padding="16,14"
                                     Background="{StaticResource BackgroundBrush}"
-                                    CornerRadius="10">
+                                    CornerRadius="10"
+                                    ToolTip="Article sur lequel la remise sera appliquée">
                                 <StackPanel>
                                     <TextBlock FontFamily="{StaticResource AppFont}"
                                                FontSize="13"
                                                FontWeight="Medium"
-                                               Text="{Binding SelectedCartItem.Name}" />
+                                               Text="{Binding SelectedCartItem.Name}"
+                                               ToolTip="{Binding SelectedCartItem.Name}" />
                                     <TextBlock Margin="0,3,0,0"
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}">
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               ToolTip="Quantité et montant actuel de l'article">
                                         <Run Text="{Binding SelectedCartItem.QuantityDisplay, Mode=OneWay}" />
                                         <Run Text=" → " />
                                         <Run Text="{Binding SelectedCartItem.AmountTTC, StringFormat=N0, Mode=OneWay}" />
@@ -3421,22 +3593,26 @@
                                         Command="{Binding ApplyQuickDiscountCommand}"
                                         CommandParameter="5"
                                         Content="5 %"
-                                        Style="{StaticResource PosDiscountChip}" />
+                                        Style="{StaticResource PosDiscountChip}"
+                                        ToolTip="Appliquer une remise de 5%" />
                                 <Button Margin="0,0,10,10"
                                         Command="{Binding ApplyQuickDiscountCommand}"
                                         CommandParameter="10"
                                         Content="10 %"
-                                        Style="{StaticResource PosDiscountChip}" />
+                                        Style="{StaticResource PosDiscountChip}"
+                                        ToolTip="Appliquer une remise de 10%" />
                                 <Button Margin="0,0,10,10"
                                         Command="{Binding ApplyQuickDiscountCommand}"
                                         CommandParameter="15"
                                         Content="15 %"
-                                        Style="{StaticResource PosDiscountChip}" />
+                                        Style="{StaticResource PosDiscountChip}"
+                                        ToolTip="Appliquer une remise de 15%" />
                                 <Button Margin="0,0,0,10"
                                         Command="{Binding ApplyQuickDiscountCommand}"
                                         CommandParameter="20"
                                         Content="20 %"
-                                        Style="{StaticResource PosDiscountChip}" />
+                                        Style="{StaticResource PosDiscountChip}"
+                                        ToolTip="Appliquer une remise de 20%" />
                             </WrapPanel>
                             <Grid Margin="0,0,0,14">
                                 <Grid.ColumnDefinitions>
@@ -3446,7 +3622,8 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox FontSize="16"
                                          Style="{StaticResource PosTextBox}"
-                                         Text="{Binding CustomDiscountValue, UpdateSourceTrigger=PropertyChanged}" />
+                                         Text="{Binding CustomDiscountValue, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Saisir la valeur de la remise personnalisée" />
                                 <StackPanel Grid.Column="1"
                                             Margin="12,0"
                                             VerticalAlignment="Center"
@@ -3456,22 +3633,26 @@
                                                  Content=" %"
                                                  FontFamily="{StaticResource AppFont}"
                                                  FontSize="13"
-                                                 IsChecked="{Binding IsPercentDiscount}" />
+                                                 IsChecked="{Binding IsPercentDiscount}"
+                                                 ToolTip="Remise en pourcentage" />
                                     <RadioButton MinHeight="40"
                                                  Content=" CDF"
                                                  FontFamily="{StaticResource AppFont}"
-                                                 FontSize="13" />
+                                                 FontSize="13"
+                                                 ToolTip="Remise en montant fixe (CDF)" />
                                 </StackPanel>
                                 <Button Grid.Column="2"
                                         Padding="18,10"
                                         Command="{Binding ApplyCustomDiscountCommand}"
                                         Content="OK"
-                                        Style="{StaticResource PosAccentBtn}" />
+                                        Style="{StaticResource PosAccentBtn}"
+                                        ToolTip="Appliquer la remise personnalisée" />
                             </Grid>
                             <Button Margin="0,6,0,0"
                                     HorizontalContentAlignment="Center"
                                     Command="{Binding RemoveItemDiscountCommand}"
                                     Style="{StaticResource PosDangerBtn}"
+                                    ToolTip="Supprimer la remise appliquée à cet article"
                                     Visibility="{Binding SelectedCartItem.HasDiscount, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Width="14"
@@ -3516,12 +3697,14 @@
                                            FontSize="16"
                                            FontWeight="Bold"
                                            Foreground="#92400E"
-                                           Text="En attente" />
+                                           Text="En attente"
+                                           ToolTip="Ventes mises en pause pour y revenir plus tard" />
                                 <Border Margin="12,0,0,0"
                                         Padding="10,3"
                                         VerticalAlignment="Center"
                                         Background="#92400E"
-                                        CornerRadius="10">
+                                        CornerRadius="10"
+                                        ToolTip="Nombre de ventes en attente">
                                     <TextBlock FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                FontWeight="Bold"
@@ -3544,7 +3727,8 @@
                                             Margin="4,4"
                                             Padding="18,16"
                                             BorderThickness="1"
-                                            CornerRadius="12">
+                                            CornerRadius="12"
+                                            ToolTip="{Binding Label}">
                                         <Border.Background>
                                             <SolidColorBrush Opacity="0.04"
                                                              Color="{StaticResource WarningColor}" />
@@ -3565,11 +3749,13 @@
                                                            FontSize="13"
                                                            FontWeight="SemiBold"
                                                            Text="{Binding Label}"
-                                                           TextTrimming="CharacterEllipsis" />
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding Label}" />
                                                 <TextBlock Margin="0,3,0,0"
                                                            FontFamily="{StaticResource AppFont}"
                                                            FontSize="11"
-                                                           Foreground="{StaticResource TextMutedBrush}">
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           ToolTip="Nombre d'articles et montant total">
                                                     <Run Text="{Binding ItemCount, Mode=OneWay}" />
                                                     <Run Text=" art. · " />
                                                     <Run Text="{Binding TotalDisplay, Mode=OneWay}" />
@@ -3585,7 +3771,8 @@
                                                                              Kind="ClockOutline" />
                                                     <TextBlock FontFamily="{StaticResource AppFont}"
                                                                FontSize="10"
-                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               ToolTip="Heure de mise en attente">
                                                         <Run Text="{Binding TimeDisplay, Mode=OneWay}" />
                                                     </TextBlock>
                                                 </StackPanel>
@@ -3597,7 +3784,8 @@
                                                     VerticalAlignment="Center"
                                                     Command="{Binding DataContext.RecallHeldSaleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}"
-                                                    Cursor="Hand">
+                                                    Cursor="Hand"
+                                                    ToolTip="Reprendre cette vente en attente">
                                                 <Button.Style>
                                                     <Style TargetType="Button">
                                                         <Setter Property="Template">
@@ -3654,7 +3842,8 @@
                                                     BorderThickness="0"
                                                     Command="{Binding DataContext.DeleteHeldSaleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}"
-                                                    Cursor="Hand">
+                                                    Cursor="Hand"
+                                                    ToolTip="Supprimer définitivement cette vente en attente">
                                                 <materialDesign:PackIcon Width="16"
                                                                          Height="16"
                                                                          Foreground="{StaticResource TextMutedBrush}"
@@ -3697,15 +3886,18 @@
                             <TextBlock FontFamily="{StaticResource AppFont}"
                                        FontSize="17"
                                        FontWeight="Bold"
-                                       Text="Mettre en attente" />
+                                       Text="Mettre en attente"
+                                       ToolTip="Mettre la vente en cours de côté pour y revenir ultérieurement" />
                         </StackPanel>
                         <TextBlock Margin="2,0,0,8"
                                    Style="{StaticResource PosFieldLabel}"
-                                   Text="Raison (optionnel) :" />
+                                   Text="Raison (optionnel) :"
+                                   ToolTip="Indiquez une raison pour identifier cette vente en attente" />
                         <TextBox Margin="0,0,0,22"
                                  MaxLength="100"
                                  Style="{StaticResource PosTextBox}"
-                                 Text="{Binding HoldReason, UpdateSourceTrigger=PropertyChanged}" />
+                                 Text="{Binding HoldReason, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Saisir une raison pour cette mise en attente (ex: client revient, attente de prix...)" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -3714,14 +3906,16 @@
                             </Grid.ColumnDefinitions>
                             <Button Padding="16,14"
                                     Command="{Binding CancelHoldCommand}"
-                                    Style="{StaticResource PosGhostBtn}">
+                                    Style="{StaticResource PosGhostBtn}"
+                                    ToolTip="Annuler et revenir à la vente en cours">
                                 <TextBlock FontFamily="{StaticResource AppFont}"
                                            FontSize="14"
                                            Text="Annuler" />
                             </Button>
                             <Button Grid.Column="2"
                                     Command="{Binding HoldCurrentSaleCommand}"
-                                    Style="{StaticResource PosHoldBtn}">
+                                    Style="{StaticResource PosHoldBtn}"
+                                    ToolTip="Confirmer la mise en attente de cette vente">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Width="16"
                                                              Height="16"

@@ -6,9 +6,7 @@ namespace SFE.WPF.ViewModels;
 
 /// <summary>
 /// Représente un article dans le panier POS.
-///
-/// V10: Removed post-fix from Recalculate — CalculateLineFull now
-/// produces correct values at the source using Ceil2 for TS%.
+/// V12: CalculateLineFull now applies TS on price directly (WinDev style).
 /// </summary>
 public partial class CartItemViewModel : ObservableObject
 {
@@ -99,16 +97,11 @@ public partial class CartItemViewModel : ObservableObject
 
     partial void OnQuantityChanged(decimal value) { }
 
-    // ══════ CALCUL — V10: No post-fix needed ══════
+    // ══════ CALCUL — V12: WinDev-aligned ══════
 
     /// <summary>
     /// Recalcule tous les montants via TaxCalculator.CalculateLineFull.
-    ///
-    /// V10: CalculateLineFull now uses Ceil2 for TS% at the source,
-    /// so all values (TS, TTC, HT, TVA) are correct directly.
-    /// The old V8 post-fix that re-derived goodsHT from rounded
-    /// values has been REMOVED — it caused drift when applied
-    /// on top of already-correct values.
+    /// V12: TS applied on price directly, R2 standard rounding.
     /// </summary>
     public void Recalculate(PriceMode mode, bool discountBeforeTax = true)
     {
@@ -139,8 +132,6 @@ public partial class CartItemViewModel : ObservableObject
         AmountHT = result.AmountHT;
         AmountTVA = result.AmountTVA;
         AmountTTC = result.AmountTTC;
-
-        // V10: NO post-fix — values are correct from CalculateLineFull.
 
         OnPropertyChanged(nameof(DisplayUnitPrice));
         OnPropertyChanged(nameof(QuantityDisplay));
