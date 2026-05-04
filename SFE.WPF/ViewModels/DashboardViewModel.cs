@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Enums;
 using SkiaSharp;
@@ -14,6 +15,7 @@ namespace SFE.WPF.ViewModels;
 public partial class DashboardViewModel : BaseViewModel
 {
     private readonly DashboardService _dashboardService;
+    private readonly IFiscalDeviceService _fiscalDevice;
 
     // ══════════ KPI ══════════
     [ObservableProperty] private string _todaySalesAmount = "0 CDF";
@@ -49,6 +51,22 @@ public partial class DashboardViewModel : BaseViewModel
     [ObservableProperty]
     private ObservableCollection<RecentInvoiceItem> _recentInvoices = [];
 
+    // ══════════ FISCAL DEVICE STATUS (NEW) ══════════
+    [ObservableProperty] private bool _isFiscalLoading;
+    [ObservableProperty] private bool _fiscalConnected;
+    [ObservableProperty] private string _fiscalDeviceType = "—";
+    [ObservableProperty] private string _fiscalNIM = "—";
+    [ObservableProperty] private string _fiscalNIF = "—";
+    [ObservableProperty] private string _fiscalConnectionStatus = "DIS";
+    [ObservableProperty] private string _fiscalConnectionLabel = "Déconnecté";
+    [ObservableProperty] private string _fiscalLastSync = "—";
+    [ObservableProperty] private string _fiscalPendingCount = "0";
+    [ObservableProperty] private string _fiscalTotalTransactions = "0";
+    [ObservableProperty] private string _fiscalLastInvoice = "—";
+    [ObservableProperty] private string _fiscalTaxpayerName = "—";
+    [ObservableProperty] private string _fiscalErrorMessage = "";
+    [ObservableProperty] private bool _hasFiscalError;
+
     // ══════════ CHART PALETTE ══════════
     private static readonly SKColor[] Palette =
     [
@@ -71,15 +89,19 @@ public partial class DashboardViewModel : BaseViewModel
         { InvoiceType.EA, SKColor.Parse("#EC4899") },
     };
 
-    public DashboardViewModel(DashboardService dashboardService)
+    public DashboardViewModel(DashboardService dashboardService, IFiscalDeviceService fiscalDevice)
     {
         _dashboardService = dashboardService;
+        _fiscalDevice = fiscalDevice;
         PageTitle = "Tableau de bord";
         _ = LoadDashboardAsync();
     }
 
     [RelayCommand]
     private async Task RefreshAsync() => await LoadDashboardAsync();
+
+    [RelayCommand]
+    private async Task RefreshFiscalStatusAsync() => await LoadFiscalStatusAsync();
 
     private async Task LoadDashboardAsync()
     {
@@ -141,6 +163,78 @@ public partial class DashboardViewModel : BaseViewModel
                 "Erreur Debug");
         }
         finally { IsBusy = false; }
+
+        // Load fiscal status in parallel (non-blocking)
+        _ = LoadFiscalStatusAsync();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // FISCAL DEVICE STATUS — Async load
+    // ══════════════════════════════════════════════════════════════
+
+    private async Task LoadFiscalStatusAsync()
+    {
+        IsFiscalLoading = true;
+        HasFiscalError = false;
+        FiscalErrorMessage = "";
+
+        try
+        {
+            var info = await _fiscalDevice.GetDetailedInfoAsync();
+
+            FiscalConnected = info.Success;
+            FiscalDeviceType = info.DeviceTypeLabel;
+            FiscalNIM = info.NIM ?? "—";
+            FiscalNIF = info.NIF ?? "—";
+            FiscalConnectionStatus = info.ConnectionStatus ?? "DIS";
+            FiscalTaxpayerName = info.TaxpayerName ?? "—";
+            FiscalTotalTransactions = info.TotalTransactions.ToString("N0");
+            FiscalPendingCount = info.PendingRequestsCount > 0
+                ? info.PendingRequestsCount.ToString()
+                : (info.TransactionsInDevice > 0 ? info.TransactionsInDevice.ToString() : "0");
+
+            FiscalConnectionLabel = info.ConnectionStatus switch
+            {
+                "CON" => "Connecté",
+                "TRA" => "Transmission...",
+                "RES" => "Restauration...",
+                _ => "Déconnecté"
+            };
+
+            FiscalLastSync = info.LastServerConnection.HasValue
+                ? info.LastServerConnection.Value.ToString("dd/MM/yyyy HH:mm")
+                : "—";
+
+            if (info.LastInvoiceDate.HasValue)
+            {
+                FiscalLastInvoice = $"{info.LastInvoiceType ?? "?"} " +
+                    $"{info.LastInvoiceNumber ?? ""} — " +
+                    $"{info.LastInvoiceDate.Value:dd/MM HH:mm}";
+            }
+            else
+            {
+                FiscalLastInvoice = "—";
+            }
+
+            if (!info.Success && !string.IsNullOrEmpty(info.ErrorMessage))
+            {
+                HasFiscalError = true;
+                FiscalErrorMessage = info.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            FiscalConnected = false;
+            FiscalConnectionStatus = "DIS";
+            FiscalConnectionLabel = "Erreur";
+            HasFiscalError = true;
+            FiscalErrorMessage = ex.Message;
+            Debug.WriteLine($"[Dashboard] Fiscal status error: {ex.Message}");
+        }
+        finally
+        {
+            IsFiscalLoading = false;
+        }
     }
 
     // ────────────────────────────────────────────────

@@ -16,6 +16,7 @@ namespace SFE.WPF.ViewModels;
 public partial class InvoicingViewModel : BaseViewModel,
     IRecipient<PriceModeChangedMessage>,
     IRecipient<DiscountBeforeTaxChangedMessage>,
+    IRecipient<ExchangeRateChangedMessage>,
     IActivatable
 {
     private readonly InvoiceService _invoiceService;
@@ -394,6 +395,7 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
         WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<ExchangeRateChangedMessage>(this);
 
         _ = InitializeAsync();
     }
@@ -408,6 +410,12 @@ public partial class InvoicingViewModel : BaseViewModel,
     {
         _discountBeforeTax = message.Value;
         if (!IsNormalized) RecalculateAllLines();
+    }
+
+    public void Receive(ExchangeRateChangedMessage message)
+    {
+        ExchangeRate = message.Value.UsdRate;
+        UpdateAlternateCurrency();
     }
 
     // ══════════════════════════════════════════════════════════
@@ -450,6 +458,7 @@ public partial class InvoicingViewModel : BaseViewModel,
                 if (appSettings != null)
                 {
                     _discountBeforeTax = appSettings.DiscountBeforeTax;
+                    SelectedPriceMode = appSettings.DefaultPriceMode;  // ★ ADDED
                     SelectedCurrency = appSettings.DefaultCurrency;
                     ExchangeRate = appSettings.CurrentExchangeRate;
                 }
@@ -1713,12 +1722,7 @@ public partial class InvoicingViewModel : BaseViewModel,
 
     public async Task ActivateAsync()
     {
-        if (_isFirstActivation)
-        {
-            _isFirstActivation = false;
-            return;
-        }
-
+        if (_isFirstActivation) { _isFirstActivation = false; return; }
         if (IsNormalized || InvoiceLines.Count > 0) return;
 
         try
@@ -1728,40 +1732,24 @@ public partial class InvoicingViewModel : BaseViewModel,
             {
                 var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
                 Isf = company.ISF;
-                SelectedPriceMode = company.DefaultPriceMode;
+
+                // ★ REMOVED: SelectedPriceMode = company.DefaultPriceMode;
 
                 if (companyWithPos?.PointsOfSale != null)
                 {
                     var activePosList = companyWithPos.PointsOfSale
-                        .Where(p => p.IsActive)
-                        .OrderBy(p => p.Code)
-                        .ToList();
-
+                        .Where(p => p.IsActive).OrderBy(p => p.Code).ToList();
                     var previousPosId = SelectedPointOfSale?.Id;
-
                     AvailablePointsOfSale.Clear();
-                    foreach (var pos in activePosList)
-                        AvailablePointsOfSale.Add(pos);
-
+                    foreach (var pos in activePosList) AvailablePointsOfSale.Add(pos);
                     HasMultiplePos = activePosList.Count > 1;
-
-                    // 🆕 Priority: user-assigned POS → previous → first
                     SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
                         activePosList, _auth.CurrentUser?.PointOfSaleId, previousPosId);
                 }
             }
 
-            try
-            {
-                var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
-                if (appSettings != null)
-                {
-                    _discountBeforeTax = appSettings.DiscountBeforeTax;
-                    SelectedCurrency = appSettings.DefaultCurrency;
-                    ExchangeRate = appSettings.CurrentExchangeRate;
-                }
-            }
-            catch { }
+            // ★ REMOVED: Don't read PriceMode / _discountBeforeTax from stale DbContext.
+            // The messenger keeps them in sync during the session.
 
             await GenerateNewInvoiceNumber();
             CurrentDateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm");

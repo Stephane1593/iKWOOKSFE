@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics;
+using System.Globalization;
 using System.IO.Ports;
 using System.Text;
 using SFE.Application.Interfaces;
@@ -535,10 +536,321 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         await SendCommandAsync(McfProtocol.CMD_PAYMENT, data);
     }
 
+    // ══════════════════════════════════════
+    // IFiscalDeviceService — GetServerConnectionStatusAsync
+    // C2h → FiscalServerConnectionResult
+    // ══════════════════════════════════════
+
+    public async Task<FiscalServerConnectionResult> GetServerConnectionStatusAsync()
+    {
+        try
+        {
+            var resp = await SendCommandAsync(McfProtocol.CMD_SERVER_STATUS);
+            if (resp.IsError)
+                return new FiscalServerConnectionResult
+                {
+                    Success = false,
+                    ErrorMessage = "Erreur communication C2h"
+                };
+
+            var f = resp.Fields;
+            // Response: {EC},{DC},{DT},{STA}[,{ER}]
+            if (f.Length < 4)
+                return new FiscalServerConnectionResult
+                {
+                    Success = false,
+                    ErrorMessage = "Réponse C2h incomplète"
+                };
+
+            int.TryParse(f[0], out var ec);
+            int.TryParse(f[1], out var dc);
+
+            DateTime? lastConn = null;
+            if (f[2].Length == 14)
+            {
+                if (DateTime.TryParseExact(f[2], "yyyyMMddHHmmss",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var dt))
+                    lastConn = dt;
+            }
+
+            return new FiscalServerConnectionResult
+            {
+                Success = true,
+                TransactionsSent = ec,
+                TransactionsPending = dc,
+                LastServerConnection = lastConn,
+                ConnectionStatus = f[3],
+                LastError = f.Length >= 5 ? f[4] : null
+            };
+        }
+        catch (Exception ex)
+        {
+            return new FiscalServerConnectionResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+
     // ── Helpers ──
     private static string BuildQrContent(string mid, string sig, string nif, string dt)
     {
         return $"RDCDEF01;{mid};{sig};{nif};{dt}";
+    }
+
+
+
+    // ══════════════════════════════════════════════════════════════
+    // IFiscalDeviceService — GetDetailedInfoAsync
+    // C1h + C2h + 2Bh(×5) → FiscalDeviceDetailedInfo
+    // ══════════════════════════════════════════════════════════════
+
+    public async Task<FiscalDeviceDetailedInfo> GetDetailedInfoAsync()
+    {
+        var info = new FiscalDeviceDetailedInfo
+        {
+            DeviceTypeLabel = "MCF"
+        };
+
+        try
+        {
+            // ── 1. C1h — Full device status ──
+            var c1Resp = await SendCommandAsync(McfProtocol.CMD_STATUS);
+            if (c1Resp.IsError)
+            {
+                info.Success = false;
+                info.ErrorMessage = "Erreur communication C1h";
+                info.ConnectionStatus = "DIS";
+                return info;
+            }
+
+            var f = c1Resp.Fields;
+            if (f.Length < 11)
+            {
+                info.Success = false;
+                info.ErrorMessage = $"Réponse C1h incomplète ({f.Length} champs)";
+                info.ConnectionStatus = "DIS";
+                return info;
+            }
+
+            info.Success = true;
+            info.NIM = f[0];
+            info.NIF = f[1];
+            info.ConnectionStatus = "CON";
+
+            // Device date/time (index 2: yyyyMMddHHmmss)
+            if (f[2].Length == 14 && DateTime.TryParseExact(f[2], "yyyyMMddHHmmss",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var devDt))
+            {
+                info.DeviceDateTime = devDt;
+            }
+
+            // Counters
+            var ic = CultureInfo.InvariantCulture;
+            if (int.TryParse(f[3], out var tc)) info.TotalTransactions = tc;
+            if (int.TryParse(f[4], out var fvc)) info.SalesInvoiceCount = fvc;
+            if (int.TryParse(f[5], out var frc)) info.CreditNoteCount = frc;
+
+            // Last invoice info (indices 6-10)
+            if (f.Length > 6 && f[6].Length == 14 && DateTime.TryParseExact(f[6], "yyyyMMddHHmmss",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastInvDt))
+            {
+                info.LastInvoiceDate = lastInvDt;
+            }
+
+            if (f.Length > 7) info.LastInvoiceType = f[7];
+            if (f.Length > 8) info.LastInvoiceCodeDEF = f[8];
+            if (f.Length > 9) info.LastInvoiceNumber = f[9];
+            if (f.Length > 10 && decimal.TryParse(f[10], NumberStyles.Any, ic, out var lastAmt))
+            {
+                info.LastInvoiceAmount = lastAmt;
+            }
+
+            // Tax rates A-P (indices 11-26)
+            if (f.Length >= 27)
+            {
+                for (int i = 0; i < 16 && (11 + i) < f.Length; i++)
+                {
+                    if (decimal.TryParse(f[11 + i], NumberStyles.Any, ic, out var rate))
+                        info.TaxRates[i] = rate;
+                }
+            }
+
+            // ── Currency rates (indices 27-29 in C1h response) ──
+            // Format: {CUR_CODE},{CUR_RATE},{CUR_DATE(yyyyMMdd)}
+            if (f.Length >= 30)
+            {
+                try
+                {
+                    string currCode = f[27]?.Trim();
+                    string currRateStr = f[28]?.Trim();
+                    string currDateStr = f[29]?.Trim();
+
+                    if (!string.IsNullOrEmpty(currCode) &&
+                        decimal.TryParse(currRateStr, NumberStyles.Any, ic, out var currRate) &&
+                        currRate > 0)
+                    {
+                        DateTime currDate = DateTime.Now;
+                        if (!string.IsNullOrEmpty(currDateStr) && currDateStr.Length == 8)
+                        {
+                            DateTime.TryParseExact(currDateStr, "yyyyMMdd",
+                                CultureInfo.InvariantCulture, DateTimeStyles.None, out currDate);
+                        }
+
+                        info.CurrencyRates = new List<CurrencyRateInfo>
+            {
+                new CurrencyRateInfo
+                {
+                    Code = currCode,
+                    Description = currCode == "USD" ? "United States Dollar" :
+                                  currCode == "EUR" ? "Euro" :
+                                  currCode == "CNY" ? "Chinese Yuan" : currCode,
+                    Rate = currRate,
+                    Date = currDate
+                }
+            };
+
+                        Debug.WriteLine($"[MCF] Currency rate found: 1 {currCode} = {currRate:N2} CDF ({currDate:dd/MM/yyyy})");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"[MCF] No currency rate in C1h (field 27='{f[27]}', 28='{f[28]}', 29='{f[29]}')");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[MCF] Currency rate parsing error: {ex.Message}");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"[MCF] C1h response has {f.Length} fields, need ≥30 for currency rate");
+
+                // ── Fallback: Try 2Bh with currency field IDs ──
+                try
+                {
+                    var rateInfo = await GetCurrencyRateFromDeviceAsync();
+                    if (rateInfo != null)
+                        info.CurrencyRates = new List<CurrencyRateInfo> { rateInfo };
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[MCF] Fallback currency read failed: {ex.Message}");
+                }
+            }
+
+            // ── 2. C2h — Server connection status ──
+            try
+            {
+                var c2Resp = await SendCommandAsync(McfProtocol.CMD_SERVER_STATUS);
+                if (!c2Resp.IsError && c2Resp.Fields.Length >= 4)
+                {
+                    var c2f = c2Resp.Fields;
+                    if (int.TryParse(c2f[0], out var ec)) info.TransactionsSent = ec;
+                    if (int.TryParse(c2f[1], out var dc)) info.TransactionsInDevice = dc;
+
+                    if (c2f[2].Length == 14 && DateTime.TryParseExact(c2f[2], "yyyyMMddHHmmss",
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastConn))
+                    {
+                        info.LastServerConnection = lastConn;
+                    }
+
+                    info.ConnectionStatus = c2f[3]; // CON/DIS/TRA/RES
+
+                    if (c2f.Length >= 5 && !string.IsNullOrWhiteSpace(c2f[4]))
+                        info.LastError = c2f[4];
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MCF] C2h call failed: {ex.Message}");
+            }
+
+            // ── 3. 2Bh — Taxpayer info (I0-I4) ──
+            try
+            {
+                info.TaxpayerName = await GetTaxpayerFieldAsync("I0");
+                info.TaxpayerAddress = await GetTaxpayerFieldAsync("I1");
+                info.TaxpayerCity = await GetTaxpayerFieldAsync("I2");
+                info.TaxpayerPhone = await GetTaxpayerFieldAsync("I3");
+                info.TaxpayerEmail = await GetTaxpayerFieldAsync("I4");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MCF] 2Bh taxpayer info failed: {ex.Message}");
+            }
+
+            return info;
+        }
+        catch (Exception ex)
+        {
+            return new FiscalDeviceDetailedInfo
+            {
+                Success = false,
+                DeviceTypeLabel = "MCF",
+                ConnectionStatus = "DIS",
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    /// <summary>
+    /// Sends 2Bh command with field ID and returns the value string.
+    /// </summary>
+    private async Task<string> GetTaxpayerFieldAsync(string fieldId)
+    {
+        var resp = await SendCommandAsync(McfProtocol.CMD_TAXPAYER_INFO, fieldId);
+        if (resp.IsError) return "";
+        // Response data format: "I0,<value>" — extract after first comma
+        var idx = resp.Data.IndexOf(',');
+        return idx >= 0 ? resp.Data[(idx + 1)..].Trim() : resp.Data.Trim();
+    }
+
+    /// <summary>
+    /// Fallback: reads currency rate using 2Bh command with field IDs D0/D1/D2.
+    /// Some MCF firmware versions expose the rate this way.
+    /// </summary>
+    private async Task<CurrencyRateInfo?> GetCurrencyRateFromDeviceAsync()
+    {
+        var ic = CultureInfo.InvariantCulture;
+
+        // Try reading currency fields via 2Bh
+        string code = await GetTaxpayerFieldAsync("D0"); // Currency code
+        string rateStr = await GetTaxpayerFieldAsync("D1"); // Rate
+        string dateStr = await GetTaxpayerFieldAsync("D2"); // Date
+
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(rateStr))
+        {
+            Debug.WriteLine("[MCF] 2Bh D0/D1/D2 returned empty — no currency rate available");
+            return null;
+        }
+
+        if (!decimal.TryParse(rateStr, NumberStyles.Any, ic, out var rate) || rate <= 0)
+        {
+            Debug.WriteLine($"[MCF] 2Bh D1 rate invalid: '{rateStr}'");
+            return null;
+        }
+
+        DateTime date = DateTime.Now;
+        if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 8)
+        {
+            DateTime.TryParseExact(dateStr.Substring(0, 8), "yyyyMMdd",
+                ic, DateTimeStyles.None, out date);
+        }
+
+        Debug.WriteLine($"[MCF] Currency from 2Bh: 1 {code} = {rate:N2} CDF ({date:dd/MM/yyyy})");
+
+        return new CurrencyRateInfo
+        {
+            Code = code.Trim(),
+            Description = code.Trim() == "USD" ? "United States Dollar" :
+                          code.Trim() == "EUR" ? "Euro" : code.Trim(),
+            Rate = rate,
+            Date = date
+        };
     }
 
     public void Dispose()
@@ -547,4 +859,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         _port?.Dispose();
         _lock.Dispose();
     }
+
+
 }
+

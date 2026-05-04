@@ -20,6 +20,7 @@ namespace SFE.WPF.ViewModels;
 public partial class PosViewModel : BaseViewModel,
     IRecipient<PriceModeChangedMessage>,
     IRecipient<DiscountBeforeTaxChangedMessage>,
+    IRecipient<ExchangeRateChangedMessage>,
     IActivatable
 {
     private readonly InvoiceService _invoiceService;
@@ -241,12 +242,19 @@ public partial class PosViewModel : BaseViewModel,
 
         WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
         WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<ExchangeRateChangedMessage>(this);
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => UpdateClock();
         _clockTimer.Start();
         UpdateClock();
         _ = InitializeAsync();
+    }
+
+    public void Receive(ExchangeRateChangedMessage message)
+    {
+        ExchangeRate = message.Value.UsdRate;
+        UpdateAlternateCurrency();
     }
 
     // ══════════════════════════════════════════════════════════
@@ -372,6 +380,7 @@ public partial class PosViewModel : BaseViewModel,
                 if (appSettings != null)
                 {
                     _discountBeforeTax = appSettings.DiscountBeforeTax;
+                    PriceMode = appSettings.DefaultPriceMode;     // ★ ADDED — overrides company value
                     SelectedCurrency = appSettings.DefaultCurrency;
                     ExchangeRate = appSettings.CurrentExchangeRate;
                     _currentExchangeRate = appSettings.CurrentExchangeRate;
@@ -1745,6 +1754,11 @@ public partial class PosViewModel : BaseViewModel,
             if (company != null)
             {
                 _currentCompany = company;
+                Isf = company.ISF;
+
+                // ★ REMOVED: PriceMode = company.DefaultPriceMode;
+                // The messenger already delivered the correct value during this session.
+
                 var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
                 if (companyWithPos?.PointsOfSale != null)
                 {
@@ -1754,28 +1768,17 @@ public partial class PosViewModel : BaseViewModel,
                     AvailablePointsOfSale.Clear();
                     foreach (var pos in activePosList) AvailablePointsOfSale.Add(pos);
                     HasMultiplePos = activePosList.Count > 1;
-
-                    // 🆕 Priority: user-assigned POS → previous → first
                     SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
                         activePosList, _auth.CurrentUser?.PointOfSaleId, previousId);
-
-                    Isf = company.ISF;
                 }
             }
-            try
-            {
-                var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
-                if (appSettings != null)
-                {
-                    _discountBeforeTax = appSettings.DiscountBeforeTax;
-                    SelectedCurrency = appSettings.DefaultCurrency;
-                    ExchangeRate = appSettings.CurrentExchangeRate;
-                    _currentExchangeRate = appSettings.CurrentExchangeRate;
-                }
-            }
-            catch { }
 
-            // 🆕 Always refresh products on re-activation
+            // ★ REMOVED: Don't override PriceMode / _discountBeforeTax from stale DbContext.
+            // These are kept in sync via WeakReferenceMessenger during the session.
+            // Only read exchange rate & currency (non-messenger-managed values if needed):
+            // If you still want currency/exchange rate from DB on activation, you can keep those
+            // but they have the same stale-cache problem. Better to rely on the messenger too.
+
             try { await LoadDisplayProductsAsync(); } catch { }
             try { await RefreshDailyStatsAsync(); } catch { }
             try { await LoadOperatorsAsync(); } catch { }

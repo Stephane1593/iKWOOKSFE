@@ -157,7 +157,7 @@ public static class DatabaseSeeder
             var company = new Company
             {
                 Name = "Assium",
-                NIF = "Z9090232",
+                NIF = "A1823910K",
                 RCCM = "RCCM1223123",
                 Address = "Boulevard",
                 City = "Kinshasa",

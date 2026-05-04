@@ -4,6 +4,8 @@ using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
+using SFE.Infrastructure.EMcf;
+using SFE.Infrastructure.Mcf;
 using SFE.WPF.Helpers;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -561,5 +563,66 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         Write(0x1D, 0x56, 0x01);
 
         return ms.ToArray();
+    }
+
+    [RelayCommand]
+    private async Task TestPosConnection(PointOfSale? pos)
+    {
+        if (pos == null) return;
+        IsBusy = true;
+        try
+        {
+            IFiscalDeviceService device;
+            if (pos.DeviceType == DeviceType.EMcf || pos.DeviceType == DeviceType.Hybrid)
+            {
+                device = new EMcfHttpClient(
+                    pos.EmcfApiUrl ?? "",
+                    pos.EmcfToken ?? "",
+                    ""); // NIF loaded from company
+            }
+            else
+            {
+                var mcf = new McfSerialClient(pos.McfPortName ?? "COM3", pos.McfBaudRate);
+                mcf.Connect();
+                device = mcf;
+            }
+
+            var status = await device.GetStatusAsync();
+
+            if (status.Success)
+            {
+                // Save connection info to POS
+                pos.LastKnownNIM = status.NIM;
+                pos.LastKnownNIF = status.NIF;
+                pos.LastConnectionTestAt = DateTime.Now;
+
+                if (!string.IsNullOrEmpty(status.NIM))
+                    pos.EmcfNIM = status.NIM;
+
+                // Check server connection for MCF
+                var serverStatus = await device.GetServerConnectionStatusAsync();
+                if (serverStatus.Success)
+                {
+                    pos.McfLastServerConnection = serverStatus.LastServerConnection;
+                    pos.McfServerStatus = serverStatus.ConnectionStatus;
+                }
+
+                await _posService.UpdateAsync(pos);
+                await LoadAsync();
+
+                _ = ShowSuccessAsync($"✅ Connexion réussie — NIM: {status.NIM}");
+            }
+            else
+            {
+                ShowErrorMessage($"Échec: {status.ErrorMessage}");
+            }
+
+            if (device is IDisposable d) d.Dispose();
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur: {ex.Message}");
+        }
+        finally { IsBusy = false; }
     }
 }

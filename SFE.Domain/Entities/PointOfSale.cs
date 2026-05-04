@@ -25,6 +25,23 @@ public class PointOfSale
     public string? McfPortName { get; set; }
     public int McfBaudRate { get; set; } = 115200;
 
+    // ═══ CONNECTION STATUS (populated by test/status checks) ═══
+
+    /// <summary>Last time the fiscal device connection was successfully tested.</summary>
+    public DateTime? LastConnectionTestAt { get; set; }
+
+    /// <summary>NIM returned by the fiscal device during last successful connection.</summary>
+    public string? LastKnownNIM { get; set; }
+
+    /// <summary>NIF returned by the fiscal device during last successful connection.</summary>
+    public string? LastKnownNIF { get; set; }
+
+    /// <summary>Last successful connection of MCF to DGI server (from C2h command).</summary>
+    public DateTime? McfLastServerConnection { get; set; }
+
+    /// <summary>MCF server connection status (DIS/CON/TRA/RES).</summary>
+    public string? McfServerStatus { get; set; }
+
     // 🆕 --- Stock ---
     /// <summary>Ce POS gère-t-il du stock ? (false pour un POS de services purs)</summary>
     public bool ManagesStock { get; set; } = true;

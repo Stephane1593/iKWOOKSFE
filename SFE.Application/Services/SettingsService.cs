@@ -120,6 +120,8 @@ public class SettingsService
             company.DeploymentMode = data.DeploymentMode;
             company.ISF = data.CompanyISF;
             company.Logo = data.CompanyLogo;
+            company.DefaultPriceMode = data.DefaultPriceMode;       // ★ KEY FIX
+
 
             await _unitOfWork.Companies.UpdateAsync(company);
 
@@ -135,6 +137,7 @@ public class SettingsService
                 appSettings.ExchangeRateMode = data.ExchangeRateMode;
                 appSettings.UpdatedAt = DateTime.Now;
                 appSettings.CompanyIdNat = data.CompanyISF;
+                appSettings.DefaultPriceMode = data.DefaultPriceMode;
 
                 await _unitOfWork.AppSettings.UpdateAsync(appSettings);
             }
@@ -197,6 +200,7 @@ public class SettingsData
     public decimal CurrentExchangeRateEUR { get; set; } = 3100m;     // ← NEW
     public decimal CurrentExchangeRateCNY { get; set; } = 385m;      // ← NEW
     public ExchangeRateMode ExchangeRateMode { get; set; } = ExchangeRateMode.Manual;
+    public DateTime? DgiExchangeRateDate { get; set; }
 
     // POS actif
     public int ActivePosId { get; set; }
@@ -208,6 +212,7 @@ public class SettingsData
     public string EmcfNIM { get; set; } = string.Empty;
     public string McfPortName { get; set; } = string.Empty;
     public int McfBaudRate { get; set; }
+    public bool McfPortValidated { get; set; } = false;
 
     // Stats
     public int TotalPosCount { get; set; }

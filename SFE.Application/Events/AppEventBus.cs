@@ -30,6 +30,9 @@ public enum AppEvent
     CategoryCreated,
     CategoryUpdated,
     CategoryDeleted,
+
+    // 🆕 Fiscal device
+    FiscalDeviceStatusChanged,
 }
 
 public class AppEventArgs

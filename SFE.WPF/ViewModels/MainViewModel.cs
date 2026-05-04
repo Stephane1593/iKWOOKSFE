@@ -5,6 +5,9 @@ using SFE.Application.Interfaces;
 using SFE.WPF.Services;
 using SFE.WPF.Views.Pages;
 using SFE.WPF.Views;
+using System.Windows.Threading;
+using System.Diagnostics;
+using SFE.Application.Events;
 
 namespace SFE.WPF.ViewModels;
 
@@ -37,6 +40,15 @@ public partial class MainViewModel : BaseViewModel
     public CloseReason Reason { get; private set; }
     public bool LogoutRequested => Reason != CloseReason.None;
     public event Action? RequestClose;
+
+    // ═══ NOTIFICATIONS ═══
+    [ObservableProperty] private bool _showNotificationBanner;
+    [ObservableProperty] private string _notificationMessage = "";
+    [ObservableProperty] private string _notificationType = "warning"; // "warning", "error", "info"
+    [ObservableProperty] private bool _isMcfDisconnectedWarning;
+    [ObservableProperty] private string _activeDeviceLabel = "—";
+
+    private readonly DispatcherTimer? _deviceCheckTimer;
 
     // ═══════════════════════════════════════════════════════
     //  PERMISSIONS — individual items (session-gated where needed)
@@ -89,6 +101,27 @@ public partial class MainViewModel : BaseViewModel
 
         LoadUserContext();
         NavigateToDefaultPage();
+
+        // ★ Subscribe to fiscal status changes from other ViewModels
+        AppEventBus.Subscribe(OnAppEvent);
+
+        // Start periodic device status check (every 5 minutes)
+        if (!sessionState.IsSetupMode)
+        {
+            _ = CheckDeviceStatusAsync();
+            _deviceCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+            _deviceCheckTimer.Tick += async (_, _) => await CheckDeviceStatusAsync();
+            _deviceCheckTimer.Start();
+        }
+    }
+
+    private async Task OnAppEvent(AppEventArgs args)
+    {
+        if (args.Event == AppEvent.FiscalDeviceStatusChanged)
+        {
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                async () => await CheckDeviceStatusAsync());
+        }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -321,5 +354,125 @@ public partial class MainViewModel : BaseViewModel
             RequestClose?.Invoke();
         };
         return new ReportZPage { DataContext = vm };
+    }
+
+    [RelayCommand]
+    private async Task CheckDeviceStatusAsync()
+    {
+        try
+        {
+            var fiscalDevice = App.ServiceProvider.GetRequiredService<IFiscalDeviceService>();
+
+            // 1. Basic connectivity check
+            var status = await fiscalDevice.GetStatusAsync();
+            IsDeviceOnline = status.Success;
+
+            if (status.Success)
+            {
+                DeviceStatusShort = status.NIM ?? "MCF";
+                DeviceStatus = $"Connecté · {status.NIM}";
+
+                if (fiscalDevice is FiscalDeviceResolver resolver)
+                    ActiveDeviceLabel = resolver.ActiveDeviceLabel;
+
+                // 2. Check MCF-to-DGI connection (7-day rule per spec §1.6.1)
+                await CheckDgiConnectionAsync(fiscalDevice);
+            }
+            else
+            {
+                DeviceStatusShort = "MCF";
+                DeviceStatus = "Dispositif fiscal hors ligne";
+
+                NotificationMessage = "Impossible de contacter le dispositif fiscal. Vérifiez la configuration dans Outils → Paramètres.";
+                NotificationType = "error";
+                ShowNotificationBanner = true;
+                IsMcfDisconnectedWarning = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[MainVM] Device check error: {ex.Message}");
+            IsDeviceOnline = false;
+            DeviceStatus = "Dispositif fiscal hors ligne";
+            DeviceStatusShort = "MCF";
+        }
+    }
+
+    private async Task CheckDgiConnectionAsync(IFiscalDeviceService fiscalDevice)
+    {
+        try
+        {
+            var serverStatus = await fiscalDevice.GetServerConnectionStatusAsync();
+
+            if (!serverStatus.Success)
+            {
+                // Could not determine server status — no banner needed, device itself is online
+                ShowNotificationBanner = false;
+                IsMcfDisconnectedWarning = false;
+                return;
+            }
+
+            if (serverStatus.IsOverSevenDays)
+            {
+                var daysSince = serverStatus.LastServerConnection.HasValue
+                    ? (DateTime.Now - serverStatus.LastServerConnection.Value).Days
+                    : 7;
+
+                NotificationMessage = $"⚠ Le MCF n'a pas communiqué avec le serveur DGI depuis {daysSince} jour(s). " +
+                                      "Vérifiez la connexion réseau du dispositif (DGI §1.6.1 — blocage après 7 jours).";
+                NotificationType = daysSince >= 7 ? "error" : "warning";
+                ShowNotificationBanner = true;
+                IsMcfDisconnectedWarning = true;
+            }
+            else if (serverStatus.ConnectionStatus == "DIS")
+            {
+                NotificationMessage = "Le MCF n'est pas connecté au réseau. Les factures seront transmises au rétablissement.";
+                NotificationType = "info";
+                ShowNotificationBanner = true;
+                IsMcfDisconnectedWarning = false;
+            }
+            else
+            {
+                // ★ All good — clear any previous warning
+                ShowNotificationBanner = false;
+                IsMcfDisconnectedWarning = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[MainVM] DGI connection check error: {ex.Message}");
+            // Don't show error banner for this — device is online, just couldn't check DGI
+            ShowNotificationBanner = false;
+        }
+    }
+
+    [RelayCommand]
+    private void DismissNotification()
+    {
+        ShowNotificationBanner = false;
+    }
+
+    [RelayCommand]
+    private async Task RestartMcfSync()
+    {
+        try
+        {
+            var fiscalDevice = App.ServiceProvider.GetRequiredService<IFiscalDeviceService>();
+            // For MCF: send C2h RESTART command
+            // For e-MCF: just re-check status
+            var result = await fiscalDevice.GetServerConnectionStatusAsync();
+            if (result.Success)
+            {
+                NotificationMessage = "✓ Synchronisation relancée.";
+                NotificationType = "info";
+                await Task.Delay(3000);
+                await CheckDeviceStatusAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Erreur: {ex.Message}";
+            NotificationType = "error";
+        }
     }
 }

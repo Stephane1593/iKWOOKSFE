@@ -12,14 +12,12 @@ namespace SFE.Infrastructure.EMcf;
 /// Client e-MCF — API REST DGI.
 /// Production : https://edef.dgirdc.cd
 /// Test       : https://developper.dgirdc.cd/edef
-///
-/// Format JSON : TOUS les champs toujours présents.
-///   Texte vide = "", Nombre vide = 0, price = string.
 /// </summary>
 public class EMcfHttpClient : IFiscalDeviceService
 {
     private readonly HttpClient _http;
     private readonly string _invoiceUrl;
+    private readonly string _infoUrl;
     private readonly string _nif;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -32,7 +30,9 @@ public class EMcfHttpClient : IFiscalDeviceService
     {
         _nif = nif;
 
-        _invoiceUrl = $"{baseUrl.TrimEnd('/')}/api/invoice";
+        var trimmed = baseUrl.TrimEnd('/');
+        _invoiceUrl = $"{trimmed}/api/invoice";
+        _infoUrl = $"{trimmed}/api/info";
 
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization =
@@ -75,8 +75,8 @@ public class EMcfHttpClient : IFiscalDeviceService
                 NIM = resp.Nim,
                 NIF = resp.Nif,
                 ErrorMessage = resp.Status ? null : "API non opérationnelle",
-                PendingCount = resp.PendingRequestsCount,   // ← was missing
-                PendingInvoices = pendingList                 // ← was missing
+                PendingCount = resp.PendingRequestsCount,
+                PendingInvoices = pendingList
             };
         }
         catch (HttpRequestException ex)
@@ -102,21 +102,19 @@ public class EMcfHttpClient : IFiscalDeviceService
             var postResp = await _http.PostAsJsonAsync(
                 $"{_invoiceUrl}/", dto, JsonOpts);
             var rawJson = await postResp.Content.ReadAsStringAsync();
-            Debug.WriteLine($"[FinalizeInvoice] Status: {(int)postResp.StatusCode}, Body: {rawJson}");
+            Debug.WriteLine($"[SubmitInvoice] Status: {(int)postResp.StatusCode}, Body: {rawJson}");
 
             if (!postResp.IsSuccessStatusCode)
             {
-                var errorBody = await postResp.Content.ReadAsStringAsync();
                 return new FiscalSubmitResult
                 {
                     Success = false,
                     ErrorCode = ((int)postResp.StatusCode).ToString(),
-                    ErrorMessage = $"HTTP {postResp.StatusCode}: {errorBody}"
+                    ErrorMessage = $"HTTP {postResp.StatusCode}: {rawJson}"
                 };
             }
 
-            var invoiceResp = await postResp.Content
-                .ReadFromJsonAsync<InvoiceResponseDataDto>(JsonOpts);
+            var invoiceResp = JsonSerializer.Deserialize<InvoiceResponseDataDto>(rawJson, JsonOpts);
 
             if (invoiceResp == null)
                 return new FiscalSubmitResult
@@ -154,7 +152,7 @@ public class EMcfHttpClient : IFiscalDeviceService
     }
 
     // ══════════════════════════════════════
-    // POST /api/invoice/{uid}/CONFIRM
+    // PUT /api/invoice/{uid}/CONFIRM
     // ══════════════════════════════════════
 
     public async Task<FiscalFinalizeResult> FinalizeInvoiceAsync(
@@ -177,23 +175,19 @@ public class EMcfHttpClient : IFiscalDeviceService
                 $"{_invoiceUrl}/{uid}/CONFIRM", content);
 
             var rawJson = await resp.Content.ReadAsStringAsync();
-
-            // 👇 Log / inspect the raw response for testing
             Debug.WriteLine($"[FinalizeInvoice] Status: {(int)resp.StatusCode}, Body: {rawJson}");
 
             if (!resp.IsSuccessStatusCode)
             {
-                var errorBody = await resp.Content.ReadAsStringAsync();
                 return new FiscalFinalizeResult
                 {
                     Success = false,
                     ErrorCode = ((int)resp.StatusCode).ToString(),
-                    ErrorMessage = $"Confirmation échouée: {errorBody}"
+                    ErrorMessage = $"Confirmation échouée: {rawJson}"
                 };
             }
 
-            var finalResp = await resp.Content
-                .ReadFromJsonAsync<FinalizeInvoiceResponseDataDto>(JsonOpts);
+            var finalResp = JsonSerializer.Deserialize<FinalizeInvoiceResponseDataDto>(rawJson, JsonOpts);
 
             if (finalResp == null)
                 return new FiscalFinalizeResult
@@ -233,7 +227,7 @@ public class EMcfHttpClient : IFiscalDeviceService
     }
 
     // ══════════════════════════════════════
-    // POST /api/invoice/{uid}/CANCEL
+    // PUT /api/invoice/{uid}/CANCEL
     // ══════════════════════════════════════
 
     public async Task<bool> CancelPendingInvoiceAsync(string uid)
@@ -248,15 +242,175 @@ public class EMcfHttpClient : IFiscalDeviceService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // GetDetailedInfoAsync — Comprehensive device info
+    // ══════════════════════════════════════════════════════════════
+
+    public async Task<FiscalDeviceDetailedInfo> GetDetailedInfoAsync()
+    {
+        var info = new FiscalDeviceDetailedInfo
+        {
+            DeviceTypeLabel = "e-MCF"
+        };
+
+        try
+        {
+            // ── 1. Invoice API status ──
+            var statusResp = await _http.GetFromJsonAsync<StatusResponseDto>(
+                $"{_invoiceUrl}/", JsonOpts);
+
+            if (statusResp != null)
+            {
+                info.Success = statusResp.Status;
+                info.NIM = statusResp.Nim;
+                info.NIF = statusResp.Nif;
+                info.ServerDateTime = statusResp.ServerDateTime;
+                info.DeviceDateTime = statusResp.ServerDateTime;
+                info.TokenValidUntil = statusResp.TokenValid;
+                info.PendingRequestsCount = statusResp.PendingRequestsCount;
+                info.ConnectionStatus = statusResp.Status ? "CON" : "DIS";
+                info.LastServerConnection = statusResp.Status ? DateTime.Now : null;
+            }
+            else
+            {
+                info.Success = false;
+                info.ErrorMessage = "Réponse statut vide";
+                info.ConnectionStatus = "DIS";
+                return info;
+            }
+
+            // ── 2. Info API — taxpayer & shop details ──
+            try
+            {
+                var infoResp = await _http.GetFromJsonAsync<InfoResponseDto>(
+                    $"{_infoUrl}/status", JsonOpts);
+
+                if (infoResp != null)
+                {
+                    info.ApiVersion = infoResp.Version;
+
+                    if (infoResp.EmcfList?.Count > 0)
+                    {
+                        var activeEmcf = infoResp.EmcfList
+                            .FirstOrDefault(e => e.Nim == info.NIM)
+                            ?? infoResp.EmcfList[0];
+
+                        info.TaxpayerName = activeEmcf.ShopName;
+                        info.TaxpayerAddress = activeEmcf.Address1;
+                        info.TaxpayerCity = activeEmcf.Address3;
+                        info.TaxpayerPhone = activeEmcf.Contact1;
+                        info.TaxpayerEmail = activeEmcf.Contact2;
+                        info.EmcfStatus = activeEmcf.Status;
+
+                        info.EmcfDevices = infoResp.EmcfList.Select(e => new EmcfDeviceInfo
+                        {
+                            NIM = e.Nim,
+                            Status = e.Status,
+                            ShopName = e.ShopName,
+                            Address = string.Join(", ",
+                                new[] { e.Address1, e.Address2, e.Address3 }
+                                .Where(s => !string.IsNullOrWhiteSpace(s))),
+                            City = e.Address3,
+                            Phone = e.Contact1,
+                            Email = e.Contact2
+                        }).ToList();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[e-MCF] Info/status call failed: {ex.Message}");
+            }
+
+            // ── 3. Tax groups ──
+            try
+            {
+                var taxResp = await _http.GetFromJsonAsync<TaxGroupsDto>(
+                    $"{_infoUrl}/taxGroups", JsonOpts);
+
+                if (taxResp != null)
+                    info.TaxRates = taxResp.ToArray();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[e-MCF] TaxGroups call failed: {ex.Message}");
+            }
+
+            // ── 4. Currency rates ──
+            try
+            {
+                var ratesResp = await _http.GetFromJsonAsync<List<CurrencyRateDto>>(
+                    $"{_infoUrl}/currencyRates", JsonOpts);
+
+                if (ratesResp != null)
+                {
+                    info.CurrencyRates = ratesResp.Select(r => new CurrencyRateInfo
+                    {
+                        Code = r.Type,
+                        Description = r.Description,
+                        Date = r.Date,
+                        Rate = r.Rate
+                    }).ToList();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[e-MCF] CurrencyRates call failed: {ex.Message}");
+            }
+
+            return info;
+        }
+        catch (HttpRequestException ex)
+        {
+            return new FiscalDeviceDetailedInfo
+            {
+                Success = false,
+                DeviceTypeLabel = "e-MCF",
+                ConnectionStatus = "DIS",
+                ErrorMessage = $"Connexion échouée: {ex.Message}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new FiscalDeviceDetailedInfo
+            {
+                Success = false,
+                DeviceTypeLabel = "e-MCF",
+                ErrorMessage = $"Erreur: {ex.Message}"
+            };
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // GetServerConnectionStatusAsync
+    // ══════════════════════════════════════════════════════════════
+
+    public async Task<FiscalServerConnectionResult> GetServerConnectionStatusAsync()
+    {
+        try
+        {
+            var status = await GetStatusAsync();
+            return new FiscalServerConnectionResult
+            {
+                Success = status.Success,
+                LastServerConnection = status.Success ? DateTime.Now : null,
+                ConnectionStatus = status.Success ? "CON" : "DIS",
+                TransactionsPending = status.PendingCount,
+                ErrorMessage = status.ErrorMessage
+            };
+        }
+        catch (Exception ex)
+        {
+            return new FiscalServerConnectionResult
+            {
+                Success = false,
+                ConnectionStatus = "DIS",
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // MAPPING  FiscalInvoiceRequest → InvoiceRequestDataDto
-    //
-    // Règle : aucun champ null dans le DTO.
-    //   - Texte manquant  → ""
-    //   - Nombre manquant → 0
-    //   - price           → string arrondi 2 décimales
-    //   - originalPrice   → decimal pleine précision
-    //   - mode            → lowercase
-    //   - curCode         → "CDF" si pas de devise étrangère
     // ══════════════════════════════════════════════════════════════
 
     private InvoiceRequestDataDto MapToDto(FiscalInvoiceRequest request)
@@ -265,7 +419,7 @@ public class EMcfHttpClient : IFiscalDeviceService
         {
             Nif = request.NIF ?? "",
             Rn = request.InvoiceNumber ?? "",
-            Mode = (request.PriceMode ?? "TTC").ToLowerInvariant(),   // "ht" ou "ttc"
+            Mode = (request.PriceMode ?? "TTC").ToLowerInvariant(),
             Isf = request.ISF ?? "",
             Type = request.InvoiceType ?? "FV",
             Operator = new OperatorDto
@@ -275,7 +429,6 @@ public class EMcfHttpClient : IFiscalDeviceService
             }
         };
 
-        // ── Devise (toujours présente) ──
         string curCode = request.CurrencyCode ?? "CDF";
         if (string.IsNullOrWhiteSpace(curCode)) curCode = "CDF";
         dto.CurCode = curCode;
@@ -283,7 +436,6 @@ public class EMcfHttpClient : IFiscalDeviceService
             .ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture);
         dto.CurRate = request.CurrencyRate ?? 0m;
 
-        // ── Commentaires (toujours présents, "" si vide) ──
         dto.Cmta = request.CommentA ?? "";
         dto.Cmtb = request.CommentB ?? "";
         dto.Cmtc = request.CommentC ?? "";
@@ -293,12 +445,10 @@ public class EMcfHttpClient : IFiscalDeviceService
         dto.Cmtg = request.CommentG ?? "";
         dto.Cmth = request.CommentH ?? "";
 
-        // ── Référence (toujours présente, "" si pas FA/EA) ──
         dto.Reference = request.Reference ?? "";
         dto.ReferenceType = request.ReferenceType ?? "";
         dto.ReferenceDesc = request.ReferenceDesc ?? "";
 
-        // ── Client (toujours présent) ──
         if (request.Client != null)
         {
             dto.Client = new ClientDto
@@ -313,7 +463,6 @@ public class EMcfHttpClient : IFiscalDeviceService
         }
         else
         {
-            // Anonyme PP par défaut
             dto.Client = new ClientDto
             {
                 Nif = "",
@@ -325,31 +474,21 @@ public class EMcfHttpClient : IFiscalDeviceService
             };
         }
 
-        // ── Articles ──
         dto.Items = request.Items.Select(i => new ItemDto
         {
             Code = i.Code ?? "",
             Type = i.Type ?? "BIE",
             Name = i.Name ?? "",
-
-            // ⚠ price = STRING arrondi à 2 décimales
-            Price = Math.Round(i.Price, 2)
-                .ToString(CultureInfo.InvariantCulture),
-
+            Price = Math.Round(i.Price, 2).ToString(CultureInfo.InvariantCulture),
             Quantity = i.Quantity,
             TaxGroup = i.TaxGroup ?? "A",
-
-            // ⚠ Toujours présents — défaut "0%" / 0
             TaxSpecificValue = string.IsNullOrWhiteSpace(i.TaxSpecificValue)
                 ? "0%" : i.TaxSpecificValue,
             TaxSpecificAmount = i.TaxSpecificAmount ?? 0m,
-
-            // ⚠ Toujours présents — pleine précision pour originalPrice
             OriginalPrice = i.OriginalPrice ?? i.Price,
             PriceModification = i.PriceModification ?? ""
         }).ToList();
 
-        // ── Paiements ──
         if (request.Payments.Count > 0)
         {
             dto.Payment = request.Payments.Select(p => new PaymentDto
@@ -357,13 +496,12 @@ public class EMcfHttpClient : IFiscalDeviceService
                 Name = p.Name ?? "ESPECES",
                 Amount = p.Amount,
                 CurrencyCode = string.IsNullOrWhiteSpace(p.CurrencyCode)
-                    ? (curCode) : p.CurrencyCode,      // Même devise que la facture
+                    ? curCode : p.CurrencyCode,
                 CurrencyRate = p.CurrencyRate ?? dto.CurRate
             }).ToList();
         }
         else
         {
-            // Liste vide (pas null)
             dto.Payment = new List<PaymentDto>();
         }
 

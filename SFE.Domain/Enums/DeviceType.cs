@@ -6,9 +6,12 @@
 /// </summary>
 public enum DeviceType
 {
-    /// <summary>e-MCF : API REST distante hébergée par la DGI</summary>
+    /// <summary>e-MCF only: API REST distante hébergée par la DGI</summary>
     EMcf = 0,
 
-    /// <summary>MCF : appareil physique connecté via port série RS232/USB</summary>
-    Mcf = 1
+    /// <summary>MCF only: appareil physique connecté via port série RS232/USB</summary>
+    Mcf = 1,
+
+    /// <summary>Hybrid: try e-MCF first, fallback to MCF if unavailable</summary>
+    Hybrid = 2
 }

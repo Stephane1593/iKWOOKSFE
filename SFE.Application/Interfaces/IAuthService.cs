@@ -21,4 +21,5 @@ public interface IAuthService
 
     /// <summary>Fired after login or logout.</summary>
     event Action? UserChanged;
+    bool IsInRole(params string[] roleNames);   // ← ADD THIS
 }

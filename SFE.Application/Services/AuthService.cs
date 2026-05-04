@@ -113,4 +113,11 @@ public class AuthService : IAuthService
         _permCache = null;
         UserChanged?.Invoke();
     }
+
+    public bool IsInRole(params string[] roleNames)
+    {
+        if (_currentUser?.Role == null) return false;
+        return roleNames.Any(r =>
+            string.Equals(_currentUser.Role.Name, r, StringComparison.OrdinalIgnoreCase));
+    }
 }
