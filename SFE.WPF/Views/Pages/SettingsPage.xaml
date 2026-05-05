@@ -6,6 +6,66 @@
              Background="{StaticResource BackgroundBrush}">
 
     <UserControl.Resources>
+        <!--  ── Thin round scrollbar ──  -->
+        <Style x:Key="SlimScrollThumb"
+               TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Margin="1"
+                                Background="{StaticResource BorderBrush}"
+                                CornerRadius="3"
+                                Opacity="0.45" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SlimVerticalScrollBar"
+               TargetType="ScrollBar">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="MinWidth" Value="8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border Background="Transparent"
+                                    CornerRadius="4" />
+                            <Track x:Name="PART_Track"
+                                   IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource SlimScrollThumb}" />
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TouchScrollViewer"
+               TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="PanningMode" Value="VerticalOnly" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <ScrollContentPresenter Margin="36,32,36,32" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       Margin="0,8,2,8"
+                                       HorizontalAlignment="Right"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       Style="{StaticResource SlimVerticalScrollBar}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                                       Value="{TemplateBinding VerticalOffset}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!--  ── Gradient Brushes ──  -->
         <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,1">
@@ -251,7 +311,8 @@
 
     <ScrollViewer Padding="32,28"
                   PanningMode="VerticalOnly"
-                  VerticalScrollBarVisibility="Auto">
+                  VerticalScrollBarVisibility="Auto"
+                  Style="{StaticResource TouchScrollViewer}">
         <StackPanel MaxWidth="900">
 
             <!--  ═══════════════════════════════════════════════════  -->

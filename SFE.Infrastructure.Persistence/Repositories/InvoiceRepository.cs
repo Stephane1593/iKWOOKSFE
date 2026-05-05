@@ -48,25 +48,36 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
             .ToListAsync();
     }
 
-    public async Task<string> GenerateNextInvoiceNumberAsync(InvoiceType type, int year)
+    public async Task<string> GenerateNextInvoiceNumberAsync(
+        InvoiceType type, int year, int pointOfSaleId)
     {
-        var prefix = type.ToString();
-        var pattern = $"{prefix}-{year}/";
+        // Récupère le code du POS
+        var posCode = await _db.PointsOfSale
+            .Where(p => p.Id == pointOfSaleId)
+            .Select(p => p.Code)
+            .FirstOrDefaultAsync()
+            ?? $"POS{pointOfSaleId:D2}";
 
-        var lastInvoice = await _dbSet
-            .Where(i => i.InvoiceNumber.StartsWith(pattern))
-            .OrderByDescending(i => i.InvoiceNumber)
-            .FirstOrDefaultAsync();
+        // Format final : "POS01-FV-2026/0001"
+        var prefix = $"{posCode}-{type}-{year}/";
 
-        int nextNumber = 1;
-        if (lastInvoice != null)
+        // Récupère tous les numéros pour CE pos × type × année
+        var existingNumbers = await _dbSet
+            .Where(i => i.PointOfSaleId == pointOfSaleId
+                     && i.Type == type
+                     && i.InvoiceNumber.StartsWith(prefix))
+            .Select(i => i.InvoiceNumber)
+            .ToListAsync();
+
+        int maxNum = 0;
+        foreach (var num in existingNumbers)
         {
-            var parts = lastInvoice.InvoiceNumber.Split('/');
-            if (parts.Length == 2 && int.TryParse(parts[1], out var lastNum))
-                nextNumber = lastNum + 1;
+            var idx = num.LastIndexOf('/');
+            if (idx > 0 && int.TryParse(num.AsSpan(idx + 1), out var n))
+                maxNum = Math.Max(maxNum, n);
         }
 
-        return $"{prefix}-{year}/{nextNumber:D4}";
+        return $"{prefix}{maxNum + 1:D4}";
     }
 
     public async Task<int> GetTodayCountAsync()

@@ -33,12 +33,29 @@ public class Invoice
     public string ReferenceType { get; set; } = string.Empty;
     public string ReferenceDesc { get; set; } = string.Empty;
 
-    // === 🆕 Facture d'acompte (FT/ET) — Chaîne d'avances ===
+    // ══════════════════════════════════════════════════════════
+    //  ACOMPTE / SOLDE — Chaîne d'avances
+    // ══════════════════════════════════════════════════════════
+
     /// <summary>
-    /// Pour FT/ET : identifiant de groupe partagé entre les acomptes et la facture finale.
-    /// Format libre, ex: "ADV-2026/001". Tous les FT du même groupe + le FV final partagent cette clé.
+    /// Identifiant de groupe partagé entre les acomptes (FT/ET) et la facture finale (FV/EV).
+    /// Format : "ADV-2026/XXXXXXXX". Tous les FT du même projet + le FV final partagent cette clé.
     /// </summary>
     public string? AdvanceGroupId { get; set; }
+
+    /// <summary>
+    /// 🆕 Pour FT/ET : montant TOTAL de la commande planifiée (ex: 200 000 CDF).
+    /// Pour FV/EV final : copie du total commandé pour traçabilité.
+    /// Indépendant de TotalTTC.
+    /// </summary>
+    public decimal OrderTotal { get; set; }
+
+    /// <summary>
+    /// 🆕 Pour FT/ET : montant exact perçu en acompte sur cette facture.
+    /// Doit être égal à TotalTTC du FT lui-même (cohérence métier).
+    /// Pour les autres types : 0.
+    /// </summary>
+    public decimal AdvanceAmount { get; set; }
 
     /// <summary>
     /// Pour FV/EV finale : ID de la facture parente (optionnel, usage interne).
@@ -62,9 +79,9 @@ public class Invoice
     public string CommentG { get; set; } = string.Empty;
     public string CommentH { get; set; } = string.Empty;
 
-    // ══════════════════════════════════════════════
-    // TOTAUX CALCULÉS
-    // ══════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  TOTAUX CALCULÉS
+    // ══════════════════════════════════════════════════════════
     public decimal TotalHTBeforeDiscount { get; set; }
     public decimal TotalDiscount { get; set; }
     public decimal TotalHT { get; set; }
@@ -75,20 +92,27 @@ public class Invoice
     public decimal TotalFixedSpecificTax { get; set; }
     public decimal TotalPercentSpecificTax { get; set; }
 
-    // ══════════════════════════════════════════════
-    // 🆕 ACOMPTES — Montants suivis
-    // ══════════════════════════════════════════════
-    /// <summary>Somme des acomptes déjà versés (calculé depuis ChildInvoices FT/ET).</summary>
+    // ══════════════════════════════════════════════════════════
+    //  ACOMPTES — Synthèse pour FV finale
+    // ══════════════════════════════════════════════════════════
+    /// <summary>
+    /// Pour FV/EV finale : somme des acomptes déjà perçus avant cette facture
+    /// (calculée depuis les FT/ET du même AdvanceGroupId).
+    /// </summary>
     public decimal TotalAdvancesPaid { get; set; }
-    /// <summary>Solde restant dû = TotalTTC - TotalAdvancesPaid.</summary>
+
+    /// <summary>
+    /// Pour FV/EV finale : solde à percevoir sur cette facture.
+    /// = TotalTTC - TotalAdvancesPaid
+    /// </summary>
     public decimal RemainingBalance { get; set; }
 
-    // ══════════════════════════════════════════════
-    // PARAMÈTRE SNAPSHOT
-    // ══════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  PARAMÈTRE SNAPSHOT
+    // ══════════════════════════════════════════════════════════
     public bool DiscountBeforeTax { get; set; } = true;
 
-    // === Éléments de sécurité ===
+    // === Éléments de sécurité (vides pour PROFORMA) ===
     public string EmcfUid { get; set; } = string.Empty;
     public string CodeDEFDGI { get; set; } = string.Empty;
     public string QRCodeContent { get; set; } = string.Empty;
@@ -109,12 +133,18 @@ public class Invoice
     // === Point de vente ===
     public int PointOfSaleId { get; set; }
 
-    // ══════════════════════════════════════════════
-    // 🆕 HELPERS
-    // ══════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════════════════
     public bool IsAdvanceInvoice => Type is InvoiceType.FT or InvoiceType.ET;
     public bool IsCreditNote => Type is InvoiceType.FA or InvoiceType.EA;
     public bool IsExport => Type is InvoiceType.EV or InvoiceType.EA or InvoiceType.ET;
-    public bool IsFinalWithAdvances => (Type is InvoiceType.FV or InvoiceType.EV)
-                                       && !string.IsNullOrEmpty(AdvanceGroupId);
+
+    /// <summary>🆕 Proforma : non normalisable, non fiscale.</summary>
+    public bool IsProforma => Type is InvoiceType.PRO;
+
+    /// <summary>FV/EV finale qui solde une chaîne d'avances.</summary>
+    public bool IsFinalWithAdvances =>
+        (Type is InvoiceType.FV or InvoiceType.EV)
+        && !string.IsNullOrEmpty(AdvanceGroupId);
 }

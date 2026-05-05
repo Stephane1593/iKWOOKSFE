@@ -3196,7 +3196,7 @@
                                                     <Run FontWeight="SemiBold"
                                                          Text="{Binding InvoiceNumber}" />
                                                     <Run Text=" — " />
-                                                    <Run Text="{Binding DateDisplay}" />
+                                                    <Run Text="{Binding Date, StringFormat=dd/MM/yyyy}" />
                                                 </TextBlock>
                                                 <TextBlock HorizontalAlignment="Right"
                                                            VerticalAlignment="Center"
@@ -3424,8 +3424,8 @@
                                                                FontFamily="{StaticResource AppFont}"
                                                                FontSize="10"
                                                                Foreground="{StaticResource TextMutedBrush}"
-                                                               ToolTip="{Binding DateDisplay}">
-                                                        <Run Text="{Binding DateDisplay}" />
+                                                               ToolTip="{Binding Date, StringFormat=dd/MM/yyyy}">
+                                                        <Run Text="{Binding Date, StringFormat=dd/MM/yyyy}" />
                                                     </TextBlock>
                                                 </StackPanel>
                                                 <Button Grid.Column="1"

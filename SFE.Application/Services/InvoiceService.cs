@@ -1,4 +1,6 @@
-﻿using SFE.Application.Interfaces;
+﻿using System.Diagnostics;
+using System.Text;
+using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -11,7 +13,11 @@ public class InvoiceService
     private readonly StockService _stockService;
     private readonly IAuditService _auditService;
 
-    public InvoiceService(IUnitOfWork unitOfWork, IFiscalDeviceService fiscalDevice, StockService stockService, IAuditService auditService)
+    public InvoiceService(
+        IUnitOfWork unitOfWork,
+        IFiscalDeviceService fiscalDevice,
+        StockService stockService,
+        IAuditService auditService)
     {
         _unitOfWork = unitOfWork;
         _fiscalDevice = fiscalDevice;
@@ -19,9 +25,10 @@ public class InvoiceService
         _auditService = auditService;
     }
 
-    public async Task<string> GenerateInvoiceNumberAsync(InvoiceType type)
+    public async Task<string> GenerateInvoiceNumberAsync(InvoiceType type, int pointOfSaleId)
     {
-        return await _unitOfWork.Invoices.GenerateNextInvoiceNumberAsync(type, DateTime.Now.Year);
+        return await _unitOfWork.Invoices
+            .GenerateNextInvoiceNumberAsync(type, DateTime.Now.Year, pointOfSaleId);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -94,63 +101,91 @@ public class InvoiceService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  NORMALISATION — Flux complet
+    //  NORMALISATION — Flux complet (transactionnel)
     // ══════════════════════════════════════════════════════════
 
     public async Task<NormalizationResult> NormalizeInvoiceAsync(Invoice invoice)
     {
+        // ── 1. Recalcul + validation ──
         RecalculateTotals(invoice);
 
         var validation = await ValidateInvoiceAsync(invoice);
         if (!validation.IsValid)
-            return new NormalizationResult { Success = false, ErrorMessage = validation.ErrorMessage };
+        {
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceValidationFailed, invoice,
+                $"Validation refusée: {validation.ErrorMessage}");
+
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = validation.ErrorMessage
+            };
+        }
 
         var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
         if (company == null)
-            return new NormalizationResult { Success = false, ErrorMessage = "Entreprise non configurée." };
+        {
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceValidationFailed, invoice,
+                "Entreprise non configurée.");
 
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = "Entreprise non configurée."
+            };
+        }
+
+        // ── 2. Soumission au dispositif fiscal ──
         var request = BuildFiscalRequest(invoice, company);
-
         invoice.Status = InvoiceStatus.Pending;
+
         var submitResult = await _fiscalDevice.SubmitInvoiceAsync(request);
 
         if (!submitResult.Success)
         {
             invoice.Status = InvoiceStatus.Error;
-            return new NormalizationResult
-            {
-                Success = false,
-                ErrorMessage = $"Erreur dispositif fiscal [{submitResult.ErrorCode}]: {submitResult.ErrorMessage}"
-            };
+            var msg = $"Erreur dispositif fiscal [{submitResult.ErrorCode}]: {submitResult.ErrorMessage}";
+
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceFiscalDeviceError, invoice, msg);
+
+            return new NormalizationResult { Success = false, ErrorMessage = msg };
         }
 
         invoice.EmcfUid = submitResult.Uid ?? "";
 
+        // ── 3. Vérification cohérence des montants ──
         if (submitResult.TotalTTC > 0 &&
             (Math.Abs(submitResult.TotalTTC - invoice.TotalTTC) > 0.01m ||
              Math.Abs(submitResult.TotalTVA - invoice.TotalTVA) > 0.01m))
         {
-            await _fiscalDevice.CancelPendingInvoiceAsync(invoice.EmcfUid);
+            await SafeCancelFiscalAsync(invoice.EmcfUid);
             invoice.Status = InvoiceStatus.Error;
-            return new NormalizationResult
-            {
-                Success = false,
-                ErrorMessage = $"Divergence montants — SFE TTC:{invoice.TotalTTC:F2} vs Dispositif:{submitResult.TotalTTC:F2}, " +
-                               $"SFE TVA:{invoice.TotalTVA:F2} vs Dispositif:{submitResult.TotalTVA:F2}"
-            };
+
+            var msg = $"Divergence montants — SFE TTC:{invoice.TotalTTC:F2} vs Dispositif:{submitResult.TotalTTC:F2}, " +
+                      $"SFE TVA:{invoice.TotalTVA:F2} vs Dispositif:{submitResult.TotalTVA:F2}";
+
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceFiscalDeviceError, invoice, msg);
+
+            return new NormalizationResult { Success = false, ErrorMessage = msg };
         }
 
+        // ── 4. Finalisation côté dispositif ──
         var finalizeResult = await _fiscalDevice.FinalizeInvoiceAsync(
             invoice.EmcfUid, invoice.TotalTTC, invoice.TotalTVA);
 
         if (!finalizeResult.Success)
         {
             invoice.Status = InvoiceStatus.Error;
-            return new NormalizationResult
-            {
-                Success = false,
-                ErrorMessage = $"Erreur finalisation [{finalizeResult.ErrorCode}]: {finalizeResult.ErrorMessage}"
-            };
+            var msg = $"Erreur finalisation [{finalizeResult.ErrorCode}]: {finalizeResult.ErrorMessage}";
+
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceFiscalDeviceError, invoice, msg);
+
+            return new NormalizationResult { Success = false, ErrorMessage = msg };
         }
 
         invoice.CodeDEFDGI = finalizeResult.CodeDEFDGI ?? "";
@@ -161,15 +196,101 @@ public class InvoiceService
         invoice.Status = InvoiceStatus.Normalized;
         invoice.NormalizedAt = DateTime.Now;
 
-        await ApplyStockMovementsAsync(invoice);
+        // ⚠️ À PARTIR D'ICI : la facture est NORMALISÉE côté dispositif fiscal.
+        //    Elle EXISTE légalement. On NE PEUT PLUS la rollback.
 
-        await _unitOfWork.Invoices.AddAsync(invoice);
-        await _unitOfWork.SaveChangesAsync();
+        // ══════════════════════════════════════════════════════════
+        //  5. SAUVEGARDE DE LA FACTURE (standalone — events firent)
+        // ══════════════════════════════════════════════════════════
+        try
+        {
+            // Pre-flight: garantir l'unicité du numéro
+            const int MAX_NUMBER_ATTEMPTS = 5;
+            for (int attempt = 1; attempt <= MAX_NUMBER_ATTEMPTS; attempt++)
+            {
+                var clash = await _unitOfWork.Invoices.GetByInvoiceNumberAsync(invoice.InvoiceNumber);
+                if (clash == null) break;
 
-        var auditAction = invoice.IsCreditNote ? AuditAction.CreditNoteNormalized
-            : invoice.IsAdvanceInvoice ? AuditAction.AdvanceInvoiceNormalized
-            : AuditAction.InvoiceNormalized;
-        await _auditService.LogInvoiceAsync(auditAction, invoice);
+                invoice.InvoiceNumber = await _unitOfWork.Invoices
+                    .GenerateNextInvoiceNumberAsync(invoice.Type, DateTime.Now.Year, invoice.PointOfSaleId);
+            }
+
+            await _unitOfWork.Invoices.AddAsync(invoice);
+            await _unitOfWork.SaveChangesAsync();   // ← standalone : ChangeTracker.Clear() + FlushEventsAsync()
+        }
+        catch (Exception ex)
+        {
+            // 💥 Catastrophique : facture normalisée fiscalement mais pas sauvée en DB.
+            //    On annule côté dispositif (best-effort) et on logue tout.
+            await SafeCancelFiscalAsync(invoice.EmcfUid);
+
+            var deepMessage = FlattenException(ex);
+            Debug.WriteLine($"=== INVOICE SAVE FAILURE ===\n{deepMessage}\n============================");
+
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceSaveFailed,
+                invoice,
+                $"Échec sauvegarde après normalisation : {ex.GetBaseException().Message}",
+                deepMessage);
+
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = $"Erreur lors de la sauvegarde : {ex.GetBaseException().Message}"
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  6. STOCK MOVEMENTS (best-effort — facture déjà sauvée)
+        //     Si ça échoue, on logue mais on NE FAIT PAS échouer la facture.
+        // ══════════════════════════════════════════════════════════
+        try
+        {
+            await ApplyStockMovementsAsync(invoice);
+        }
+        catch (Exception stockEx)
+        {
+            var deepMessage = FlattenException(stockEx);
+            Debug.WriteLine($"=== STOCK MOVEMENT FAILURE ===\n{deepMessage}\n==============================");
+
+            // Marquer la facture avec un avertissement stock
+            try
+            {
+                if (string.IsNullOrEmpty(invoice.CommentH))
+                    invoice.CommentH = $"⚠ Stock: {stockEx.GetBaseException().Message}";
+
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception saveEx)
+            {
+                Debug.WriteLine($"[NormalizeInvoice] Could not save stock warning to invoice: {saveEx.Message}");
+            }
+
+            // Audit l'échec stock (mais facture = succès)
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceNormalizationFailed,
+                invoice,
+                $"Facture normalisée mais erreur de mise à jour du stock : {stockEx.GetBaseException().Message}",
+                deepMessage);
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  7. AUDIT SUCCÈS
+        // ══════════════════════════════════════════════════════════
+        var auditAction = invoice.IsCreditNote
+            ? AuditAction.CreditNoteNormalized
+            : invoice.IsAdvanceInvoice
+                ? AuditAction.AdvanceInvoiceNormalized
+                : AuditAction.InvoiceNormalized;
+
+        try
+        {
+            await _auditService.LogInvoiceAsync(auditAction, invoice);
+        }
+        catch (Exception auditEx)
+        {
+            Debug.WriteLine($"[NormalizeInvoice] Audit success log failed: {auditEx.Message}");
+        }
 
         return new NormalizationResult
         {
@@ -181,6 +302,82 @@ public class InvoiceService
     }
 
     // ══════════════════════════════════════════════════════════
+    //  HELPERS — Audit & cleanup d'échec (best-effort)
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Loggue un échec sans jamais propager d'exception.
+    /// </summary>
+    private async Task SafeAuditFailureAsync(
+        AuditAction action, Invoice invoice, string description, string? details = null)
+    {
+        try
+        {
+            var detailJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                invoice.Type,
+                invoice.InvoiceNumber,
+                invoice.Status,
+                invoice.EmcfUid,
+                invoice.CodeDEFDGI,
+                invoice.TotalTTC,
+                invoice.OriginalInvoiceReference,
+                invoice.CreditNoteNature,
+                LinesCount = invoice.Lines?.Count ?? 0,
+                ErrorDetails = details
+            });
+
+            await _auditService.LogAsync(
+                action,
+                AuditModule.Invoicing,
+                description,
+                entityType: "Invoice",
+                entityId: invoice.Id > 0 ? invoice.Id.ToString() : invoice.InvoiceNumber,
+                codeDEFDGI: invoice.CodeDEFDGI,
+                invoiceNumber: invoice.InvoiceNumber,
+                details: detailJson);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[InvoiceService] Audit failure log failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Annule une facture en attente côté dispositif fiscal sans propager d'exception.
+    /// </summary>
+    private async Task SafeCancelFiscalAsync(string? emcfUid)
+    {
+        if (string.IsNullOrWhiteSpace(emcfUid)) return;
+
+        try
+        {
+            await _fiscalDevice.CancelPendingInvoiceAsync(emcfUid);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[InvoiceService] CancelPendingInvoiceAsync failed for {emcfUid}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Aplatit toute la chaîne d'inner exceptions pour diagnostic complet.
+    /// </summary>
+    private static string FlattenException(Exception ex)
+    {
+        var sb = new StringBuilder();
+        var current = ex;
+        int level = 0;
+        while (current != null)
+        {
+            sb.AppendLine($"  [{level}] {current.GetType().Name}: {current.Message}");
+            current = current.InnerException;
+            level++;
+        }
+        return sb.ToString();
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  RECALCUL DES TOTAUX — V13: Two-component TVA in TTC mode
     // ══════════════════════════════════════════════════════════
 
@@ -188,9 +385,7 @@ public class InvoiceService
     {
         bool isTTC = invoice.PriceMode == PriceMode.TTC;
 
-        // ═══════════════════════════════════════════════════════
-        //  Pass 1 : CalculateLineFull for every line
-        // ═══════════════════════════════════════════════════════
+        // Pass 1
         foreach (var line in invoice.Lines)
         {
             var input = new LineCalculationInput
@@ -219,9 +414,7 @@ public class InvoiceService
             line.AmountTTC = calc.AmountTTC;
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  Pass 2 : OnTotal TS distribution
-        // ═══════════════════════════════════════════════════════
+        // Pass 2 : OnTotal TS
         var onTotalGroups = invoice.Lines
             .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
                       && l.SpecificTaxType != SpecificTaxType.None
@@ -334,16 +527,7 @@ public class InvoiceService
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  Pass 3 (NEW V14): Group-level DGI rounding alignment
-        //
-        //  The fiscal device computes TVA per TAX GROUP (not per line):
-        //    TTC mode: groupHT = R2(groupTTC / (1+rate)), groupTVA = groupTTC - groupHT
-        //    HT mode:  groupTVA = R2(groupHT × rate), groupTTC = groupHT + groupTVA
-        //
-        //  Per-line rounding can accumulate a ±0.01 difference vs group-level.
-        //  We adjust the last line in each group to absorb this difference.
-        // ═══════════════════════════════════════════════════════
+        // Pass 3 : Group-level DGI rounding alignment
         var taxGroups = invoice.Lines
             .Where(l => l.TaxGroup != TaxGroup.N && l.TaxRate > 0)
             .GroupBy(l => l.TaxGroup);
@@ -357,7 +541,6 @@ public class InvoiceService
 
             if (isTTC)
             {
-                // Device: groupHT = R2(groupTTC / (1+rate)), groupTVA = groupTTC - groupHT
                 decimal groupTTC = groupLines.Sum(l => l.AmountTTC);
                 decimal expectedHT = TaxCalculator.R2(groupTTC / (1m + rate));
                 decimal expectedTVA = groupTTC - expectedHT;
@@ -368,12 +551,11 @@ public class InvoiceService
                 {
                     var lastLine = groupLines.Last();
                     lastLine.AmountTVA += diff;
-                    lastLine.AmountHT -= diff; // TTC stays fixed
+                    lastLine.AmountHT -= diff;
                 }
             }
             else
             {
-                // Device: groupTVA = R2(groupHT × rate), groupTTC = groupHT + groupTVA
                 decimal groupHT = groupLines.Sum(l => l.AmountHT);
                 decimal expectedTVA = TaxCalculator.R2(groupHT * rate);
                 decimal expectedTTC = groupHT + expectedTVA;
@@ -384,14 +566,12 @@ public class InvoiceService
                 {
                     var lastLine = groupLines.Last();
                     lastLine.AmountTVA += diff;
-                    lastLine.AmountTTC += diff; // HT stays fixed
+                    lastLine.AmountTTC += diff;
                 }
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  Pass 4 : Totaux
-        // ═══════════════════════════════════════════════════════
+        // Pass 4 : Totaux
         invoice.TotalHTBeforeDiscount = invoice.Lines.Sum(l => l.AmountHTBeforeDiscount);
         invoice.TotalDiscount = invoice.Lines.Sum(l => l.DiscountAmount);
         invoice.TotalHT = invoice.Lines.Sum(l => l.AmountHT);
@@ -762,40 +942,74 @@ public class InvoiceService
         _ => "ESPECES"
     };
 
+    // ══════════════════════════════════════════════════════════
+    //  STOCK — Impact selon le type ET la nature de la facture
+    // ══════════════════════════════════════════════════════════
     private async Task ApplyStockMovementsAsync(Invoice invoice)
     {
-        bool isCreditNote = invoice.Type == InvoiceType.FA || invoice.Type == InvoiceType.EA;
-
         foreach (var line in invoice.Lines)
         {
-            int? productId = line.ProductId;
+            if (line.ItemType == ItemType.TAX)
+                continue;
 
+            int? productId = line.ProductId;
             if (productId == null && !string.IsNullOrWhiteSpace(line.Code))
             {
                 var product = await _unitOfWork.Products.GetByCodeAsync(line.Code);
                 productId = product?.Id;
             }
-
             if (productId == null || productId <= 0)
                 continue;
 
-            if (isCreditNote)
-            {
-                await _stockService.IncrementForCreditNoteAsync(
-                    productId.Value, invoice.PointOfSaleId, line.Quantity,
-                    invoice.InvoiceNumber, invoice.OperatorName);
-            }
-            else
-            {
-                var result = await _stockService.DecrementForSaleAsync(
-                    productId.Value, invoice.PointOfSaleId, line.Quantity,
-                    invoice.InvoiceNumber, invoice.OperatorName);
+            var impact = DetermineStockImpact(invoice);
 
-                if (!result.Success && string.IsNullOrEmpty(invoice.CommentH))
-                    invoice.CommentH = $"⚠ Stock: {result.ErrorMessage}";
+            switch (impact)
+            {
+                case StockImpactKind.Decrement:
+                    var decResult = await _stockService.DecrementForSaleAsync(
+                        productId.Value, invoice.PointOfSaleId, line.Quantity,
+                        invoice.InvoiceNumber, invoice.OperatorName);
+
+                    if (!decResult.Success && string.IsNullOrEmpty(invoice.CommentH))
+                        invoice.CommentH = $"⚠ Stock: {decResult.ErrorMessage}";
+                    break;
+
+                case StockImpactKind.Increment:
+                    await _stockService.IncrementForCreditNoteAsync(
+                        productId.Value, invoice.PointOfSaleId, line.Quantity,
+                        invoice.InvoiceNumber, invoice.OperatorName);
+                    break;
+
+                case StockImpactKind.None:
+                    break;
             }
         }
     }
+
+    private static StockImpactKind DetermineStockImpact(Invoice invoice)
+    {
+        if (invoice.Type == InvoiceType.FT || invoice.Type == InvoiceType.ET)
+            return StockImpactKind.None;
+
+        if (invoice.Type == InvoiceType.FV || invoice.Type == InvoiceType.EV)
+            return StockImpactKind.Decrement;
+
+        if (invoice.Type == InvoiceType.FA || invoice.Type == InvoiceType.EA)
+        {
+            return invoice.CreditNoteNature switch
+            {
+                CreditNoteNature.RAN => StockImpactKind.Increment,
+                CreditNoteNature.RAM => StockImpactKind.Increment,
+                CreditNoteNature.COR => StockImpactKind.Increment,
+                CreditNoteNature.RRR => StockImpactKind.None,
+                _ => StockImpactKind.None
+            };
+        }
+
+        return StockImpactKind.None;
+    }
+
+    private enum StockImpactKind { None, Decrement, Increment }
 }
 
 // ══════════════════════════════════════════════════════════

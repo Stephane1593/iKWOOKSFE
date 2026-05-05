@@ -272,6 +272,10 @@ public partial class PosViewModel : BaseViewModel,
         if (value.ManagesStock) parts.Add("📦 Stock");
         SelectedPosInfo = string.Join(" · ", parts);
         LoadPrinterSettings();
+
+        // 🆕 Régénérer le numéro avec le préfixe du nouveau POS
+        if (!IsNormalized && CartItems.Count == 0)
+            _ = GenerateNewNumber();
     }
 
     partial void OnPriceModeChanged(PriceMode value)
@@ -477,8 +481,17 @@ public partial class PosViewModel : BaseViewModel,
         catch { }
     }
 
-    private async Task GenerateNewNumber() =>
-        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(InvoiceType);
+    private async Task GenerateNewNumber()
+    {
+        if (SelectedPointOfSale == null)
+        {
+            InvoiceNumber = "";
+            return;
+        }
+
+        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(
+            InvoiceType, SelectedPointOfSale.Id);
+    }
 
     private async Task RefreshDailyStatsAsync()
     {

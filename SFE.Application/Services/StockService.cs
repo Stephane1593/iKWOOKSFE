@@ -82,7 +82,7 @@ public class StockService
         int productId, int posId, decimal newQuantity,
         string operatorName, string notes = "")
     {
-        var posStock = await GetOrCreatePosStockAsync(productId, posId);
+        var (posStock, _) = await GetOrCreatePosStockAsync(productId, posId);
         decimal delta = newQuantity - posStock.Quantity;
 
         return await ApplyMovementAsync(
@@ -94,7 +94,7 @@ public class StockService
         int productId, int posId, decimal countedQuantity,
         string operatorName, string notes = "")
     {
-        var posStock = await GetOrCreatePosStockAsync(productId, posId);
+        var (posStock, _) = await GetOrCreatePosStockAsync(productId, posId);
         decimal delta = countedQuantity - posStock.Quantity;
 
         return await ApplyMovementAsync(
@@ -128,7 +128,7 @@ public class StockService
             return StockOperationResult.Ok(0);
 
         var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
-        var posStock = await GetOrCreatePosStockAsync(productId, posId);
+        var (posStock, _) = await GetOrCreatePosStockAsync(productId, posId);
 
         if (!pos!.AllowNegativeStock && posStock.Quantity < quantity)
         {
@@ -222,8 +222,7 @@ public class StockService
 
             foreach (var line in transfer.Lines)
             {
-                var posStock = await GetOrCreatePosStockAsync(
-                    line.ProductId, transfer.FromPointOfSaleId);
+                var (posStock, _) = await GetOrCreatePosStockAsync(line.ProductId, transfer.FromPointOfSaleId);
 
                 var fromPos = await _unitOfWork.PointsOfSale
                     .GetByIdAsync(transfer.FromPointOfSaleId);
@@ -551,35 +550,30 @@ public class StockService
     //  PRIVATE — Core stock logic
     // ══════════════════════════════════════════════
 
-    private async Task<PosStock> GetOrCreatePosStockAsync(int productId, int posId)
+    private async Task<(PosStock Stock, bool IsNew)> GetOrCreatePosStockAsync(int productId, int posId)
     {
         var posStock = await _unitOfWork.PosStocks
             .GetByProductAndPosAsync(productId, posId);
 
-        if (posStock == null)
-        {
-            posStock = new PosStock
-            {
-                ProductId = productId,
-                PointOfSaleId = posId,
-                Quantity = 0
-            };
-            await _unitOfWork.PosStocks.AddAsync(posStock);
-        }
+        if (posStock != null)
+            return (posStock, false);
 
-        return posStock;
+        posStock = new PosStock
+        {
+            ProductId = productId,
+            PointOfSaleId = posId,
+            Quantity = 0
+        };
+        await _unitOfWork.PosStocks.AddAsync(posStock);
+        return (posStock, true);
     }
 
-    /// <summary>
-    /// Non-transactional movement (Entry, Exit, Adjustment, PhysicalCount, etc.).
-    /// Saves immediately and publishes events.
-    /// </summary>
     private async Task<StockOperationResult> ApplyMovementAsync(
         int productId, int posId, StockMovementType type, decimal quantity,
         string operatorName, string notes, string reference,
         decimal? unitCost = null)
     {
-        var posStock = await GetOrCreatePosStockAsync(productId, posId);
+        var (posStock, isNew) = await GetOrCreatePosStockAsync(productId, posId);
 
         decimal before = posStock.Quantity;
         decimal after = before + quantity;
@@ -587,7 +581,10 @@ public class StockService
         posStock.Quantity = after;
         posStock.LastMovementAt = DateTime.Now;
         posStock.UpdatedAt = DateTime.Now;
-        await _unitOfWork.PosStocks.UpdateAsync(posStock);
+
+        // ✅ Ne pas appeler UpdateAsync sur une entité fraîchement Add-ée
+        if (!isNew)
+            await _unitOfWork.PosStocks.UpdateAsync(posStock);
 
         var movement = new StockMovement
         {
@@ -627,7 +624,6 @@ public class StockService
             $"Produit #{productId} · POS #{posId} · {type}: {before:G} → {after:G} ({quantity:+0.##;-0.##;0})" +
             (string.IsNullOrEmpty(reference) ? "" : $" · Réf: {reference}"));
 
-        // ── EVENT ──
         _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
         await _unitOfWork.FlushEventsAsync();
 
@@ -644,7 +640,7 @@ public class StockService
         string operatorName, string notes, string reference,
         int? counterpartPosId = null, string? transferReference = null)
     {
-        var posStock = await GetOrCreatePosStockAsync(productId, posId);
+        var (posStock, isNew) = await GetOrCreatePosStockAsync(productId, posId);
 
         decimal before = posStock.Quantity;
         decimal after = before + quantity;
@@ -652,7 +648,9 @@ public class StockService
         posStock.Quantity = after;
         posStock.LastMovementAt = DateTime.Now;
         posStock.UpdatedAt = DateTime.Now;
-        await _unitOfWork.PosStocks.UpdateAsync(posStock);
+
+        if (!isNew)
+            await _unitOfWork.PosStocks.UpdateAsync(posStock);
 
         var movement = new StockMovement
         {
@@ -669,9 +667,6 @@ public class StockService
             TransferReference = transferReference
         };
         await _unitOfWork.StockMovements.AddAsync(movement);
-
-        // NOTE: no SaveChanges, no global stock update, no events here.
-        // The transactional caller handles all of that.
     }
 
     private async Task UpdateProductGlobalStockAsync(int productId)

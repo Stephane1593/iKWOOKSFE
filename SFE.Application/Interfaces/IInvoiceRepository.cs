@@ -10,7 +10,7 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<Invoice?> GetByCodeDEFDGIAsync(string codeDEFDGI);
     Task<List<Invoice>> GetByDateRangeAsync(DateTime from, DateTime to);
     Task<List<Invoice>> GetByTypeAsync(InvoiceType type);
-    Task<string> GenerateNextInvoiceNumberAsync(InvoiceType type, int year);
+    Task<string> GenerateNextInvoiceNumberAsync(InvoiceType type, int year, int pointOfSaleId);
     Task<int> GetTodayCountAsync();
     Task<decimal> GetTodayTotalAsync();
     Task<List<Invoice>> GetCreditNotesForOriginalAsync(string originalCodeDEFDGI);

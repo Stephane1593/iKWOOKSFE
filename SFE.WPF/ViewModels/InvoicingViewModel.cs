@@ -274,6 +274,10 @@ public partial class InvoicingViewModel : BaseViewModel,
         if (value.ManagesStock) parts.Add("📦 Stock");
 
         SelectedPosInfo = string.Join(" · ", parts);
+
+        // 🆕 Régénérer le numéro avec le préfixe du nouveau POS
+        if (!IsNormalized && InvoiceLines.Count == 0)
+            _ = GenerateNewInvoiceNumber();
     }
 
     [RelayCommand]
@@ -490,8 +494,18 @@ public partial class InvoicingViewModel : BaseViewModel,
         catch { }
     }
 
-    private async Task GenerateNewInvoiceNumber() =>
-        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(SelectedInvoiceType);
+    private async Task GenerateNewInvoiceNumber()
+    {
+        // Pas de POS sélectionné → on attend (le SelectedPointOfSale changera bientôt)
+        if (SelectedPointOfSale == null)
+        {
+            InvoiceNumber = "";
+            return;
+        }
+
+        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(
+            SelectedInvoiceType, SelectedPointOfSale.Id);
+    }
 
     // ══════════════════════════════════════════════════════════
     //  AJOUT D'ARTICLE

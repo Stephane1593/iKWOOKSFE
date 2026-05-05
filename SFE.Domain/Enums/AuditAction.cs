@@ -83,7 +83,12 @@ public enum AuditAction
     McfSyncRequested = 1002,
 
     // ═══ POS ═══
-    PosDeactivated
+    PosDeactivated,
+
+    InvoiceNormalizationFailed,
+    InvoiceFiscalDeviceError,
+    InvoiceValidationFailed,
+    InvoiceSaveFailed,
 }
 
 public static class AuditActionExtensions
@@ -143,6 +148,11 @@ public static class AuditActionExtensions
         AuditAction.McfConnectionLost => "MCF déconnecté",
         AuditAction.McfReconnected => "MCF reconnecté",
         AuditAction.McfSyncRequested => "Sync MCF demandée",
+
+        AuditAction.InvoiceNormalizationFailed => "Échec normalisation facture",
+        AuditAction.InvoiceFiscalDeviceError => "Erreur dispositif fiscal",
+        AuditAction.InvoiceValidationFailed => "Échec validation facture",
+        AuditAction.InvoiceSaveFailed => "Échec sauvegarde facture",
 
         _ => a.ToString()
     };

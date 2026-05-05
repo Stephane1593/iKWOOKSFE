@@ -1205,7 +1205,7 @@
                                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12">
                                                     <Run Text="{Binding InvoiceNumber}" FontWeight="SemiBold"/>
                                                     <Run Text=" — "/>
-                                                    <Run Text="{Binding DateDisplay}"/>
+                                                    <Run Text="{Binding Date, StringFormat=dd/MM/yyyy}"/>
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding CodeDEFDGI}" FontFamily="Consolas" FontSize="10"
                                                            Foreground="{StaticResource TextMutedBrush}"
@@ -2610,7 +2610,7 @@
                                                 </TextBlock>
                                                 <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10"
                                                            Foreground="{StaticResource TextMutedBrush}">
-                                                    <Run Text="Date: "/><Run Text="{Binding DateDisplay}"/>
+                                                    <Run Text="Date: "/><Run Text="{Binding Date, StringFormat=dd/MM/yyyy}"/>
                                                 </TextBlock>
                                             </StackPanel>
                                             <Button Grid.Column="1" Style="{StaticResource InvDangerBtn}"
