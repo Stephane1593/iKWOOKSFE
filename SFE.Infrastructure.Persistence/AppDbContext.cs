@@ -1,5 +1,4 @@
-﻿// File: SFE.Infrastructure/Persistence/AppDbContext.cs
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using SFE.Domain.Entities;
 
 namespace SFE.Infrastructure.Persistence;

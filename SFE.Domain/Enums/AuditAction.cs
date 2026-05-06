@@ -13,6 +13,9 @@ public enum AuditAction
     InvoiceDuplicated = 202,
     CreditNoteNormalized = 203,
     AdvanceInvoiceNormalized = 204,
+    ProformaCreated = 205,        // 🆕
+    ProformaConverted = 206,      // 🆕
+    ProformaCancelled = 207,      // 🆕
 
     // ═══ Reports ═══
     ReportZGenerated = 300,
@@ -153,6 +156,11 @@ public static class AuditActionExtensions
         AuditAction.InvoiceFiscalDeviceError => "Erreur dispositif fiscal",
         AuditAction.InvoiceValidationFailed => "Échec validation facture",
         AuditAction.InvoiceSaveFailed => "Échec sauvegarde facture",
+
+        AuditAction.ProformaCreated => "Proforma créée",
+        AuditAction.ProformaConverted => "Proforma convertie",
+        AuditAction.ProformaCancelled => "Proforma annulée",
+
 
         _ => a.ToString()
     };

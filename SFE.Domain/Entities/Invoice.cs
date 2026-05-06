@@ -107,6 +107,62 @@ public class Invoice
     /// </summary>
     public decimal RemainingBalance { get; set; }
 
+    // ═══════════════════════════════════════════════════════════════
+    // ADVANCE CHAIN (FT/ET → FV/EV)
+    // ═══════════════════════════════════════════════════════════════
+
+
+
+    /// <summary>
+    /// Sum of advance amounts already invoiced BEFORE this one in the chain.
+    /// On the final FV this equals the sum of all FT.AdvanceAmount.
+    /// </summary>
+    public decimal PreviousAdvancesTotal { get; set; }
+
+
+    /// <summary>
+    /// Computed at issuance: OrderTotal − (PreviousAdvancesTotal + AdvanceAmount).
+    /// Stored for audit/print convenience.
+    /// </summary>
+    public decimal RemainingAfterAdvance { get; set; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROFORMA (PRO)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// When this proforma is converted into a real FV/EV, points to that invoice.
+    /// Used to enforce one-shot conversion and for traceability.
+    /// </summary>
+    public int? ConvertedToInvoiceId { get; set; }
+
+    /// <summary>
+    /// Optional: proforma offer expiration date. Past this date, the proforma
+    /// is considered stale and is filtered out by GetActiveProformasAsync().
+    /// </summary>
+    public DateTime? ProformaValidUntil { get; set; }
+
+    /// <summary>
+    /// Navigation back to the FV/EV that materialized this proforma.
+    /// </summary>
+    public Invoice? ConvertedToInvoice { get; set; }
+
+    // 🆕 ─────────── ADD BELOW ───────────
+
+    /// <summary>
+    /// 🆕 For an FV/EV/FT/ET that was born from a proforma conversion,
+    /// points back to the original PRO row. NULL for invoices created
+    /// directly (without a proforma stage).
+    /// 
+    /// Use case on print: "Cette facture remplace le proforma N°PRO-2026/0042 du 12/03/2026."
+    /// </summary>
+    public int? SourceProformaId { get; set; }
+
+    /// <summary>
+    /// 🆕 Navigation forward to the proforma that originated this fiscal invoice.
+    /// </summary>
+    public Invoice? SourceProforma { get; set; }
+
     // ══════════════════════════════════════════════════════════
     //  PARAMÈTRE SNAPSHOT
     // ══════════════════════════════════════════════════════════
@@ -147,4 +203,21 @@ public class Invoice
     public bool IsFinalWithAdvances =>
         (Type is InvoiceType.FV or InvoiceType.EV)
         && !string.IsNullOrEmpty(AdvanceGroupId);
+
+    // ══════════════════════════════════════════════════════════
+    //  PRINT TRACKING — ORIGINAL / DUPLICATA
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Nombre total d'impressions/exports PDF de cette facture.
+    /// 0 = jamais imprimée, 1 = ORIGINAL émis, ≥2 = duplicata déjà émis.
+    /// Pour les proformas, simple compteur (pas de mention duplicata).
+    /// </summary>
+    public int PrintCount { get; set; }
+
+    /// <summary>Date de la première impression (ORIGINAL).</summary>
+    public DateTime? FirstPrintedAt { get; set; }
+
+    /// <summary>Date de la dernière impression/duplicata.</summary>
+    public DateTime? LastPrintedAt { get; set; }
 }

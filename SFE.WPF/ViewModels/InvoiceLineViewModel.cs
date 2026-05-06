@@ -48,15 +48,15 @@ public partial class InvoiceLineViewModel : ObservableObject
 
     public string DiscountDisplay => DiscountType switch
     {
-        DiscountType.Percentage => $"-{DiscountValue:G}%",
-        DiscountType.FixedAmount => $"-{DiscountAmount:N0}",
+        DiscountType.Percentage => $"-{DiscountValue:0.##}%",
+        DiscountType.FixedAmount => $"-{DiscountAmount:N2}",
         _ => ""
     };
 
     public string SpecificTaxDisplay => SpecificTaxType switch
     {
-        SpecificTaxType.Percentage => $"TS {SpecificTaxValue:G}%",
-        SpecificTaxType.FixedPerUnit => $"TS {SpecificTaxValue:N0}/u",
+        SpecificTaxType.Percentage => $"TS {SpecificTaxValue:0.##}%",
+        SpecificTaxType.FixedPerUnit => $"TS {SpecificTaxValue:N2}/u",
         _ => ""
     };
 
@@ -65,6 +65,6 @@ public partial class InvoiceLineViewModel : ObservableObject
 
     public string LineAmountDisplay =>
         HasDiscount
-            ? $"{AmountHTBeforeDiscount:N0} → {AmountHT:N0}"
-            : $"{AmountHT:N0}";
+            ? $"{AmountHTBeforeDiscount:N2} → {AmountHT:N2}"
+            : $"{AmountHT:N2}";
 }

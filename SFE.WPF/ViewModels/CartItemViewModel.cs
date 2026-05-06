@@ -56,7 +56,7 @@ public partial class CartItemViewModel : ObservableObject
     public decimal DisplayUnitPrice =>
         _displayMode == PriceMode.TTC ? UnitPriceTTC : UnitPriceHT;
 
-    public string QuantityDisplay => $"{Quantity:G} × {DisplayUnitPrice:N0}";
+    public string QuantityDisplay => $"{Quantity:0.###} × {DisplayUnitPrice:N2}";
     public string TaxGroupLabel => $"{(char)('A' + (int)TaxGroup)}";
 
     public bool HasDiscount =>
@@ -64,8 +64,8 @@ public partial class CartItemViewModel : ObservableObject
 
     public string DiscountDisplay => DiscountType switch
     {
-        DiscountType.Percentage => $"-{DiscountValue:G}%",
-        DiscountType.FixedAmount => $"-{DiscountAmount:N0}",
+        DiscountType.Percentage => $"-{DiscountValue:0.##}%",
+        DiscountType.FixedAmount => $"-{DiscountAmount:N2}",
         _ => ""
     };
 

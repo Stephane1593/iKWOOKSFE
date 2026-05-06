@@ -271,4 +271,51 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
         return await _db.Invoices
             .AnyAsync(i => i.CodeDEFDGI == codeDEFDGI && i.Status == InvoiceStatus.Normalized);
     }
+
+    public async Task<string> GenerateNextProformaNumberAsync(int year, int pointOfSaleId)
+    {
+        var posCode = await _db.PointsOfSale
+            .Where(p => p.Id == pointOfSaleId)
+            .Select(p => p.Code)
+            .FirstOrDefaultAsync()
+            ?? $"POS{pointOfSaleId:D2}";
+
+        var prefix = $"PR-{posCode}-{year}/";
+
+        var existing = await _dbSet
+            .Where(i => i.PointOfSaleId == pointOfSaleId
+                     && i.Type == InvoiceType.PRO
+                     && i.InvoiceNumber.StartsWith(prefix))
+            .Select(i => i.InvoiceNumber)
+            .ToListAsync();
+
+        int max = 0;
+        foreach (var n in existing)
+        {
+            var idx = n.LastIndexOf('/');
+            if (idx > 0 && int.TryParse(n.AsSpan(idx + 1), out var v))
+                max = Math.Max(max, v);
+        }
+
+        return $"{prefix}{max + 1:D4}";
+    }
+
+    public async Task<List<Invoice>> GetActiveProformasAsync(
+        int? pointOfSaleId = null, bool excludeExpired = true)
+    {
+        var now = DateTime.Now;
+        var q = _dbSet
+            .Include(i => i.Lines)
+            .Where(i => i.Type == InvoiceType.PRO
+                     && i.ConvertedToInvoiceId == null);
+
+        if (pointOfSaleId.HasValue)
+            q = q.Where(i => i.PointOfSaleId == pointOfSaleId.Value);
+
+        if (excludeExpired)
+            q = q.Where(i => i.ProformaValidUntil == null
+                          || i.ProformaValidUntil > now);
+
+        return await q.OrderByDescending(i => i.CreatedAt).ToListAsync();
+    }
 }

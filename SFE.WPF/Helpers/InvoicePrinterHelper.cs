@@ -91,7 +91,7 @@ public static class InvoicePrintHelper
                 viewModel.SourcePos,
                 viewModel.SourceExchangeRate,
                 viewModel.SourceLogoBytes,
-                qrBytes);
+                qrBytes, printNumber:viewModel.PrintNumber);
 
             doc.GeneratePdf(outputPath);
             return;

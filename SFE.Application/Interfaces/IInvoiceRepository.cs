@@ -43,6 +43,18 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<List<Invoice>> GetRecentAsync(int count);
     // Add to IInvoiceRepository
     Task<List<string>> GetDistinctOperatorNamesAsync();
+
+    /// <summary>
+    /// Generates the next proforma number per POS/year.
+    /// Format: "PR-{POSCODE}-{YEAR}/{NNNN}"
+    /// Note: PR sequence is INDEPENDENT from FV/FT sequences and never goes to MCF.
+    /// </summary>
+    Task<string> GenerateNextProformaNumberAsync(int year, int pointOfSaleId);
+
+    /// <summary>
+    /// Returns proformas not yet converted, optionally filtered by POS or expiration.
+    /// </summary>
+    Task<List<Invoice>> GetActiveProformasAsync(int? pointOfSaleId = null, bool excludeExpired = true);
 }
 
 /// <summary>

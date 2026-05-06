@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using SFE.Application.Helpers;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
@@ -108,6 +109,19 @@ public class InvoiceService
     {
         // ── 1. Recalcul + validation ──
         RecalculateTotals(invoice);
+
+        // 🆕 Pour FT/ET : on scale les lignes pour que TotalTTC = AdvanceAmount.
+        //    Le reste (OrderTotal − cumul antérieur − AdvanceAmount) reste à percevoir.
+        if (invoice.IsAdvanceInvoice && invoice.AdvanceAmount > 0)
+        {
+            ApplyAdvanceScaling(invoice);
+        }
+
+        // 🆕 Auto-generate AdvanceGroupId if FT/ET and user didn't provide one
+        if (invoice.IsAdvanceInvoice && string.IsNullOrWhiteSpace(invoice.AdvanceGroupId))
+        {
+            invoice.AdvanceGroupId = AdvanceGroupIdGenerator.Generate();
+        }
 
         var validation = await ValidateInvoiceAsync(invoice);
         if (!validation.IsValid)
@@ -341,6 +355,68 @@ public class InvoiceService
         {
             Debug.WriteLine($"[InvoiceService] Audit failure log failed: {ex.Message}");
         }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  🆕 ACOMPTE — Scaling proportionnel des lignes
+    //  Lignes saisies = commande complète (200 000)
+    //  AdvanceAmount  = somme reçue (50 000)
+    //  Résultat : tous les montants × 0.25, TVA répartie correctement par groupe.
+    // ══════════════════════════════════════════════════════════
+    private void ApplyAdvanceScaling(Invoice invoice)
+    {
+        decimal orderTotal = invoice.TotalTTC;
+        if (orderTotal <= 0) return;
+
+        if (invoice.AdvanceAmount > orderTotal + 0.01m)
+            throw new InvalidOperationException(
+                $"L'acompte ({invoice.AdvanceAmount:N2}) dépasse le total commandé ({orderTotal:N2}).");
+
+        invoice.OrderTotal = orderTotal;
+        decimal factor = invoice.AdvanceAmount / orderTotal;
+
+        foreach (var line in invoice.Lines)
+        {
+            line.UnitPriceHT = TaxCalculator.R2(line.UnitPriceHT * factor);
+            line.UnitPriceTTC = TaxCalculator.R2(line.UnitPriceTTC * factor);
+
+            // Remises en montant fixe : à scaler aussi (les pourcentages restent)
+            if (line.DiscountType == DiscountType.FixedAmount)
+                line.DiscountValue = TaxCalculator.R2(line.DiscountValue * factor);
+
+            // Taxe spécifique fixe par unité : idem
+            if (line.SpecificTaxType == SpecificTaxType.FixedPerUnit)
+                line.SpecificTaxValue = TaxCalculator.R2(line.SpecificTaxValue * factor);
+        }
+
+        // Recompute everything from the scaled inputs
+        RecalculateTotals(invoice);
+
+        // Final cent-rounding alignment so TotalTTC = AdvanceAmount exactly
+        decimal diff = invoice.AdvanceAmount - invoice.TotalTTC;
+        if (diff != 0m && invoice.Lines.Count > 0)
+        {
+            var last = invoice.Lines.OrderBy(l => l.LineNumber).Last();
+            last.AmountTTC += diff;
+            decimal vatRate = last.TaxRate / 100m;
+            if (vatRate > 0)
+            {
+                decimal newHT = TaxCalculator.R2(last.AmountTTC / (1m + vatRate));
+                last.AmountTVA = last.AmountTTC - newHT;
+                last.AmountHT = newHT;
+            }
+            else
+            {
+                last.AmountHT = last.AmountTTC;
+                last.AmountTVA = 0m;
+            }
+            invoice.TotalHT = invoice.Lines.Sum(l => l.AmountHT);
+            invoice.TotalTVA = invoice.Lines.Sum(l => l.AmountTVA);
+            invoice.TotalTTC = invoice.Lines.Sum(l => l.AmountTTC);
+        }
+
+        invoice.RemainingAfterAdvance =
+            invoice.OrderTotal - invoice.PreviousAdvancesTotal - invoice.AdvanceAmount;
     }
 
     /// <summary>
@@ -1010,6 +1086,457 @@ public class InvoiceService
     }
 
     private enum StockImpactKind { None, Decrement, Increment }
+
+    // ══════════════════════════════════════════════════════════
+    //  PROFORMA — Numérotation dédiée
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Génère un numéro de proforma au format PR-POS01-2026/0001.
+    /// Indépendant de la séquence FV/FT.
+    /// </summary>
+    public async Task<string> GenerateProformaNumberAsync(int pointOfSaleId)
+    {
+        return await _unitOfWork.Invoices
+            .GenerateNextProformaNumberAsync(DateTime.Now.Year, pointOfSaleId);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PROFORMA — Sauvegarde (PAS de MCF, PAS de Code DEF)
+    // ══════════════════════════════════════════════════════════
+
+    public async Task<NormalizationResult> SaveProformaAsync(Invoice proforma)
+    {
+        if (proforma.Type != InvoiceType.PRO)
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = "Le type doit être PRO."
+            };
+
+        // ── 1. Recalcul ──
+        RecalculateTotals(proforma);
+
+        // ── 2. Validation allégée (PAS de NIF obligatoire, PAS de paiement) ──
+        var validation = ValidateProforma(proforma);
+        if (!validation.IsValid)
+        {
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceValidationFailed, proforma,
+                $"Proforma refusée : {validation.ErrorMessage}");
+
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = validation.ErrorMessage
+            };
+        }
+
+        // ── 3. Statut figé : Draft (jamais Pending/Normalized) ──
+        proforma.Status = InvoiceStatus.Draft;
+
+        // Aucun élément fiscal — DGI §1.2 : "DOCUMENT NON FISCAL"
+        proforma.CodeDEFDGI = "";
+        proforma.QRCodeContent = "";
+        proforma.NIM = "";
+        proforma.Counters = "";
+        proforma.DeviceDateTime = "";
+        proforma.EmcfUid = "";
+        proforma.NormalizedAt = null;
+
+        // ── 4. Persistance ──
+        try
+        {
+            // Garantir l'unicité du numéro
+            const int MAX_ATTEMPTS = 5;
+            for (int i = 0; i < MAX_ATTEMPTS; i++)
+            {
+                var clash = await _unitOfWork.Invoices.GetByInvoiceNumberAsync(proforma.InvoiceNumber);
+                if (clash == null) break;
+                proforma.InvoiceNumber = await GenerateProformaNumberAsync(proforma.PointOfSaleId);
+            }
+
+            await _unitOfWork.Invoices.AddAsync(proforma);
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            var deep = FlattenException(ex);
+            Debug.WriteLine($"=== PROFORMA SAVE FAILURE ===\n{deep}");
+
+            await SafeAuditFailureAsync(
+                AuditAction.InvoiceSaveFailed, proforma,
+                $"Échec sauvegarde proforma : {ex.GetBaseException().Message}",
+                deep);
+
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = $"Erreur sauvegarde : {ex.GetBaseException().Message}"
+            };
+        }
+
+        // ── 5. Audit succès ──
+        try
+        {
+            await _auditService.LogInvoiceAsync(AuditAction.ProformaCreated, proforma);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[SaveProforma] Audit failed: {ex.Message}");
+        }
+
+        return new NormalizationResult
+        {
+            Success = true,
+            InvoiceId = proforma.Id,
+            CodeDEFDGI = "",
+            QRCodeContent = ""
+        };
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PROFORMA — Conversion en facture fiscale (FV/EV/FT/ET)
+    // ══════════════════════════════════════════════════════════
+
+    public async Task<NormalizationResult> ConvertProformaAsync(
+        int proformaId,
+        InvoiceType targetType,
+        string operatorName,
+        string operatorId,
+        decimal advanceAmount = 0m)
+    {
+        var pro = await _unitOfWork.Invoices.GetWithDetailsAsync(proformaId);
+
+        if (pro == null)
+            return new NormalizationResult { Success = false, ErrorMessage = "Proforma introuvable." };
+
+        if (pro.Type != InvoiceType.PRO)
+            return new NormalizationResult { Success = false, ErrorMessage = "Le document source n'est pas une proforma." };
+
+        if (pro.ConvertedToInvoiceId.HasValue)
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = $"Cette proforma a déjà été convertie (facture #{pro.ConvertedToInvoiceId})."
+            };
+
+        if (pro.Status == InvoiceStatus.Cancelled)
+            return new NormalizationResult { Success = false, ErrorMessage = "Cette proforma a été annulée." };
+
+        if (pro.ProformaValidUntil.HasValue && pro.ProformaValidUntil.Value.Date < DateTime.Today)
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = $"Proforma expirée le {pro.ProformaValidUntil:dd/MM/yyyy}."
+            };
+
+        // Cible interdite : PRO, FA, EA (les avoirs ont leur propre flux)
+        if (targetType == InvoiceType.PRO || targetType.IsCreditNote())
+            return new NormalizationResult
+            {
+                Success = false,
+                ErrorMessage = "Type cible invalide. Une proforma se convertit en FV, EV, FT ou ET."
+            };
+
+        // ── Construction de la facture fiscale depuis le snapshot ──
+        var newNumber = await _unitOfWork.Invoices
+            .GenerateNextInvoiceNumberAsync(targetType, DateTime.Now.Year, pro.PointOfSaleId);
+
+        var fiscal = new Invoice
+        {
+            InvoiceNumber = newNumber,
+            Type = targetType,
+            Status = InvoiceStatus.Draft,
+            PriceMode = pro.PriceMode,
+            DiscountBeforeTax = pro.DiscountBeforeTax,
+            ISF = pro.ISF,
+
+            // Client (héritage intégral)
+            ClientType = pro.ClientType,
+            ClientNIF = pro.ClientNIF,
+            ClientName = pro.ClientName,
+            ClientAddress = pro.ClientAddress,
+            ClientPhone = pro.ClientPhone,
+            ClientEmail = pro.ClientEmail,
+            ClientRCCM = pro.ClientRCCM,
+
+            // Opérateur (utilisateur courant, pas celui de la proforma)
+            OperatorName = operatorName,
+            OperatorId = operatorId,
+
+            // Devise
+            CurrencyCode = pro.CurrencyCode,
+            CurrencyRate = pro.CurrencyRate,
+            CurrencyDate = DateTime.Now,
+
+            // Commentaires
+            CommentA = pro.CommentA,
+            CommentB = pro.CommentB,
+            CommentC = pro.CommentC,
+            CommentD = pro.CommentD,
+            CommentE = pro.CommentE,
+            CommentF = pro.CommentF,
+            CommentG = pro.CommentG,
+            CommentH = string.IsNullOrWhiteSpace(pro.CommentH)
+                ? $"Issue de la proforma {pro.InvoiceNumber} du {pro.CreatedAt:dd/MM/yyyy}"
+                : pro.CommentH,
+
+            // Traçabilité
+            SourceProformaId = pro.Id,
+            PointOfSaleId = pro.PointOfSaleId,
+        };
+
+        // FT/ET : récupérer le montant d'acompte
+        if (targetType is InvoiceType.FT or InvoiceType.ET)
+        {
+            if (advanceAmount <= 0)
+                return new NormalizationResult
+                {
+                    Success = false,
+                    ErrorMessage = "Le montant d'acompte est obligatoire pour FT/ET."
+                };
+            fiscal.AdvanceAmount = advanceAmount;
+            fiscal.AdvanceGroupId = AdvanceGroupIdGenerator.Generate();
+        }
+
+        // ── Copie profonde des lignes ──
+        foreach (var pl in pro.Lines.OrderBy(l => l.LineNumber))
+        {
+            fiscal.Lines.Add(new InvoiceLine
+            {
+                LineNumber = pl.LineNumber,
+                ProductId = pl.ProductId,
+                Code = pl.Code,
+                Name = pl.Name,
+                ItemType = pl.ItemType,
+                TaxGroup = pl.TaxGroup,
+                TaxRate = pl.TaxRate,
+                UnitPriceHT = pl.UnitPriceHT,
+                UnitPriceTTC = pl.UnitPriceTTC,
+                Quantity = pl.Quantity,
+                Unit = pl.Unit,
+                DiscountType = pl.DiscountType,
+                DiscountValue = pl.DiscountValue,
+                SpecificTaxName = pl.SpecificTaxName,
+                SpecificTaxType = pl.SpecificTaxType,
+                SpecificTaxValue = pl.SpecificTaxValue,
+                TaxApplicationMode = pl.TaxApplicationMode,
+            });
+        }
+
+        // ── Paiement par défaut (le plein TTC en espèces — peut être ajusté par l'opérateur ailleurs) ──
+        // Pour FV/EV : on auto-complète. Pour FT/ET : NormalizeInvoiceAsync attend déjà des paiements.
+        // On laisse la VM gérer ça avant de rappeler NormalizeInvoiceAsync si nécessaire.
+
+        // ── Délégation au flux fiscal standard ──
+        var result = await NormalizeInvoiceAsync(fiscal);
+
+        // ── Marquage de la proforma comme consommée ──
+        if (result.Success)
+        {
+            pro.ConvertedToInvoiceId = result.InvoiceId;
+            pro.Status = InvoiceStatus.Converted;
+            pro.UpdatedAt = DateTime.Now;
+
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ConvertProforma] Failed to mark proforma as converted: {ex.Message}");
+            }
+
+            try
+            {
+                await _auditService.LogAsync(
+                    AuditAction.ProformaConverted,
+                    AuditModule.Invoicing,
+                    $"Proforma {pro.InvoiceNumber} convertie en {newNumber} ({targetType.Label()})",
+                    entityType: "Invoice",
+                    entityId: pro.Id.ToString(),
+                    codeDEFDGI: result.CodeDEFDGI,
+                    invoiceNumber: newNumber,
+                    details: $"{{\"sourceProformaId\":{pro.Id},\"targetInvoiceId\":{result.InvoiceId},\"targetType\":\"{targetType}\"}}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ConvertProforma] Audit failed: {ex.Message}");
+            }
+        }
+
+        return result;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PROFORMA — Annulation (avant conversion uniquement)
+    // ══════════════════════════════════════════════════════════
+
+    public async Task<bool> CancelProformaAsync(int proformaId, string reason)
+    {
+        var pro = await _unitOfWork.Invoices.GetWithDetailsAsync(proformaId);
+        if (pro == null || pro.Type != InvoiceType.PRO) return false;
+        if (pro.ConvertedToInvoiceId.HasValue) return false;
+        if (pro.Status == InvoiceStatus.Cancelled) return true;
+
+        pro.Status = InvoiceStatus.Cancelled;
+        pro.UpdatedAt = DateTime.Now;
+        pro.CommentH = string.IsNullOrEmpty(pro.CommentH)
+            ? $"Annulation : {reason}"
+            : $"{pro.CommentH} | Annulation : {reason}";
+
+        await _unitOfWork.SaveChangesAsync();
+
+        try
+        {
+            await _auditService.LogAsync(
+                AuditAction.ProformaCancelled,
+                AuditModule.Invoicing,
+                $"Proforma {pro.InvoiceNumber} annulée — {reason}",
+                entityType: "Invoice",
+                entityId: pro.Id.ToString(),
+                invoiceNumber: pro.InvoiceNumber);
+        }
+        catch { }
+
+        return true;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PROFORMA — Liste des proformas actives
+    // ══════════════════════════════════════════════════════════
+
+    public async Task<List<Invoice>> GetActiveProformasAsync(int? pointOfSaleId = null)
+        => await _unitOfWork.Invoices.GetActiveProformasAsync(pointOfSaleId, excludeExpired: true);
+
+    // ══════════════════════════════════════════════════════════
+    //  PROFORMA — Validation allégée
+    // ══════════════════════════════════════════════════════════
+
+    private static ValidationResult ValidateProforma(Invoice pro)
+    {
+        if (pro.Lines.Count == 0)
+            return new("La proforma doit contenir au moins un article.");
+
+        if (pro.TotalTTC <= 0)
+            return new("Le total TTC doit être strictement positif.");
+
+        foreach (var line in pro.Lines)
+        {
+            if (line.AmountTTC < 0)
+                return new($"L'article « {line.Name} » a un montant TTC négatif.");
+
+            if (line.DiscountType == DiscountType.Percentage && line.DiscountValue > 100)
+                return new($"L'article « {line.Name} » : remise > 100 % non autorisée.");
+
+            if (line.SpecificTaxType != SpecificTaxType.None)
+            {
+                if (line.SpecificTaxValue <= 0)
+                    return new($"L'article « {line.Name} » : valeur T.S. invalide.");
+                if (line.SpecificTaxType == SpecificTaxType.Percentage && line.SpecificTaxValue > 100)
+                    return new($"L'article « {line.Name} » : taux T.S. > 100 %.");
+            }
+        }
+
+        if (pro.ProformaValidUntil.HasValue && pro.ProformaValidUntil.Value.Date < DateTime.Today)
+            return new("La date de validité ne peut pas être dans le passé.");
+
+        return new() { IsValid = true };
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PRINT TRACKING — issue an "ORIGINAL" or "DUPLICATA N°x" tirage
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Atomically increments the print counter and returns the print number to
+    /// stamp on the PDF (1 = ORIGINAL, 2 = DUPLICATA N°1, 3 = DUPLICATA N°2, …).
+    /// 
+    /// Audit trail:
+    ///   - First call → AuditAction.InvoicePrinted
+    ///   - Subsequent → AuditAction.InvoiceDuplicated
+    /// 
+    /// For proformas, simply bumps the counter and returns 1 (no fiscal marker).
+    /// </summary>
+    public async Task<int> RegisterPrintAsync(int invoiceId)
+    {
+        var inv = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
+        if (inv == null)
+            throw new InvalidOperationException($"Facture #{invoiceId} introuvable.");
+
+        var newCount = inv.PrintCount + 1;
+        var now = DateTime.Now;
+
+        inv.PrintCount = newCount;
+        inv.LastPrintedAt = now;
+        if (inv.FirstPrintedAt == null)
+            inv.FirstPrintedAt = now;
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[RegisterPrint] Save failed: {ex.Message}");
+            // Even if save fails, return at least 1 so the caller can still print
+            // an ORIGINAL. The next call will retry.
+            return Math.Max(1, newCount);
+        }
+
+        // ── Audit (best-effort) ──
+        try
+        {
+            if (inv.IsProforma)
+            {
+                await _auditService.LogAsync(
+                    AuditAction.InvoicePrinted,
+                    AuditModule.Invoicing,
+                    $"Proforma {inv.InvoiceNumber} imprimée (tirage #{newCount})",
+                    entityType: "Invoice",
+                    entityId: inv.Id.ToString(),
+                    invoiceNumber: inv.InvoiceNumber);
+            }
+            else if (newCount == 1)
+            {
+                await _auditService.LogAsync(
+                    AuditAction.InvoicePrinted,
+                    AuditModule.Invoicing,
+                    $"Original imprimé : {inv.InvoiceNumber}",
+                    entityType: "Invoice",
+                    entityId: inv.Id.ToString(),
+                    invoiceNumber: inv.InvoiceNumber);
+            }
+            else
+            {
+                await _auditService.LogAsync(
+                    AuditAction.InvoiceDuplicated,
+                    AuditModule.Invoicing,
+                    $"Duplicata N°{newCount - 1} émis : {inv.InvoiceNumber}",
+                    entityType: "Invoice",
+                    entityId: inv.Id.ToString(),
+                    invoiceNumber: inv.InvoiceNumber,
+                    details: $"{{\"printCount\":{newCount},\"duplicateNumber\":{newCount - 1}}}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[RegisterPrint] Audit failed: {ex.Message}");
+        }
+
+        return newCount;
+    }
+
+    /// <summary>
+    /// Read-only peek at the next print number WITHOUT incrementing
+    /// (useful for preview / "view only" scenarios).
+    /// </summary>
+    public async Task<int> PeekPrintNumberAsync(int invoiceId)
+    {
+        var inv = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
+        return inv == null ? 1 : inv.PrintCount + 1;
+    }
 }
 
 // ══════════════════════════════════════════════════════════

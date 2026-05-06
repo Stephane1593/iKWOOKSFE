@@ -1060,7 +1060,7 @@
                                                                                FontSize="13"
                                                                                FontWeight="Bold"
                                                                                Foreground="{StaticResource PrimaryBrush}"
-                                                                               Text="{Binding UnitPriceTtcCdf, StringFormat='{}{0:N0} CDF'}" />
+                                                                               Text="{Binding UnitPriceTtcCdf, StringFormat='{}{0:N2} CDF'}" />
                                                                 </Border>
                                                             </Grid>
                                                         </Button>
@@ -1099,7 +1099,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource PrimaryBrush}"
                                        ToolTip="Total des ventes du jour en CDF">
-                                <Run Text="{Binding TodaySalesTotal, StringFormat=N0, Mode=OneWay}" />
+                                <Run Text="{Binding TodaySalesTotal, StringFormat=N2, Mode=OneWay}" />
                                 <Run Text=" CDF" />
                             </TextBlock>
                         </StackPanel>
@@ -1377,7 +1377,7 @@
                                                                FontWeight="Bold"
                                                                Foreground="{StaticResource PrimaryBrush}"
                                                                ToolTip="Prix unitaire TTC en CDF">
-                                                        <Run Text="{Binding UnitPriceTtcCdf, StringFormat=N0, Mode=OneWay}" />
+                                                        <Run Text="{Binding UnitPriceTtcCdf, StringFormat=N2, Mode=OneWay}" />
                                                     </TextBlock>
                                                     <TextBlock HorizontalAlignment="Right"
                                                                VerticalAlignment="Bottom"
@@ -1403,11 +1403,11 @@
                                             <EventTrigger RoutedEvent="Button.Click">
                                                 <BeginStoryboard>
                                                     <Storyboard>
-                                                        <ColorAnimation Storyboard.TargetName="CardBorder"
+                                                        <ColorAnimation AutoReverse="True"
+                                                                        Storyboard.TargetName="CardBorder"
                                                                         Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
                                                                         To="#37B1E4"
-                                                                        Duration="0:0:0.08"
-                                                                        AutoReverse="True"/>
+                                                                        Duration="0:0:0.08" />
                                                     </Storyboard>
                                                 </BeginStoryboard>
                                             </EventTrigger>
@@ -1833,15 +1833,15 @@
                                                        FontWeight="Bold"
                                                        Text="−" />
                                         </Button>
-                                        <TextBlock MinWidth="28"
+                                        <TextBlock MinWidth="48"
                                                    Margin="8,0"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
-                                                   FontSize="15"
+                                                   FontSize="14"
                                                    FontWeight="Bold"
-                                                   Text="{Binding Quantity, StringFormat=G}"
+                                                   Text="{Binding Quantity, StringFormat=N3}"
                                                    TextAlignment="Center"
-                                                   ToolTip="Quantité actuelle" />
+                                                   ToolTip="Quantité actuelle (3 décimales)" />
                                         <Button Width="42"
                                                 Height="42"
                                                 Padding="0"
@@ -1859,15 +1859,15 @@
                                         </Button>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2"
-                                                MinWidth="78"
+                                                MinWidth="88"
                                                 VerticalAlignment="Center">
                                         <TextBlock HorizontalAlignment="Right"
                                                    FontFamily="{StaticResource AppFont}"
-                                                   FontSize="15"
+                                                   FontSize="14"
                                                    FontWeight="Bold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   Text="{Binding AmountTTC, StringFormat='{}{0:N0}'}"
-                                                   ToolTip="Montant TTC de cette ligne" />
+                                                   Text="{Binding AmountTTC, StringFormat='{}{0:N2}'}"
+                                                   ToolTip="Montant TTC de cette ligne (2 décimales)" />
                                         <Button MinHeight="26"
                                                 Padding="0"
                                                 HorizontalAlignment="Right"
@@ -1975,9 +1975,9 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="11"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               Text="{Binding TotalHTBeforeDiscount, StringFormat='{}{0:N0}'}"
+                                               Text="{Binding TotalHTBeforeDiscount, StringFormat='{}{0:N2}'}"
                                                TextDecorations="Strikethrough"
-                                               ToolTip="{Binding TotalHTBeforeDiscount, StringFormat='{}{0:N0} CDF'}" />
+                                               ToolTip="{Binding TotalHTBeforeDiscount, StringFormat='{}{0:N2} CDF'}" />
                                 </Grid>
                                 <Grid MinHeight="28"
                                       Margin="0,0,0,8"
@@ -2002,8 +2002,8 @@
                                                FontSize="11"
                                                FontWeight="SemiBold"
                                                Foreground="#DC2626"
-                                               Text="{Binding TotalDiscount, StringFormat='-{0:N0}'}"
-                                               ToolTip="{Binding TotalDiscount, StringFormat='-{0:N0} CDF'}" />
+                                               Text="{Binding TotalDiscount, StringFormat='-{0:N2}'}"
+                                               ToolTip="{Binding TotalDiscount, StringFormat='-{0:N2} CDF'}" />
                                 </Grid>
 
                                 <!--  HT  -->
@@ -2020,8 +2020,8 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               Text="{Binding TotalHT, StringFormat='{}{0:N0}'}"
-                                               ToolTip="{Binding TotalHT, StringFormat='{}{0:N0} CDF'}" />
+                                               Text="{Binding TotalHT, StringFormat='{}{0:N2}'}"
+                                               ToolTip="{Binding TotalHT, StringFormat='{}{0:N2} CDF'}" />
                                 </Grid>
 
                                 <!--  TVA  -->
@@ -2038,8 +2038,8 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                Foreground="{StaticResource PrimaryBrush}"
-                                               Text="{Binding TotalTVA, StringFormat='{}{0:N0}'}"
-                                               ToolTip="{Binding TotalTVA, StringFormat='{}{0:N0} CDF'}" />
+                                               Text="{Binding TotalTVA, StringFormat='{}{0:N2}'}"
+                                               ToolTip="{Binding TotalTVA, StringFormat='{}{0:N2} CDF'}" />
                                 </Grid>
 
                                 <!--  Specific tax  -->
@@ -2065,8 +2065,8 @@
                                                FontFamily="{StaticResource AppFont}"
                                                FontSize="12"
                                                Foreground="#92400E"
-                                               Text="{Binding TotalSpecificTax, StringFormat='{}{0:N0}'}"
-                                               ToolTip="{Binding TotalSpecificTax, StringFormat='{}{0:N0} CDF'}" />
+                                               Text="{Binding TotalSpecificTax, StringFormat='{}{0:N2}'}"
+                                               ToolTip="{Binding TotalSpecificTax, StringFormat='{}{0:N2} CDF'}" />
                                 </Grid>
 
                                 <!--  ── Grand Total ──  -->
@@ -2076,7 +2076,7 @@
                                         RenderTransformOrigin="0.5,0.5"
                                         ToolTip="Montant total de la facture">
                                     <Border.RenderTransform>
-                                        <ScaleTransform x:Name="TotalScale" ScaleX="1" ScaleY="1"/>
+                                        <ScaleTransform x:Name="TotalScale" ScaleX="1" ScaleY="1" />
                                     </Border.RenderTransform>
                                     <Border.Style>
                                         <Style TargetType="Border">
@@ -2109,11 +2109,11 @@
                                         <TextBlock HorizontalAlignment="Right"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
-                                                   FontSize="24"
+                                                   FontSize="22"
                                                    FontWeight="Bold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   ToolTip="{Binding GrandTotal, StringFormat='{}{0:N0} CDF'}">
-                                            <Run Text="{Binding GrandTotal, StringFormat=N0, Mode=OneWay}" />
+                                                   ToolTip="{Binding GrandTotal, StringFormat='{}{0:N2} CDF'}">
+                                            <Run Text="{Binding GrandTotal, StringFormat=N2, Mode=OneWay}" />
                                             <Run FontSize="14"
                                                  Text=" CDF" />
                                         </TextBlock>
@@ -2192,11 +2192,11 @@
                                         <TextBlock HorizontalAlignment="Right"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
-                                                   FontSize="17"
+                                                   FontSize="16"
                                                    FontWeight="Bold"
                                                    Foreground="#065F46"
-                                                   ToolTip="{Binding TotalTTC, StringFormat='{}{0:N0} CDF'}">
-                                            <Run Text="{Binding TotalTTC, StringFormat=N0, Mode=OneWay}" />
+                                                   ToolTip="{Binding TotalTTC, StringFormat='{}{0:N2} CDF'}">
+                                            <Run Text="{Binding TotalTTC, StringFormat=N2, Mode=OneWay}" />
                                             <Run FontSize="11"
                                                  Text=" CDF" />
                                         </TextBlock>
@@ -2289,8 +2289,8 @@
                                                                    FontFamily="{StaticResource AppFont}"
                                                                    FontSize="12"
                                                                    FontWeight="SemiBold"
-                                                                   Text="{Binding Amount, StringFormat=N0}"
-                                                                   ToolTip="{Binding Amount, StringFormat='{}{0:N0} CDF'}" />
+                                                                   Text="{Binding Amount, StringFormat=N2}"
+                                                                   ToolTip="{Binding Amount, StringFormat='{}{0:N2} CDF'}" />
                                                         <Button Grid.Column="2"
                                                                 Width="36"
                                                                 Height="36"
@@ -2316,7 +2316,7 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox Style="{StaticResource PosTextBox}"
                                                      Text="{Binding PaymentAmount}"
-                                                     ToolTip="Montant à ajouter (laisser vide = reste à payer)" />
+                                                     ToolTip="Montant à ajouter (laisser vide = reste à payer) — 2 décimales (ex: 1234.56)" />
                                             <Button Grid.Column="1"
                                                     Margin="12,0,0,0"
                                                     Command="{Binding AddPaymentCommand}"
@@ -2359,7 +2359,7 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
-                                                <Run Text="{Binding Remaining, StringFormat=N0, Mode=OneWay}" />
+                                                <Run Text="{Binding Remaining, StringFormat=N2, Mode=OneWay}" />
                                                 <Run Text=" CDF" />
                                             </TextBlock>
                                         </Grid>
@@ -2372,7 +2372,7 @@
                                                    FontSize="12"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    Text="Montant reçu"
-                                                   ToolTip="Saisissez le montant reçu du client" />
+                                                   ToolTip="Saisissez le montant reçu du client (2 décimales)" />
                                         <Grid Margin="0,0,0,12">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -2386,7 +2386,7 @@
                                                      FontSize="20"
                                                      FontWeight="SemiBold"
                                                      Text="{Binding ReceivedAmount, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="Montant reçu du client en CDF">
+                                                     ToolTip="Montant reçu du client en CDF (2 décimales, ex: 1234.56)">
                                                 <TextBox.Template>
                                                     <ControlTemplate TargetType="TextBox">
                                                         <Border x:Name="Bd"
@@ -2428,31 +2428,31 @@
                                                     CommandParameter="1000"
                                                     Content="1 000"
                                                     Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 1 000 CDF" />
+                                                    ToolTip="Définir le montant reçu à 1 000,00 CDF" />
                                             <Button Margin="0,0,8,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="5000"
                                                     Content="5 000"
                                                     Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 5 000 CDF" />
+                                                    ToolTip="Définir le montant reçu à 5 000,00 CDF" />
                                             <Button Margin="0,0,8,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="10000"
                                                     Content="10 000"
                                                     Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 10 000 CDF" />
+                                                    ToolTip="Définir le montant reçu à 10 000,00 CDF" />
                                             <Button Margin="0,0,8,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="20000"
                                                     Content="20 000"
                                                     Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 20 000 CDF" />
+                                                    ToolTip="Définir le montant reçu à 20 000,00 CDF" />
                                             <Button Margin="0,0,0,8"
                                                     Command="{Binding SetRoundedAmountCommand}"
                                                     CommandParameter="50000"
                                                     Content="50 000"
                                                     Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 50 000 CDF" />
+                                                    ToolTip="Définir le montant reçu à 50 000,00 CDF" />
                                         </WrapPanel>
                                     </StackPanel>
 
@@ -2484,11 +2484,11 @@
                                             <TextBlock HorizontalAlignment="Right"
                                                        VerticalAlignment="Center"
                                                        FontFamily="{StaticResource AppFont}"
-                                                       FontSize="17"
+                                                       FontSize="16"
                                                        FontWeight="Bold"
                                                        Foreground="#92400E"
-                                                       ToolTip="{Binding ChangeAmount, StringFormat='{}{0:N0} CDF à rendre'}">
-                                                <Run Text="{Binding ChangeAmount, StringFormat=N0, Mode=OneWay}" />
+                                                       ToolTip="{Binding ChangeAmount, StringFormat='{}{0:N2} CDF à rendre'}">
+                                                <Run Text="{Binding ChangeAmount, StringFormat=N2, Mode=OneWay}" />
                                                 <Run Text=" CDF" />
                                             </TextBlock>
                                         </Grid>
@@ -3034,7 +3034,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="38" />
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="85" />
+                                                    <ColumnDefinition Width="95" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <CheckBox VerticalAlignment="Center"
@@ -3060,8 +3060,8 @@
                                                          Padding="10,6"
                                                          FontSize="13"
                                                          Style="{StaticResource PosTextBox}"
-                                                         Text="{Binding SelectedQuantity, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="Quantité à retourner" />
+                                                         Text="{Binding SelectedQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N3}"
+                                                         ToolTip="Quantité à retourner (3 décimales)" />
                                                 <TextBlock Grid.Column="3"
                                                            Margin="6,0,0,0"
                                                            VerticalAlignment="Center"
@@ -3135,6 +3135,55 @@
                                   PanningMode="VerticalOnly"
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="28,20,28,24">
+
+                            <!--  🆕 Montant de l'acompte reçu  -->
+                            <Border Margin="0,0,0,20"
+                                    Padding="16,14"
+                                    Background="#F5F3FF"
+                                    BorderThickness="2"
+                                    CornerRadius="12">
+                                <Border.BorderBrush>
+                                    <SolidColorBrush Opacity="0.4"
+                                                     Color="#7C3AED" />
+                                </Border.BorderBrush>
+                                <StackPanel>
+                                    <StackPanel Margin="0,0,0,8"
+                                                Orientation="Horizontal">
+                                        <materialDesign:PackIcon Width="16"
+                                                                 Height="16"
+                                                                 Margin="0,0,6,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Foreground="#7C3AED"
+                                                                 Kind="CashCheck" />
+                                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                                   FontSize="13"
+                                                   FontWeight="Bold"
+                                                   Foreground="#7C3AED"
+                                                   Text="Montant reçu *" />
+                                    </StackPanel>
+                                    <TextBox FontSize="18"
+                                             FontWeight="SemiBold"
+                                             IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                                             Style="{StaticResource PosTextBox}"
+                                             Text="{Binding AdvanceAmountInput, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Montant exact remis par le client pour cet acompte (ex : 50000.00)" />
+                                    <StackPanel Margin="0,8,0,0"
+                                                Orientation="Horizontal">
+                                        <materialDesign:PackIcon Width="12"
+                                                                 Height="12"
+                                                                 Margin="0,0,5,0"
+                                                                 VerticalAlignment="Top"
+                                                                 Foreground="#6D28D9"
+                                                                 Kind="InformationOutline" />
+                                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                                   FontSize="10"
+                                                   Foreground="#6D28D9"
+                                                   Text="Le panier représente la commande totale. Ce champ = ce que le client verse maintenant (2 décimales)."
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
                             <TextBlock Style="{StaticResource PosFieldLabel}"
                                        Text="ID du groupe"
                                        ToolTip="Identifiant du groupe d'acomptes" />
@@ -3204,8 +3253,8 @@
                                                            FontSize="14"
                                                            FontWeight="Bold"
                                                            Foreground="#7C3AED"
-                                                           ToolTip="{Binding Amount, StringFormat='{}{0:N0} CDF'}">
-                                                    <Run Text="{Binding Amount, StringFormat=N0}" />
+                                                           ToolTip="{Binding Amount, StringFormat='{}{0:N2} CDF'}">
+                                                    <Run Text="{Binding Amount, StringFormat=N2}" />
                                                     <Run FontSize="10"
                                                          Text=" CDF" />
                                                 </TextBlock>
@@ -3583,7 +3632,7 @@
                                                ToolTip="Quantité et montant actuel de l'article">
                                         <Run Text="{Binding SelectedCartItem.QuantityDisplay, Mode=OneWay}" />
                                         <Run Text=" → " />
-                                        <Run Text="{Binding SelectedCartItem.AmountTTC, StringFormat=N0, Mode=OneWay}" />
+                                        <Run Text="{Binding SelectedCartItem.AmountTTC, StringFormat=N2, Mode=OneWay}" />
                                         <Run Text=" CDF" />
                                     </TextBlock>
                                 </StackPanel>
@@ -3623,7 +3672,7 @@
                                 <TextBox FontSize="16"
                                          Style="{StaticResource PosTextBox}"
                                          Text="{Binding CustomDiscountValue, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Saisir la valeur de la remise personnalisée" />
+                                         ToolTip="Saisir la valeur de la remise personnalisée (2 décimales si CDF)" />
                                 <StackPanel Grid.Column="1"
                                             Margin="12,0"
                                             VerticalAlignment="Center"
@@ -3639,7 +3688,7 @@
                                                  Content=" CDF"
                                                  FontFamily="{StaticResource AppFont}"
                                                  FontSize="13"
-                                                 ToolTip="Remise en montant fixe (CDF)" />
+                                                 ToolTip="Remise en montant fixe (CDF, 2 décimales)" />
                                 </StackPanel>
                                 <Button Grid.Column="2"
                                         Padding="18,10"

@@ -11,8 +11,8 @@ using SFE.Infrastructure.Persistence;
 namespace SFE.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260401185434_AddNewStockColumns")]
-    partial class AddNewStockColumns
+    [Migration("20260505162255_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -64,6 +64,12 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("CurrentExchangeRate")
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal>("CurrentExchangeRateCNY")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CurrentExchangeRateEUR")
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<string>("DefaultCurrency")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -101,6 +107,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                             CompanyPhone = "",
                             CompanyRCCM = "",
                             CurrentExchangeRate = 2800m,
+                            CurrentExchangeRateCNY = 385m,
+                            CurrentExchangeRateEUR = 3100m,
                             DefaultCurrency = "CDF",
                             DefaultPriceMode = "TTC",
                             DiscountBeforeTax = true,
@@ -108,6 +116,140 @@ namespace SFE.Infrastructure.Persistence.Migrations
                             ExchangeRateUpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.ArticleReportLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ArticleCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArticleName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DailyReportId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("QuantityInStock")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("QuantityReturned")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("QuantitySold")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("TaxGroup")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("ArticleReportLines", (string)null);
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.AuditLogEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CodeDEFDGI")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Module")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PointOfSaleName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Action")
+                        .HasDatabaseName("IX_AuditLog_Action");
+
+                    b.HasIndex("CodeDEFDGI")
+                        .HasDatabaseName("IX_AuditLog_CodeDEF");
+
+                    b.HasIndex("InvoiceNumber")
+                        .HasDatabaseName("IX_AuditLog_InvNum");
+
+                    b.HasIndex("Module")
+                        .HasDatabaseName("IX_AuditLog_Module");
+
+                    b.HasIndex("Timestamp")
+                        .HasDatabaseName("IX_AuditLog_Timestamp");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_AuditLog_UserId");
+
+                    b.HasIndex("Timestamp", "Module")
+                        .HasDatabaseName("IX_AuditLog_Timestamp_Module");
+
+                    b.ToTable("AuditLog", (string)null);
                 });
 
             modelBuilder.Entity("SFE.Domain.Entities.Client", b =>
@@ -190,6 +332,16 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ISF")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<byte[]>("Logo")
+                        .HasColumnType("BLOB");
+
                     b.Property<decimal>("LoyaltyEarnRate")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -230,11 +382,201 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("Companies", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.DailyReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("ClosingAmountCDF")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ClosingAmountCNY")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ClosingAmountEUR")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ClosingAmountUSD")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<string>("ClosingNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CompanyNIF")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ExpectedCashCDF")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ExpectedCashCNY")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ExpectedCashEUR")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ExpectedCashUSD")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("GrandTotalHT")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("GrandTotalTTC")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("GrandTotalTVA")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ISF")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("IncompleteCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPeriodic")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("OpeningAmountCDF")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("OpeningAmountCNY")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("OpeningAmountEUR")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("OpeningAmountUSD")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<string>("OpeningNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OperatorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PeriodEnd")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PeriodStart")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PrintContent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("RateCNY")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("RateEUR")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("RateUSD")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<int>("ReportNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SessionOpenedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TotalInvoiceCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalItemCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalSpecificTax")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("VarianceCDF")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("VarianceCNY")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("VarianceEUR")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("VarianceUSD")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DailyReports", (string)null);
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.Invoice", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AdvanceAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AdvanceGroupId")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ClientAddress")
                         .IsRequired()
@@ -314,6 +656,9 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ConvertedToInvoiceId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Counters")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -378,6 +723,10 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("OrderTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("OriginalInvoiceId")
                         .HasColumnType("INTEGER");
 
@@ -386,11 +735,21 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ParentInvoiceId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("PointOfSaleId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal>("PreviousAdvancesTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("PriceMode")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ProformaValidUntil")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("QRCodeContent")
                         .IsRequired()
@@ -407,13 +766,30 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("RemainingAfterAdvance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("RemainingBalance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SourceProformaId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal>("TotalAdvancesPaid")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal>("TotalDiscount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalFixedSpecificTax")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalHT")
@@ -421,9 +797,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalHTBeforeDiscount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalPercentSpecificTax")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalSpecificTax")
@@ -446,6 +824,10 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AdvanceGroupId");
+
+                    b.HasIndex("ConvertedToInvoiceId");
+
                     b.HasIndex("CreatedAt");
 
                     b.HasIndex("InvoiceNumber")
@@ -453,9 +835,16 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OriginalInvoiceId");
 
+                    b.HasIndex("ParentInvoiceId");
+
+                    b.HasIndex("SourceProformaId");
+
                     b.HasIndex("Status");
 
                     b.HasIndex("Type");
+
+                    b.HasIndex("Type", "ConvertedToInvoiceId")
+                        .HasFilter("[Type] = 6");
 
                     b.ToTable("Invoices", (string)null);
                 });
@@ -471,6 +860,7 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("AmountHTBeforeDiscount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("AmountTTC")
@@ -490,12 +880,14 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("DiscountType")
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("DiscountValue")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("HasSpecificTax")
@@ -520,7 +912,7 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("PriceModification")
-                        .HasMaxLength(100)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("ProductId")
@@ -532,15 +924,18 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("SpecificTaxName")
                         .IsRequired()
+                        .HasMaxLength(80)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("SpecificTaxRate")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("SpecificTaxType")
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("SpecificTaxValue")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TaxApplicationMode")
@@ -572,14 +967,23 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitPriceHT")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitPriceTTC")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ArticleId");
+
                     b.HasIndex("InvoiceId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("InvoiceId", "LineNumber")
+                        .IsUnique();
 
                     b.ToTable("InvoiceLines", (string)null);
                 });
@@ -706,6 +1110,16 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AllowNegativeStock")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("AutoPrintReceipt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("CashDrawerPin")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("City")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -736,8 +1150,27 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("EnableCashDrawer")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("EnableCustomerDisplay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastConnectionTestAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastKnownNIF")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastKnownNIM")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("ManagesStock")
                         .HasColumnType("INTEGER");
@@ -747,8 +1180,14 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(115200);
 
+                    b.Property<DateTime?>("McfLastServerConnection")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("McfPortName")
                         .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("McfServerStatus")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -756,10 +1195,44 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("PaperWidthMm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(80);
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("PrintCopies")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
+                    b.Property<bool>("PrintLogo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("PrinterCodePage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(858);
+
+                    b.Property<string>("ReceiptFooterText")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Merci pour votre achat !");
+
+                    b.Property<string>("ThermalPrinterName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
 
                     b.HasKey("Id");
 
@@ -976,6 +1449,96 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("ProductCategories", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.ReportInvoiceTypeSummary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DailyReportId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("InvoiceType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalHT")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalSpecificTax")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalTTC")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalTVA")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("ReportInvoiceTypeSummaries", (string)null);
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.ReportPaymentSummary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DailyReportId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("InvoiceCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PaymentType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("ReportPaymentSummaries", (string)null);
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.ReportTaxGroupDetail", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DailyReportId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("InvoiceType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("TaxGroup")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TaxableAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("ReportTaxGroupDetails", (string)null);
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -1181,13 +1744,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AssignedPosIds")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("[]");
-
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1204,6 +1760,9 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("PointOfSaleId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("RoleId")
                         .HasColumnType("INTEGER");
 
@@ -1214,6 +1773,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PointOfSaleId");
+
                     b.HasIndex("RoleId");
 
                     b.HasIndex("Username")
@@ -1222,13 +1783,46 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.ArticleReportLine", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.DailyReport", "DailyReport")
+                        .WithMany("ArticleLines")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DailyReport");
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.Invoice", b =>
                 {
+                    b.HasOne("SFE.Domain.Entities.Invoice", "ConvertedToInvoice")
+                        .WithMany()
+                        .HasForeignKey("ConvertedToInvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SFE.Domain.Entities.Invoice", "OriginalInvoice")
                         .WithMany()
-                        .HasForeignKey("OriginalInvoiceId");
+                        .HasForeignKey("OriginalInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SFE.Domain.Entities.Invoice", "ParentInvoice")
+                        .WithMany("ChildInvoices")
+                        .HasForeignKey("ParentInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SFE.Domain.Entities.Invoice", "SourceProforma")
+                        .WithMany()
+                        .HasForeignKey("SourceProformaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ConvertedToInvoice");
 
                     b.Navigation("OriginalInvoice");
+
+                    b.Navigation("ParentInvoice");
+
+                    b.Navigation("SourceProforma");
                 });
 
             modelBuilder.Entity("SFE.Domain.Entities.InvoiceLine", b =>
@@ -1319,6 +1913,39 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.ReportInvoiceTypeSummary", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.DailyReport", "DailyReport")
+                        .WithMany("InvoiceTypeSummaries")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DailyReport");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.ReportPaymentSummary", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.DailyReport", "DailyReport")
+                        .WithMany("PaymentSummaries")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DailyReport");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.ReportTaxGroupDetail", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.DailyReport", "DailyReport")
+                        .WithMany("TaxGroupDetails")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DailyReport");
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.StockMovement", b =>
                 {
                     b.HasOne("SFE.Domain.Entities.PointOfSale", "PointOfSale")
@@ -1378,11 +2005,18 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SFE.Domain.Entities.User", b =>
                 {
+                    b.HasOne("SFE.Domain.Entities.PointOfSale", "PointOfSale")
+                        .WithMany("Operators")
+                        .HasForeignKey("PointOfSaleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SFE.Domain.Entities.Role", "Role")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("PointOfSale");
 
                     b.Navigation("Role");
                 });
@@ -1397,8 +2031,21 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Navigation("PointsOfSale");
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.DailyReport", b =>
+                {
+                    b.Navigation("ArticleLines");
+
+                    b.Navigation("InvoiceTypeSummaries");
+
+                    b.Navigation("PaymentSummaries");
+
+                    b.Navigation("TaxGroupDetails");
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.Invoice", b =>
                 {
+                    b.Navigation("ChildInvoices");
+
                     b.Navigation("Lines");
 
                     b.Navigation("Payments");
@@ -1411,6 +2058,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SFE.Domain.Entities.PointOfSale", b =>
                 {
+                    b.Navigation("Operators");
+
                     b.Navigation("PosStocks");
 
                     b.Navigation("StockMovements");

@@ -79,6 +79,7 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private decimal _advancesTotalPaid;
     [ObservableProperty] private bool _showAdvanceSection;
     public ObservableCollection<AdvanceInvoiceSummary> PreviousAdvances { get; } = new();
+    [ObservableProperty] private string _advanceAmountInput = "";
 
     // ══════ SAISIE ARTICLE ══════
     [ObservableProperty] private string _articleSearch = "";
@@ -168,6 +169,13 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private bool _showPendingSuccess;
     [ObservableProperty] private bool _showPendingError;
     [ObservableProperty] private bool _showPendingSection;
+
+    // ══════ PROFORMA ══════
+    [ObservableProperty] private bool _isProforma;
+    [ObservableProperty] private DateTime? _proformaValidUntil = DateTime.Today.AddDays(30);
+    [ObservableProperty] private bool _showProformaSection;
+
+    public bool IsFiscalInvoice => !IsProforma;
     public ObservableCollection<PendingInvoiceItem> PendingInvoices { get; } = new();
     public bool HasPendingInvoices => PendingInvoiceCount > 0;
 
@@ -294,13 +302,13 @@ public partial class InvoicingViewModel : BaseViewModel,
         {
             ArticleUnitPrice = SelectedCurrency == Currency.CDF
                 ? product.UnitPriceTtcCdf.ToString("F2")
-                : product.UnitPriceTtcUsd.ToString("F4");
+                : product.UnitPriceTtcUsd.ToString("F2");
         }
         else
         {
             ArticleUnitPrice = SelectedCurrency == Currency.CDF
                 ? product.UnitPriceHtCdf.ToString("F2")
-                : product.UnitPriceHtUsd.ToString("F4");
+                : product.UnitPriceTtcUsd.ToString("F2");
         }
 
         ArticleUnit = product.Unit;
@@ -326,7 +334,9 @@ public partial class InvoicingViewModel : BaseViewModel,
     {
         IsCreditNote = value == InvoiceType.FA || value == InvoiceType.EA;
         IsAdvanceInvoice = value == InvoiceType.FT || value == InvoiceType.ET;
+        IsProforma = value == InvoiceType.PRO;
         ShowAdvanceSection = IsAdvanceInvoice;
+        ShowProformaSection = IsProforma;
 
         if (!IsCreditNote)
         {
@@ -338,6 +348,7 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         OnPropertyChanged(nameof(IsRRR));
         OnPropertyChanged(nameof(RequiresOriginalLookup));
+        OnPropertyChanged(nameof(IsFiscalInvoice));
 
         _ = GenerateNewInvoiceNumber();
     }
@@ -503,8 +514,9 @@ public partial class InvoicingViewModel : BaseViewModel,
             return;
         }
 
-        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(
-            SelectedInvoiceType, SelectedPointOfSale.Id);
+        InvoiceNumber = SelectedInvoiceType == InvoiceType.PRO
+            ? await _invoiceService.GenerateProformaNumberAsync(SelectedPointOfSale.Id)
+            : await _invoiceService.GenerateInvoiceNumberAsync(SelectedInvoiceType, SelectedPointOfSale.Id);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -551,8 +563,8 @@ public partial class InvoicingViewModel : BaseViewModel,
             return;
         }
 
-        unitPrice = Math.Round(unitPrice, 2);
-        quantity = Math.Round(quantity, 3);
+        unitPrice = Math.Round(unitPrice, 2, MidpointRounding.AwayFromZero);
+        quantity = Math.Round(quantity, 3, MidpointRounding.AwayFromZero);
 
         var taxRate = TaxCalculator.GetDefaultRate(ArticleTaxGroup);
 
@@ -991,15 +1003,20 @@ public partial class InvoicingViewModel : BaseViewModel,
     {
         decimal amount;
         if (string.IsNullOrWhiteSpace(PaymentAmount))
-            amount = Remaining;
-        else if (!decimal.TryParse(PaymentAmount, out amount) || amount <= 0)
         {
-            StatusMessage = "Le montant du paiement doit être positif.";
+            amount = Remaining;
+        }
+        else if (!DecimalParsingHelper.TryParseFlexible(PaymentAmount, out amount) || amount <= 0)
+        {
+            StatusMessage = "Le montant du paiement doit être un nombre positif.";
             ShowError = true;
             return;
         }
 
         if (amount <= 0) return;
+
+        // Spec 1.5.2 — amounts rounded to 2 decimals max
+        amount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
 
         PaymentItems.Add(new PaymentDisplayItem
         {
@@ -1045,25 +1062,89 @@ public partial class InvoicingViewModel : BaseViewModel,
         IsBusy = true;
         ShowError = false;
         ShowSuccess = false;
-        StatusMessage = "Normalisation en cours...";
+
+
+
+
 
         try
         {
-            if (PaymentItems.Count == 0 || Remaining > 0)
+
+            // ─── 🆕 BRANCHE PROFORMA ───
+            if (IsProforma)
             {
-                if (Remaining > 0)
+                StatusMessage = "Sauvegarde de la proforma…";
+
+                var proforma = BuildInvoiceEntity();
+                proforma.ProformaValidUntil = ProformaValidUntil;
+
+                var proResult = await _invoiceService.SaveProformaAsync(proforma);
+
+                if (proResult.Success)
                 {
-                    PaymentItems.Add(new PaymentDisplayItem
+                    IsNormalized = true;  // verrouille le formulaire
+                    StatusMessage = $"✓ Proforma enregistrée — {proforma.InvoiceNumber}";
+                    ShowSuccess = true;
+                }
+                else
+                {
+                    StatusMessage = proResult.ErrorMessage ?? "Erreur inconnue";
+                    ShowError = true;
+                }
+                return;
+            }
+
+            StatusMessage = "Normalisation en cours...";
+
+            // 🆕 Acompte (FT/ET) : le client paie un montant partiel ; on n'auto-complète PAS le solde.
+            decimal advanceAmount = 0m;
+            if (IsAdvanceInvoice)
+            {
+                if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
+                {
+                    StatusMessage = "Veuillez saisir le montant de l'acompte reçu.";
+                    ShowError = true;
+                    IsBusy = false;
+                    return;
+                }
+
+                if (advanceAmount > TotalTTC + 0.01m)
+                {
+                    StatusMessage = $"L'acompte ({advanceAmount:N2}) ne peut pas dépasser le total commandé ({TotalTTC:N2}).";
+                    ShowError = true;
+                    IsBusy = false;
+                    return;
+                }
+
+                // Force payment = exactly the advance received
+                PaymentItems.Clear();
+                PaymentItems.Add(new PaymentDisplayItem
+                {
+                    PaymentType = SelectedPaymentType,
+                    Amount = advanceAmount,
+                    Label = GetPaymentLabel(SelectedPaymentType)
+                });
+                RecalculatePayments();
+            }
+            else
+            {
+                // FV/EV/FA/EA : auto-complète le solde si l'utilisateur n'a rien saisi
+                if (PaymentItems.Count == 0 || Remaining > 0)
+                {
+                    if (Remaining > 0)
                     {
-                        PaymentType = PaymentType.Especes,
-                        Amount = Remaining,
-                        Label = "Espèces"
-                    });
-                    RecalculatePayments();
+                        PaymentItems.Add(new PaymentDisplayItem
+                        {
+                            PaymentType = PaymentType.Especes,
+                            Amount = Remaining,
+                            Label = "Espèces"
+                        });
+                        RecalculatePayments();
+                    }
                 }
             }
 
-            var invoice = BuildInvoiceEntity();
+            var invoice = BuildInvoiceEntity(advanceAmount);
             var result = await _invoiceService.NormalizeInvoiceAsync(invoice);
 
             if (result.Success)
@@ -1082,6 +1163,19 @@ public partial class InvoicingViewModel : BaseViewModel,
 
                 StatusMessage = $"✓ Facture normalisée — {result.CodeDEFDGI}";
                 ShowSuccess = true;
+
+                // 🆕 Auto-print ORIGINAL — best-effort, doesn't block UI on failure
+                bool printed = await PrintNormalizedInvoiceAsync(result.InvoiceId);
+                if (printed)
+                {
+                    StatusMessage = $"✓ Facture normalisée et imprimée — {result.CodeDEFDGI}";
+                }
+                else
+                {
+                    // Don't override the success message; just log a soft warning
+                    System.Diagnostics.Debug.WriteLine(
+                        "[Normalize] Auto-print failed; user can reprint from history.");
+                }
             }
             else
             {
@@ -1131,6 +1225,7 @@ public partial class InvoicingViewModel : BaseViewModel,
         PreviousAdvances.Clear();
         AdvanceGroupId = "";
         AdvancesTotalPaid = 0;
+        AdvanceAmountInput = "";   // 🆕
 
         SelectedClientId = null;
         ClientSearchText = "";
@@ -1148,13 +1243,85 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         await GenerateNewInvoiceNumber();
         CurrentDateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+
+        ProformaValidUntil = DateTime.Today.AddDays(30);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  🆕 IMPRESSION AUTOMATIQUE APRÈS NORMALISATION
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Enregistre un tirage (ORIGINAL pour 1er, DUPLICATA pour suivants),
+    /// reconstruit le ViewModel de document et lance l'impression PDF.
+    /// </summary>
+    private async Task<bool> PrintNormalizedInvoiceAsync(int invoiceId)
+    {
+        try
+        {
+            // 1️⃣ Atomically register print (1 = ORIGINAL)
+            int printNo;
+            try
+            {
+                printNo = await _invoiceService.RegisterPrintAsync(invoiceId);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AutoPrint] RegisterPrint failed: {ex.Message}");
+                printNo = 1;
+            }
+
+            // 2️⃣ Reload invoice with all details
+            var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(invoiceId);
+            if (invoice == null) return false;
+
+            // 3️⃣ Load company / POS / settings
+            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+
+            PointOfSale? pos = null;
+            if (invoice.PointOfSaleId > 0)
+                pos = await _unitOfWork.GetRepository<PointOfSale>()
+                    .GetByIdAsync(invoice.PointOfSaleId);
+
+            decimal exchangeRate = ExchangeRate;
+            try
+            {
+                var settings = await _unitOfWork.AppSettings.GetCurrentAsync();
+                if (settings != null && settings.CurrentExchangeRate > 0)
+                    exchangeRate = settings.CurrentExchangeRate;
+            }
+            catch { /* non-blocking */ }
+
+            byte[]? logoBytes = company?.Logo;
+
+            // 4️⃣ Build the document VM
+            var vm = InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
+            if (vm == null) return false;
+
+            vm.SourceInvoice = invoice;
+            vm.SourceCompany = company;
+            vm.SourcePos = pos;
+            vm.SourceExchangeRate = exchangeRate;
+            vm.SourceLogoBytes = logoBytes;
+            vm.PrintNumber = printNo;
+
+            // 5️⃣ Send to system viewer (which lets the user pick a printer)
+            InvoicePrintHelper.Print(vm);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AutoPrint] Failed: {ex.Message}");
+            return false;
+        }
     }
 
     // ══════════════════════════════════════════════════════════
     //  CONSTRUCTION DE L'ENTITÉ
     // ══════════════════════════════════════════════════════════
 
-    private Invoice BuildInvoiceEntity()
+    private Invoice BuildInvoiceEntity(decimal advanceAmount = 0m)
     {
         var invoice = new Invoice
         {
@@ -1195,9 +1362,15 @@ public partial class InvoicingViewModel : BaseViewModel,
             invoice.ReferenceDesc = GetCreditNoteDesc(SelectedCreditNoteNature);
         }
 
-        if (IsAdvanceInvoice && !string.IsNullOrWhiteSpace(AdvanceGroupId))
+        if (IsAdvanceInvoice)
         {
-            invoice.AdvanceGroupId = AdvanceGroupId;
+            if (!string.IsNullOrWhiteSpace(AdvanceGroupId))
+                invoice.AdvanceGroupId = AdvanceGroupId;
+
+            invoice.OrderTotal = TotalTTC;                  // total commandé (avant scaling)
+            invoice.AdvanceAmount = advanceAmount;          // acompte effectivement reçu
+            invoice.PreviousAdvancesTotal = AdvancesTotalPaid;  // somme des FT antérieurs
+                                                                // RemainingAfterAdvance sera calculé dans InvoiceService après scaling
         }
 
         // ═══════════════════════════════════════════════════════════════

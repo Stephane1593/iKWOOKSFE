@@ -87,6 +87,9 @@ public partial class InvoiceDocumentViewModel : ObservableObject
     public ObservableCollection<DocPaymentViewModel> Payments { get; } = new();
     public ObservableCollection<TaxBreakdownLine> TaxBreakdown { get; } = new();
 
+    // Add inside InvoiceDocumentViewModel class
+    public int PrintNumber { get; set; } = 1;
+
     // ═══════════════════════════════════════════════════════
     //  FACTORY
     // ═══════════════════════════════════════════════════════

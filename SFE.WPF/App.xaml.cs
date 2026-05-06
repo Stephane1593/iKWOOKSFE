@@ -311,6 +311,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<CustomerDisplayService>();
         services.AddTransient<UserService>();
         services.AddTransient<CategoryService>();
+        services.AddScoped<IInvoiceAdvanceService, InvoiceAdvanceService>();
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();

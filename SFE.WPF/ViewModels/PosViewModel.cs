@@ -140,6 +140,7 @@ public partial class PosViewModel : BaseViewModel,
     [ObservableProperty] private string _advanceGroupId = "";
     [ObservableProperty] private decimal _advancesTotalPaid;
     [ObservableProperty] private bool _showAdvancePanel;
+    [ObservableProperty] private string _advanceAmountInput = "";   
     public ObservableCollection<AdvanceInvoiceSummary> PreviousAdvances { get; } = new();
 
     // ══════ DEVISE ══════
@@ -1231,15 +1232,21 @@ public partial class PosViewModel : BaseViewModel,
     {
         if (PaymentItems.Count > 0)
         { ChangeAmount = Remaining < 0 ? Math.Abs(Remaining) : 0; ShowChange = ChangeAmount > 0; }
-        else if (decimal.TryParse(ReceivedAmount, out var received) && received > TotalTTC)
-        { ChangeAmount = received - TotalTTC; ShowChange = true; }
+        else if (DecimalParsingHelper.TryParseFlexible(ReceivedAmount, out var received) && received > TotalTTC)
+        { ChangeAmount = Math.Round(received - TotalTTC, 2, MidpointRounding.AwayFromZero); ShowChange = true; }
         else { ChangeAmount = 0; ShowChange = false; }
     }
 
-    [RelayCommand] private void SetExactAmount() => ReceivedAmount = TotalTTC.ToString("F0");
+    [RelayCommand]
+    private void SetExactAmount() =>
+        ReceivedAmount = TotalTTC.ToString("F2");
+
     [RelayCommand]
     private void SetRoundedAmount(string amountStr)
-    { if (decimal.TryParse(amountStr, out var amount)) ReceivedAmount = amount.ToString("F0"); }
+    {
+        if (DecimalParsingHelper.TryParseFlexible(amountStr, out var amount))
+            ReceivedAmount = amount.ToString("F2");
+    }
 
     [RelayCommand]
     private void ToggleSplitPayment()
@@ -1249,13 +1256,30 @@ public partial class PosViewModel : BaseViewModel,
     private void AddPayment()
     {
         decimal amount;
-        if (string.IsNullOrWhiteSpace(PaymentAmount)) amount = Remaining;
-        else if (!decimal.TryParse(PaymentAmount, out amount) || amount <= 0)
-        { StatusMessage = "Montant invalide."; ShowError = true; return; }
+        if (string.IsNullOrWhiteSpace(PaymentAmount))
+        {
+            amount = Remaining;
+        }
+        else if (!DecimalParsingHelper.TryParseFlexible(PaymentAmount, out amount) || amount <= 0)
+        {
+            StatusMessage = "Montant invalide.";
+            ShowError = true;
+            return;
+        }
+
         if (amount <= 0) return;
+
+        // Spec 1.5.2 — amounts rounded to 2 decimals max
+        amount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+
         PaymentItems.Add(new PaymentDisplayItem
-        { PaymentType = SelectedPaymentType, Amount = amount, Label = GetPaymentLabel(SelectedPaymentType) });
-        PaymentAmount = ""; RecalculatePayments();
+        {
+            PaymentType = SelectedPaymentType,
+            Amount = amount,
+            Label = GetPaymentLabel(SelectedPaymentType)
+        });
+        PaymentAmount = "";
+        RecalculatePayments();
     }
 
     [RelayCommand]
@@ -1278,18 +1302,55 @@ public partial class PosViewModel : BaseViewModel,
         ClearStatus(); IsBusy = true; StatusMessage = "Normalisation en cours...";
         try
         {
-            decimal paidAmount = TotalTTC;
-            if (PaymentItems.Count > 0)
-            {
-                if (Remaining > 0.01m)
-                { PaymentItems.Add(new PaymentDisplayItem { PaymentType = PaymentType.Especes, Amount = Remaining, Label = "Espèces" }); RecalculatePayments(); }
-                paidAmount = TotalPaid;
-            }
-            else if (decimal.TryParse(ReceivedAmount, out var received) && received >= TotalTTC) paidAmount = received;
-            else if (string.IsNullOrWhiteSpace(ReceivedAmount)) paidAmount = TotalTTC;
-            else { StatusMessage = "Le montant reçu est insuffisant."; ShowError = true; IsBusy = false; return; }
+            decimal paidAmount;
+            decimal advanceAmount = 0m;
 
-            var invoice = BuildInvoice(paidAmount);
+            if (IsAdvanceInvoice)
+            {
+                // 🆕 Acompte : montant exact reçu, pas d'auto-complétion
+                if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
+                {
+                    StatusMessage = "Veuillez saisir le montant de l'acompte reçu.";
+                    ShowError = true;
+                    IsBusy = false;
+                    return;
+                }
+                if (advanceAmount > TotalTTC + 0.01m)
+                {
+                    StatusMessage = $"L'acompte ({advanceAmount:N2}) ne peut pas dépasser le total commandé ({TotalTTC:N2}).";
+                    ShowError = true;
+                    IsBusy = false;
+                    return;
+                }
+
+                PaymentItems.Clear();
+                PaymentItems.Add(new PaymentDisplayItem
+                {
+                    PaymentType = SelectedPaymentType,
+                    Amount = advanceAmount,
+                    Label = GetPaymentLabel(SelectedPaymentType)
+                });
+                RecalculatePayments();
+                paidAmount = advanceAmount;
+            }
+            else
+            {
+                paidAmount = TotalTTC;
+                if (PaymentItems.Count > 0)
+                {
+                    if (Remaining > 0.01m)
+                    {
+                        PaymentItems.Add(new PaymentDisplayItem { PaymentType = PaymentType.Especes, Amount = Remaining, Label = "Espèces" });
+                        RecalculatePayments();
+                    }
+                    paidAmount = TotalPaid;
+                }
+                else if (DecimalParsingHelper.TryParseFlexible(ReceivedAmount, out var received) && received >= TotalTTC) paidAmount = received;
+                else if (string.IsNullOrWhiteSpace(ReceivedAmount)) paidAmount = TotalTTC;
+                else { StatusMessage = "Le montant reçu est insuffisant."; ShowError = true; IsBusy = false; return; }
+            }
+
+            var invoice = BuildInvoice(paidAmount, advanceAmount);
             var result = await _invoiceService.NormalizeInvoiceAsync(invoice);
 
             if (result.Success)
@@ -1435,6 +1496,7 @@ public partial class PosViewModel : BaseViewModel,
         _loadedOriginalInvoice = null; _cumulativeRefunded.Clear(); CreditNoteSelections.Clear();
         OriginalReference = ""; ShowCreditNotePanel = false;
         IsAdvanceInvoice = false; AdvanceGroupId = ""; AdvancesTotalPaid = 0;
+        AdvanceAmountInput = "";
         PreviousAdvances.Clear(); ShowAdvancePanel = false;
         CommentA = ""; CommentB = ""; CommentC = ""; CommentD = "";
         CommentE = ""; CommentF = ""; CommentG = ""; CommentH = "";
@@ -1465,7 +1527,7 @@ public partial class PosViewModel : BaseViewModel,
     //  BUILD INVOICE
     // ══════════════════════════════════════════════════════════
 
-    private Invoice BuildInvoice(decimal paidAmount)
+    private Invoice BuildInvoice(decimal paidAmount, decimal advanceAmount = 0m)
     {
         var invoice = new Invoice
         {
@@ -1505,8 +1567,15 @@ public partial class PosViewModel : BaseViewModel,
             invoice.ReferenceType = SelectedCreditNoteNature.ToString();
             invoice.ReferenceDesc = GetCreditNoteDesc(SelectedCreditNoteNature);
         }
-        if (IsAdvanceInvoice && !string.IsNullOrWhiteSpace(AdvanceGroupId))
-            invoice.AdvanceGroupId = AdvanceGroupId;
+        if (IsAdvanceInvoice)
+        {
+            if (!string.IsNullOrWhiteSpace(AdvanceGroupId))
+                invoice.AdvanceGroupId = AdvanceGroupId;
+
+            invoice.OrderTotal = TotalTTC;
+            invoice.AdvanceAmount = advanceAmount;
+            invoice.PreviousAdvancesTotal = AdvancesTotalPaid;
+        }
 
         // ═══════════════════════════════════════════════════════════════
         //  V6 FIX : Les valeurs du ViewModel sont désormais correctes.

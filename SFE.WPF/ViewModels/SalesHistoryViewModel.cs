@@ -9,12 +9,17 @@ using SFE.WPF.Helpers;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using SFE.Application.Services;
+using System.Windows.Media;
+using MediaColor = System.Windows.Media.Color;
 
 namespace SFE.WPF.ViewModels;
 
 public partial class SalesHistoryViewModel : BaseViewModel
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly InvoiceService _invoiceService;
+    private readonly IAuthService _auth;
 
     // ══════════════════════ RESULTS ══════════════════════
     public ObservableCollection<InvoiceListItemViewModel> Invoices { get; } = new();
@@ -87,6 +92,12 @@ public partial class SalesHistoryViewModel : BaseViewModel
     [ObservableProperty] private bool _showError;
     [ObservableProperty] private bool _noResults;
 
+    // ══════════════════════ PRINT STATUS (detail panel) ══════
+    [ObservableProperty] private string _detailPrintStatus = "";
+    [ObservableProperty] private string _detailPrintBadge = "";
+    [ObservableProperty] private Brush _detailPrintBadgeFg = Brushes.Gray;
+    [ObservableProperty] private Brush _detailPrintBadgeBg = Brushes.Transparent;
+
     // ══════════════════════ COMBOS ═══════════════════════
     public InvoiceType?[] FilterTypes { get; } =
     {
@@ -112,11 +123,56 @@ public partial class SalesHistoryViewModel : BaseViewModel
     //  CTOR
     // ═════════════════════════════════════════════════════
 
-    public SalesHistoryViewModel(IUnitOfWork unitOfWork)
+    public SalesHistoryViewModel(IUnitOfWork unitOfWork,InvoiceService invoiceService, IAuthService auth)
     {
         _unitOfWork = unitOfWork;
+        _invoiceService = invoiceService;
+        _auth = auth;
         PageTitle = "Journal des ventes";
         _ = InitializeAsync();
+    }
+
+    [RelayCommand]
+    private async Task ConvertProforma(InvoiceListItemViewModel? item)
+    {
+        if (item == null || !item.IsConvertibleProforma) return;
+
+        var dlg = new SFE.WPF.Views.Pages.ConvertProformaDialog(item.InvoiceNumber, item.TotalTTC)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        IsBusy = true;
+        ClearStatus();
+
+        try
+        {
+            var result = await _invoiceService.ConvertProformaAsync(
+                proformaId: item.InvoiceId,
+                targetType: dlg.SelectedType,
+                operatorName: _auth.CurrentUser?.FullName ?? "—",
+                operatorId: _auth.CurrentUser?.Id.ToString() ?? "01",
+                advanceAmount: dlg.AdvanceAmount);
+
+            if (result.Success)
+            {
+                StatusMessage = $"✓ Proforma convertie en {dlg.SelectedType} — Code DEF: {result.CodeDEFDGI}";
+                ShowSuccess = true;
+                await SearchInvoicesAsync();
+            }
+            else
+            {
+                StatusMessage = result.ErrorMessage ?? "Échec de la conversion.";
+                ShowError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur : {ex.Message}";
+            ShowError = true;
+        }
+        finally { IsBusy = false; }
     }
 
     private async Task InitializeAsync()
@@ -299,8 +355,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
             var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
             if (invoice == null) return;
 
-            // Shared builder — single source of truth
-            DocumentViewModel = await BuildDocumentViewModelAsync(invoice);
+            // ✅ APRÈS — preview only, doesn't burn a tirage number
+            DocumentViewModel = await BuildDocumentViewModelAsync(invoice, printNumber: null);
 
             // Populate detail panel header
             DetailTypeLabel = invoice.Type.Label();
@@ -310,6 +366,35 @@ public partial class SalesHistoryViewModel : BaseViewModel
             DetailClient = invoice.ClientName ?? "Client comptoir";
             DetailClientNIF = invoice.ClientNIF ?? "—";
             DetailCodeDEF = invoice.CodeDEFDGI ?? "—";
+
+            // 🆕 Print status
+            DetailPrintBadge = invoice.PrintCount switch
+            {
+                0 => "JAMAIS IMPRIMÉE",
+                1 => "ORIGINAL",
+                _ => $"DUPLICATA ×{invoice.PrintCount - 1}"
+            };
+
+            DetailPrintStatus = invoice.PrintCount switch
+            {
+                0 => "Aucun tirage enregistré",
+                1 => $"Original imprimé le {invoice.FirstPrintedAt:dd/MM/yyyy 'à' HH:mm}",
+                _ => $"{invoice.PrintCount} tirages · dernier {invoice.LastPrintedAt:dd/MM/yyyy 'à' HH:mm}"
+            };
+
+            DetailPrintBadgeFg = invoice.PrintCount switch
+            {
+                0 => new SolidColorBrush(MediaColor.FromRgb(0x94, 0xA3, 0xB8)),
+                1 => new SolidColorBrush(MediaColor.FromRgb(0x05, 0x96, 0x69)),
+                _ => new SolidColorBrush(MediaColor.FromRgb(0xC6, 0x28, 0x28))
+            };
+
+            DetailPrintBadgeBg = invoice.PrintCount switch
+            {
+                0 => new SolidColorBrush(MediaColor.FromArgb(0x1A, 0x94, 0xA3, 0xB8)),
+                1 => new SolidColorBrush(MediaColor.FromArgb(0x1A, 0x05, 0x96, 0x69)),
+                _ => new SolidColorBrush(MediaColor.FromArgb(0x1A, 0xC6, 0x28, 0x28))
+            };
 
             DetailTotalHT = invoice.TotalHT.ToString("N0") + " CDF";
             DetailTotalTVA = invoice.TotalTVA.ToString("N0") + " CDF";
@@ -372,11 +457,13 @@ public partial class SalesHistoryViewModel : BaseViewModel
     //  PRINT / EXPORT / COPY  (FIXED)
     // ═════════════════════════════════════════════════════
 
-    /// <summary>Build a full InvoiceDocumentViewModel for the given invoice,
-    /// loading company + POS + exchange rate consistently.</summary>
-    /// <summary>Build a full InvoiceDocumentViewModel, storing raw data
-    /// for both on-screen display AND native QuestPDF PDF generation.</summary>
-    private async Task<InvoiceDocumentViewModel?> BuildDocumentViewModelAsync(Invoice invoice)
+    /// <summary>Build a full InvoiceDocumentViewModel for the given invoice.</summary>
+    /// <param name="printNumber">
+    /// Numéro de tirage à imprimer sur le PDF (1 = ORIGINAL, ≥2 = DUPLICATA N°x).
+    /// Null = utilise la valeur actuelle de Invoice.PrintCount + 1 sans incrémenter (preview).
+    /// </param>
+    private async Task<InvoiceDocumentViewModel?> BuildDocumentViewModelAsync(
+        Invoice invoice, int? printNumber = null)
     {
         var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
 
@@ -393,72 +480,110 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
         catch { /* non-blocking */ }
 
-        // — Load company logo bytes —
         byte[]? logoBytes = null;
         try
         {
             if (company != null && company.Logo != null && company.Logo.Length > 0)
-            {
                 logoBytes = company.Logo;
-            }
         }
         catch { /* non-blocking */ }
 
-        // ── Create the view-model (for on-screen WPF display) ──
         var vm = InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
 
         if (vm != null)
         {
-            // ── Attach raw source data for QuestPDF native PDF generation ──
             vm.SourceInvoice = invoice;
             vm.SourceCompany = company;
             vm.SourcePos = pos;
             vm.SourceExchangeRate = exchangeRate;
             vm.SourceLogoBytes = logoBytes;
+
+            // 🆕 Print marker — peek (no DB write) by default
+            vm.PrintNumber = printNumber ?? Math.Max(1, invoice.PrintCount + 1);
         }
 
         return vm;
     }
 
     [RelayCommand]
-    private void PrintInvoice()
+    private async Task PrintInvoice()
     {
-        if (DocumentViewModel == null) return;
+        if (DocumentViewModel?.SourceInvoice == null) return;
         ClearStatus();
+        IsBusy = true;
 
         try
         {
-            InvoicePrintHelper.Print(DocumentViewModel);
-            StatusMessage = $"✓ Document ouvert pour impression — {DocumentViewModel.InvoiceNumber}";
+            // 🆕 Register a new tirage (DUPLICATA on subsequent calls)
+            var vm = await RegisterPrintAndBuildVmAsync(DocumentViewModel.SourceInvoice.Id);
+            if (vm == null)
+            {
+                StatusMessage = "Impossible de préparer le document.";
+                ShowError = true;
+                return;
+            }
+
+            // Refresh the on-screen VM so the panel reflects the new print count
+            DocumentViewModel = vm;
+
+            InvoicePrintHelper.Print(vm);
+
+            var marker = vm.PrintNumber <= 1 ? "Original" : $"Duplicata N°{vm.PrintNumber - 1}";
+            StatusMessage = $"✓ {marker} — {vm.InvoiceNumber}";
             ShowSuccess = true;
+
+            // Refresh list row so PrintCount badge updates
+            await RefreshSelectedRowAsync();
         }
         catch (Exception ex)
         {
             StatusMessage = $"Erreur impression : {ex.Message}";
             ShowError = true;
         }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand]
-    private void ExportPdf()
+    private async Task ExportPdf()
     {
-        if (DocumentViewModel == null) return;
+        if (DocumentViewModel?.SourceInvoice == null) return;
         ClearStatus();
+        IsBusy = true;
 
         try
         {
-            if (InvoicePrintHelper.ExportPdf(DocumentViewModel))
+            var invoiceId = DocumentViewModel.SourceInvoice.Id;
+
+            // Peek the future print number (no DB write yet)
+            int peekNo = await _invoiceService.PeekPrintNumberAsync(invoiceId);
+            var inv = await _unitOfWork.Invoices.GetWithDetailsAsync(invoiceId);
+            if (inv == null) { StatusMessage = "Facture introuvable."; ShowError = true; return; }
+
+            var vm = await BuildDocumentViewModelAsync(inv, peekNo);
+            if (vm == null) { StatusMessage = "Impossible de préparer le document."; ShowError = true; return; }
+
+            // ExportPdf returns false if user cancelled the SaveFileDialog
+            if (InvoicePrintHelper.ExportPdf(vm))
             {
-                StatusMessage = $"✓ Export réussi — {DocumentViewModel.InvoiceNumber}";
+                // 🆕 Only commit the tirage if the file was actually saved
+                try { await _invoiceService.RegisterPrintAsync(invoiceId); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[Export] RegisterPrint failed: {ex.Message}"); }
+
+                DocumentViewModel = vm;
+                var marker = vm.PrintNumber <= 1 ? "Original" : $"Duplicata N°{vm.PrintNumber - 1}";
+                StatusMessage = $"✓ Export réussi ({marker}) — {vm.InvoiceNumber}";
                 ShowSuccess = true;
+
+                await RefreshSelectedRowAsync();
             }
-            // else: user cancelled the SaveFileDialog — do nothing
+            // else: user cancelled — silent
         }
         catch (Exception ex)
         {
             StatusMessage = $"Erreur export : {ex.Message}";
             ShowError = true;
         }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand]
@@ -470,25 +595,23 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
         try
         {
-            var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
-            if (invoice == null)
-            {
-                StatusMessage = "Facture introuvable.";
-                ShowError = true;
-                return;
-            }
-
-            var vm = await BuildDocumentViewModelAsync(invoice);
+            // 🆕 Atomically issue a new tirage (will be DUPLICATA N°x for already-printed invoices)
+            var vm = await RegisterPrintAndBuildVmAsync(item.InvoiceId);
             if (vm == null)
             {
-                StatusMessage = "Impossible de construire le document.";
+                StatusMessage = "Facture introuvable ou impossible à charger.";
                 ShowError = true;
                 return;
             }
 
             InvoicePrintHelper.Print(vm);
-            StatusMessage = $"✓ Document ouvert — {invoice.InvoiceNumber}";
+
+            var marker = vm.PrintNumber <= 1 ? "Original" : $"Duplicata N°{vm.PrintNumber - 1}";
+            StatusMessage = $"✓ {marker} — {vm.InvoiceNumber}";
             ShowSuccess = true;
+
+            // Refresh the row in the list so PrintCount stays accurate
+            await RefreshRowAsync(item);
         }
         catch (Exception ex)
         {
@@ -539,6 +662,51 @@ public partial class SalesHistoryViewModel : BaseViewModel
     {
         if (SelectedPeriodPreset != "Personnalisé")
             SelectedPeriodPreset = "Personnalisé";
+    }
+
+    /// <summary>
+    /// Atomically registers a new tirage (ORIGINAL or DUPLICATA) and rebuilds
+    /// the document VM with the correct print marker.
+    /// </summary>
+    private async Task<InvoiceDocumentViewModel?> RegisterPrintAndBuildVmAsync(int invoiceId)
+    {
+        int printNo;
+        try
+        {
+            printNo = await _invoiceService.RegisterPrintAsync(invoiceId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Print] RegisterPrint failed: {ex.Message}");
+            printNo = 1; // safety: at least produce something
+        }
+
+        var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(invoiceId);
+        if (invoice == null) return null;
+
+        return await BuildDocumentViewModelAsync(invoice, printNo);
+    }
+
+    /// <summary>Refreshes a specific row in the grid (PrintCount, dates, status).</summary>
+    private async Task RefreshRowAsync(InvoiceListItemViewModel item)
+    {
+        try
+        {
+            var fresh = await _unitOfWork.Invoices.GetByIdAsync(item.InvoiceId);
+            if (fresh == null) return;
+
+            item.PrintCount = fresh.PrintCount;
+            item.FirstPrintedAt = fresh.FirstPrintedAt;
+            item.LastPrintedAt = fresh.LastPrintedAt;
+        }
+        catch { /* non-blocking */ }
+    }
+
+    /// <summary>Refreshes the currently selected row.</summary>
+    private async Task RefreshSelectedRowAsync()
+    {
+        if (SelectedInvoice != null)
+            await RefreshRowAsync(SelectedInvoice);
     }
 }
 

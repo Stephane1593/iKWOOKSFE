@@ -110,7 +110,7 @@ public static class EscPosReceiptBuilder
 
         // ═══════ (m)(n)(o) TAX BREAKDOWN PER GROUP ═══════
         WriteTaxBreakdown(ms, invoice, ctx);
-
+        WriteAdvanceBlock(ms, invoice, ctx);
         // ═══════ (t) SPECIFIC TAX ═══════
         if (invoice.TotalSpecificTax > 0)
         {
@@ -166,39 +166,54 @@ public static class EscPosReceiptBuilder
         WriteRow(ms, "ISF", invoice.ISF, ctx);
         WriteRow(ms, "Opérateur", invoice.OperatorName, ctx);
 
-        // ═══════ (x) SECURITY ELEMENTS ═══════
-        if (!string.IsNullOrEmpty(invoice.CodeDEFDGI))
+        // ═══════ SECURITY — never for proforma ═══════
+        if (invoice.Type != InvoiceType.PRO && !string.IsNullOrEmpty(invoice.CodeDEFDGI))
+        {
+            // ═══════ (x) SECURITY ELEMENTS ═══════
+            if (!string.IsNullOrEmpty(invoice.CodeDEFDGI))
+            {
+                WriteDoubleLine(ms, ctx);
+                Write(ms, ALIGN_CENTER);
+                Write(ms, BOLD_ON);
+                WriteText(ms, "── FACTURE NORMALISÉE ──", ctx);
+                Write(ms, BOLD_OFF);
+                Write(ms, LF);
+
+                Write(ms, ALIGN_LEFT);
+                WriteRow(ms, "Code DEF/DGI:", "", ctx);
+                Write(ms, BOLD_ON);
+                WriteText(ms, invoice.CodeDEFDGI, ctx);
+                Write(ms, BOLD_OFF);
+
+                if (!string.IsNullOrEmpty(invoice.NIM))
+                    WriteRow(ms, "NIM", invoice.NIM, ctx);
+                if (!string.IsNullOrEmpty(invoice.Counters))
+                    WriteRow(ms, "Compteurs", invoice.Counters, ctx);
+                if (invoice.NormalizedAt.HasValue)
+                    WriteRow(ms, "Normalisée",
+                        invoice.NormalizedAt.Value.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
+
+                // ── QR CODE ──
+                if (!string.IsNullOrEmpty(invoice.QRCodeContent))
+                {
+                    Write(ms, LF);
+                    Write(ms, ALIGN_CENTER);
+                    WriteQrCode(ms, invoice.QRCodeContent);
+                    Write(ms, LF);
+                }
+            }
+        }
+        else if (invoice.Type == InvoiceType.PRO)
         {
             WriteDoubleLine(ms, ctx);
             Write(ms, ALIGN_CENTER);
-            Write(ms, BOLD_ON);
-            WriteText(ms, "── FACTURE NORMALISÉE ──", ctx);
-            Write(ms, BOLD_OFF);
-            Write(ms, LF);
-
-            Write(ms, ALIGN_LEFT);
-            WriteRow(ms, "Code DEF/DGI:", "", ctx);
-            Write(ms, BOLD_ON);
-            WriteText(ms, invoice.CodeDEFDGI, ctx);
-            Write(ms, BOLD_OFF);
-
-            if (!string.IsNullOrEmpty(invoice.NIM))
-                WriteRow(ms, "NIM", invoice.NIM, ctx);
-            if (!string.IsNullOrEmpty(invoice.Counters))
-                WriteRow(ms, "Compteurs", invoice.Counters, ctx);
-            if (invoice.NormalizedAt.HasValue)
-                WriteRow(ms, "Normalisée",
-                    invoice.NormalizedAt.Value.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
-
-            // ── QR CODE ──
-            if (!string.IsNullOrEmpty(invoice.QRCodeContent))
-            {
-                Write(ms, LF);
-                Write(ms, ALIGN_CENTER);
-                WriteQrCode(ms, invoice.QRCodeContent);
-                Write(ms, LF);
-            }
+            WriteText(ms, "Cette proforma ne tient pas lieu", ctx);
+            WriteText(ms, "de facture fiscale.", ctx);
+            if (invoice.ProformaValidUntil.HasValue)
+                WriteText(ms, $"Valable jusqu'au {invoice.ProformaValidUntil:dd/MM/yyyy}", ctx);
         }
+
+
 
         // ═══════ COMMENTS (if any) ═══════
         WriteComments(ms, invoice, ctx);
@@ -277,6 +292,18 @@ public static class EscPosReceiptBuilder
             InvoiceType.EA => "FACTURE D'AVOIR",
             _ => "FACTURE"
         };
+
+        if (invoice.Type == InvoiceType.PRO)
+        {
+            Write(ms, BOLD_ON);
+            Write(ms, DOUBLE_H_ON);
+            WriteText(ms, "FACTURE PROFORMA", ctx);
+            Write(ms, SIZE_NORMAL);
+            WriteText(ms, "(Document non fiscal)", ctx);
+            Write(ms, BOLD_OFF);
+            WriteDoubleLine(ms, ctx);
+            return;
+        }
 
         WriteText(ms, title, ctx);
         Write(ms, SIZE_NORMAL);
@@ -404,14 +431,14 @@ public static class EscPosReceiptBuilder
             if (ctx.Width >= 48)
             {
                 string detail = $"   {grpLetter}"
-                    + $"  {ln.Quantity,6:G}"
+                    + $"  {Qty(ln.Quantity),6}"
                     + $"  {FmtCompact(unitPrice),9}"
                     + $"  {FmtCompact(ln.AmountTTC),9}";
                 WriteText(ms, detail, ctx);
             }
             else
             {
-                string detail = $"  {grpLetter} {ln.Quantity,4:G} x {FmtCompact(unitPrice),7}"
+                string detail = $"  {grpLetter} {Qty(ln.Quantity),4} x {FmtCompact(unitPrice),7}"
                     + $" = {FmtCompact(ln.AmountTTC),7}";
                 WriteText(ms, detail, ctx);
             }
@@ -466,6 +493,37 @@ public static class EscPosReceiptBuilder
         WriteDashLine(ms, ctx);
         WriteRow(ms, "Total HT", Fmt(invoice.TotalHT), ctx);
         WriteRow(ms, "Total TVA", Fmt(invoice.TotalTVA), ctx);
+    }
+
+    private static void WriteAdvanceBlock(MemoryStream ms, Invoice inv, ReceiptContext ctx)
+    {
+        if (inv.IsAdvanceInvoice)
+        {
+            WriteDoubleLine(ms, ctx);
+            Write(ms, BOLD_ON);
+            WriteText(ms, " DÉTAIL ACOMPTE", ctx);
+            Write(ms, BOLD_OFF);
+            WriteRow(ms, "Total commande", Fmt(inv.OrderTotal), ctx);
+            WriteRow(ms, "Acomptes antérieurs", Fmt(inv.PreviousAdvancesTotal), ctx);
+            WriteRow(ms, "Acompte versé", Fmt(inv.AdvanceAmount), ctx);
+            Write(ms, BOLD_ON);
+            WriteRow(ms, "Reste à percevoir", Fmt(inv.RemainingAfterAdvance), ctx);
+            Write(ms, BOLD_OFF);
+            if (!string.IsNullOrWhiteSpace(inv.AdvanceGroupId))
+                WriteText(ms, $" Réf projet: {inv.AdvanceGroupId}", ctx);
+        }
+        else if (inv.IsFinalWithAdvances)
+        {
+            WriteDoubleLine(ms, ctx);
+            Write(ms, BOLD_ON);
+            WriteText(ms, " SOLDE FINAL APRÈS ACOMPTES", ctx);
+            Write(ms, BOLD_OFF);
+            WriteRow(ms, "Total facturé", Fmt(inv.TotalTTC), ctx);
+            WriteRow(ms, "Acomptes perçus", Fmt(inv.TotalAdvancesPaid), ctx);
+            Write(ms, BOLD_ON);
+            WriteRow(ms, "Solde dû", Fmt(inv.RemainingBalance), ctx);
+            Write(ms, BOLD_OFF);
+        }
     }
 
     private static void WriteComments(
@@ -678,11 +736,14 @@ public static class EscPosReceiptBuilder
     }
 
     // ═══════════════════════════════════════════════════════
-    //  FORMATTING & LABEL HELPERS
+    //  FORMATTING  — DGI §1.5.1 / §1.5.2
     // ═══════════════════════════════════════════════════════
+    private static readonly System.Globalization.CultureInfo FR =
+        System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
 
-    private static string Fmt(decimal v) => v.ToString("N0");
-    private static string FmtCompact(decimal v) => v.ToString("N0");
+    private static string Fmt(decimal v) => v.ToString("N2", FR); // money 2 dec
+    private static string FmtCompact(decimal v) => v.ToString("N2", FR); // narrow inline
+    private static string Qty(decimal v) => v.ToString("0.###", FR); // qty 3 dec trim
 
     private static decimal GetEffectiveUnitPrice(InvoiceLine ln, PriceMode mode)
         => mode == PriceMode.TTC ? ln.UnitPriceTTC : ln.UnitPriceHT;
