@@ -30,6 +30,34 @@ public static class EscPosReceiptBuilder
     private static readonly byte[] LF = { 0x0A };
 
     // ═══════════════════════════════════════════════════════
+    //  FORMATTING CULTURE — single source of truth
+    // ═══════════════════════════════════════════════════════
+    //
+    //  We use InvariantCulture (thousands = ',', decimal = '.') because:
+    //   • fr-FR uses a NON-BREAKING SPACE (U+00A0) as thousand separator,
+    //     which renders as garbage glyphs ('.', 'á', '?') under CP437/850/858.
+    //   • '.' + ',' render identically across every thermal code page.
+    //   • It eliminates ambiguity ("31,000" read as "31 francs").
+    //
+    //  EVERY amount on the receipt MUST go through Fmt() / FmtCompact() / Qty().
+    //  EVERY numeric ToString() MUST pass MONEY explicitly.
+    //
+    private static readonly System.Globalization.CultureInfo MONEY =
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    /// <summary>Money: always 2 decimals with thousand separators. e.g. 31,000.00</summary>
+    private static string Fmt(decimal v) => v.ToString("N2", MONEY);
+
+    /// <summary>Narrow money (same as Fmt — kept for column-layout clarity).</summary>
+    private static string FmtCompact(decimal v) => v.ToString("N2", MONEY);
+
+    /// <summary>Quantity: up to 3 decimals, zeros trimmed. e.g. 2, 2.5, 2.125</summary>
+    private static string Qty(decimal v) => v.ToString("N3", MONEY);
+
+    /// <summary>Percentage rate: 2 decimals. e.g. 16.00</summary>
+    private static string Rate(decimal v) => v.ToString("0.00", MONEY);
+
+    // ═══════════════════════════════════════════════════════
     //  RECEIPT CONTEXT — POS-specific print settings
     // ═══════════════════════════════════════════════════════
 
@@ -111,6 +139,7 @@ public static class EscPosReceiptBuilder
         // ═══════ (m)(n)(o) TAX BREAKDOWN PER GROUP ═══════
         WriteTaxBreakdown(ms, invoice, ctx);
         WriteAdvanceBlock(ms, invoice, ctx);
+
         // ═══════ (t) SPECIFIC TAX ═══════
         if (invoice.TotalSpecificTax > 0)
         {
@@ -139,8 +168,8 @@ public static class EscPosReceiptBuilder
         {
             WriteDashLine(ms, ctx);
             decimal usd = Math.Round(invoice.TotalTTC / exchangeRate, 2);
-            WriteRow(ms, "Taux de change", $"1 USD = {exchangeRate:N2} CDF", ctx);
-            WriteRow(ms, "Montant USD", $"{usd:N2} USD", ctx);
+            WriteRow(ms, "Taux de change", $"1 USD = {Fmt(exchangeRate)} CDF", ctx);
+            WriteRow(ms, "Montant USD", $"{Fmt(usd)} USD", ctx);
         }
         else if (!string.IsNullOrEmpty(invoice.CurrencyCode) &&
                  invoice.CurrencyCode != "CDF" && invoice.CurrencyRate > 0)
@@ -148,8 +177,8 @@ public static class EscPosReceiptBuilder
             WriteDashLine(ms, ctx);
             decimal alt = Math.Round(invoice.TotalTTC / invoice.CurrencyRate, 2);
             WriteRow(ms, "Taux de change",
-                $"1 {invoice.CurrencyCode} = {invoice.CurrencyRate:N2} CDF", ctx);
-            WriteRow(ms, $"Montant {invoice.CurrencyCode}", $"{alt:N2}", ctx);
+                $"1 {invoice.CurrencyCode} = {Fmt(invoice.CurrencyRate)} CDF", ctx);
+            WriteRow(ms, $"Montant {invoice.CurrencyCode}", Fmt(alt), ctx);
         }
 
         // ═══════ (s) PAYMENT MODES ═══════
@@ -170,37 +199,34 @@ public static class EscPosReceiptBuilder
         if (invoice.Type != InvoiceType.PRO && !string.IsNullOrEmpty(invoice.CodeDEFDGI))
         {
             // ═══════ (x) SECURITY ELEMENTS ═══════
-            if (!string.IsNullOrEmpty(invoice.CodeDEFDGI))
+            WriteDoubleLine(ms, ctx);
+            Write(ms, ALIGN_CENTER);
+            Write(ms, BOLD_ON);
+            WriteText(ms, "── FACTURE NORMALISÉE ──", ctx);
+            Write(ms, BOLD_OFF);
+            Write(ms, LF);
+
+            Write(ms, ALIGN_LEFT);
+            WriteRow(ms, "Code DEF/DGI:", "", ctx);
+            Write(ms, BOLD_ON);
+            WriteText(ms, invoice.CodeDEFDGI, ctx);
+            Write(ms, BOLD_OFF);
+
+            if (!string.IsNullOrEmpty(invoice.NIM))
+                WriteRow(ms, "NIM", invoice.NIM, ctx);
+            if (!string.IsNullOrEmpty(invoice.Counters))
+                WriteRow(ms, "Compteurs", invoice.Counters, ctx);
+            if (invoice.NormalizedAt.HasValue)
+                WriteRow(ms, "Normalisée",
+                    invoice.NormalizedAt.Value.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
+
+            // ── QR CODE ──
+            if (!string.IsNullOrEmpty(invoice.QRCodeContent))
             {
-                WriteDoubleLine(ms, ctx);
-                Write(ms, ALIGN_CENTER);
-                Write(ms, BOLD_ON);
-                WriteText(ms, "── FACTURE NORMALISÉE ──", ctx);
-                Write(ms, BOLD_OFF);
                 Write(ms, LF);
-
-                Write(ms, ALIGN_LEFT);
-                WriteRow(ms, "Code DEF/DGI:", "", ctx);
-                Write(ms, BOLD_ON);
-                WriteText(ms, invoice.CodeDEFDGI, ctx);
-                Write(ms, BOLD_OFF);
-
-                if (!string.IsNullOrEmpty(invoice.NIM))
-                    WriteRow(ms, "NIM", invoice.NIM, ctx);
-                if (!string.IsNullOrEmpty(invoice.Counters))
-                    WriteRow(ms, "Compteurs", invoice.Counters, ctx);
-                if (invoice.NormalizedAt.HasValue)
-                    WriteRow(ms, "Normalisée",
-                        invoice.NormalizedAt.Value.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
-
-                // ── QR CODE ──
-                if (!string.IsNullOrEmpty(invoice.QRCodeContent))
-                {
-                    Write(ms, LF);
-                    Write(ms, ALIGN_CENTER);
-                    WriteQrCode(ms, invoice.QRCodeContent);
-                    Write(ms, LF);
-                }
+                Write(ms, ALIGN_CENTER);
+                WriteQrCode(ms, invoice.QRCodeContent);
+                Write(ms, LF);
             }
         }
         else if (invoice.Type == InvoiceType.PRO)
@@ -210,10 +236,9 @@ public static class EscPosReceiptBuilder
             WriteText(ms, "Cette proforma ne tient pas lieu", ctx);
             WriteText(ms, "de facture fiscale.", ctx);
             if (invoice.ProformaValidUntil.HasValue)
-                WriteText(ms, $"Valable jusqu'au {invoice.ProformaValidUntil:dd/MM/yyyy}", ctx);
+                WriteText(ms,
+                    $"Valable jusqu'au {invoice.ProformaValidUntil:dd/MM/yyyy}", ctx);
         }
-
-
 
         // ═══════ COMMENTS (if any) ═══════
         WriteComments(ms, invoice, ctx);
@@ -257,7 +282,7 @@ public static class EscPosReceiptBuilder
 
         // §1.2(c) Address where sale occurred
         if (pos != null && !string.IsNullOrWhiteSpace(pos.Address))
-            WriteText(ms, $"{pos.Address}, {pos.City}", ctx);
+            WriteText(ms, $"{pos.Address}, {pos.City}, {pos.Name}", ctx);
         else if (!string.IsNullOrWhiteSpace(company.Address))
             WriteText(ms, $"{company.Address}, {company.City}", ctx);
 
@@ -268,6 +293,7 @@ public static class EscPosReceiptBuilder
             WriteText(ms, $"Email: {company.Email}", ctx);
         if (!string.IsNullOrWhiteSpace(company.RCCM))
             WriteText(ms, $"RCCM: {company.RCCM}", ctx);
+     
 
         WriteText(ms, $"ISF: {company.ISF}", ctx);
         Write(ms, LF);
@@ -404,7 +430,7 @@ public static class EscPosReceiptBuilder
 
         // Adapt column headers to paper width
         if (ctx.Width >= 48)
-            WriteText(ms, " Article           Grp  Qté    P.U.  Total", ctx);
+            WriteText(ms, " Article           Grp  Qté       P.U.      Total", ctx);
         else
             WriteText(ms, " Article     Grp Qté   Total", ctx);
 
@@ -432,14 +458,14 @@ public static class EscPosReceiptBuilder
             {
                 string detail = $"   {grpLetter}"
                     + $"  {Qty(ln.Quantity),6}"
-                    + $"  {FmtCompact(unitPrice),9}"
-                    + $"  {FmtCompact(ln.AmountTTC),9}";
+                    + $"  {FmtCompact(unitPrice),10}"
+                    + $"  {FmtCompact(ln.AmountTTC),10}";
                 WriteText(ms, detail, ctx);
             }
             else
             {
-                string detail = $"  {grpLetter} {Qty(ln.Quantity),4} x {FmtCompact(unitPrice),7}"
-                    + $" = {FmtCompact(ln.AmountTTC),7}";
+                string detail = $"  {grpLetter} {Qty(ln.Quantity),4} x {FmtCompact(unitPrice),8}"
+                    + $" = {FmtCompact(ln.AmountTTC),8}";
                 WriteText(ms, detail, ctx);
             }
 
@@ -447,7 +473,7 @@ public static class EscPosReceiptBuilder
             if (ln.DiscountType != DiscountType.None && ln.DiscountAmount > 0)
             {
                 string discDesc = ln.DiscountType == DiscountType.Percentage
-                    ? $"   Remise {ln.DiscountValue}%: -{Fmt(ln.DiscountAmount)}"
+                    ? $"   Remise {Rate(ln.DiscountValue)}%: -{Fmt(ln.DiscountAmount)}"
                     : $"   Remise: -{Fmt(ln.DiscountAmount)}";
                 WriteText(ms, discDesc, ctx);
             }
@@ -484,9 +510,9 @@ public static class EscPosReceiptBuilder
             Write(ms, BOLD_ON);
             WriteText(ms, $" Groupe {letter} — {label}", ctx);
             Write(ms, BOLD_OFF);
-            WriteRow(ms, "  Taux TVA", $"{rate:N2}%", ctx);   // §1.2(n)
-            WriteRow(ms, "  Total HT", Fmt(groupHT), ctx);   // §1.2(m)
-            WriteRow(ms, "  TVA", Fmt(groupTVA), ctx);   // §1.2(o)
+            WriteRow(ms, "  Taux TVA", $"{Rate(rate)}%", ctx);   // §1.2(n)
+            WriteRow(ms, "  Total HT", Fmt(groupHT), ctx);       // §1.2(m)
+            WriteRow(ms, "  TVA", Fmt(groupTVA), ctx);      // §1.2(o)
             WriteRow(ms, "  Total TTC", Fmt(groupTTC), ctx);
         }
 
@@ -679,6 +705,9 @@ public static class EscPosReceiptBuilder
     private static void WriteRow(
         MemoryStream ms, string label, string value, ReceiptContext ctx)
     {
+        value ??= string.Empty;
+        label ??= string.Empty;
+
         int maxLabel = ctx.Width - value.Length - 1;
         if (label.Length > maxLabel && maxLabel > 0)
             label = label[..maxLabel];
@@ -736,14 +765,8 @@ public static class EscPosReceiptBuilder
     }
 
     // ═══════════════════════════════════════════════════════
-    //  FORMATTING  — DGI §1.5.1 / §1.5.2
+    //  MISC HELPERS
     // ═══════════════════════════════════════════════════════
-    private static readonly System.Globalization.CultureInfo FR =
-        System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
-
-    private static string Fmt(decimal v) => v.ToString("N2", FR); // money 2 dec
-    private static string FmtCompact(decimal v) => v.ToString("N2", FR); // narrow inline
-    private static string Qty(decimal v) => v.ToString("0.###", FR); // qty 3 dec trim
 
     private static decimal GetEffectiveUnitPrice(InvoiceLine ln, PriceMode mode)
         => mode == PriceMode.TTC ? ln.UnitPriceTTC : ln.UnitPriceHT;

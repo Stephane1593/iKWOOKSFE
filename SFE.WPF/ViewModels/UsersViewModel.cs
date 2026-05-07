@@ -56,8 +56,8 @@ public partial class UsersViewModel : BaseViewModel
     [ObservableProperty] private string _formRoleName = "";
     public ObservableCollection<PermissionItem> FormPermissions { get; } = new();
 
-    // ═══════ ROLE-TAB PRIVILEGES ═══════                                         // ★ NEW
-    [ObservableProperty] private bool _canCreateRole;
+    // ═══════ ROLE-TAB PRIVILEGES ═══════
+    [ObservableProperty] private bool _canManageRoles;   // ★ renamed — covers create/edit/delete
 
     private List<User> _allUsers = new();
 
@@ -120,14 +120,14 @@ public partial class UsersViewModel : BaseViewModel
             // ★ Compute privilege flags once
             bool isSA = CurrentUserIsSuperAdmin;
             bool isIT = CurrentUserIsITTech;
-            CanCreateRole = isSA;                                                  // ★
+            CanManageRoles = isSA;   // ★ only SuperAdmin
 
             var allRoles = await _userService.GetAllRolesAsync();
             Roles.Clear();
             foreach (var r in allRoles.OrderBy(r => r.Name))
             {
                 var count = _allUsers.Count(u => u.RoleId == r.Id);
-                Roles.Add(new RoleListItem(r, count, isSA, isIT));                 // ★
+                Roles.Add(new RoleListItem(r, count, isSA));                 // ★
             }
             RoleCount = Roles.Count;
 
@@ -291,11 +291,9 @@ public partial class UsersViewModel : BaseViewModel
 
     // ═══════ ROLE COMMANDS ═══════
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
     private void NewRole()
     {
-        if (!CanCreateRole) return;                                                // ★ guard
-
         ClearRoleForm();
         IsCreatingRole = true;
         IsEditingRole = true;
@@ -313,21 +311,16 @@ public partial class UsersViewModel : BaseViewModel
         IsCreatingRole = false;
         IsEditingRole = true;
 
-        // ★ Protected = can't edit (SuperAdmin always, or restricted without privilege)
         IsProtectedRole = !item.CanEditRole;
 
         if (IsProtectedRole)
         {
             if (item.IsSuperAdmin)
-                ProtectedRoleMessage = "🔒 Rôle SuperAdmin protégé — ce rôle ne peut pas être modifié ni supprimé. Toutes les permissions sont activées en permanence.";
-            else if (item.IsITTech)
-                ProtectedRoleMessage = "🔒 Rôle IT Tech restreint — seul le SuperAdmin peut modifier ce rôle.";
-            else if (item.IsInspecteurDGI)
-                ProtectedRoleMessage = "🔒 Rôle Inspecteur DGI restreint — seul le SuperAdmin ou un IT Tech peut modifier ce rôle.";
+                ProtectedRoleMessage = "🔒 Rôle SuperAdmin protégé — ce rôle ne peut pas être modifié ni supprimé.";
             else
-                ProtectedRoleMessage = "🔒 Vous n'avez pas les droits pour modifier ce rôle.";
+                ProtectedRoleMessage = "🔒 Seul le SuperAdmin peut modifier les rôles.";
 
-            RoleFormTitle = $"🔒 {item.Name} (protégé)";
+            RoleFormTitle = $"🔒 {item.Name} (lecture seule)";
         }
         else
         {
@@ -340,7 +333,7 @@ public partial class UsersViewModel : BaseViewModel
         ClearStatus();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
     private async Task SaveRole()
     {
         ClearStatus();
@@ -362,7 +355,7 @@ public partial class UsersViewModel : BaseViewModel
         else { ShowErrorMessage(result.ErrorMessage); }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
     private async Task DeleteRole(RoleListItem? item)
     {
         if (item == null) return;
@@ -404,6 +397,13 @@ public partial class UsersViewModel : BaseViewModel
             current.TryGetValue(key, out var granted);
             FormPermissions.Add(new PermissionItem { Key = key, Label = label, IsGranted = granted });
         }
+    }
+
+    partial void OnCanManageRolesChanged(bool value)
+    {
+        NewRoleCommand.NotifyCanExecuteChanged();
+        SaveRoleCommand.NotifyCanExecuteChanged();
+        DeleteRoleCommand.NotifyCanExecuteChanged();
     }
 }
 
@@ -457,14 +457,14 @@ public class RoleListItem
     public string Name { get; }
     public int UserCount { get; }
     public bool IsSuperAdmin { get; }
-    public bool IsITTech { get; }                                                  // ★ NEW
-    public bool IsInspecteurDGI { get; }                                           // ★ NEW
-    public bool IsRestricted { get; }                                              // ★ NEW
-    public bool CanEditRole { get; }                                               // ★ NEW
-    public bool CanDeleteRole { get; }                                             // ★ NEW
+    public bool IsITTech { get; }
+    public bool IsInspecteurDGI { get; }
+    public bool IsRestricted { get; }
+    public bool CanEditRole { get; }
+    public bool CanDeleteRole { get; }
     public string PermissionsJson { get; }
 
-    public RoleListItem(Role r, int userCount, bool currentUserIsSA, bool currentUserIsIT) // ★
+    public RoleListItem(Role r, int userCount, bool currentUserIsSA)   // ★ simplified ctor
     {
         Id = r.Id;
         Name = r.Name;
@@ -476,17 +476,9 @@ public class RoleListItem
         IsInspecteurDGI = UserService.IsInspecteurDGIRole(r);
         IsRestricted = IsSuperAdmin || IsITTech || IsInspecteurDGI;
 
-        // ── CanEditRole ──
-        if (IsSuperAdmin) CanEditRole = false;           // nobody edits SuperAdmin role
-        else if (IsITTech) CanEditRole = currentUserIsSA;
-        else if (IsInspecteurDGI) CanEditRole = currentUserIsSA || currentUserIsIT;
-        else CanEditRole = true;
-
-        // ── CanDeleteRole ──
-        if (IsSuperAdmin) CanDeleteRole = false;
-        else if (IsITTech) CanDeleteRole = currentUserIsSA;
-        else if (IsInspecteurDGI) CanDeleteRole = currentUserIsSA || currentUserIsIT;
-        else CanDeleteRole = true;
+        // ★ Only SuperAdmin manages roles. Never edit/delete the SA role itself.
+        CanEditRole = currentUserIsSA && !IsSuperAdmin;
+        CanDeleteRole = currentUserIsSA && !IsSuperAdmin;
     }
 }
 

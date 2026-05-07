@@ -27,22 +27,23 @@ public class UserService
 
     /// <summary>All known permission keys with French labels.</summary>
     public static readonly List<(string Key, string Label)> AllPermissions = new()
-    {
-        ("dashboard",      "Tableau de bord"),
-        ("pos",            "Point de vente (caisse)"),
-        ("invoicing",      "Facturation"),
-        ("clients",        "Clients"),
-        ("salesHistory",   "Historique des ventes"),
-        ("products",       "Produits"),
-        ("stock",          "Stock"),
-        ("transfers",      "Transferts stock"),
-        ("loyalty",        "Programme fidélité"),
-        ("reports",        "Rapports"),
-        ("settings",       "Paramètres"),
-        ("users",          "Gestion utilisateurs"),
-        ("audit",          "Journal d'audit"),
-        ("bypassPosCheck", "Accès sans POS")
-    };
+{
+    ("dashboard",      "Tableau de bord"),
+    ("pos",            "Point de vente (caisse)"),
+    ("invoicing",      "Facturation"),
+    ("clients",        "Clients"),
+    ("salesHistory",   "Historique des ventes"),
+    ("products",       "Produits"),
+    ("stock",          "Stock"),
+    ("transfers",      "Transferts stock"),
+    ("loyalty",        "Programme fidélité"),
+    ("reports",        "Rapports (X, A, historique)"),   // ← updated label
+    ("closeZ",         "Clôture Z (fin de session)"),    // ★ NEW
+    ("settings",       "Paramètres"),
+    ("users",          "Gestion utilisateurs"),
+    ("audit",          "Journal d'audit"),
+    ("bypassPosCheck", "Accès sans POS")
+};
 
     public UserService(IUnitOfWork unitOfWork, IAuditService audit)
     {
@@ -424,22 +425,14 @@ public class UserService
         if (role == null)
             return ServiceResult.Fail("Rôle introuvable.");
 
+        // ★ GLOBAL GUARD — only SuperAdmin can modify ANY role
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return ServiceResult.Fail("Seul le SuperAdmin peut modifier les rôles.");
+
         if (IsSuperAdminRole(role))
             return ServiceResult.Fail("Le rôle SuperAdmin ne peut pas être modifié.");
 
-        // ── Authorization for restricted roles ──
-        if (IsRestrictedRole(role))
-        {
-            var (isSA, isIT) = await ResolvePrivilegesAsync(currentUserId);
-
-            if (IsSuperAdminOnlyRole(role) && !isSA)
-                return ServiceResult.Fail(
-                    $"Seul le SuperAdmin peut modifier le rôle « {role.Name} ».");
-
-            if (IsElevatedRole(role) && !isSA && !isIT)
-                return ServiceResult.Fail(
-                    $"Seul le SuperAdmin ou un IT Tech peut modifier le rôle « {role.Name} ».");
-        }
 
         if (string.IsNullOrWhiteSpace(name))
             return ServiceResult.Fail("Le nom du rôle est obligatoire.");
@@ -493,22 +486,14 @@ public class UserService
         if (role == null)
             return ServiceResult.Fail("Rôle introuvable.");
 
+        // ★ GLOBAL GUARD — only SuperAdmin can modify ANY role
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return ServiceResult.Fail("Seul le SuperAdmin peut modifier les rôles.");
+
         if (IsSuperAdminRole(role))
             return ServiceResult.Fail("Le rôle SuperAdmin ne peut pas être supprimé.");
 
-        // ── Tiered authorization ──
-        if (IsRestrictedRole(role))
-        {
-            var (isSA, isIT) = await ResolvePrivilegesAsync(currentUserId);
-
-            if (IsSuperAdminOnlyRole(role) && !isSA)
-                return ServiceResult.Fail(
-                    $"Seul le SuperAdmin peut supprimer le rôle « {role.Name} ».");
-
-            if (IsElevatedRole(role) && !isSA && !isIT)
-                return ServiceResult.Fail(
-                    $"Seul le SuperAdmin ou un IT Tech peut supprimer le rôle « {role.Name} ».");
-        }
 
         var usersWithRole = await _uow.Users.FindAsync(u => u.RoleId == roleId);
         if (usersWithRole.Any())

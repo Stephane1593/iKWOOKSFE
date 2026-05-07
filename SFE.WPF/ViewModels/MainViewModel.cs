@@ -53,6 +53,9 @@ public partial class MainViewModel : BaseViewModel
     // ═══════════════════════════════════════════════════════
     //  PERMISSIONS — individual items (session-gated where needed)
     // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
+    //  PERMISSIONS — individual items (session-gated where needed)
+    // ═══════════════════════════════════════════════════════
     public bool CanAccessDashboard => _authService.HasPermission("dashboard");
     public bool CanAccessPos => _authService.HasPermission("pos") && _sessionState.IsSessionOpen;
     public bool CanAccessInvoicing => _authService.HasPermission("invoicing") && _sessionState.IsSessionOpen;
@@ -62,11 +65,21 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessStock => _authService.HasPermission("stock");
     public bool CanAccessTransfers => _authService.HasPermission("transfers");
     public bool CanAccessLoyalty => _authService.HasPermission("loyalty");
-    public bool CanAccessReports => _authService.HasPermission("reports") && _sessionState.IsSessionOpen;
+
+    // ★ UPDATED — operators with ONLY closeZ can still open the Z page
+    public bool CanAccessReports => (_authService.HasPermission("reports")
+                                  || _authService.HasPermission("closeZ"))
+                                  && _sessionState.IsSessionOpen;
+
     public bool CanAccessReportHistory => _authService.HasPermission("reports");
     public bool CanAccessSettings => _authService.HasPermission("settings");
     public bool CanAccessUsers => _authService.HasPermission("users");
     public bool CanAccessAudit => _authService.HasPermission("audit");
+
+    // ★ NEW — dedicated Z-close capability
+    public bool CanCloseZ => _authService.HasPermission("closeZ")
+                          && _sessionState.IsSessionOpen
+                          && !_sessionState.IsSetupMode;
 
     // ═══════════════════════════════════════════════════════
     //  DROPDOWN TOGGLES — permission only, NO session gate
@@ -80,6 +93,7 @@ public partial class MainViewModel : BaseViewModel
                                || _authService.HasPermission("reports");
 
     public bool CanSeeAffichage => _authService.HasPermission("reports")
+                                || _authService.HasPermission("closeZ")     // ★ NEW
                                 || _authService.HasPermission("salesHistory");
 
     public bool CanSeeOutils => _authService.HasPermission("settings")
@@ -256,6 +270,17 @@ public partial class MainViewModel : BaseViewModel
     [RelayCommand]
     private void CloseReportZ()
     {
+        // ★ Permission check FIRST
+        if (!_authService.HasPermission("closeZ"))
+        {
+            System.Windows.MessageBox.Show(
+                "Vous n'avez pas l'autorisation de clôturer la session (droit « Clôture Z » requis).",
+                "Accès refusé",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
         if (_sessionState.IsSetupMode)
         {
             System.Windows.MessageBox.Show(

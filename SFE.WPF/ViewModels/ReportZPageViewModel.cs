@@ -14,16 +14,20 @@ public partial class ReportZPageViewModel : BaseReportListViewModel
     protected override ReportType ReportType => ReportType.Z;
     protected override string TypePrefix => "Z";
 
-    public bool CanGenerate => _sessionState.IsSessionOpen && !_sessionState.IsSetupMode;
+    // ★ Combined gate exposed to XAML
+    public bool CanGenerate =>
+        _sessionState.IsSessionOpen
+        && !_sessionState.IsSetupMode
+        && _authService.HasPermission("closeZ");   // ★ NEW
+
     public string GenerateTooltip => _sessionState.IsSetupMode
         ? "Non disponible en mode configuration"
         : !_sessionState.IsSessionOpen
             ? "Aucune session active"
-            : "Clôturer la session et générer le Z-Rapport";
+            : !_authService.HasPermission("closeZ")
+                ? "Droit « Clôture Z » requis"             // ★ NEW
+                : "Clôturer la session et générer le Z-Rapport";
 
-    /// <summary>
-    /// Fired after a Z-report is generated so the host (MainViewModel) can log out.
-    /// </summary>
     public event Action? SessionClosedByZ;
 
     public ReportZPageViewModel(
@@ -31,13 +35,18 @@ public partial class ReportZPageViewModel : BaseReportListViewModel
         ReportService reportService,
         CashSessionState sessionState,
         IAuthService authService)
-        : base(uow, reportService, sessionState, authService)
-    {
-    }
+        : base(uow, reportService, sessionState, authService) { }
 
     [RelayCommand]
     private async Task GenerateZ()
     {
+        // ★ Defense in depth — still check here even if button is disabled
+        if (!_authService.HasPermission("closeZ"))
+        {
+            ShowStatus("Vous n'avez pas l'autorisation de clôturer la session.", true);
+            return;
+        }
+
         if (_sessionState.IsSetupMode)
         {
             ShowStatus("Mode configuration — clôture non disponible.", true);
@@ -50,7 +59,6 @@ public partial class ReportZPageViewModel : BaseReportListViewModel
             return;
         }
 
-        // Open the session close dialog
         var vm = App.ServiceProvider.GetRequiredService<SessionCloseViewModel>();
         var dialog = new SessionCloseDialog { DataContext = vm };
 
@@ -64,11 +72,9 @@ public partial class ReportZPageViewModel : BaseReportListViewModel
             await LoadAsync();
             ShowStatus($"✓ Z-Rapport N°{vm.GeneratedReport.ReportNumber} généré avec succès.", false);
 
-            // Select the newly generated report
             var newest = Reports.FirstOrDefault();
             if (newest != null) SelectedReport = newest;
 
-            // Signal session closed
             SessionClosedByZ?.Invoke();
         }
     }
