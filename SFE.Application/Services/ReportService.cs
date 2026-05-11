@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -9,22 +10,41 @@ public class ReportService
 {
     private readonly IUnitOfWork _uow;
     private readonly IAuditService _audit;
+    private readonly ITimeProvider _time;   // DGI §1.1 — single source of truth
 
-    public ReportService(IUnitOfWork uow, IAuditService audit)
+    public ReportService(IUnitOfWork uow, IAuditService audit, ITimeProvider time)
     {
         _uow = uow;
         _audit = audit;
+        _time = time;
+    }
+
+    // ── Storage & comparisons: always UTC (DGI §1.1) ─────────────
+    private DateTime UtcNow => _time.UtcNow.UtcDateTime;        // Kind=Utc
+    private DateTime UtcToday =>
+        _time.UtcToday.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+    // ── Display only ─────────────────────────────────────────────
+    private DateTimeOffset LocalDisplay => _time.LocalNow;
+
+    /// <summary>Converts a stored UTC DateTime to local wall-clock for printing.</summary>
+    private DateTime ToLocal(DateTime utc)
+    {
+        // DRC has no DST — offset is stable per site (UTC+1 Kinshasa, UTC+2 Lubumbashi/Goma).
+        var kind = utc.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(utc, DateTimeKind.Utc) : utc.ToUniversalTime();
+        return kind.Add(LocalDisplay.Offset);
     }
 
     // ══════════════════════════════════════════════════════════
-    //  PUBLIC API — Existing (unchanged signatures)
+    //  PUBLIC API
     // ══════════════════════════════════════════════════════════
 
     public async Task<DailyReport> GenerateReportXAsync(string operatorName)
     {
         var lastZ = await GetLastReportDateAsync(ReportType.Z);
-        var periodStart = lastZ ?? DateTime.Today;
-        var periodEnd = DateTime.Now;
+        var periodStart = lastZ ?? UtcToday;
+        var periodEnd = UtcNow;
 
         var report = await BuildZXReportAsync(ReportType.X, periodStart, periodEnd, operatorName);
         report.IsPeriodic = false;
@@ -56,8 +76,8 @@ public class ReportService
     public async Task<DailyReport> GenerateReportZAsync(string operatorName)
     {
         var lastZ = await GetLastReportDateAsync(ReportType.Z);
-        var periodStart = lastZ ?? DateTime.Today;
-        var periodEnd = DateTime.Now;
+        var periodStart = lastZ ?? UtcToday;
+        var periodEnd = UtcNow;
 
         var report = await BuildZXReportAsync(ReportType.Z, periodStart, periodEnd, operatorName);
         report.ReportNumber = await GetNextReportNumberAsync(ReportType.Z);
@@ -73,8 +93,8 @@ public class ReportService
     public async Task<DailyReport> GenerateReportAAsync(string operatorName)
     {
         var lastA = await GetLastReportDateAsync(ReportType.A);
-        var periodStart = lastA ?? DateTime.Today;
-        var periodEnd = DateTime.Now;
+        var periodStart = lastA ?? UtcToday;
+        var periodEnd = UtcNow;
 
         var report = await BuildAReportAsync(periodStart, periodEnd, operatorName);
         report.ReportNumber = await GetNextReportNumberAsync(ReportType.A);
@@ -88,19 +108,15 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 PUBLIC API — Session Z-Report
+    //  Session Z-Report
     // ══════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Generates a Z-report with full session data (opening/closing/variance).
-    /// Invoices are filtered by PointOfSaleId and session period.
-    /// </summary>
     public async Task<DailyReport> GenerateSessionZReportAsync(SessionCloseData closeData)
     {
-        var periodStart = closeData.SessionOpenedAt;
-        var periodEnd = DateTime.Now;
+        // DGI §1.1 — convert the session boundary to UTC for storage & querying.
+        var periodStart = closeData.SessionOpenedAt.UtcDateTime;  // Kind=Utc
+        var periodEnd = UtcNow;
 
-        // 1. Build standard Z summaries — filtered by POS
         var report = await BuildZXReportAsync(
             ReportType.Z, periodStart, periodEnd,
             closeData.OperatorName, closeData.PointOfSaleId);
@@ -108,8 +124,8 @@ public class ReportService
         report.ReportNumber = await GetNextReportNumberAsync(ReportType.Z);
         report.PointOfSaleId = closeData.PointOfSaleId;
 
-        // 2. Fill opening session data
-        report.SessionOpenedAt = closeData.SessionOpenedAt;
+        // Opening
+        report.SessionOpenedAt = periodStart;  // store the same UTC value we queried with
         report.OpeningAmountUSD = closeData.OpeningAmountUSD;
         report.OpeningAmountCDF = closeData.OpeningAmountCDF;
         report.OpeningAmountEUR = closeData.OpeningAmountEUR;
@@ -119,7 +135,7 @@ public class ReportService
         report.RateCNY = closeData.RateCNY;
         report.OpeningNotes = closeData.OpeningNotes;
 
-        // 3. Calculate expected cash per currency
+        // Expected
         var invoices = await FetchInvoicesAsync(
             periodStart, periodEnd, InvoiceStatus.Normalized, closeData.PointOfSaleId);
 
@@ -129,25 +145,27 @@ public class ReportService
         report.ExpectedCashEUR = expected.eur;
         report.ExpectedCashCNY = expected.cny;
 
-        // 4. Fill closing data
+        // Closing
         report.ClosingAmountUSD = closeData.ClosingAmountUSD;
         report.ClosingAmountCDF = closeData.ClosingAmountCDF;
         report.ClosingAmountEUR = closeData.ClosingAmountEUR;
         report.ClosingAmountCNY = closeData.ClosingAmountCNY;
         report.ClosingNotes = closeData.ClosingNotes;
 
-        // 5. Calculate variance
+        // Variance
         report.VarianceUSD = closeData.ClosingAmountUSD - expected.usd;
         report.VarianceCDF = closeData.ClosingAmountCDF - expected.cdf;
         report.VarianceEUR = closeData.ClosingAmountEUR - expected.eur;
         report.VarianceCNY = closeData.ClosingAmountCNY - expected.cny;
 
-        // 6. Format and save
         report.PrintContent = FormatZXReport(report);
         await SaveReportAsync(report);
 
+        // Audit line: render the opening time in the operator's wall-clock (local)
+        // so the log reads the way the operator saw it in the UI.
         await _audit.LogReportAsync(AuditAction.ReportZGenerated, "Z-Session",
-                report.Id, $"Session du {closeData.SessionOpenedAt:dd/MM/yyyy HH:mm} · " +
+                report.Id,
+                $"Session du {closeData.SessionOpenedAt.LocalDateTime:dd/MM/yyyy HH:mm} · " +
                 $"PDV #{closeData.PointOfSaleId} · {report.TotalInvoiceCount} factures · " +
                 $"TTC net: {report.GrandTotalTTC:N2} CDF · " +
                 $"Écart caisse: {report.VarianceTotalCDF:N0} CDF");
@@ -155,46 +173,39 @@ public class ReportService
         return report;
     }
 
-    /// <summary>
-    /// Pre-calculates session summary without persisting.
-    /// Used by SessionCloseViewModel to show expected cash before user confirms.
-    /// </summary>
     public async Task<SessionSummary> CalculateSessionSummaryAsync(
-        DateTime sessionStart, int pointOfSaleId,
+        DateTimeOffset sessionStart, int pointOfSaleId,
         decimal openUSD, decimal openCDF, decimal openEUR, decimal openCNY)
     {
-        var now = DateTime.Now;
-        var invoices = await FetchInvoicesAsync(
-            sessionStart, now, InvoiceStatus.Normalized, pointOfSaleId);
+        // DGI §1.1 — convert the session boundary to UTC for storage & querying.
+        var startUtc = sessionStart.UtcDateTime;   // Kind=Utc
+        var now = UtcNow;
 
-        // Invoice counts
+        var invoices = await FetchInvoicesAsync(
+            startUtc, now, InvoiceStatus.Normalized, pointOfSaleId);
+
         int salesCount = invoices.Count(i => i.Type.IsSale());
         int creditCount = invoices.Count(i => i.Type.IsCreditNote());
 
-        // Net TTC
         decimal salesTTC = invoices.Where(i => i.Type.IsSale()).Sum(i => i.TotalTTC);
         decimal creditTTC = invoices.Where(i => i.Type.IsCreditNote()).Sum(i => i.TotalTTC);
 
-        // Incomplete
         int incomplete = 0;
         foreach (var status in new[] { InvoiceStatus.Draft, InvoiceStatus.Error, InvoiceStatus.Cancelled })
         {
             var res = await _uow.Invoices.SearchAsync(
-                new InvoiceSearchCriteria { DateFrom = sessionStart, DateTo = now, Status = status },
+                new InvoiceSearchCriteria { DateFrom = startUtc, DateTo = now, Status = status },
                 1, int.MaxValue);
-            incomplete += res.Items.Where(i => i.PointOfSaleId == pointOfSaleId).Count();
+            incomplete += res.Items.Count(i => i.PointOfSaleId == pointOfSaleId);
         }
 
-        // Cash sales per currency
         var cashByCurrency = CalculateCashFlowByCurrency(invoices);
 
-        // Expected
         decimal expUSD = openUSD + cashByCurrency.salesUSD - cashByCurrency.refundsUSD;
         decimal expCDF = openCDF + cashByCurrency.salesCDF - cashByCurrency.refundsCDF;
         decimal expEUR = openEUR + cashByCurrency.salesEUR - cashByCurrency.refundsEUR;
         decimal expCNY = openCNY + cashByCurrency.salesCNY - cashByCurrency.refundsCNY;
 
-        // Non-cash total
         decimal nonCashTotal = invoices
             .SelectMany(i => i.Payments)
             .Where(p => p.PaymentType != PaymentType.Especes)
@@ -230,7 +241,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  BUILD Z/X REPORT (§1.3) — 🆕 optional POS filter
+    //  BUILD Z/X REPORT (§1.3)
     // ══════════════════════════════════════════════════════════
 
     private async Task<DailyReport> BuildZXReportAsync(
@@ -259,7 +270,7 @@ public class ReportService
             Type = type,
             PeriodStart = start,
             PeriodEnd = end,
-            GeneratedAt = DateTime.Now,
+            GeneratedAt = UtcNow,   // ← ITimeProvider
             OperatorName = operatorName,
             CompanyName = company?.Name ?? "",
             CompanyNIF = company?.NIF ?? "",
@@ -345,7 +356,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  BUILD A-REPORT (§1.4) — unchanged
+    //  BUILD A-REPORT (§1.4)
     // ══════════════════════════════════════════════════════════
 
     private async Task<DailyReport> BuildAReportAsync(
@@ -380,7 +391,7 @@ public class ReportService
             Type = ReportType.A,
             PeriodStart = start,
             PeriodEnd = end,
-            GeneratedAt = DateTime.Now,
+            GeneratedAt = UtcNow,   // ← ITimeProvider
             OperatorName = operatorName,
             CompanyName = company?.Name ?? "",
             CompanyNIF = company?.NIF ?? "",
@@ -424,7 +435,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 EXPECTED CASH CALCULATION
+    //  EXPECTED CASH CALCULATION
     // ══════════════════════════════════════════════════════════
 
     private (decimal usd, decimal cdf, decimal eur, decimal cny) CalculateExpectedCash(
@@ -443,7 +454,6 @@ public class ReportService
 
             if (cashTotal <= 0) continue;
 
-            // Cap at TotalTTC to account for change given back on overpayment
             var netCash = Math.Min(cashTotal, inv.TotalTTC);
 
             var currency = NormalizeCurrency(inv.CurrencyCode);
@@ -514,7 +524,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  FORMAT Z/X REPORT → TEXT — 🆕 includes session section
+    //  FORMAT Z/X REPORT → TEXT
     // ══════════════════════════════════════════════════════════
 
     private string FormatZXReport(DailyReport r)
@@ -544,7 +554,7 @@ public class ReportService
         sb.AppendLine($"  Opérateur  : {r.OperatorName}");
         sb.AppendLine();
 
-        // ── 🆕 SESSION DE CAISSE (Z-report only) ──
+        // ── SESSION DE CAISSE (Z-report only) ──
         if (r.HasSessionData)
         {
             sb.AppendLine(thin);
@@ -698,7 +708,7 @@ public class ReportService
                 : "--- Rapport quotidien (lecture seule) ---", W));
         }
         sb.AppendLine(heavy);
-        sb.AppendLine(Center($"Imprimé le {DateTime.Now:dd/MM/yyyy HH:mm}", W));
+        sb.AppendLine(Center($"Imprimé le {UtcNow:dd/MM/yyyy HH:mm}", W));   // ← ITimeProvider
         sb.AppendLine(Center($"ISF: {r.ISF}", W));
 
         return sb.ToString();
@@ -717,7 +727,7 @@ public class ReportService
     }
 
     // ══════════════════════════════════════════════════════════
-    //  FORMAT A-REPORT → TEXT (§1.4) — unchanged
+    //  FORMAT A-REPORT → TEXT (§1.4)
     // ══════════════════════════════════════════════════════════
 
     private string FormatAReport(DailyReport r)
@@ -766,7 +776,7 @@ public class ReportService
         sb.AppendLine($"  {"Montant net (ventes − retours) :",-40} {r.ArticleLines.Sum(a => a.TotalAmount),10:N2} CDF");
         sb.AppendLine();
         sb.AppendLine(heavy);
-        sb.AppendLine(Center($"Imprimé le {DateTime.Now:dd/MM/yyyy HH:mm}", W));
+        sb.AppendLine(Center($"Imprimé le {UtcNow:dd/MM/yyyy HH:mm}", W));   // ← ITimeProvider
         sb.AppendLine(Center($"ISF: {r.ISF}", W));
 
         return sb.ToString();
@@ -803,10 +813,21 @@ public class ReportService
         await _uow.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Returns the last report's PeriodEnd as a local wall-clock DateTime.
+    /// Works whether PeriodEnd is DateTime (Unspecified/Local) or DateTimeOffset.
+    /// </summary>
     private async Task<DateTime?> GetLastReportDateAsync(ReportType type)
     {
         var reports = await _uow.GetRepository<DailyReport>().FindAsync(r => r.Type == type);
-        return reports.OrderByDescending(r => r.GeneratedAt).FirstOrDefault()?.PeriodEnd;
+        var last = reports.OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
+        if (last is null) return null;
+
+        // Safe across entity migrations: PeriodEnd may be DateTime or DateTimeOffset.
+        // Using dynamic keeps this resilient; cost is negligible (called once per report).
+        dynamic pe = last.PeriodEnd;
+        try { return (DateTime)pe.LocalDateTime; }       // DateTimeOffset path
+        catch { return (DateTime)pe; }                   // DateTime path
     }
 
     private async Task<int> GetNextReportNumberAsync(ReportType type)
@@ -857,7 +878,7 @@ public class ReportService
 }
 
 // ══════════════════════════════════════════════════════════
-//  🆕 HELPER DTOs
+//  HELPER DTOs
 // ══════════════════════════════════════════════════════════
 
 public class SessionSummary

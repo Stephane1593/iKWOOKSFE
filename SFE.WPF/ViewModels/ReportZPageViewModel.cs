@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using SFE.WPF.Services;
 using SFE.WPF.Views;
@@ -14,18 +15,17 @@ public partial class ReportZPageViewModel : BaseReportListViewModel
     protected override ReportType ReportType => ReportType.Z;
     protected override string TypePrefix => "Z";
 
-    // ★ Combined gate exposed to XAML
     public bool CanGenerate =>
         _sessionState.IsSessionOpen
         && !_sessionState.IsSetupMode
-        && _authService.HasPermission("closeZ");   // ★ NEW
+        && _authService.HasPermission("closeZ");
 
     public string GenerateTooltip => _sessionState.IsSetupMode
         ? "Non disponible en mode configuration"
         : !_sessionState.IsSessionOpen
             ? "Aucune session active"
             : !_authService.HasPermission("closeZ")
-                ? "Droit « Clôture Z » requis"             // ★ NEW
+                ? "Droit « Clôture Z » requis"
                 : "Clôturer la session et générer le Z-Rapport";
 
     public event Action? SessionClosedByZ;
@@ -34,25 +34,35 @@ public partial class ReportZPageViewModel : BaseReportListViewModel
         IUnitOfWork uow,
         ReportService reportService,
         CashSessionState sessionState,
-        IAuthService authService)
-        : base(uow, reportService, sessionState, authService) { }
+        IAuthService authService,
+        ITimeProvider timeProvider)                              // 🔧 FIX
+        : base(uow, reportService, sessionState, authService, timeProvider) // 🔧 FIX
+    {
+        // 🔧 FIX : refresh gate when session state changes
+       // _sessionState.SessionChanged += (_, _) => RefreshGate();
+    }
 
-    [RelayCommand]
+    private void RefreshGate()
+    {
+        OnPropertyChanged(nameof(CanGenerate));
+        OnPropertyChanged(nameof(GenerateTooltip));
+        GenerateZCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanGenerate))]
     private async Task GenerateZ()
     {
-        // ★ Defense in depth — still check here even if button is disabled
+        // Defense in depth
         if (!_authService.HasPermission("closeZ"))
         {
             ShowStatus("Vous n'avez pas l'autorisation de clôturer la session.", true);
             return;
         }
-
         if (_sessionState.IsSetupMode)
         {
             ShowStatus("Mode configuration — clôture non disponible.", true);
             return;
         }
-
         if (!_sessionState.IsSessionOpen)
         {
             ShowStatus("Aucune session active à clôturer.", true);

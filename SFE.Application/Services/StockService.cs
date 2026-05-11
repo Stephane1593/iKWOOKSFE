@@ -1,5 +1,7 @@
-﻿using SFE.Application.Events;
+﻿using System.Globalization;
+using SFE.Application.Events;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -9,15 +11,20 @@ public class StockService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuditService _audit;
+    private readonly ITimeProvider _time;
 
-    public StockService(IUnitOfWork unitOfWork, IAuditService audit)
+    public StockService(IUnitOfWork unitOfWork, IAuditService audit, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
         _audit = audit;
+        _time = time;
     }
 
+    // Single source of truth for "now" (DGI §1.1).
+    private DateTime NowUtc => _time.UtcNow.UtcDateTime;
+
     // ══════════════════════════════════════════════
-    //  CONSULTATION (read-only — unchanged)
+    //  CONSULTATION (read-only)
     // ══════════════════════════════════════════════
 
     public async Task<decimal> GetStockAsync(int productId, int posId)
@@ -87,7 +94,8 @@ public class StockService
 
         return await ApplyMovementAsync(
             productId, posId, StockMovementType.Adjustment, delta,
-            operatorName, notes, $"Ajustement → {newQuantity:G}");
+            operatorName, notes,
+            string.Format(CultureInfo.InvariantCulture, "Ajustement → {0:G}", newQuantity));
     }
 
     public async Task<StockOperationResult> SetPhysicalCountAsync(
@@ -100,7 +108,8 @@ public class StockService
         return await ApplyMovementAsync(
             productId, posId, StockMovementType.PhysicalCount, delta,
             operatorName, notes,
-            $"Inventaire: {posStock.Quantity:G} → {countedQuantity:G}");
+            string.Format(CultureInfo.InvariantCulture,
+                "Inventaire: {0:G} → {1:G}", posStock.Quantity, countedQuantity));
     }
 
     public async Task<StockOperationResult> SetInitialStockAsync(
@@ -116,6 +125,11 @@ public class StockService
     //  VENTE / AVOIR
     // ══════════════════════════════════════════════
 
+    /// <summary>
+    /// Decrement stock for a sale.
+    /// Wraps check + decrement in a single transaction to avoid race conditions
+    /// on multi-caissier POS (DGI §3.4 — atomicity).
+    /// </summary>
     public async Task<StockOperationResult> DecrementForSaleAsync(
         int productId, int posId, decimal quantity,
         string invoiceNumber, string operatorName)
@@ -128,18 +142,17 @@ public class StockService
             return StockOperationResult.Ok(0);
 
         var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
-        var (posStock, _) = await GetOrCreatePosStockAsync(productId, posId);
+        if (pos == null)
+            return StockOperationResult.Fail($"POS #{posId} introuvable.");
 
-        if (!pos!.AllowNegativeStock && posStock.Quantity < quantity)
-        {
-            return StockOperationResult.Fail(
-                $"Stock insuffisant pour « {product.Name} » au POS {pos.Code}. " +
-                $"Disponible: {posStock.Quantity:G}, Demandé: {quantity:G}");
-        }
-
+        // ApplyMovementAsync now enforces the non-negative check atomically
+        // (single read → single write, no TOCTOU window).
         return await ApplyMovementAsync(
             productId, posId, StockMovementType.Sale, -quantity,
-            operatorName, "", invoiceNumber);
+            operatorName, "", invoiceNumber,
+            enforceNonNegative: !pos.AllowNegativeStock,
+            productNameForError: product.Name,
+            posCodeForError: pos.Code);
     }
 
     public async Task<StockOperationResult> IncrementForCreditNoteAsync(
@@ -167,7 +180,7 @@ public class StockService
         List<(int ProductId, decimal Quantity)> lines, string notes = "")
     {
         var number = await _unitOfWork.StockTransfers
-            .GenerateNextNumberAsync(DateTime.Now.Year);
+            .GenerateNextNumberAsync(NowUtc.Year);
 
         var transfer = new StockTransfer
         {
@@ -191,12 +204,13 @@ public class StockService
         await _unitOfWork.StockTransfers.AddAsync(transfer);
         await _unitOfWork.SaveChangesAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.TransferCreated, AuditModule.Stock,
-            transfer.Id.ToString(),
-            $"{transfer.TransferNumber} · POS #{fromPosId} → POS #{toPosId} · {lines.Count} ligne(s)");
+        await _audit.LogAsync(
+            AuditAction.TransferCreated,
+            AuditModule.Stock,
+            $"{transfer.TransferNumber} · POS #{fromPosId} → POS #{toPosId} · {lines.Count} ligne(s)",
+            entityType: "StockTransfer",
+            entityId: transfer.Id.ToString());
 
-        // ── EVENT ──
         _unitOfWork.EnqueueEvent(AppEvent.StockTransferCreated, transfer.Id.ToString());
         await _unitOfWork.FlushEventsAsync();
 
@@ -211,23 +225,37 @@ public class StockService
         {
             var transfer = await _unitOfWork.StockTransfers.GetWithLinesAsync(transferId);
             if (transfer == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return StockOperationResult.Fail("Transfert introuvable.");
+            }
 
             if (transfer.Status != TransferStatus.Draft &&
                 transfer.Status != TransferStatus.Pending)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return StockOperationResult.Fail(
                     $"Transfert en statut '{transfer.StatusDisplay}', expédition impossible.");
+            }
 
-            var transferRef = $"TRF-{transfer.Id}-{DateTime.Now:yyyyMMddHHmmss}";
+            // Load FROM POS once (avoid N+1 in the loop below).
+            var fromPos = await _unitOfWork.PointsOfSale
+                .GetByIdAsync(transfer.FromPointOfSaleId);
+            if (fromPos == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return StockOperationResult.Fail(
+                    $"POS source #{transfer.FromPointOfSaleId} introuvable.");
+            }
+
+            var transferRef = $"TRF-{transfer.Id}-{NowUtc:yyyyMMddHHmmss}";
 
             foreach (var line in transfer.Lines)
             {
-                var (posStock, _) = await GetOrCreatePosStockAsync(line.ProductId, transfer.FromPointOfSaleId);
+                var (posStock, _) = await GetOrCreatePosStockAsync(
+                    line.ProductId, transfer.FromPointOfSaleId);
 
-                var fromPos = await _unitOfWork.PointsOfSale
-                    .GetByIdAsync(transfer.FromPointOfSaleId);
-
-                if (!fromPos!.AllowNegativeStock &&
+                if (!fromPos.AllowNegativeStock &&
                     posStock.Quantity < line.RequestedQuantity)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
@@ -248,21 +276,27 @@ public class StockService
             }
 
             transfer.Status = TransferStatus.InTransit;
-            transfer.ShippedAt = DateTime.Now;
+            transfer.ShippedAt = NowUtc;
             await _unitOfWork.StockTransfers.UpdateAsync(transfer);
 
-            // Persist PosStock + movements so GetTotalStockAsync sees them
             await _unitOfWork.SaveChangesAsync();
 
-            // Update global product stocks (DB can now see the changes within the transaction)
             await UpdateGlobalStocksAsync(
                 transfer.Lines.Select(l => l.ProductId).Distinct());
             await _unitOfWork.SaveChangesAsync();
 
-            // ── EVENTS ──
+            await _audit.LogAsync(
+                AuditAction.TransferShipped,
+                AuditModule.Stock,
+                $"{transfer.TransferNumber} · POS #{transfer.FromPointOfSaleId} → POS #{transfer.ToPointOfSaleId} · {transfer.Lines.Count} ligne(s)",
+                entityType: "StockTransfer",
+                entityId: transfer.Id.ToString());
+
             _unitOfWork.EnqueueEvent(AppEvent.StockTransferShipped, transfer.Id.ToString());
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
+
             await _unitOfWork.CommitTransactionAsync();
+            await _unitOfWork.FlushEventsAsync();   // ← FIX: post-commit flush
 
             return StockOperationResult.Ok(transfer.Lines.Count,
                 $"Transfert {transfer.TransferNumber} expédié.");
@@ -283,30 +317,41 @@ public class StockService
         {
             var transfer = await _unitOfWork.StockTransfers.GetWithLinesAsync(transferId);
             if (transfer == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return StockOperationResult.Fail("Transfert introuvable.");
+            }
 
             if (transfer.Status != TransferStatus.InTransit)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return StockOperationResult.Fail(
                     $"Transfert en statut '{transfer.StatusDisplay}', réception impossible.");
+            }
 
             var outMovements = await _unitOfWork.StockMovements
                 .GetByReferenceAsync(transfer.TransferNumber);
             var transferRef = outMovements.FirstOrDefault()?.TransferReference
                               ?? $"TRF-{transfer.Id}-RCV";
 
+            // FIX: use dictionary to avoid the `match != default` tuple trap.
+            // Contract: if `receivedQuantities` is provided, ANY product NOT in the
+            // dictionary is treated as "0 received" (explicit). If the list is null,
+            // every line is received in full.
+            var receivedMap = receivedQuantities?
+                .GroupBy(r => r.ProductId)
+                .ToDictionary(g => g.Key, g => g.Last().ReceivedQuantity);
+
             bool isPartial = false;
 
             foreach (var line in transfer.Lines)
             {
-                decimal received = line.RequestedQuantity;
+                decimal received;
 
-                if (receivedQuantities != null)
-                {
-                    var match = receivedQuantities
-                        .FirstOrDefault(r => r.ProductId == line.ProductId);
-                    if (match != default)
-                        received = match.ReceivedQuantity;
-                }
+                if (receivedMap != null)
+                    received = receivedMap.TryGetValue(line.ProductId, out var q) ? q : 0m;
+                else
+                    received = line.RequestedQuantity;
 
                 line.ReceivedQuantity = received;
                 if (received != line.RequestedQuantity)
@@ -328,29 +373,29 @@ public class StockService
             transfer.Status = isPartial
                 ? TransferStatus.PartiallyReceived
                 : TransferStatus.Received;
-            transfer.ReceivedAt = DateTime.Now;
+            transfer.ReceivedAt = NowUtc;
             transfer.ReceivedBy = operatorName;
 
             await _unitOfWork.StockTransfers.UpdateAsync(transfer);
-
-            // Persist PosStock + movements so GetTotalStockAsync sees them
             await _unitOfWork.SaveChangesAsync();
 
-            // ── AUDIT ──
-            await _audit.LogAsync(AuditAction.TransferReceived, AuditModule.Stock,
-                transfer.Id.ToString(),
+            await _audit.LogAsync(
+                AuditAction.TransferReceived,
+                AuditModule.Stock,
                 $"{transfer.TransferNumber} · POS #{transfer.FromPointOfSaleId} → POS #{transfer.ToPointOfSaleId} · " +
-                $"Réceptionné{(isPartial ? " (partiel)" : "")} · {transfer.Lines.Count} ligne(s)");
+                $"Réceptionné{(isPartial ? " (partiel)" : "")} · {transfer.Lines.Count} ligne(s)",
+                entityType: "StockTransfer",
+                entityId: transfer.Id.ToString());
 
-            // Update global product stocks
             await UpdateGlobalStocksAsync(
                 transfer.Lines.Select(l => l.ProductId).Distinct());
             await _unitOfWork.SaveChangesAsync();
 
-            // ── EVENTS ──
             _unitOfWork.EnqueueEvent(AppEvent.StockTransferReceived, transfer.Id.ToString());
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
+
             await _unitOfWork.CommitTransactionAsync();
+            await _unitOfWork.FlushEventsAsync();   // ← FIX: post-commit flush
 
             return StockOperationResult.Ok(transfer.Lines.Count,
                 $"Transfert {transfer.TransferNumber} réceptionné" +
@@ -371,12 +416,18 @@ public class StockService
         {
             var transfer = await _unitOfWork.StockTransfers.GetWithLinesAsync(transferId);
             if (transfer == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return StockOperationResult.Fail("Transfert introuvable.");
+            }
 
             if (transfer.Status == TransferStatus.Received ||
                 transfer.Status == TransferStatus.Cancelled)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return StockOperationResult.Fail(
                     $"Impossible d'annuler un transfert '{transfer.StatusDisplay}'.");
+            }
 
             bool stockRestored = false;
 
@@ -395,13 +446,12 @@ public class StockService
             }
 
             transfer.Status = TransferStatus.Cancelled;
-            transfer.CancelledAt = DateTime.Now;
+            transfer.CancelledAt = NowUtc;
             transfer.Notes += $"\n[Annulé] {reason}";
 
             await _unitOfWork.StockTransfers.UpdateAsync(transfer);
             await _unitOfWork.SaveChangesAsync();
 
-            // Update global product stocks if stock was restored
             if (stockRestored)
             {
                 await UpdateGlobalStocksAsync(
@@ -409,18 +459,21 @@ public class StockService
                 await _unitOfWork.SaveChangesAsync();
             }
 
-            // ── AUDIT ──
-            await _audit.LogAsync(AuditAction.TransferCancelled, AuditModule.Stock,
-                transfer.Id.ToString(),
+            await _audit.LogAsync(
+                AuditAction.TransferCancelled,
+                AuditModule.Stock,
                 $"{transfer.TransferNumber} · Annulé" +
-                (stockRestored ? " (stock restauré)" : " (brouillon)") +
-                (string.IsNullOrEmpty(reason) ? "" : $" · Raison: {reason}"));
+                    (stockRestored ? " (stock restauré)" : " (brouillon)") +
+                    (string.IsNullOrEmpty(reason) ? "" : $" · Raison: {reason}"),
+                entityType: "StockTransfer",
+                entityId: transfer.Id.ToString());
 
-            // ── EVENTS ──
             _unitOfWork.EnqueueEvent(AppEvent.StockTransferCancelled, transfer.Id.ToString());
             if (stockRestored)
                 _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
+
             await _unitOfWork.CommitTransactionAsync();
+            await _unitOfWork.FlushEventsAsync();   // ← FIX: post-commit flush
 
             return StockOperationResult.Ok(0,
                 $"Transfert {transfer.TransferNumber} annulé.");
@@ -441,6 +494,7 @@ public class StockService
     {
         var products = await _unitOfWork.Products.GetActiveProductsAsync();
         int count = 0;
+        var now = NowUtc;
 
         foreach (var product in products.Where(p => p.TrackStock))
         {
@@ -454,8 +508,8 @@ public class StockService
                 if (existing.Quantity == 0 && qty > 0)
                 {
                     existing.Quantity = qty;
-                    existing.LastMovementAt = DateTime.Now;
-                    existing.UpdatedAt = DateTime.Now;
+                    existing.LastMovementAt = now;
+                    existing.UpdatedAt = now;
                     await _unitOfWork.PosStocks.UpdateAsync(existing);
 
                     await _unitOfWork.StockMovements.AddAsync(new StockMovement
@@ -480,7 +534,7 @@ public class StockService
                 ProductId = product.Id,
                 PointOfSaleId = posId,
                 Quantity = qty,
-                LastMovementAt = DateTime.Now
+                LastMovementAt = now
             };
             await _unitOfWork.PosStocks.AddAsync(posStock);
 
@@ -501,7 +555,6 @@ public class StockService
 
         await _unitOfWork.SaveChangesAsync();
 
-        // ── EVENT ──
         if (count > 0)
         {
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
@@ -536,7 +589,6 @@ public class StockService
 
         await _unitOfWork.SaveChangesAsync();
 
-        // ── EVENT ──
         if (count > 0)
         {
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
@@ -568,66 +620,97 @@ public class StockService
         return (posStock, true);
     }
 
+    /// <summary>
+    /// Applies a movement with its own save + global-stock refresh + audit + event flush.
+    /// If <paramref name="enforceNonNegative"/> is true, rolls back and returns a failure
+    /// when the resulting quantity would be negative. The check and the write happen
+    /// under a single transaction to avoid TOCTOU races.
+    /// </summary>
     private async Task<StockOperationResult> ApplyMovementAsync(
         int productId, int posId, StockMovementType type, decimal quantity,
         string operatorName, string notes, string reference,
-        decimal? unitCost = null)
+        decimal? unitCost = null,
+        bool enforceNonNegative = false,
+        string? productNameForError = null,
+        string? posCodeForError = null)
     {
-        var (posStock, isNew) = await GetOrCreatePosStockAsync(productId, posId);
-
-        decimal before = posStock.Quantity;
-        decimal after = before + quantity;
-
-        posStock.Quantity = after;
-        posStock.LastMovementAt = DateTime.Now;
-        posStock.UpdatedAt = DateTime.Now;
-
-        // ✅ Ne pas appeler UpdateAsync sur une entité fraîchement Add-ée
-        if (!isNew)
-            await _unitOfWork.PosStocks.UpdateAsync(posStock);
-
-        var movement = new StockMovement
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            ProductId = productId,
-            PointOfSaleId = posId,
-            Type = type,
-            Quantity = quantity,
-            QuantityBefore = before,
-            QuantityAfter = after,
-            Reference = reference,
-            OperatorName = operatorName,
-            Notes = notes,
-            UnitCost = unitCost
-        };
-        await _unitOfWork.StockMovements.AddAsync(movement);
+            var (posStock, isNew) = await GetOrCreatePosStockAsync(productId, posId);
 
-        await _unitOfWork.SaveChangesAsync();
+            decimal before = posStock.Quantity;
+            decimal after = before + quantity;
 
-        await UpdateProductGlobalStockAsync(productId);
-        await _unitOfWork.SaveChangesAsync();
+            if (enforceNonNegative && after < 0)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return StockOperationResult.Fail(
+                    $"Stock insuffisant pour « {productNameForError ?? $"#{productId}"} » " +
+                    $"au POS {posCodeForError ?? $"#{posId}"}. " +
+                    $"Disponible: {before:G}, Demandé: {Math.Abs(quantity):G}");
+            }
 
-        // ── AUDIT ──
-        var auditAction = type switch
+            var now = NowUtc;
+            posStock.Quantity = after;
+            posStock.LastMovementAt = now;
+            posStock.UpdatedAt = now;
+
+            if (!isNew)
+                await _unitOfWork.PosStocks.UpdateAsync(posStock);
+
+            var movement = new StockMovement
+            {
+                ProductId = productId,
+                PointOfSaleId = posId,
+                Type = type,
+                Quantity = quantity,
+                QuantityBefore = before,
+                QuantityAfter = after,
+                Reference = reference,
+                OperatorName = operatorName,
+                Notes = notes,
+                UnitCost = unitCost
+            };
+            await _unitOfWork.StockMovements.AddAsync(movement);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            await UpdateProductGlobalStockAsync(productId);
+            await _unitOfWork.SaveChangesAsync();
+
+            var auditAction = type switch
+            {
+                StockMovementType.Entry => AuditAction.StockEntry,
+                StockMovementType.Exit => AuditAction.StockExit,
+                StockMovementType.Adjustment => AuditAction.StockAdjustment,
+                StockMovementType.PhysicalCount => AuditAction.StockPhysicalCount,
+                StockMovementType.Initial => AuditAction.StockInitial,
+                StockMovementType.Sale => AuditAction.StockSaleDecrement,
+                StockMovementType.CreditReturn => AuditAction.StockCreditReturn,
+                _ => AuditAction.StockAdjustment
+            };
+
+            await _audit.LogAsync(
+                auditAction,
+                AuditModule.Stock,
+                $"Produit #{productId} · POS #{posId} · {type}: {before:G} → {after:G} ({quantity:+0.##;-0.##;0})" +
+                    (string.IsNullOrEmpty(reference) ? "" : $" · Réf: {reference}"),
+                entityType: "StockMovement",
+                entityId: movement.Id.ToString());
+
+            _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
+
+            await _unitOfWork.CommitTransactionAsync();
+            await _unitOfWork.FlushEventsAsync();   // post-commit flush
+
+            return StockOperationResult.Ok(after);
+        }
+        catch
         {
-            StockMovementType.Entry => AuditAction.StockEntry,
-            StockMovementType.Exit => AuditAction.StockExit,
-            StockMovementType.Adjustment => AuditAction.StockAdjustment,
-            StockMovementType.PhysicalCount => AuditAction.StockPhysicalCount,
-            StockMovementType.Initial => AuditAction.StockInitial,
-            StockMovementType.Sale => AuditAction.StockSaleDecrement,
-            StockMovementType.CreditReturn => AuditAction.StockCreditReturn,
-            _ => AuditAction.StockAdjustment
-        };
-
-        await _audit.LogAsync(auditAction, AuditModule.Stock,
-            movement.Id.ToString(),
-            $"Produit #{productId} · POS #{posId} · {type}: {before:G} → {after:G} ({quantity:+0.##;-0.##;0})" +
-            (string.IsNullOrEmpty(reference) ? "" : $" · Réf: {reference}"));
-
-        _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
-        await _unitOfWork.FlushEventsAsync();
-
-        return StockOperationResult.Ok(after);
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 
     /// <summary>
@@ -645,9 +728,10 @@ public class StockService
         decimal before = posStock.Quantity;
         decimal after = before + quantity;
 
+        var now = NowUtc;
         posStock.Quantity = after;
-        posStock.LastMovementAt = DateTime.Now;
-        posStock.UpdatedAt = DateTime.Now;
+        posStock.LastMovementAt = now;
+        posStock.UpdatedAt = now;
 
         if (!isNew)
             await _unitOfWork.PosStocks.UpdateAsync(posStock);
@@ -676,7 +760,7 @@ public class StockService
         if (product != null)
         {
             product.StockQuantity = totalStock;
-            product.UpdatedAt = DateTime.Now;
+            product.UpdatedAt = NowUtc;
             await _unitOfWork.Products.UpdateAsync(product);
         }
     }

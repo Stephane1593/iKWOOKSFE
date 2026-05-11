@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 
 namespace SFE.Infrastructure.EMcf;
 
@@ -14,22 +15,14 @@ namespace SFE.Infrastructure.EMcf;
 /// Production : https://edef.dgirdc.cd
 /// Test       : https://developper.dgirdc.cd/edef
 ///
-/// CONTRACT: Public methods NEVER throw. They always return a structured
-/// result with Success=false and a populated ErrorMessage on failure.
-/// This is required so the resolver can reliably trigger fallback.
-///
-/// CONNECTION POOL HARDENING:
-///   - PooledConnectionLifetime = 60s : sockets are recycled, so a network
-///     drop cannot permanently poison the pool with half-open TCP connections.
-///   - PooledConnectionIdleTimeout = 15s : idle sockets are dropped quickly.
-///   - ConnectTimeout = 5s : we discover an unreachable host fast, instead of
-///     hanging for the 30s end-to-end timeout.
-///   - Overall Timeout reduced from 30s → 15s for faster fallback.
+/// All wall-clock reads go through <see cref="ITimeProvider"/> so that
+/// tests can freeze time and so that "now" is consistent across the app.
 /// </summary>
 public class EMcfHttpClient : IFiscalDeviceService, IDisposable
 {
     private readonly HttpClient _http;
     private readonly SocketsHttpHandler _handler;
+    private readonly ITimeProvider _time;
     private readonly string _invoiceUrl;
     private readonly string _infoUrl;
     private readonly string _nif;
@@ -41,13 +34,14 @@ public class EMcfHttpClient : IFiscalDeviceService, IDisposable
         PropertyNameCaseInsensitive = true
     };
 
-    public EMcfHttpClient(string baseUrl, string token, string nif)
+    public EMcfHttpClient(string baseUrl, string token, string nif, ITimeProvider time)
     {
         if (string.IsNullOrWhiteSpace(baseUrl))
             throw new ArgumentException("URL API e-MCF manquante", nameof(baseUrl));
         if (string.IsNullOrWhiteSpace(token))
             throw new ArgumentException("Token e-MCF manquant", nameof(token));
 
+        _time = time ?? throw new ArgumentNullException(nameof(time));
         _nif = nif ?? "";
         var trimmed = baseUrl.TrimEnd('/');
         _invoiceUrl = $"{trimmed}/api/invoice";
@@ -55,29 +49,16 @@ public class EMcfHttpClient : IFiscalDeviceService, IDisposable
 
         _handler = new SocketsHttpHandler
         {
-            // Recycle every connection at most every 60s — guarantees that
-            // a half-open socket left over from a network drop is replaced
-            // within one minute even if the OS doesn't notice it's dead.
             PooledConnectionLifetime = TimeSpan.FromSeconds(60),
-
-            // Drop idle sockets aggressively so we don't reuse stale ones
-            // after a brief network blip.
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(15),
-
-            // Don't wait 30s to discover the host is unreachable.
             ConnectTimeout = TimeSpan.FromSeconds(5),
-
             AutomaticDecompression = DecompressionMethods.All,
             EnableMultipleHttp2Connections = true,
-
-            // Honor system DNS — re-resolved naturally on each new connection.
             UseProxy = true,
         };
 
         _http = new HttpClient(_handler, disposeHandler: false)
         {
-            // Tighter end-to-end timeout: failures should surface quickly so
-            // the resolver can fall back without freezing the UI.
             Timeout = TimeSpan.FromSeconds(15)
         };
 
@@ -334,7 +315,9 @@ public class EMcfHttpClient : IFiscalDeviceService, IDisposable
         info.TokenValidUntil = statusResp.TokenValid;
         info.PendingRequestsCount = statusResp.PendingRequestsCount;
         info.ConnectionStatus = statusResp.Status ? "CON" : "DIS";
-        info.LastServerConnection = statusResp.Status ? DateTime.Now : null;
+        info.LastServerConnection = statusResp.Status
+            ? _time.LocalNow                          // 🆕 via ITimeProvider
+            : null;
 
         if (!statusResp.Status)
             info.ErrorMessage = "API e-MCF non opérationnelle";
@@ -425,7 +408,9 @@ public class EMcfHttpClient : IFiscalDeviceService, IDisposable
             return new FiscalServerConnectionResult
             {
                 Success = status.Success,
-                LastServerConnection = status.Success ? DateTime.Now : null,
+                LastServerConnection = status.Success
+                    ? _time.LocalNow                              // 🆕 via ITimeProvider
+                    : null,
                 ConnectionStatus = status.Success ? "CON" : "DIS",
                 TransactionsPending = status.PendingCount,
                 ErrorMessage = status.ErrorMessage
@@ -443,7 +428,7 @@ public class EMcfHttpClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════════════════════════════
-    // MAPPING — unchanged
+    // MAPPING
     // ══════════════════════════════════════════════════════════════
 
     private InvoiceRequestDataDto MapToDto(FiscalInvoiceRequest request)
@@ -465,7 +450,11 @@ public class EMcfHttpClient : IFiscalDeviceService, IDisposable
         string curCode = request.CurrencyCode ?? "CDF";
         if (string.IsNullOrWhiteSpace(curCode)) curCode = "CDF";
         dto.CurCode = curCode;
-        dto.CurDate = (request.CurrencyDate ?? DateTime.Now)
+
+        // request.CurrencyDate est DateTimeOffset? ; l'API DGI attend
+        // "2026-03-20T19:11:06.086" — heure locale sans offset.
+        var curDate = request.CurrencyDate ?? _time.LocalNow;   // 🆕 via ITimeProvider
+        dto.CurDate = curDate.LocalDateTime
             .ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture);
         dto.CurRate = request.CurrencyRate ?? 0m;
 

@@ -9,7 +9,7 @@ public class User
     public string FullName { get; set; } = string.Empty;
     public int RoleId { get; set; }
     public bool IsActive { get; set; } = true;
-    public DateTime? LastLoginAt { get; set; }
+    public DateTimeOffset? LastLoginAt { get; set; }
 
     // ═══════════════════════════════════════════════
     //  🆕 POS ASSIGNMENT (replaces AssignedPosIds JSON)

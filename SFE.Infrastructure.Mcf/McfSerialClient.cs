@@ -3,13 +3,13 @@ using System.Globalization;
 using System.IO.Ports;
 using System.Text;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 
 namespace SFE.Infrastructure.Mcf;
 
 /// <summary>
 /// Client MCF physique — communication port série RS232/USB.
 /// Implémente le flux spec MCF: C3→C0→31h(×N)→36h→33h→35h puis 38h.
-/// Submit = tout sauf 38h, Finalize = 38h.
 /// </summary>
 public class McfSerialClient : IFiscalDeviceService, IDisposable
 {
@@ -17,14 +17,16 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     private byte _seq = 0x20;
     private readonly string _comPort;
     private readonly int _baudRate;
+    private readonly ITimeProvider _time;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public bool IsConnected => _port?.IsOpen == true;
 
-    public McfSerialClient(string comPort, int baudRate = 115200)
+    public McfSerialClient(string comPort, ITimeProvider time, int baudRate = 115200)
     {
         _comPort = comPort;
         _baudRate = baudRate;
+        _time = time ?? throw new ArgumentNullException(nameof(time));
     }
 
     public void Connect()
@@ -46,7 +48,29 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════
-    // ENVOI / RÉCEPTION (inchangé)
+    // Helper — MCF local DateTime → DateTimeOffset
+    // ══════════════════════════════════════
+
+    /// <summary>
+    /// The MCF firmware emits timestamps in the device's wall-clock time
+    /// (no timezone marker). We attach the current machine's local offset,
+    /// sourced from <see cref="ITimeProvider.LocalNow"/>, so that the
+    /// resulting <see cref="DateTimeOffset"/> round-trips cleanly through
+    /// persistence and display layers.
+    ///
+    /// NOTE: In RDC there is no DST, so using "now's" offset for any past
+    /// date is safe. If the codebase is ever deployed somewhere with DST,
+    /// switch to <c>TimeZoneInfo.Local.GetUtcOffset(unspecified)</c>.
+    /// </summary>
+    private DateTimeOffset ToLocalOffset(DateTime local)
+    {
+        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+        var offset = _time.LocalNow.Offset;                    // 🆕 via ITimeProvider
+        return new DateTimeOffset(unspecified, offset);
+    }
+
+    // ══════════════════════════════════════
+    // ENVOI / RÉCEPTION
     // ══════════════════════════════════════
 
     private async Task<McfResponse> SendCommandAsync(byte cmd, string? data = null)
@@ -75,7 +99,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     {
         var buffer = new byte[512];
         var received = new List<byte>();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         while (sw.ElapsedMilliseconds < 5000)
         {
@@ -110,8 +134,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════
-    // IFiscalDeviceService — GetStatusAsync
-    // C1h → FiscalStatusResult
+    // GetStatusAsync — C1h
     // ══════════════════════════════════════
 
     public async Task<FiscalStatusResult> GetStatusAsync()
@@ -148,7 +171,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                 pendingList.Add(new PendingInvoiceInfo
                 {
                     Uid = "MCF",
-                    Date = DateTime.Now
+                    Date = _time.LocalNow                       // 🆕 via ITimeProvider
                 });
             }
 
@@ -174,18 +197,15 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════
-    // IFiscalDeviceService — SubmitInvoiceAsync
-    // Flux: C3→C0→31h(×N)→36h→33h→35h
+    // SubmitInvoiceAsync — flux C3→C0→31h→36h→33h→35h
     // ══════════════════════════════════════
 
     public async Task<FiscalSubmitResult> SubmitInvoiceAsync(FiscalInvoiceRequest request)
     {
         try
         {
-            // 1. C3h — Info client
             await SendClientInfoAsync(request);
 
-            // 2. C0h — Ouvrir la facture
             var openResp = await OpenInvoiceAsync(request);
             if (openResp.StartsWith("E:"))
                 return new FiscalSubmitResult
@@ -195,7 +215,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                     ErrorMessage = openResp[2..]
                 };
 
-            // 3. 31h — Enregistrer chaque article
             foreach (var item in request.Items)
             {
                 var itemResp = await RegisterItemAsync(item, request.PriceMode);
@@ -208,10 +227,8 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                     };
             }
 
-            // 4. 36h — Commentaires
             await SendCommentsAsync(request);
 
-            // 5. 33h — Sous-total (vérification)
             var subtotalResp = await SendCommandAsync(McfProtocol.CMD_SUBTOTAL);
 
             decimal serverTTC = 0, serverTVA = 0, serverTS = 0, serverUSD = 0;
@@ -220,62 +237,47 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
 
             if (!subtotalResp.IsError && subtotalResp.Fields.Length >= 35)
             {
-                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                var ic = CultureInfo.InvariantCulture;
                 var groups = new[]
                 {
-                  "A","B","C","D","E","F","G","H",
-                  "I","J","K","L","M","N","O","P"
+                    "A","B","C","D","E","F","G","H",
+                    "I","J","K","L","M","N","O","P"
                 };
 
-                // ── MV (index 0) — Montant total enregistré ──
                 decimal.TryParse(subtotalResp.Fields[0], NumberStyles.Any, ic, out serverTTC);
 
-                // ── MVA…MVP (index 1–16) — Montant TTC par groupe ──
                 for (int i = 0; i < 16; i++)
                 {
-                    if (decimal.TryParse(subtotalResp.Fields[1 + i],
-                                         NumberStyles.Any, ic, out var amt) && amt != 0)
-                    {
+                    if (decimal.TryParse(subtotalResp.Fields[1 + i], NumberStyles.Any, ic, out var amt) && amt != 0)
                         groupAmounts[groups[i]] = amt;
-                    }
                 }
 
-                // ── MTA…MTP (index 17–32) — TVA par groupe ──
                 for (int i = 0; i < 16; i++)
                 {
-                    if (decimal.TryParse(subtotalResp.Fields[17 + i],
-                                         NumberStyles.Any, ic, out var tva))
+                    if (decimal.TryParse(subtotalResp.Fields[17 + i], NumberStyles.Any, ic, out var tva))
                     {
                         if (tva != 0)
                             groupTVA[groups[i]] = tva;
-
-                        serverTVA += tva;   // ← accumulate total TVA
+                        serverTVA += tva;
                     }
                 }
 
-                // ── MTS (index 33) — Taxe spécifique totale ──
                 decimal.TryParse(subtotalResp.Fields[33], NumberStyles.Any, ic, out serverTS);
-
-                // ── MCUR (index 34) — Équivalent USD ──
                 decimal.TryParse(subtotalResp.Fields[34], NumberStyles.Any, ic, out serverUSD);
             }
 
-            // 6. 35h — Paiements
             foreach (var payment in request.Payments)
-            {
                 await RegisterPaymentAsync(payment);
-            }
 
-            // MCF n'a pas de UID — la facture est "ouverte" sur le dispositif
             return new FiscalSubmitResult
             {
                 Success = true,
                 Uid = "MCF",
                 TotalTTC = serverTTC,
-                TotalTVA = serverTVA,     // now correct: sum of MTA…MTP
+                TotalTVA = serverTVA,
                 TotalTS = serverTS,
                 TotalUSD = serverUSD,
-                GroupAmounts = groupAmounts,   // for per-group verification
+                GroupAmounts = groupAmounts,
                 GroupTVA = groupTVA
             };
         }
@@ -290,8 +292,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════
-    // IFiscalDeviceService — FinalizeInvoiceAsync
-    // 38h → FiscalFinalizeResult
+    // FinalizeInvoiceAsync — 38h
     // ══════════════════════════════════════
 
     public async Task<FiscalFinalizeResult> FinalizeInvoiceAsync(
@@ -299,7 +300,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     {
         try
         {
-            var ic = System.Globalization.CultureInfo.InvariantCulture;
+            var ic = CultureInfo.InvariantCulture;
             string data = $"{totalTTC.ToString("F2", ic)},{totalTVA.ToString("F2", ic)}";
 
             var resp = await SendCommandAsync(McfProtocol.CMD_FINALIZE, data);
@@ -317,12 +318,10 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
 
             if (resp.Data.StartsWith("P:"))
             {
-                // MCF a besoin de plus de temps
                 await Task.Delay(500);
                 return await FinalizeInvoiceAsync(uid, totalTTC, totalTVA);
             }
 
-            // Succès: "R:{FC},{TC},{FT},{DT},{MID},{NIF},{FN},{SIG}"
             string rawData;
             if (resp.Data.StartsWith("R :"))
                 rawData = resp.Data[3..];
@@ -357,7 +356,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════
-    // IFiscalDeviceService — CancelPendingInvoiceAsync
+    // CancelPendingInvoiceAsync
     // ══════════════════════════════════════
 
     public async Task<bool> CancelPendingInvoiceAsync(string uid)
@@ -371,10 +370,9 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════
-    // PRIVATE — Commandes MCF depuis FiscalInvoiceRequest
+    // PRIVATE — MCF commands from FiscalInvoiceRequest
     // ══════════════════════════════════════
 
-    // ── C3h — Client ──
     private async Task SendClientInfoAsync(FiscalInvoiceRequest request)
     {
         if (request.Client == null)
@@ -391,17 +389,15 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             McfProtocol.EscapeData(c.Name ?? ""),
             McfProtocol.EscapeData(c.Address ?? ""),
             McfProtocol.EscapeData(c.Contact ?? ""),
-            "", // email (inclus dans contact)
-            ""  // RCCM
+            "",
+            ""
         };
 
         await SendCommandAsync(McfProtocol.CMD_CLIENT_INFO, string.Join(",", parts));
     }
 
-    // ── C0h — Ouvrir facture ──
     private async Task<string> OpenInvoiceAsync(FiscalInvoiceRequest request)
     {
-        // {OPID},{OPN},{NIF},{VT|RT,RR,RN},{PMODE},{ISF},{FN}[,{CRT},{CDT}]
         var parts = new List<string>
         {
             McfProtocol.EscapeData(request.OperatorId),
@@ -427,32 +423,29 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
 
         if (request.CurrencyRate.HasValue)
         {
-            var ic = System.Globalization.CultureInfo.InvariantCulture;
+            var ic = CultureInfo.InvariantCulture;
             parts.Add(request.CurrencyRate.Value.ToString("F2", ic));
-            parts.Add(request.CurrencyDate?.ToString("yyyyMMdd") ?? "");
+            // CurrencyDate est DateTimeOffset? — on envoie la date LOCALE (yyyyMMdd)
+            parts.Add(request.CurrencyDate?.LocalDateTime.ToString("yyyyMMdd") ?? "");
         }
 
         var resp = await SendCommandAsync(McfProtocol.CMD_NEW_INVOICE, string.Join(",", parts));
         return resp.IsError ? "E:Communication" : resp.Data;
     }
 
-    // ── 31h — Article ──
     private async Task<string> RegisterItemAsync(FiscalItemInfo item, string priceMode)
     {
-        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var ic = CultureInfo.InvariantCulture;
         var sb = new StringBuilder();
 
-        // Nom
         sb.Append(McfProtocol.EscapeData(item.Name));
 
-        // Code (description sur LF)
         if (!string.IsNullOrEmpty(item.Code))
         {
-            sb.Append((char)0x0A); // LF
+            sb.Append((char)0x0A);
             sb.Append(McfProtocol.EscapeData(item.Code));
         }
 
-        // TAB + ITYPE,TAX TR% MON
         sb.Append((char)0x09);
         sb.Append(item.Type);
         sb.Append(',');
@@ -463,7 +456,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         decimal mon = item.Price * item.Quantity;
         sb.Append(mon.ToString("F2", ic));
 
-        // TAB + PR [*QT]
         sb.Append((char)0x09);
         sb.Append(item.Price.ToString("F2", ic));
 
@@ -473,7 +465,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             sb.Append(item.Quantity.ToString("G", ic));
         }
 
-        // Taxe spécifique
         if (!string.IsNullOrEmpty(item.TaxSpecificValue))
         {
             sb.Append(";T");
@@ -482,7 +473,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             sb.Append((item.TaxSpecificAmount ?? 0).ToString("F2", ic));
         }
 
-        // Modification de prix
         if (item.OriginalPrice.HasValue)
         {
             sb.Append((char)0x09);
@@ -495,7 +485,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         return resp.IsError ? "E:Communication" : resp.Data;
     }
 
-    // ── 36h — Commentaires ──
     private async Task SendCommentsAsync(FiscalInvoiceRequest request)
     {
         var comments = new (string id, string? val)[]
@@ -516,7 +505,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         }
     }
 
-    // ── 35h — Paiement ──
     private async Task RegisterPaymentAsync(FiscalPaymentInfo payment)
     {
         string pa = payment.Name.ToUpperInvariant() switch
@@ -531,14 +519,13 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             _ => "E"
         };
 
-        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var ic = CultureInfo.InvariantCulture;
         string data = $"{pa}{payment.Amount.ToString("F2", ic)}";
         await SendCommandAsync(McfProtocol.CMD_PAYMENT, data);
     }
 
     // ══════════════════════════════════════
-    // IFiscalDeviceService — GetServerConnectionStatusAsync
-    // C2h → FiscalServerConnectionResult
+    // GetServerConnectionStatusAsync — C2h
     // ══════════════════════════════════════
 
     public async Task<FiscalServerConnectionResult> GetServerConnectionStatusAsync()
@@ -554,7 +541,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                 };
 
             var f = resp.Fields;
-            // Response: {EC},{DC},{DT},{STA}[,{ER}]
             if (f.Length < 4)
                 return new FiscalServerConnectionResult
                 {
@@ -565,13 +551,13 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             int.TryParse(f[0], out var ec);
             int.TryParse(f[1], out var dc);
 
-            DateTime? lastConn = null;
-            if (f[2].Length == 14)
+            DateTimeOffset? lastConn = null;
+            if (f[2].Length == 14
+                && DateTime.TryParseExact(f[2], "yyyyMMddHHmmss",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var dt))
             {
-                if (DateTime.TryParseExact(f[2], "yyyyMMddHHmmss",
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None, out var dt))
-                    lastConn = dt;
+                lastConn = ToLocalOffset(dt);
             }
 
             return new FiscalServerConnectionResult
@@ -594,18 +580,13 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         }
     }
 
-
-    // ── Helpers ──
     private static string BuildQrContent(string mid, string sig, string nif, string dt)
     {
         return $"RDCDEF01;{mid};{sig};{nif};{dt}";
     }
 
-
-
     // ══════════════════════════════════════════════════════════════
-    // IFiscalDeviceService — GetDetailedInfoAsync
-    // C1h + C2h + 2Bh(×5) → FiscalDeviceDetailedInfo
+    // GetDetailedInfoAsync — C1h + C2h + 2Bh(×5)
     // ══════════════════════════════════════════════════════════════
 
     public async Task<FiscalDeviceDetailedInfo> GetDetailedInfoAsync()
@@ -641,24 +622,25 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             info.NIF = f[1];
             info.ConnectionStatus = "CON";
 
-            // Device date/time (index 2: yyyyMMddHHmmss)
+            var ic = CultureInfo.InvariantCulture;
+
+            // Device date/time (index 2)
             if (f[2].Length == 14 && DateTime.TryParseExact(f[2], "yyyyMMddHHmmss",
-                CultureInfo.InvariantCulture, DateTimeStyles.None, out var devDt))
+                ic, DateTimeStyles.None, out var devDt))
             {
-                info.DeviceDateTime = devDt;
+                info.DeviceDateTime = ToLocalOffset(devDt);
             }
 
             // Counters
-            var ic = CultureInfo.InvariantCulture;
             if (int.TryParse(f[3], out var tc)) info.TotalTransactions = tc;
             if (int.TryParse(f[4], out var fvc)) info.SalesInvoiceCount = fvc;
             if (int.TryParse(f[5], out var frc)) info.CreditNoteCount = frc;
 
-            // Last invoice info (indices 6-10)
+            // Last invoice info
             if (f.Length > 6 && f[6].Length == 14 && DateTime.TryParseExact(f[6], "yyyyMMddHHmmss",
-                CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastInvDt))
+                ic, DateTimeStyles.None, out var lastInvDt))
             {
-                info.LastInvoiceDate = lastInvDt;
+                info.LastInvoiceDate = ToLocalOffset(lastInvDt);
             }
 
             if (f.Length > 7) info.LastInvoiceType = f[7];
@@ -669,7 +651,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                 info.LastInvoiceAmount = lastAmt;
             }
 
-            // Tax rates A-P (indices 11-26)
+            // Tax rates A-P
             if (f.Length >= 27)
             {
                 for (int i = 0; i < 16 && (11 + i) < f.Length; i++)
@@ -679,39 +661,39 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                 }
             }
 
-            // ── Currency rates (indices 27-29 in C1h response) ──
-            // Format: {CUR_CODE},{CUR_RATE},{CUR_DATE(yyyyMMdd)}
+            // Currency rates (indices 27-29)
             if (f.Length >= 30)
             {
                 try
                 {
-                    string currCode = f[27]?.Trim();
-                    string currRateStr = f[28]?.Trim();
-                    string currDateStr = f[29]?.Trim();
+                    string currCode = f[27]?.Trim() ?? "";
+                    string currRateStr = f[28]?.Trim() ?? "";
+                    string currDateStr = f[29]?.Trim() ?? "";
 
                     if (!string.IsNullOrEmpty(currCode) &&
                         decimal.TryParse(currRateStr, NumberStyles.Any, ic, out var currRate) &&
                         currRate > 0)
                     {
-                        DateTime currDate = DateTime.Now;
-                        if (!string.IsNullOrEmpty(currDateStr) && currDateStr.Length == 8)
-                        {
+                        DateTimeOffset currDate = _time.LocalNow;          // 🆕 via ITimeProvider
+                        if (!string.IsNullOrEmpty(currDateStr) && currDateStr.Length == 8 &&
                             DateTime.TryParseExact(currDateStr, "yyyyMMdd",
-                                CultureInfo.InvariantCulture, DateTimeStyles.None, out currDate);
+                                ic, DateTimeStyles.None, out var parsedDate))
+                        {
+                            currDate = ToLocalOffset(parsedDate);
                         }
 
                         info.CurrencyRates = new List<CurrencyRateInfo>
-            {
-                new CurrencyRateInfo
-                {
-                    Code = currCode,
-                    Description = currCode == "USD" ? "United States Dollar" :
-                                  currCode == "EUR" ? "Euro" :
-                                  currCode == "CNY" ? "Chinese Yuan" : currCode,
-                    Rate = currRate,
-                    Date = currDate
-                }
-            };
+                        {
+                            new CurrencyRateInfo
+                            {
+                                Code = currCode,
+                                Description = currCode == "USD" ? "United States Dollar" :
+                                              currCode == "EUR" ? "Euro" :
+                                              currCode == "CNY" ? "Chinese Yuan" : currCode,
+                                Rate = currRate,
+                                Date = currDate
+                            }
+                        };
 
                         Debug.WriteLine($"[MCF] Currency rate found: 1 {currCode} = {currRate:N2} CDF ({currDate:dd/MM/yyyy})");
                     }
@@ -729,7 +711,6 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             {
                 Debug.WriteLine($"[MCF] C1h response has {f.Length} fields, need ≥30 for currency rate");
 
-                // ── Fallback: Try 2Bh with currency field IDs ──
                 try
                 {
                     var rateInfo = await GetCurrencyRateFromDeviceAsync();
@@ -753,12 +734,12 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                     if (int.TryParse(c2f[1], out var dc)) info.TransactionsInDevice = dc;
 
                     if (c2f[2].Length == 14 && DateTime.TryParseExact(c2f[2], "yyyyMMddHHmmss",
-                        CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastConn))
+                        ic, DateTimeStyles.None, out var lastConn))
                     {
-                        info.LastServerConnection = lastConn;
+                        info.LastServerConnection = ToLocalOffset(lastConn);
                     }
 
-                    info.ConnectionStatus = c2f[3]; // CON/DIS/TRA/RES
+                    info.ConnectionStatus = c2f[3];
 
                     if (c2f.Length >= 5 && !string.IsNullOrWhiteSpace(c2f[4]))
                         info.LastError = c2f[4];
@@ -769,7 +750,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                 Debug.WriteLine($"[MCF] C2h call failed: {ex.Message}");
             }
 
-            // ── 3. 2Bh — Taxpayer info (I0-I4) ──
+            // ── 3. 2Bh — Taxpayer info ──
             try
             {
                 info.TaxpayerName = await GetTaxpayerFieldAsync("I0");
@@ -797,30 +778,21 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         }
     }
 
-    /// <summary>
-    /// Sends 2Bh command with field ID and returns the value string.
-    /// </summary>
     private async Task<string> GetTaxpayerFieldAsync(string fieldId)
     {
         var resp = await SendCommandAsync(McfProtocol.CMD_TAXPAYER_INFO, fieldId);
         if (resp.IsError) return "";
-        // Response data format: "I0,<value>" — extract after first comma
         var idx = resp.Data.IndexOf(',');
         return idx >= 0 ? resp.Data[(idx + 1)..].Trim() : resp.Data.Trim();
     }
 
-    /// <summary>
-    /// Fallback: reads currency rate using 2Bh command with field IDs D0/D1/D2.
-    /// Some MCF firmware versions expose the rate this way.
-    /// </summary>
     private async Task<CurrencyRateInfo?> GetCurrencyRateFromDeviceAsync()
     {
         var ic = CultureInfo.InvariantCulture;
 
-        // Try reading currency fields via 2Bh
-        string code = await GetTaxpayerFieldAsync("D0"); // Currency code
-        string rateStr = await GetTaxpayerFieldAsync("D1"); // Rate
-        string dateStr = await GetTaxpayerFieldAsync("D2"); // Date
+        string code = await GetTaxpayerFieldAsync("D0");
+        string rateStr = await GetTaxpayerFieldAsync("D1");
+        string dateStr = await GetTaxpayerFieldAsync("D2");
 
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(rateStr))
         {
@@ -834,11 +806,12 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             return null;
         }
 
-        DateTime date = DateTime.Now;
-        if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 8)
-        {
+        DateTimeOffset date = _time.LocalNow;                      // 🆕 via ITimeProvider
+        if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 8 &&
             DateTime.TryParseExact(dateStr.Substring(0, 8), "yyyyMMdd",
-                ic, DateTimeStyles.None, out date);
+                ic, DateTimeStyles.None, out var parsedDate))
+        {
+            date = ToLocalOffset(parsedDate);
         }
 
         Debug.WriteLine($"[MCF] Currency from 2Bh: 1 {code} = {rate:N2} CDF ({date:dd/MM/yyyy})");
@@ -859,7 +832,4 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         _port?.Dispose();
         _lock.Dispose();
     }
-
-
 }
-

@@ -1,4 +1,5 @@
 ﻿using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -8,11 +9,13 @@ public class ClientService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuditService _audit;
+    private readonly ITimeProvider _time;
 
-    public ClientService(IUnitOfWork unitOfWork, IAuditService audit)
+    public ClientService(IUnitOfWork unitOfWork, IAuditService audit, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
         _audit = audit;
+        _time = time;
     }
 
     public async Task<List<Client>> GetAllAsync()
@@ -40,15 +43,22 @@ public class ClientService
                 return new("Un client avec ce NIF existe déjà.");
         }
 
-        client.CreatedAt = DateTime.UtcNow;
+        // ⚠ DGI §1.1 — timestamps via ITimeProvider only.
+        client.CreatedAt = _time.UtcNow.UtcDateTime;
+
         await _unitOfWork.Clients.AddAsync(client);
         await _unitOfWork.SaveChangesAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.ClientCreated, AuditModule.Clients,
-            client.Id.ToString(),
-            $"Client « {client.Name} » · Type {client.Type}" +
-            (!string.IsNullOrWhiteSpace(client.NIF) ? $" · NIF {client.NIF}" : ""));
+        // ── AUDIT ── (fixed argument order: description, entityType, entityId)
+        var description = $"Client « {client.Name} » · Type {client.Type}"
+            + (!string.IsNullOrWhiteSpace(client.NIF) ? $" · NIF {client.NIF}" : "");
+
+        await _audit.LogAsync(
+            AuditAction.ClientCreated,
+            AuditModule.Clients,
+            description,
+            entityType: "Client",
+            entityId: client.Id.ToString());
 
         return new() { IsValid = true, Client = client };
     }
@@ -87,12 +97,17 @@ public class ClientService
         await _unitOfWork.Clients.UpdateAsync(client);
         await _unitOfWork.SaveChangesAsync();
 
-        // ── AUDIT ──
-        var detail = changes.Count > 0
+        // ── AUDIT ── (fixed argument order)
+        var description = changes.Count > 0
             ? $"Client « {client.Name} » · {string.Join(" · ", changes)}"
             : $"Client « {client.Name} » · Aucune modification détectée";
-        await _audit.LogAsync(AuditAction.ClientUpdated, AuditModule.Clients,
-            client.Id.ToString(), detail);
+
+        await _audit.LogAsync(
+            AuditAction.ClientUpdated,
+            AuditModule.Clients,
+            description,
+            entityType: "Client",
+            entityId: client.Id.ToString());
 
         return new() { IsValid = true, Client = client };
     }
@@ -110,12 +125,17 @@ public class ClientService
         await _unitOfWork.Clients.DeleteAsync(client);
         await _unitOfWork.SaveChangesAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.ClientDeleted, AuditModule.Clients,
-            id.ToString(),
-            $"Client « {name} » · Type {type}" +
-            (!string.IsNullOrWhiteSpace(nif) ? $" · NIF {nif}" : "") +
-            " · Supprimé");
+        // ── AUDIT ── (fixed argument order)
+        var description = $"Client « {name} » · Type {type}"
+            + (!string.IsNullOrWhiteSpace(nif) ? $" · NIF {nif}" : "")
+            + " · Supprimé";
+
+        await _audit.LogAsync(
+            AuditAction.ClientDeleted,
+            AuditModule.Clients,
+            description,
+            entityType: "Client",
+            entityId: id.ToString());
 
         return true;
     }

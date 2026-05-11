@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.WPF.Models;
 
@@ -14,13 +15,14 @@ public partial class SessionOpenViewModel : ObservableObject
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuthService _authService;
     private readonly SettingsService _settingsService;
+    private readonly ITimeProvider _timeProvider;      // 🆕
 
     // ═══ HEADER ═══
     [ObservableProperty] private string _currentDate = "";
     [ObservableProperty] private string _currentTime = "";
     [ObservableProperty] private string _operatorName = "";
 
-    // ═══ POINT OF SALE (single, from User.PointOfSaleId) ═══
+    // ═══ POINT OF SALE ═══
     [ObservableProperty] private PointOfSale? _assignedPos;
     [ObservableProperty] private string _assignedPosDetail = "";
 
@@ -68,15 +70,21 @@ public partial class SessionOpenViewModel : ObservableObject
     public event Action? SessionConfirmed;
     public event Action? SessionBypassed;
 
-    public SessionOpenViewModel(IUnitOfWork unitOfWork, IAuthService authService, SettingsService settingsService)
+    public SessionOpenViewModel(
+        IUnitOfWork unitOfWork,
+        IAuthService authService,
+        SettingsService settingsService,
+        ITimeProvider timeProvider)                    // 🆕
     {
         _unitOfWork = unitOfWork;
         _authService = authService;
         _settingsService = settingsService;
+        _timeProvider = timeProvider;                  // 🆕
 
-        var now = DateTime.Now;
-        CurrentDate = now.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
-        CurrentTime = now.ToString("HH:mm");
+        // 🆕 Projection locale via le provider (pas DateTime.Now direct)
+        var localNow = _timeProvider.LocalNow;
+        CurrentDate = localNow.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
+        CurrentTime = localNow.ToString("HH:mm");
         OperatorName = authService.CurrentUser?.FullName ?? "Opérateur";
 
         CanBypassPosCheck = authService.HasPermission("bypassPosCheck");
@@ -122,7 +130,6 @@ public partial class SessionOpenViewModel : ObservableObject
             return;
         }
 
-        // ── User has no POS assigned ──
         if (!user.PointOfSaleId.HasValue)
         {
             SetNoPosState(
@@ -131,7 +138,6 @@ public partial class SessionOpenViewModel : ObservableObject
             return;
         }
 
-        // ── Load the assigned POS ──
         var pos = user.PointOfSale
                   ?? await _unitOfWork.PointsOfSale.GetByIdAsync(user.PointOfSaleId.Value);
 
@@ -151,7 +157,6 @@ public partial class SessionOpenViewModel : ObservableObject
             return;
         }
 
-        // ── Success ──
         AssignedPos = pos;
         HasPosAvailable = true;
         NoPosAvailable = false;
@@ -201,7 +206,7 @@ public partial class SessionOpenViewModel : ObservableObject
     }
 
     // ═══════════════════════════════════════════
-    //  RECALCULATION (unchanged)
+    //  RECALCULATION
     // ═══════════════════════════════════════════
 
     partial void OnRateUSDChanged(string value) => RecalculateEquivalents();
@@ -238,7 +243,7 @@ public partial class SessionOpenViewModel : ObservableObject
     }
 
     // ═══════════════════════════════════════════
-    //  BYPASS (IT TECH)
+    //  BYPASS
     // ═══════════════════════════════════════════
 
     [RelayCommand]
@@ -297,7 +302,8 @@ public partial class SessionOpenViewModel : ObservableObject
         IsBypass = false;
         Result = new CashSessionInfo
         {
-            OpenedAt = DateTime.Now,
+            // 🆕 UTC via le provider ; l'UI continuera d'afficher via ToLocal()
+            OpenedAt = _timeProvider.UtcNow,
             OperatorName = OperatorName,
             PointOfSaleId = AssignedPos.Id,
             PointOfSaleName = AssignedPos.Name,

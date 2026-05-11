@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -17,6 +18,9 @@ namespace SFE.WPF.ViewModels;
 public partial class ReportViewModel : BaseViewModel
 {
     private readonly IUnitOfWork _unitOfWork;
+
+    // Debounce pour la recherche
+    private readonly DispatcherTimer _searchDebounce;
 
     // ══════ LIST ══════
     public ObservableCollection<ReportListItemViewModel> Reports { get; } = new();
@@ -51,13 +55,29 @@ public partial class ReportViewModel : BaseViewModel
     [ObservableProperty] private bool _showError;
     [ObservableProperty] private bool _noResults;
 
+    // 🆕 Évite que NoResults soit true avant le premier chargement
+    private bool _initialLoadCompleted;
+
     /// <summary>All reports — source of truth for filtering.</summary>
     private List<ReportListItemViewModel> _allReports = new();
+
+    // Limite raisonnable pour éviter de charger toute la table
+    private const int MaxReportsToLoad = 1000;
 
     public ReportViewModel(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
         PageTitle = "Historique des rapports";
+
+        _searchDebounce = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _searchDebounce.Tick += (_, _) =>
+        {
+            _searchDebounce.Stop();
+            ApplyFilter();
+        };
 
         _ = LoadAsync();
     }
@@ -78,10 +98,12 @@ public partial class ReportViewModel : BaseViewModel
 
             _allReports = entities
                 .OrderByDescending(r => r.GeneratedAt)
+                .Take(MaxReportsToLoad)
                 .Select(ReportListItemViewModel.FromEntity)
                 .ToList();
 
             UpdateStats();
+            _initialLoadCompleted = true;
             ApplyFilter();
         }
         catch (Exception ex)
@@ -114,9 +136,10 @@ public partial class ReportViewModel : BaseViewModel
         LastAInfo = FormatLastInfo(lastA);
     }
 
+    // 🔧 FIX : .LocalDateTime pour cohérence avec ReportListItemViewModel.DateLabel
     private static string FormatLastInfo(ReportListItemViewModel? r)
         => r != null
-            ? $"N°{r.ReportNumber} — {r.GeneratedAt:dd/MM/yyyy HH:mm}"
+            ? $"N°{r.ReportNumber} — {r.GeneratedAt.LocalDateTime:dd/MM/yyyy HH:mm}"
             : "Aucun rapport";
 
     // ══════════════════════════════════════════════
@@ -124,7 +147,13 @@ public partial class ReportViewModel : BaseViewModel
     // ══════════════════════════════════════════════
 
     partial void OnSelectedFilterChanged(string value) => ApplyFilter();
-    partial void OnSearchTextChanged(string value) => ApplyFilter();
+
+    // 🆕 Debounce : évite de filtrer à chaque frappe
+    partial void OnSearchTextChanged(string value)
+    {
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
 
     private void ApplyFilter()
     {
@@ -138,19 +167,20 @@ public partial class ReportViewModel : BaseViewModel
 
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
-            var q = SearchText.Trim().ToLowerInvariant();
+            var q = SearchText.Trim();
             filtered = filtered.Where(r =>
                 r.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.OperatorName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.ReportNumber.ToString().Contains(q) ||
-                r.DateLabel.Contains(q));
+                r.DateLabel.Contains(q, StringComparison.OrdinalIgnoreCase));
         }
 
         Reports.Clear();
         foreach (var r in filtered)
             Reports.Add(r);
 
-        NoResults = Reports.Count == 0;
+        // 🔧 FIX : n'affiche "aucun résultat" qu'après le premier load
+        NoResults = _initialLoadCompleted && Reports.Count == 0;
     }
 
     // ══════════════════════════════════════════════
@@ -253,9 +283,10 @@ public partial class ReportViewModel : BaseViewModel
 
         try
         {
+            // 🔧 FIX : .LocalDateTime pour cohérence avec l'UI
             string baseName = SanitizeFileName(
                 $"{SelectedReport.TypeBadge}-Rapport-{SelectedReport.ReportNumber}" +
-                $"_{SelectedReport.GeneratedAt:yyyyMMdd_HHmm}");
+                $"_{SelectedReport.GeneratedAt.LocalDateTime:yyyyMMdd_HHmm}");
 
             var dlg = new SaveFileDialog
             {
@@ -294,9 +325,6 @@ public partial class ReportViewModel : BaseViewModel
     //  PDF GENERATION (QuestPDF)
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Generates a properly paginated PDF from the monospaced report text.
-    /// </summary>
     private static void GenerateReportPdf(
         string textContent,
         string title,

@@ -13,6 +13,14 @@ public class PointOfSale
     public string Phone { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// IANA ID (preferred), Windows ID, or city name — anything
+    /// <see cref="ITimeProvider.GetZone"/> understands.
+    /// Examples: "Africa/Kinshasa", "Africa/Lubumbashi", "Goma", "Lubumbashi".
+    /// When null/empty, the tenant's app default is used.
+    /// </summary>
+    public string? TimeZoneId { get; set; }
+
     // --- Configuration dispositif fiscal ---
     public DeviceType DeviceType { get; set; } = DeviceType.EMcf;
 
@@ -28,7 +36,7 @@ public class PointOfSale
     // ═══ CONNECTION STATUS (populated by test/status checks) ═══
 
     /// <summary>Last time the fiscal device connection was successfully tested.</summary>
-    public DateTime? LastConnectionTestAt { get; set; }
+    public DateTimeOffset? LastConnectionTestAt { get; set; }
 
     /// <summary>NIM returned by the fiscal device during last successful connection.</summary>
     public string? LastKnownNIM { get; set; }
@@ -37,7 +45,7 @@ public class PointOfSale
     public string? LastKnownNIF { get; set; }
 
     /// <summary>Last successful connection of MCF to DGI server (from C2h command).</summary>
-    public DateTime? McfLastServerConnection { get; set; }
+    public DateTimeOffset? McfLastServerConnection { get; set; }
 
     /// <summary>MCF server connection status (DIS/CON/TRA/RES).</summary>
     public string? McfServerStatus { get; set; }

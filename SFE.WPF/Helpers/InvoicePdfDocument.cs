@@ -2,18 +2,31 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
+using SkiaSharp;
 
 namespace SFE.WPF.Helpers;
 
 /// <summary>
 /// QuestPDF A4 invoice — fully DGI-2026 §1.2 compliant.
-/// Forces a page break every 10 article lines (user requirement).
+/// Forces a page break every 10 article lines.
+///
+/// ⚠ DGI §1.1 — every timestamp (CreatedAt, NormalizedAt, reprint stamp) is
+/// routed through <see cref="ITimeProvider"/>. The invoice stores UTC; this
+/// document converts to app-local (Kinshasa / Lubumbashi / Goma) for display.
 /// </summary>
 public class InvoicePdfDocument : IDocument
 {
     private const int LinesPerPage = 10;
+
+    // ──────────────────────────────────────────────────────────────
+    // Logo sizing — any aspect ratio fits perfectly inside this box
+    // ──────────────────────────────────────────────────────────────
+    private const float LogoMaxHeight = 95f;
+    private const float LogoMaxWidth = 190f;
+    private readonly float _logoRatio = 1f;   // width / height, after trimming
 
     private readonly Invoice _inv;
     private readonly Company? _co;
@@ -21,11 +34,12 @@ public class InvoicePdfDocument : IDocument
     private readonly decimal _xRate;
     private readonly byte[]? _logo;
     private readonly byte[]? _qrCode;
+    private readonly ITimeProvider _time;
+    private readonly DateTimeOffset _printedAt;   // captured at construction (local)
 
     /// <summary>1 = ORIGINAL, 2 = DUPLICATA N°1, 3 = DUPLICATA N°2, …</summary>
     private readonly int _printNumber;
 
-    // Culture (fr-FR formatting: "1 234,56")
     private static readonly CultureInfo FR = CultureInfo.GetCultureInfo("fr-FR");
 
     // Palette
@@ -42,8 +56,13 @@ public class InvoicePdfDocument : IDocument
     private const string ColGrey = "#546E7A";
     private const string ColGreen = "#2E7D32";
 
+    // Watermark colors — ARGB hex, ~8% alpha
+    private const string ColWatermarkRed = "#14C62828";
+    private const string ColWatermarkGrey = "#14546E7A";
+
     public InvoicePdfDocument(
         Invoice invoice,
+        ITimeProvider time,
         Company? company = null,
         PointOfSale? pos = null,
         decimal exchangeRate = 0,
@@ -52,18 +71,23 @@ public class InvoicePdfDocument : IDocument
         int printNumber = 1)
     {
         _inv = invoice ?? throw new ArgumentNullException(nameof(invoice));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
         _co = company;
         _pos = pos;
         _xRate = exchangeRate;
-        _logo = logoBytes;
+        if (logoBytes is { Length: > 0 })
+        {
+            var prepared = PrepareLogo(logoBytes);
+            _logo = prepared.bytes;
+            _logoRatio = prepared.ratio;
+        }
         _qrCode = qrCodeBytes;
         _printNumber = printNumber < 1 ? 1 : printNumber;
+        _printedAt = _time.LocalNow;
     }
 
-    /// <summary>True if this rendering is a duplicate (i.e. printNumber ≥ 2).</summary>
     private bool IsDuplicate => !_inv.IsProforma && _printNumber >= 2;
 
-    /// <summary>Banner text for the print marker (ORIGINAL / DUPLICATA N°x).</summary>
     private string PrintMarkerText =>
         _printNumber <= 1 ? "ORIGINAL" : $"DUPLICATA N°{_printNumber - 1}";
 
@@ -72,8 +96,25 @@ public class InvoicePdfDocument : IDocument
         Title = $"{_inv.Type.DisplayBanner()} {_inv.InvoiceNumber}"
                 + (IsDuplicate ? $" — {PrintMarkerText}" : ""),
         Author = _co?.Name ?? "SFE",
-        Creator = "GECOM2025 — SFE conforme DGI-RDC 2026"
+        Creator = "iKWOOK — SFE conforme DGI-RDC 2026"
     };
+
+    // ════════════════════════════════════════════════════════════
+    //  TIMESTAMP HELPERS — UTC → app local
+    // ════════════════════════════════════════════════════════════
+    private string FmtLocal(DateTimeOffset utc, string fmt = "dd/MM/yyyy HH:mm:ss")
+        => TimeZoneInfo.ConvertTime(utc, _time.AppTimeZone).ToString(fmt, FR);
+
+    private string FmtLocal(DateTime utc, string fmt = "dd/MM/yyyy HH:mm:ss")
+    {
+        var asUtc = utc.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(utc, DateTimeKind.Utc)
+            : utc.ToUniversalTime();
+        return TimeZoneInfo.ConvertTimeFromUtc(asUtc, _time.AppTimeZone).ToString(fmt, FR);
+    }
+
+    private string FmtLocalDate(DateTime utc) => FmtLocal(utc, "dd/MM/yyyy");
+    private string FmtLocalDate(DateTimeOffset utc) => FmtLocal(utc, "dd/MM/yyyy");
 
     // ════════════════════════════════════════════════════════════
     //  COMPOSE
@@ -88,6 +129,8 @@ public class InvoicePdfDocument : IDocument
             page.MarginHorizontal(22);
             page.DefaultTextStyle(ts => ts.FontSize(8).FontColor(ColText));
 
+            page.Background().Element(ComposeWatermark);
+
             page.Header().Element(ComposePageHeader);
             page.Content().Element(ComposeBody);
             page.Footer().Element(ComposePageFooter);
@@ -95,7 +138,33 @@ public class InvoicePdfDocument : IDocument
     }
 
     // ════════════════════════════════════════════════════════════
-    //  HEADER (repeats every page)
+    //  WATERMARK
+    // ════════════════════════════════════════════════════════════
+    private void ComposeWatermark(IContainer container)
+    {
+        string? text = null;
+        string color = ColWatermarkGrey;
+
+        if (_inv.IsProforma) { text = "PROFORMA"; color = ColWatermarkGrey; }
+        else if (_inv.IsCreditNote) { text = "AVOIR"; color = ColWatermarkRed; }
+        else if (IsDuplicate) { text = "DUPLICATA"; color = ColWatermarkRed; }
+
+        if (text is null) return;
+
+        container
+            .AlignCenter()
+            .AlignMiddle()
+            .TranslateX(0)
+            .TranslateY(0)
+            .Rotate(-35)
+            .Text(text)
+            .FontSize(95)
+            .Bold()
+            .FontColor(color);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  HEADER
     // ════════════════════════════════════════════════════════════
     private void ComposePageHeader(IContainer container)
     {
@@ -107,9 +176,27 @@ public class InvoicePdfDocument : IDocument
                 row.RelativeItem(3).Column(left =>
                 {
                     if (_logo is { Length: > 0 })
-                        left.Item().Height(38).Image(_logo).FitHeight();
+                    {
+                        // Compute the tightest box that preserves the logo's aspect ratio.
+                        // Works for wide wordmarks, square shields, and tall emblems alike.
+                        float boxW = LogoMaxWidth;
+                        float boxH = LogoMaxWidth / _logoRatio;
 
-                    left.Item().Text(_co?.Name ?? "—").Bold().FontSize(13).FontColor(ColDark);
+                        if (boxH > LogoMaxHeight)
+                        {
+                            boxH = LogoMaxHeight;
+                            boxW = LogoMaxHeight * _logoRatio;
+                        }
+
+                        left.Item()
+                            .Width(boxW)
+                            .Height(boxH)
+                            .Image(_logo)
+                            .FitArea();
+                    }
+
+                    left.Item().PaddingTop(2)
+                        .Text(_co?.Name ?? "—").Bold().FontSize(13).FontColor(ColDark);
 
                     var saleAddr = !string.IsNullOrWhiteSpace(_pos?.Address)
                         ? $"{_pos!.Address}, {_pos.City}".TrimEnd(' ', ',')
@@ -143,10 +230,8 @@ public class InvoicePdfDocument : IDocument
                          .Text(_inv.Type.DisplayBanner())
                          .Bold().FontSize(11).FontColor(Colors.White);
 
-                    // Sub-tags
                     var tags = new List<(string txt, string color)>();
 
-                    // ── ORIGINAL / DUPLICATA — only for fiscal invoices ──
                     if (!_inv.IsProforma)
                     {
                         if (_printNumber <= 1)
@@ -176,14 +261,13 @@ public class InvoicePdfDocument : IDocument
                          .Text(_inv.InvoiceNumber ?? "—").Bold().FontSize(11).FontColor(ColDark);
 
                     right.Item().AlignRight()
-                         .Text($"Émise le {_inv.CreatedAt:dd/MM/yyyy à HH:mm:ss}")
+                         .Text($"Émise le {FmtLocal(_inv.CreatedAt, "dd/MM/yyyy à HH:mm:ss")}")
                          .FontSize(7);
 
-                    // ── Reprint timestamp on duplicates ──
                     if (IsDuplicate)
                     {
                         right.Item().AlignRight()
-                             .Text($"Réimprimée le {DateTime.Now:dd/MM/yyyy à HH:mm:ss}")
+                             .Text($"Réimprimée le {_printedAt:dd/MM/yyyy à HH:mm:ss}")
                              .FontSize(7).Italic().FontColor(ColRed);
                     }
 
@@ -235,7 +319,7 @@ public class InvoicePdfDocument : IDocument
                    });
                });
 
-            // ─── Source proforma reference (when this is a converted invoice) ───
+            // ─── Source proforma reference ───
             if (_inv.SourceProformaId.HasValue && _inv.SourceProforma != null)
             {
                 col.Item().PaddingTop(4)
@@ -246,7 +330,7 @@ public class InvoicePdfDocument : IDocument
                    {
                        text.Span("Issue de la proforma : ").FontSize(7).Bold();
                        text.Span(_inv.SourceProforma.InvoiceNumber).FontSize(8).Bold().FontColor(ColGrey);
-                       text.Span($"  du {_inv.SourceProforma.CreatedAt:dd/MM/yyyy}").FontSize(7);
+                       text.Span($"  du {FmtLocalDate(_inv.SourceProforma.CreatedAt)}").FontSize(7);
                    });
             }
 
@@ -421,7 +505,7 @@ public class InvoicePdfDocument : IDocument
     };
 
     // ════════════════════════════════════════════════════════════
-    //  FISCAL SUMMARY (unchanged)
+    //  FISCAL SUMMARY
     // ════════════════════════════════════════════════════════════
     private void ComposeFiscalSummary(IContainer container)
     {
@@ -550,7 +634,7 @@ public class InvoicePdfDocument : IDocument
     }
 
     // ════════════════════════════════════════════════════════════
-    //  ADVANCE BLOCKS (unchanged)
+    //  ADVANCE BLOCKS
     // ════════════════════════════════════════════════════════════
     private void ComposeAdvanceBlock(IContainer container)
     {
@@ -610,7 +694,7 @@ public class InvoicePdfDocument : IDocument
     }
 
     // ════════════════════════════════════════════════════════════
-    //  AMOUNT IN WORDS (unchanged)
+    //  AMOUNT IN WORDS
     // ════════════════════════════════════════════════════════════
     private void ComposeAmountInWords(IContainer container)
     {
@@ -625,7 +709,7 @@ public class InvoicePdfDocument : IDocument
     }
 
     // ════════════════════════════════════════════════════════════
-    //  COMMENTS + PAYMENTS (unchanged)
+    //  COMMENTS + PAYMENTS
     // ════════════════════════════════════════════════════════════
     private void ComposeCommentsAndPayments(IContainer container)
     {
@@ -696,7 +780,7 @@ public class InvoicePdfDocument : IDocument
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SECURITY BLOCK — now mentions duplicate count
+    //  SECURITY BLOCK
     // ════════════════════════════════════════════════════════════
     private void ComposeSecurityBlock(IContainer container)
     {
@@ -721,12 +805,10 @@ public class InvoicePdfDocument : IDocument
                     SecRow(c, "DEF/NID (NIM)", _inv.NIM);
                     SecRow(c, "DEF Compteurs", _inv.Counters);
                     if (_inv.NormalizedAt.HasValue)
-                        SecRow(c, "DEF Heure",
-                            _inv.NormalizedAt.Value.ToString("dd/MM/yyyy HH:mm:ss"));
+                        SecRow(c, "DEF Heure", FmtLocal(_inv.NormalizedAt.Value));
                     if (!string.IsNullOrEmpty(_inv.EmcfUid))
                         SecRow(c, "MCF UID", _inv.EmcfUid);
 
-                    // 🆕 Print marker
                     SecRow(c, "Tirage", PrintMarkerText);
                 });
             });
@@ -760,13 +842,13 @@ public class InvoicePdfDocument : IDocument
                  .FontSize(7.5f).Italic();
                 if (_inv.ProformaValidUntil.HasValue)
                     c.Item().PaddingTop(2).AlignCenter()
-                     .Text($"Valable jusqu'au {_inv.ProformaValidUntil:dd/MM/yyyy}")
+                     .Text($"Valable jusqu'au {FmtLocalDate(_inv.ProformaValidUntil.Value)}")
                      .FontSize(8).Bold();
             });
     }
 
     // ════════════════════════════════════════════════════════════
-    //  FOOTER — adds duplicate marker
+    //  FOOTER
     // ════════════════════════════════════════════════════════════
     private void ComposePageFooter(IContainer container)
     {
@@ -776,7 +858,7 @@ public class InvoicePdfDocument : IDocument
                 row.RelativeItem().Text(t =>
                 {
                     t.DefaultTextStyle(s => s.FontSize(6.5f).FontColor(ColMuted));
-                    t.Span("GECOM2025 — Système de Facturation Électronique • Conforme DGI-RDC 2026");
+                    t.Span("iKWOOK — Système de Facturation Électronique • Conforme DGI-RDC 2026");
                     if (!string.IsNullOrEmpty(_inv.ISF)) t.Span($" • ISF {_inv.ISF}");
                     if (IsDuplicate)
                         t.Span($" • {PrintMarkerText}").FontColor(ColRed);
@@ -791,13 +873,90 @@ public class InvoicePdfDocument : IDocument
     }
 
     // ════════════════════════════════════════════════════════════
-    //  HELPERS (unchanged)
+    //  HELPERS
     // ════════════════════════════════════════════════════════════
     private static string M(decimal v) => v.ToString("N2", FR);
     private static string Q(decimal v) => v.ToString("0.###", FR);
     private static string R(decimal v) => v.ToString("0.##", FR);
     private static string X(decimal v) => v.ToString("N4", FR);
 
+    // ════════════════════════════════════════════════════════════
+    //  LOGO PREPROCESSING (trim invisible padding + compute ratio)
+    // ════════════════════════════════════════════════════════════
+    private static (byte[] bytes, float ratio) PrepareLogo(byte[] source)
+    {
+        try
+        {
+            using var original = SKBitmap.Decode(source);
+            if (original is null || original.Width == 0 || original.Height == 0)
+                return (source, 1f);
+
+            var bounds = GetOpaqueBounds(original);
+
+            SKBitmap cropped;
+            if (bounds.Width > 0 && bounds.Height > 0 &&
+                (bounds.Width < original.Width || bounds.Height < original.Height))
+            {
+                cropped = new SKBitmap(bounds.Width, bounds.Height);
+                using var canvas = new SKCanvas(cropped);
+                canvas.Clear(SKColors.Transparent);
+                canvas.DrawBitmap(
+                    original,
+                    new SKRect(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom),
+                    new SKRect(0, 0, bounds.Width, bounds.Height));
+            }
+            else
+            {
+                cropped = original.Copy();
+            }
+
+            using (cropped)
+            using (var img = SKImage.FromBitmap(cropped))
+            using (var data = img.Encode(SKEncodedImageFormat.Png, 100))
+            {
+                float ratio = (float)cropped.Width / cropped.Height;
+                return (data.ToArray(), ratio);
+            }
+        }
+        catch
+        {
+            // Fallback: if anything goes wrong, use the raw bytes with 1:1 assumption
+            return (source, 1f);
+        }
+    }
+
+    private static SKRectI GetOpaqueBounds(SKBitmap bmp)
+    {
+        int w = bmp.Width, h = bmp.Height;
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+
+        const byte alphaThreshold = 10;   // near-transparent → empty
+        const byte whiteThreshold = 245;  // near-white       → empty
+
+        var pixels = bmp.Pixels;  // SKColor[] — fast bulk access
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                var c = pixels[row + x];
+                bool isEmpty =
+                    c.Alpha < alphaThreshold ||
+                    (c.Red > whiteThreshold && c.Green > whiteThreshold && c.Blue > whiteThreshold);
+
+                if (!isEmpty)
+                {
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x > maxX) maxX = x;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        if (maxX < 0) return new SKRectI(0, 0, w, h);
+        return new SKRectI(minX, minY, maxX + 1, maxY + 1);
+    }
     private static string BannerColor(InvoiceType t) => t switch
     {
         InvoiceType.FV => ColPrimary,

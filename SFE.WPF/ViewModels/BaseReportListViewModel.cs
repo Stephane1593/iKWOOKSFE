@@ -10,6 +10,7 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Models;
@@ -23,6 +24,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
     protected readonly ReportService _reportService;
     protected readonly CashSessionState _sessionState;
     protected readonly IAuthService _authService;
+    protected readonly ITimeProvider _timeProvider;
 
     // ── Abstract ──
     protected abstract ReportType ReportType { get; }
@@ -55,12 +57,14 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         IUnitOfWork uow,
         ReportService reportService,
         CashSessionState sessionState,
-        IAuthService authService)
+        IAuthService authService,
+        ITimeProvider timeProvider)
     {
         _uow = uow;
         _reportService = reportService;
         _sessionState = sessionState;
         _authService = authService;
+        _timeProvider = timeProvider;
 
         _ = LoadAsync();
     }
@@ -116,7 +120,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
 
             var last = ordered.FirstOrDefault();
             LastGeneratedInfo = last != null
-                ? $"Dernier : {last.GeneratedAt:dd/MM/yyyy HH:mm} — {last.OperatorName}"
+                ? $"Dernier : {last.GeneratedAt.ToLocalTime():dd/MM/yyyy HH:mm} — {last.OperatorName}"
                 : "Aucun rapport généré";
         }
         catch (Exception ex)
@@ -223,8 +227,9 @@ public abstract partial class BaseReportListViewModel : ObservableObject
             Directory.CreateDirectory(tempDir);
             CleanOldTempFiles(tempDir, TimeSpan.FromDays(1));
 
+            // Filename timestamp — display-only, use LocalNow from the time provider.
             string tempPath = Path.Combine(tempDir,
-                SanitizeFileName($"{title}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
+                SanitizeFileName($"{title}_{_timeProvider.LocalNow:yyyyMMdd_HHmmss}.pdf"));
 
             GenerateSingleReportPdf(item.PrintContent, title, item, tempPath);
 
@@ -259,7 +264,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
             CleanOldTempFiles(tempDir, TimeSpan.FromDays(1));
 
             string fileName = SanitizeFileName(
-                $"{TypePrefix}-TousRapports_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                $"{TypePrefix}-TousRapports_{_timeProvider.LocalNow:yyyyMMdd_HHmmss}.pdf");
             string tempPath = Path.Combine(tempDir, fileName);
 
             GenerateMultiReportPdf(printable, tempPath);
@@ -293,7 +298,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         try
         {
             string baseName = SanitizeFileName(
-                $"{TypePrefix}-Rapport-{item.ReportNumber}_{item.GeneratedAt:yyyyMMdd_HHmm}");
+                $"{TypePrefix}-Rapport-{item.ReportNumber}_{item.GeneratedAt.ToLocalTime():yyyyMMdd_HHmm}");
 
             var dlg = new SaveFileDialog
             {
@@ -342,7 +347,7 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         try
         {
             string baseName = SanitizeFileName(
-                $"{TypePrefix}-TousRapports_{DateTime.Now:yyyyMMdd_HHmm}");
+                $"{TypePrefix}-TousRapports_{_timeProvider.LocalNow:yyyyMMdd_HHmm}");
 
             var dlg = new SaveFileDialog
             {
@@ -561,14 +566,19 @@ public abstract partial class BaseReportListViewModel : ObservableObject
         return name;
     }
 
-    private static void CleanOldTempFiles(string directory, TimeSpan maxAge)
+    /// <summary>
+    /// Deletes temp PDFs older than <paramref name="maxAge"/>.
+    /// Uses UTC on both sides (time provider + file creation time) to be
+    /// immune to DST transitions and local-clock tampering.
+    /// </summary>
+    private void CleanOldTempFiles(string directory, TimeSpan maxAge)
     {
         try
         {
-            var cutoff = DateTime.Now - maxAge;
+            var cutoffUtc = _timeProvider.UtcNow.UtcDateTime - maxAge;
             foreach (var file in Directory.GetFiles(directory, "*.pdf"))
             {
-                if (File.GetCreationTime(file) < cutoff)
+                if (File.GetCreationTimeUtc(file) < cutoffUtc)
                     File.Delete(file);
             }
         }

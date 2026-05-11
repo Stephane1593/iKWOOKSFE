@@ -33,6 +33,14 @@ public class PointOfSaleConfiguration : IEntityTypeConfiguration<PointOfSale>
         builder.Property(p => p.Phone)
             .HasMaxLength(50);
 
+        // 🆕 Fuseau horaire du POS
+        //    IANA ID ("Africa/Kinshasa"), Windows ID ("W. Central Africa Standard Time"),
+        //    ou simple nom de ville ("Goma", "Lubumbashi").
+        //    Résolu à l'exécution par ITimeProvider.GetZone(...).
+        //    NULL => fallback sur AppTimeZone du tenant.
+        builder.Property(p => p.TimeZoneId)
+            .HasMaxLength(100);
+
         builder.Property(p => p.DeviceType)
             .HasConversion<int>()
             .HasDefaultValue(DeviceType.EMcf);
@@ -52,7 +60,14 @@ public class PointOfSaleConfiguration : IEntityTypeConfiguration<PointOfSale>
         builder.Property(p => p.McfBaudRate)
             .HasDefaultValue(115200);
 
-        // Dans votre IEntityTypeConfiguration<PointOfSale> existant, ajouter :
+        // ═══ Connection status ═══
+        builder.Property(p => p.LastKnownNIM).HasMaxLength(100);
+        builder.Property(p => p.LastKnownNIF).HasMaxLength(100);
+        builder.Property(p => p.McfServerStatus).HasMaxLength(10);
+
+        // 🆕 Stock
+        builder.Property(p => p.ManagesStock).HasDefaultValue(true);
+        builder.Property(p => p.AllowNegativeStock).HasDefaultValue(false);
 
         // 🖨 Printer columns
         builder.Property(p => p.ThermalPrinterName).HasMaxLength(200).HasDefaultValue("");
@@ -64,7 +79,9 @@ public class PointOfSaleConfiguration : IEntityTypeConfiguration<PointOfSale>
         builder.Property(p => p.CashDrawerPin).HasDefaultValue(0);
         builder.Property(p => p.PrinterCodePage).HasDefaultValue(858);
         builder.Property(p => p.PrintLogo).HasDefaultValue(false);
-        builder.Property(p => p.ReceiptFooterText).HasMaxLength(500).HasDefaultValue("Merci pour votre achat !");
+        builder.Property(p => p.ReceiptFooterText)
+            .HasMaxLength(500)
+            .HasDefaultValue("Merci pour votre achat !");
 
         // 🆕 Operators relationship
         builder.HasMany(p => p.Operators)

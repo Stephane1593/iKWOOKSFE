@@ -8,7 +8,7 @@ public class ProductCategory
     public string Icon { get; set; } = "📦";
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTimeOffset CreatedAt { get; set; }
 
     public List<Product> Products { get; set; } = new();
 }

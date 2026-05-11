@@ -1,5 +1,6 @@
 ﻿using SFE.Application.Events;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 
 namespace SFE.Application.Services;
@@ -7,10 +8,12 @@ namespace SFE.Application.Services;
 public class CategoryService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITimeProvider _time;
 
-    public CategoryService(IUnitOfWork unitOfWork)
+    public CategoryService(IUnitOfWork unitOfWork, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
+        _time = time;
     }
 
     public async Task<List<ProductCategory>> GetAllActiveAsync()
@@ -43,7 +46,10 @@ public class CategoryService
                 ErrorMessage = $"Une catégorie « {category.Name.Trim()} » existe déjà."
             };
 
-        category.CreatedAt = DateTime.Now;
+        // ⚠ DGI §1.1 — never DateTime.Now. UTC ensures no drift between
+        // DRC regions (Kinshasa UTC+1 / Lubumbashi UTC+2).
+        category.CreatedAt = _time.UtcNow.UtcDateTime;
+
         await _unitOfWork.ProductCategories.AddAsync(category);
         await _unitOfWork.SaveChangesAsync();
 

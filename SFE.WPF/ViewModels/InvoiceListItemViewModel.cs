@@ -1,6 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
+using System.Globalization;
 using System.Windows.Media;
 
 namespace SFE.WPF.ViewModels;
@@ -59,16 +61,18 @@ public partial class InvoiceListItemViewModel : ObservableObject
     [ObservableProperty] private DateTime? _lastPrintedAt;
     public bool IsProforma => Type == InvoiceType.PRO;
 
+    private DateOnly _todayLocal;   // set by the factory
     public bool IsConvertibleProforma =>
         Type == InvoiceType.PRO
         && !ConvertedToInvoiceId.HasValue
         && Status != InvoiceStatus.Cancelled
-        && (ProformaValidUntil == null || ProformaValidUntil.Value.Date >= DateTime.Today);
+        && (ProformaValidUntil == null
+            || DateOnly.FromDateTime(ProformaValidUntil.Value) >= _todayLocal);
 
     public bool IsExpiredProforma =>
         Type == InvoiceType.PRO
         && ProformaValidUntil.HasValue
-        && ProformaValidUntil.Value.Date < DateTime.Today
+        && DateOnly.FromDateTime(ProformaValidUntil.Value) < _todayLocal
         && !ConvertedToInvoiceId.HasValue;
 
     public string ProformaValidityDisplay =>
@@ -114,11 +118,16 @@ public partial class InvoiceListItemViewModel : ObservableObject
     //  FACTORY
     // ═════════════════════════════════════════════════════
 
-    public static InvoiceListItemViewModel FromEntity(Invoice invoice)
+    public static InvoiceListItemViewModel FromEntity(Invoice invoice, ITimeProvider timeProvider)
     {
         var (typeLabel, typeColor, typeBg) = GetTypeDisplay(invoice.Type);
         var (statusLabel, statusIcon, statusColor, statusBg) = GetStatusDisplay(invoice.Status);
         var codeDef = invoice.CodeDEFDGI ?? "";
+
+        var createdLocal = timeProvider.ToLocal(invoice.CreatedAt);
+        var validUntilLocal = invoice.ProformaValidUntil is { } v ? timeProvider.ToLocal(v) : (DateTimeOffset?)null;
+        var firstPrintLocal = invoice.FirstPrintedAt is { } f ? timeProvider.ToLocal(f) : (DateTimeOffset?)null;
+        var lastPrintLocal = invoice.LastPrintedAt is { } l ? timeProvider.ToLocal(l) : (DateTimeOffset?)null;
 
         return new InvoiceListItemViewModel
         {
@@ -136,9 +145,9 @@ public partial class InvoiceListItemViewModel : ObservableObject
             StatusColor = statusColor,
             StatusBadgeBg = statusBg,
 
-            CreatedAt = invoice.CreatedAt,
-            DateDisplay = invoice.CreatedAt.ToString("dd/MM/yyyy"),
-            TimeDisplay = invoice.CreatedAt.ToString("HH:mm"),
+            CreatedAt = createdLocal.DateTime,
+            DateDisplay = createdLocal.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            TimeDisplay = createdLocal.ToString("HH:mm", CultureInfo.InvariantCulture),
 
             TotalHT = invoice.TotalHT,
             TotalTVA = invoice.TotalTVA,
@@ -147,8 +156,8 @@ public partial class InvoiceListItemViewModel : ObservableObject
 
             CodeDEFDGI = codeDef,
             CodeDEFShort = string.IsNullOrEmpty(codeDef)
-                                  ? "—"
-                                  : codeDef.Length > 16 ? codeDef[..16] + "…" : codeDef,
+                              ? "—"
+                              : codeDef.Length > 16 ? codeDef[..16] + "…" : codeDef,
 
             OperatorName = invoice.OperatorName ?? "—",
             ClientName = invoice.ClientName ?? "Client comptoir",
@@ -158,12 +167,15 @@ public partial class InvoiceListItemViewModel : ObservableObject
             PaymentIcon = GetPaymentIcon(invoice.Payments?.FirstOrDefault()?.PaymentType),
 
             ConvertedToInvoiceId = invoice.ConvertedToInvoiceId,
-            ProformaValidUntil = invoice.ProformaValidUntil,
+            ProformaValidUntil = validUntilLocal?.DateTime,
             SourceProformaId = invoice.SourceProformaId,
 
             PrintCount = invoice.PrintCount,
-            FirstPrintedAt = invoice.FirstPrintedAt,
-            LastPrintedAt = invoice.LastPrintedAt,
+            FirstPrintedAt = firstPrintLocal?.DateTime,
+            LastPrintedAt = lastPrintLocal?.DateTime,
+
+            // 🆕 captured once, used by the expiry computed properties
+            _todayLocal = DateOnly.FromDateTime(timeProvider.LocalNow.LocalDateTime)
         };
     }
 

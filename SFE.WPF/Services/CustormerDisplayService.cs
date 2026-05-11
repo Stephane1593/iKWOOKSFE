@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
+using SFE.Domain.Abstractions;
 using SFE.WPF.ViewModels;
 using SFE.WPF.Views.Pages;
 
@@ -11,8 +12,15 @@ namespace SFE.WPF.Services;
 
 public class CustomerDisplayService : IDisposable
 {
+    private readonly ITimeProvider _timeProvider;
+
     private CustomerDisplayWindow? _window;
     private CustomerDisplayViewModel? _viewModel;
+
+    public CustomerDisplayService(ITimeProvider timeProvider)
+    {
+        _timeProvider = timeProvider;
+    }
 
     public CustomerDisplayViewModel? ViewModel => _viewModel;
     public bool IsOpen => _window != null && _window.IsVisible;
@@ -55,7 +63,7 @@ public class CustomerDisplayService : IDisposable
                 return;
             }
 
-            _viewModel = new CustomerDisplayViewModel { CompanyName = companyName };
+            _viewModel = new CustomerDisplayViewModel(_timeProvider) { CompanyName = companyName };
 
             _window = new CustomerDisplayWindow
             {

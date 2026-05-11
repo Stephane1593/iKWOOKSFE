@@ -59,11 +59,16 @@ public class PointOfSaleService
             await _stockService.InitializeAllProductsInPosAsync(pos.Id, "Système");
         }
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.PosCreated, AuditModule.PointOfSale,
-            pos.Id.ToString(),
-            $"{pos.Code} · « {pos.Name} » · Entreprise #{pos.CompanyId}" +
-            (pos.ManagesStock ? " · Gestion de stock activée" : ""));
+        // ── AUDIT ── (fixed argument order: description, entityType, entityId)
+        var description = $"{pos.Code} · « {pos.Name} » · Entreprise #{pos.CompanyId}"
+            + (pos.ManagesStock ? " · Gestion de stock activée" : "");
+
+        await _audit.LogAsync(
+            AuditAction.PosCreated,
+            AuditModule.PointOfSale,
+            description,
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
 
         return new PosSaveResult { Success = true, PointOfSaleId = pos.Id };
     }
@@ -86,10 +91,13 @@ public class PointOfSaleService
         await _unitOfWork.PointsOfSale.UpdateAsync(pos);
         await _unitOfWork.SaveChangesAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.PosUpdated, AuditModule.PointOfSale,
-            pos.Id.ToString(),
-            $"{pos.Code} · « {pos.Name} »");
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.PosUpdated,
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} »",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
 
         return new PosSaveResult { Success = true, PointOfSaleId = pos.Id };
     }
@@ -118,10 +126,13 @@ public class PointOfSaleService
         await _unitOfWork.PointsOfSale.UpdateAsync(pos);
         await _unitOfWork.SaveChangesAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.PosDeactivated, AuditModule.PointOfSale,
-            pos.Id.ToString(),
-            $"{pos.Code} · « {pos.Name} » · Désactivé");
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.PosDeactivated,
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} » · Désactivé",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
 
         return new PosSaveResult { Success = true, PointOfSaleId = posId };
     }

@@ -1,5 +1,6 @@
 ﻿using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using SFE.Infrastructure.EMcf;
 using SFE.Infrastructure.Mcf;
@@ -14,42 +15,40 @@ namespace SFE.WPF.Services;
 ///
 /// KEY GUARANTEES:
 ///   1. Fallback is built LAZILY and RETRIED on every call if it failed before.
-///      A serial port being unavailable at startup no longer permanently
-///      disables fallback.
 ///   2. Submit always tries primary first regardless of cached state.
-///   3. Read operations (status/info) retry the primary every 15 seconds
-///      after a failure, so recovery is fast once the network returns.
-///   4. A successful Submit on primary clears the failed flag immediately,
-///      so subsequent reads stop using the fallback.
+///   3. Read operations retry the primary every 15s after failure.
+///   4. A successful Submit on primary clears the failed flag immediately.
 ///   5. Finalize / Cancel always go to the same device that did Submit.
 ///   6. GetDiagnostics() exposes everything needed to debug fallback issues.
+///
+/// TIME: All timestamps go through ITimeProvider (DGI §1.1). DateTime.UtcNow
+/// is banned here — local clock tampering would distort retry cooldowns and
+/// diagnostics.
 /// </summary>
 public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 {
     private readonly SettingsService _settingsService;
+    private readonly ITimeProvider _time;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     private IFiscalDeviceService? _primaryDevice;
     private IFiscalDeviceService? _fallbackDevice;
 
     private bool _primaryFailed;
-    private DateTime? _primaryFailedAt;
+    private DateTimeOffset? _primaryFailedAt;
 
     private bool _initialized;
     private DeviceType _lastDeviceType;
     private string _lastConfigKey = "";
 
-    // Last reason fallback build was skipped/failed — surfaced via diagnostics
     private string? _fallbackUnavailableReason;
-    private DateTime? _lastFallbackBuildAttempt;
+    private DateTimeOffset? _lastFallbackBuildAttempt;
 
     private SettingsData? _cachedSettings;
 
     private readonly Dictionary<string, IFiscalDeviceService> _invoiceDeviceMap = new();
     private readonly object _mapLock = new();
 
-    // Lower retry interval: e-MCF connect timeout is now 5s (in EMcfHttpClient),
-    // so probing the primary every 15s is cheap and gives near-instant recovery.
     private static readonly TimeSpan PrimaryRetryInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan FallbackRebuildInterval = TimeSpan.FromSeconds(30);
 
@@ -58,13 +57,14 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         : "Primaire";
 
     public bool IsPrimaryFailed => _primaryFailed;
-    public DateTime? PrimaryFailedAt => _primaryFailedAt;
+    public DateTimeOffset? PrimaryFailedAt => _primaryFailedAt;
     public bool HasFallback => _fallbackDevice != null;
     public string? FallbackUnavailableReason => _fallbackUnavailableReason;
 
-    public FiscalDeviceResolver(SettingsService settingsService)
+    public FiscalDeviceResolver(SettingsService settingsService, ITimeProvider time)
     {
         _settingsService = settingsService;
+        _time = time;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -82,12 +82,10 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
         if (_initialized && _lastDeviceType == settings.DeviceType && _lastConfigKey == configKey)
         {
-            // Configuration unchanged — but try to LAZILY rebuild fallback if it's missing
             TryEnsureFallback(settings);
             return;
         }
 
-        // Configuration changed — rebuild everything
         DisposeDevice(_primaryDevice);
         DisposeDevice(_fallbackDevice);
         _primaryDevice = null;
@@ -103,13 +101,13 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         {
             _primaryDevice = BuildEmcfDevice(settings);
             Debug.WriteLine("[FiscalResolver] ✓ e-MCF primary built");
-            TryEnsureFallback(settings);  // MCF fallback (lazy)
+            TryEnsureFallback(settings);
         }
         else
         {
-            _primaryDevice = BuildMcfDeviceOrThrow(settings);  // MCF primary must succeed
+            _primaryDevice = BuildMcfDeviceOrThrow(settings);
             Debug.WriteLine("[FiscalResolver] ✓ MCF primary built");
-            TryEnsureFallback(settings);  // e-MCF fallback (lazy)
+            TryEnsureFallback(settings);
         }
 
         _lastDeviceType = settings.DeviceType;
@@ -123,22 +121,20 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     /// </summary>
     private void TryEnsureFallback(SettingsData settings)
     {
-        if (_fallbackDevice != null) return;  // already built
+        if (_fallbackDevice != null) return;
 
-        // Don't hammer if we just tried
         if (_lastFallbackBuildAttempt.HasValue
-            && DateTime.UtcNow - _lastFallbackBuildAttempt.Value < FallbackRebuildInterval)
+            && _time.UtcNow - _lastFallbackBuildAttempt.Value < FallbackRebuildInterval)
         {
             return;
         }
 
-        _lastFallbackBuildAttempt = DateTime.UtcNow;
+        _lastFallbackBuildAttempt = _time.UtcNow;
 
         try
         {
             if (settings.DeviceType == DeviceType.EMcf)
             {
-                // Fallback = MCF
                 if (string.IsNullOrWhiteSpace(settings.McfPortName)
                     || settings.McfPortName == "(aucun port détecté)")
                 {
@@ -163,7 +159,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
             }
             else
             {
-                // Fallback = e-MCF
                 if (string.IsNullOrWhiteSpace(settings.EmcfApiUrl)
                     || string.IsNullOrWhiteSpace(settings.EmcfToken))
                 {
@@ -186,10 +181,11 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         }
     }
 
-    private static IFiscalDeviceService BuildEmcfDevice(SettingsData settings)
-        => new EMcfHttpClient(settings.EmcfApiUrl, settings.EmcfToken, settings.CompanyNIF);
+    // NOTE: no longer static — needs _time to flow into the infra clients.
+    private IFiscalDeviceService BuildEmcfDevice(SettingsData settings)
+        => new EMcfHttpClient(settings.EmcfApiUrl, settings.EmcfToken, settings.CompanyNIF, _time);
 
-    private static IFiscalDeviceService BuildMcfDeviceOrThrow(SettingsData settings)
+    private IFiscalDeviceService BuildMcfDeviceOrThrow(SettingsData settings)
     {
         if (string.IsNullOrWhiteSpace(settings.McfPortName))
             throw new InvalidOperationException("Le nom du port MCF est vide");
@@ -206,7 +202,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         }
 
         Debug.WriteLine($"[FiscalResolver] Building MCF port='{settings.McfPortName}', baud={settings.McfBaudRate}");
-        var client = new McfSerialClient(settings.McfPortName, settings.McfBaudRate);
+        var client = new McfSerialClient(settings.McfPortName, _time, settings.McfBaudRate);
         client.Connect();
         return client;
     }
@@ -235,7 +231,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════════════════════════════
-    // DIAGNOSTICS — call this from a Settings/Diagnostics screen
+    // DIAGNOSTICS
     // ══════════════════════════════════════════════════════════════
 
     public class ResolverDiagnostics
@@ -243,12 +239,12 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         public string PrimaryType { get; set; } = "";
         public bool PrimaryReady { get; set; }
         public bool PrimaryFailed { get; set; }
-        public DateTime? PrimaryFailedAt { get; set; }
+        public DateTimeOffset? PrimaryFailedAt { get; set; }
 
         public bool FallbackReady { get; set; }
         public string FallbackType { get; set; } = "";
         public string? FallbackUnavailableReason { get; set; }
-        public DateTime? LastFallbackBuildAttempt { get; set; }
+        public DateTimeOffset? LastFallbackBuildAttempt { get; set; }
 
         public string ActiveLabel { get; set; } = "";
         public string[] AvailableSerialPorts { get; set; } = Array.Empty<string>();
@@ -289,20 +285,19 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
     private bool ShouldRetryPrimary()
         => _primaryFailed && _primaryFailedAt.HasValue
-           && DateTime.UtcNow - _primaryFailedAt.Value >= PrimaryRetryInterval;
+           && _time.UtcNow - _primaryFailedAt.Value >= PrimaryRetryInterval;
 
     private void MarkPrimaryFailed()
     {
         if (!_primaryFailed)
         {
             _primaryFailed = true;
-            _primaryFailedAt = DateTime.UtcNow;
+            _primaryFailedAt = _time.UtcNow;
             Debug.WriteLine($"[FiscalResolver] Primary marked FAILED at {_primaryFailedAt:HH:mm:ss}");
         }
         else
         {
-            // Refresh timestamp so the 15s cooldown is measured from the last failure
-            _primaryFailedAt = DateTime.UtcNow;
+            _primaryFailedAt = _time.UtcNow;
         }
     }
 
@@ -329,7 +324,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         {
             await EnsureDevicesAsync();
 
-            // ── If primary was previously down: prefer fallback, but probe primary every 15s ──
             if (_primaryFailed && _fallbackDevice != null)
             {
                 if (ShouldRetryPrimary())
@@ -343,13 +337,12 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                             MarkPrimaryRecovered();
                             return retry;
                         }
-                        // Failed again — refresh cooldown timestamp
-                        _primaryFailedAt = DateTime.UtcNow;
+                        _primaryFailedAt = _time.UtcNow;
                     }
                     catch (Exception retryEx)
                     {
                         Debug.WriteLine($"[FiscalResolver] {operationName}: primary recovery failed: {retryEx.Message}");
-                        _primaryFailedAt = DateTime.UtcNow;
+                        _primaryFailedAt = _time.UtcNow;
                     }
                 }
 
@@ -361,7 +354,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 }
             }
 
-            // ── Try primary ──
             T result;
             try
             {
@@ -372,7 +364,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 Debug.WriteLine($"[FiscalResolver] {operationName}: primary THREW: {primaryEx.Message}");
                 MarkPrimaryFailed();
 
-                // Lazy-build fallback if it doesn't exist
                 if (_fallbackDevice == null && _cachedSettings != null)
                     TryEnsureFallback(_cachedSettings);
 
@@ -388,7 +379,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 return buildErrorResult(primaryEx);
             }
 
-            // ── Primary returned a structured failure ──
             if (!isSuccess(result))
             {
                 Debug.WriteLine($"[FiscalResolver] {operationName}: primary returned failure");
@@ -408,7 +398,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                     catch (Exception fbEx)
                     {
                         Debug.WriteLine($"[FiscalResolver] {operationName}: fallback THREW: {fbEx.Message}");
-                        return result; // primary error is more informative
+                        return result;
                     }
                 }
 
@@ -498,9 +488,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         {
             await EnsureDevicesAsync();
 
-            // Always try primary first for invoice submission — this is also
-            // the fastest way to detect primary recovery, since a successful
-            // Submit immediately clears _primaryFailed for all subsequent calls.
             FiscalSubmitResult primaryResult;
             try
             {
@@ -524,7 +511,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 primaryResult = new FiscalSubmitResult { Success = false, ErrorMessage = primaryEx.Message };
             }
 
-            // Lazy-build fallback if missing
             if (_fallbackDevice == null && _cachedSettings != null)
                 TryEnsureFallback(_cachedSettings);
 
@@ -536,7 +522,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 return primaryResult;
             }
 
-            // Try fallback
             try
             {
                 Debug.WriteLine("[FiscalResolver] SubmitInvoice: trying FALLBACK");
@@ -612,9 +597,9 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                                 result.DeviceTypeLabel = $"{result.DeviceTypeLabel} (récupéré)";
                                 return result;
                             }
-                            _primaryFailedAt = DateTime.UtcNow;
+                            _primaryFailedAt = _time.UtcNow;
                         }
-                        catch { _primaryFailedAt = DateTime.UtcNow; }
+                        catch { _primaryFailedAt = _time.UtcNow; }
                     }
                     usedFallback = true;
                     result = await _fallbackDevice.GetDetailedInfoAsync();

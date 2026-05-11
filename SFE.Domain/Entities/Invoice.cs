@@ -67,7 +67,7 @@ public class Invoice
     // === Devise ===
     public string CurrencyCode { get; set; } = string.Empty;
     public decimal CurrencyRate { get; set; }
-    public DateTime? CurrencyDate { get; set; }
+    public DateTimeOffset? CurrencyDate { get; set; }
 
     // === Commentaires (8 lignes A-H) ===
     public string CommentA { get; set; } = string.Empty;
@@ -140,7 +140,7 @@ public class Invoice
     /// Optional: proforma offer expiration date. Past this date, the proforma
     /// is considered stale and is filtered out by GetActiveProformasAsync().
     /// </summary>
-    public DateTime? ProformaValidUntil { get; set; }
+    public DateTimeOffset? ProformaValidUntil { get; set; }
 
     /// <summary>
     /// Navigation back to the FV/EV that materialized this proforma.
@@ -177,9 +177,9 @@ public class Invoice
     public string DeviceDateTime { get; set; } = string.Empty;
 
     // === Dates ===
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime? NormalizedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? NormalizedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     // === Relations ===
     public List<InvoiceLine> Lines { get; set; } = new();
@@ -216,8 +216,8 @@ public class Invoice
     public int PrintCount { get; set; }
 
     /// <summary>Date de la première impression (ORIGINAL).</summary>
-    public DateTime? FirstPrintedAt { get; set; }
+    public DateTimeOffset? FirstPrintedAt { get; set; }
 
     /// <summary>Date de la dernière impression/duplicata.</summary>
-    public DateTime? LastPrintedAt { get; set; }
+    public DateTimeOffset? LastPrintedAt { get; set; }
 }

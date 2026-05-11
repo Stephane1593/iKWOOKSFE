@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using SFE.Application.Helpers;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;          // 🆕 ITimeProvider
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Messages;
@@ -29,7 +30,8 @@ public partial class PosViewModel : BaseViewModel,
     private readonly ClientService _clientService;
     private readonly IFiscalDeviceService _fiscalDevice;
     private readonly CustomerDisplayService _customerDisplay;
-    private readonly IAuthService _auth;                          // 🆕
+    private readonly IAuthService _auth;
+    private readonly ITimeProvider _time;                         // 🆕
     private readonly DispatcherTimer _clockTimer;
     private bool _isFirstActivation = true;
 
@@ -140,7 +142,7 @@ public partial class PosViewModel : BaseViewModel,
     [ObservableProperty] private string _advanceGroupId = "";
     [ObservableProperty] private decimal _advancesTotalPaid;
     [ObservableProperty] private bool _showAdvancePanel;
-    [ObservableProperty] private string _advanceAmountInput = "";   
+    [ObservableProperty] private string _advanceAmountInput = "";
     public ObservableCollection<AdvanceInvoiceSummary> PreviousAdvances { get; } = new();
 
     // ══════ DEVISE ══════
@@ -220,14 +222,15 @@ public partial class PosViewModel : BaseViewModel,
     private static extern bool GetDefaultPrinter(StringBuilder pszBuffer, ref int pcchBuffer);
 
     // ══════════════════════════════════════════════════════════
-    //  CONSTRUCTEUR — 🆕 IAuthService injected
+    //  CONSTRUCTEUR — 🆕 ITimeProvider injected
     // ══════════════════════════════════════════════════════════
 
     public PosViewModel(
         InvoiceService invoiceService, ProductService productService,
         IUnitOfWork unitOfWork, CustomerDisplayService customerDisplay,
         ClientService clientService, IFiscalDeviceService fiscalDevice,
-        IAuthService auth)                                                // 🆕
+        IAuthService auth,
+        ITimeProvider time)                                               // 🆕
     {
         _invoiceService = invoiceService;
         _productService = productService;
@@ -235,10 +238,10 @@ public partial class PosViewModel : BaseViewModel,
         _customerDisplay = customerDisplay;
         _clientService = clientService;
         _fiscalDevice = fiscalDevice;
-        _auth = auth;                                                     // 🆕
+        _auth = auth;
+        _time = time ?? throw new ArgumentNullException(nameof(time));    // 🆕
         PageTitle = "Caisse";
 
-        // 🆕 Set operator name from logged-in user
         OperatorName = _auth.CurrentUser?.FullName ?? "Opérateur";
 
         WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
@@ -274,7 +277,6 @@ public partial class PosViewModel : BaseViewModel,
         SelectedPosInfo = string.Join(" · ", parts);
         LoadPrinterSettings();
 
-        // 🆕 Régénérer le numéro avec le préfixe du nouveau POS
         if (!IsNormalized && CartItems.Count == 0)
             _ = GenerateNewNumber();
     }
@@ -341,13 +343,15 @@ public partial class PosViewModel : BaseViewModel,
     }
 
     // ══════════════════════════════════════════════════════════
-    //  INITIALISATION — 🆕 POS selection + product fallback
+    //  INITIALISATION
     // ══════════════════════════════════════════════════════════
 
     private void UpdateClock()
     {
-        CurrentTime = DateTime.Now.ToString("HH:mm:ss");
-        CurrentDate = DateTime.Now.ToString("dddd dd MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"));
+        // 🆕 L'horloge affiche l'heure locale de l'opérateur via ITimeProvider.
+        var now = _time.LocalNow;   // DateTimeOffset (local)
+        CurrentTime = now.ToString("HH:mm:ss");
+        CurrentDate = now.ToString("dddd dd MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"));
     }
 
     private async Task InitializeAsync()
@@ -355,7 +359,6 @@ public partial class PosViewModel : BaseViewModel,
         IsBusy = true;
         try
         {
-            // ── 1. Company & POS ──
             var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
             if (company != null)
             {
@@ -372,20 +375,18 @@ public partial class PosViewModel : BaseViewModel,
                     foreach (var pos in activePosList) AvailablePointsOfSale.Add(pos);
                     HasMultiplePos = activePosList.Count > 1;
 
-                    // 🆕 Select user-assigned POS → first available
                     SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
                         activePosList, _auth.CurrentUser?.PointOfSaleId);
                 }
             }
 
-            // ── 2. App settings (independent) ──
             try
             {
                 var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
                 if (appSettings != null)
                 {
                     _discountBeforeTax = appSettings.DiscountBeforeTax;
-                    PriceMode = appSettings.DefaultPriceMode;     // ★ ADDED — overrides company value
+                    PriceMode = appSettings.DefaultPriceMode;
                     SelectedCurrency = appSettings.DefaultCurrency;
                     ExchangeRate = appSettings.CurrentExchangeRate;
                     _currentExchangeRate = appSettings.CurrentExchangeRate;
@@ -393,7 +394,6 @@ public partial class PosViewModel : BaseViewModel,
             }
             catch { _discountBeforeTax = true; }
 
-            // ── 3. Catalogue — 🆕 Isolated try-catch ──
             try
             {
                 var cats = await _productService.GetCategoriesAsync();
@@ -407,7 +407,6 @@ public partial class PosViewModel : BaseViewModel,
                 ShowError = true;
             }
 
-            // ── 4. Non-critical tasks ──
             try { await RefreshDailyStatsAsync(); } catch { }
             try { await GenerateNewNumber(); } catch { }
             try { await LoadOperatorsAsync(); } catch { }
@@ -505,7 +504,7 @@ public partial class PosViewModel : BaseViewModel,
     }
 
     // ══════════════════════════════════════════════════════════
-    //  CATALOGUE — 🆕 Fallback when no favorites
+    //  CATALOGUE
     // ══════════════════════════════════════════════════════════
 
     private async Task LoadDisplayProductsAsync()
@@ -516,7 +515,6 @@ public partial class PosViewModel : BaseViewModel,
         {
             products = await _unitOfWork.Products.GetFavoritesAsync();
 
-            // 🆕 Fallback: if no favorites, show all active products
             if (products.Count == 0)
             {
                 ShowFavoritesOnly = false;
@@ -575,7 +573,6 @@ public partial class PosViewModel : BaseViewModel,
         ShowSearchResults = false;
         SearchText = "";
 
-        // ── FIX Bug 8 : validation type d'article ↔ groupe de taxation ──
         if (!TaxCalculator.IsItemTypeValidForGroup(product.ItemType, product.TaxGroup))
         {
             bool isLOrN = product.TaxGroup == TaxGroup.L || product.TaxGroup == TaxGroup.N;
@@ -592,7 +589,6 @@ public partial class PosViewModel : BaseViewModel,
             existing.Quantity += 1;
             existing.Recalculate(PriceMode, _discountBeforeTax);
 
-            // FIX Bug 9 : vérifier montant positif
             if (existing.AmountTTC <= 0m)
             {
                 existing.Quantity -= 1;
@@ -616,7 +612,6 @@ public partial class PosViewModel : BaseViewModel,
                 ttc = product.UnitPriceTtcUsd;
             }
 
-            // ── FIX Bug 10 : champs typés au lieu de legacy ──
             var item = new CartItemViewModel
             {
                 ProductId = product.Id,
@@ -630,8 +625,6 @@ public partial class PosViewModel : BaseViewModel,
                 Quantity = 1,
                 StockQuantity = product.StockQuantity,
                 TrackStock = product.TrackStock,
-
-                // V6 : typed TS fields
                 SpecificTaxType = product.SpecificTaxType,
                 SpecificTaxValue = product.SpecificTaxValue,
                 SpecificTaxName = product.HasSpecificTax
@@ -643,7 +636,6 @@ public partial class PosViewModel : BaseViewModel,
             };
             item.Recalculate(PriceMode, _discountBeforeTax);
 
-            // FIX Bug 9 : vérifier montant positif
             if (item.AmountTTC <= 0m)
             {
                 StatusMessage = $"« {product.Name} » : montant TTC résultant ≤ 0 (spec DGI art. 20-21).";
@@ -659,20 +651,12 @@ public partial class PosViewModel : BaseViewModel,
         TotalPulseRequested?.Invoke();
     }
 
-    // ✅ POS Beep
     private void PlayAddSound()
     {
-        try
-        {
-            System.Media.SystemSounds.Asterisk.Play();
-        }
-        catch { }
+        try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
     }
 
-    private void TriggerCartPulse()
-    {
-        CartPulseRequested?.Invoke();
-    }
+    private void TriggerCartPulse() => CartPulseRequested?.Invoke();
 
     [RelayCommand]
     private void IncrementQuantity(CartItemViewModel? item)
@@ -896,12 +880,9 @@ public partial class PosViewModel : BaseViewModel,
 
         var ol = selection.OriginalLine;
 
-        // ── V6 : déterminer le type TS depuis les champs typés de la ligne originale ──
-        // Si la ligne originale utilise encore les champs legacy, on parse :
         SpecificTaxType tsType = ol.SpecificTaxType;
         decimal tsValue = ol.SpecificTaxValue;
 
-        // Fallback legacy si les champs typés ne sont pas renseignés
         if (tsType == SpecificTaxType.None && ol.HasSpecificTax)
         {
             var (parsedType, parsedValue) = TaxCalculator.ParseLegacySpecificTax(ol.TaxSpecificValue);
@@ -922,8 +903,6 @@ public partial class PosViewModel : BaseViewModel,
             Quantity = selection.SelectedQuantity,
             DiscountType = ol.DiscountType,
             DiscountValue = ol.DiscountValue,
-
-            // V6 : champs typés
             SpecificTaxType = tsType,
             SpecificTaxValue = tsValue,
             SpecificTaxName = ol.SpecificTaxName ?? "",
@@ -1002,20 +981,12 @@ public partial class PosViewModel : BaseViewModel,
     {
         bool isTTC = PriceMode == PriceMode.TTC;
 
-        // ═══════════════════════════════════════════════════════
-        //  1. Remettre les lignes OnTotal à leur état de base
-        // ═══════════════════════════════════════════════════════
         foreach (var item in CartItems)
         {
             if (item.TaxApplicationMode == TaxApplicationMode.OnTotal)
-            {
                 item.Recalculate(PriceMode, _discountBeforeTax);
-            }
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  2. Distribuer la TS OnTotal
-        // ═══════════════════════════════════════════════════════
         var onTotalGroups = CartItems
             .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
                       && l.SpecificTaxType != SpecificTaxType.None
@@ -1126,11 +1097,6 @@ public partial class PosViewModel : BaseViewModel,
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  3. (NEW V14) Group-level DGI rounding alignment
-        //  The fiscal device computes TVA per tax group, not per line.
-        //  Adjust last line in each group to match device totals.
-        // ═══════════════════════════════════════════════════════
         var taxGroups = CartItems
             .Where(l => l.TaxGroup != TaxGroup.N && l.TaxRate > 0)
             .GroupBy(l => l.TaxGroup);
@@ -1173,9 +1139,6 @@ public partial class PosViewModel : BaseViewModel,
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  4. Totaux
-        // ═══════════════════════════════════════════════════════
         TotalHTBeforeDiscount = CartItems.Sum(c => c.AmountHTBeforeDiscount);
         TotalDiscount = CartItems.Sum(c => c.DiscountAmount);
         TotalHT = CartItems.Sum(c => c.AmountHT);
@@ -1269,7 +1232,6 @@ public partial class PosViewModel : BaseViewModel,
 
         if (amount <= 0) return;
 
-        // Spec 1.5.2 — amounts rounded to 2 decimals max
         amount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
 
         PaymentItems.Add(new PaymentDisplayItem
@@ -1307,7 +1269,6 @@ public partial class PosViewModel : BaseViewModel,
 
             if (IsAdvanceInvoice)
             {
-                // 🆕 Acompte : montant exact reçu, pas d'auto-complétion
                 if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
                 {
                     StatusMessage = "Veuillez saisir le montant de l'acompte reçu.";
@@ -1383,15 +1344,31 @@ public partial class PosViewModel : BaseViewModel,
 
     private async Task PrintThermalReceiptAsync(Invoice invoice, bool isDuplicate = false)
     {
+        // 🆕 On capture l'instant d'impression AVANT le Task.Run afin :
+        //    - d'éviter tout décalage si la file d'impression est lente
+        //    - de garantir que tous les duplicatas imprimés en rafale partagent
+        //      le même timestamp que le reçu original (cohérence visuelle).
+        var pos = SelectedPointOfSale;
+        var printedAt = _time.ToLocal(_time.UtcNow, pos?.TimeZoneId);
+
         await Task.Run(() =>
         {
             try
             {
-                var receiptBytes = EscPosReceiptBuilder.Build(invoice, _currentCompany!, SelectedPointOfSale, _currentExchangeRate, isDuplicate);
+                var receiptBytes = EscPosReceiptBuilder.Build(
+                    invoice,
+                    _currentCompany!,
+                    SelectedPointOfSale,
+                    _time,
+                    _currentExchangeRate,
+                    isDuplicate);
                 RawPrinterHelper.SendBytesToPrinter(ThermalPrinterName, receiptBytes, $"Facture {invoice.InvoiceNumber}");
             }
             catch (Exception ex)
-            { System.Windows.Application.Current.Dispatcher.Invoke(() => StatusMessage += $" ⚠ Impression: {ex.Message}"); }
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(
+                    () => StatusMessage += $" ⚠ Impression: {ex.Message}");
+            }
         });
     }
 
@@ -1577,20 +1554,6 @@ public partial class PosViewModel : BaseViewModel,
             invoice.PreviousAdvancesTotal = AdvancesTotalPaid;
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        //  V6 FIX : Les valeurs du ViewModel sont désormais correctes.
-        //
-        //  - PerArticle : AmountHT inclut TS, AmountTVA sur (HT+TS)
-        //  - OnTotal    : AmountHT inclut TS distribuée, AmountTVA recalculée
-        //  - HT + TVA = TTC garanti pour chaque ligne
-        //
-        //  On passe les valeurs directement. TaxSpecificAmount reste
-        //  disponible pour la ventilation d'affichage sur le reçu.
-        //
-        //  FIX Bug 7 : on écrit les champs typés SpecificTaxType /
-        //  SpecificTaxValue au lieu de SpecificTaxRate / TaxSpecificValue.
-        // ═══════════════════════════════════════════════════════════════
-
         int lineNum = 1;
         foreach (var item in CartItems)
         {
@@ -1611,28 +1574,24 @@ public partial class PosViewModel : BaseViewModel,
                 DiscountAmount = item.DiscountAmount,
                 AmountHTBeforeDiscount = item.AmountHTBeforeDiscount,
 
-                // ── V6 : champs typés TS ──
                 HasSpecificTax = item.HasSpecificTax,
                 SpecificTaxName = item.SpecificTaxName,
                 SpecificTaxType = item.SpecificTaxType,
                 SpecificTaxValue = item.SpecificTaxValue,
                 TaxApplicationMode = item.TaxApplicationMode,
 
-                // ── Montants fiscaux (TS déjà dans HT, TVA sur HT+TS) ──
                 AmountHT = item.AmountHT,
                 AmountTVA = item.AmountTVA,
                 AmountTTC = item.AmountTTC,
-                TaxSpecificAmount = item.TaxSpecificAmount,  // ventilation affichage
+                TaxSpecificAmount = item.TaxSpecificAmount,
             });
         }
 
-        // ── Totaux facture — cohérents avec les lignes ──
         invoice.TotalHT = TotalHT;
         invoice.TotalTVA = TotalTVA;
         invoice.TotalTTC = TotalTTC;
-        invoice.TotalSpecificTax = TotalSpecificTax;  // ventilation, déjà dans TotalHT
+        invoice.TotalSpecificTax = TotalSpecificTax;
 
-        // ── Paiements (inchangés) ──
         if (PaymentItems.Count > 0)
         {
             foreach (var pay in PaymentItems)
@@ -1679,7 +1638,9 @@ public partial class PosViewModel : BaseViewModel,
         {
             Label = CartItems.Count == 1 ? CartItems[0].Name : $"{CartItems[0].Name} +{CartItems.Count - 1}",
             Reason = string.IsNullOrWhiteSpace(HoldReason) ? "" : HoldReason.Trim(),
-            HeldAt = DateTime.Now,
+            // 🆕 Horodatage via ITimeProvider (heure locale : affichage opérateur).
+            // Si HeldAt doit être en UTC, remplacer par : _time.UtcNow.UtcDateTime
+            HeldAt = _time.LocalNow.LocalDateTime,
             TotalTTC = TotalTTC,
             ItemCount = TotalArticles,
             OperatorName = OperatorName,
@@ -1708,7 +1669,6 @@ public partial class PosViewModel : BaseViewModel,
                 DiscountAmount = item.DiscountAmount,
                 AmountHTBeforeDiscount = item.AmountHTBeforeDiscount,
 
-                // V6 : champs typés TS
                 SpecificTaxType = item.SpecificTaxType,
                 SpecificTaxValue = item.SpecificTaxValue,
                 SpecificTaxName = item.SpecificTaxName,
@@ -1728,6 +1688,7 @@ public partial class PosViewModel : BaseViewModel,
         _ = GenerateNewNumber();
         StatusMessage = $"⏸ Panier en attente — {held.ItemCount} article(s)"; ShowSuccess = true; HoldReason = "";
     }
+
     [RelayCommand]
     private void RecallHeldSale(HeldTransactionViewModel? held)
     {
@@ -1767,7 +1728,6 @@ public partial class PosViewModel : BaseViewModel,
         InvoiceNumber = held.InvoiceNumber; InvoiceType = held.InvoiceType;
         SelectedPaymentType = held.PaymentType; ReceivedAmount = held.ReceivedAmount;
 
-        // V10: ALWAYS re-run Recalculate — held values may be from pre-V10 code
         foreach (var item in CartItems)
             item.Recalculate(PriceMode, _discountBeforeTax);
 
@@ -1824,7 +1784,7 @@ public partial class PosViewModel : BaseViewModel,
     };
 
     // ══════════════════════════════════════════════════════════
-    //  IActivatable — 🆕 Uses auth for POS selection
+    //  IActivatable
     // ══════════════════════════════════════════════════════════
 
     public async Task ActivateAsync()
@@ -1837,9 +1797,6 @@ public partial class PosViewModel : BaseViewModel,
             {
                 _currentCompany = company;
                 Isf = company.ISF;
-
-                // ★ REMOVED: PriceMode = company.DefaultPriceMode;
-                // The messenger already delivered the correct value during this session.
 
                 var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
                 if (companyWithPos?.PointsOfSale != null)
@@ -1854,12 +1811,6 @@ public partial class PosViewModel : BaseViewModel,
                         activePosList, _auth.CurrentUser?.PointOfSaleId, previousId);
                 }
             }
-
-            // ★ REMOVED: Don't override PriceMode / _discountBeforeTax from stale DbContext.
-            // These are kept in sync via WeakReferenceMessenger during the session.
-            // Only read exchange rate & currency (non-messenger-managed values if needed):
-            // If you still want currency/exchange rate from DB on activation, you can keep those
-            // but they have the same stale-cache problem. Better to rely on the messenger too.
 
             try { await LoadDisplayProductsAsync(); } catch { }
             try { await RefreshDailyStatsAsync(); } catch { }

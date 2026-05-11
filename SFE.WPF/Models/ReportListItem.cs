@@ -4,9 +4,9 @@ public class ReportListItem
 {
     public int Id { get; set; }
     public int ReportNumber { get; set; }
-    public DateTime GeneratedAt { get; set; }
-    public DateTime PeriodStart { get; set; }
-    public DateTime PeriodEnd { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; }
+    public DateTimeOffset PeriodStart { get; set; }
+    public DateTimeOffset PeriodEnd { get; set; }
     public string OperatorName { get; set; } = "";
     public string ISF { get; set; } = "";
     public decimal GrandTotalTTC { get; set; }

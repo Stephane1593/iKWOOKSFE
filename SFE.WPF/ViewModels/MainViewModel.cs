@@ -8,6 +8,7 @@ using SFE.WPF.Views;
 using System.Windows.Threading;
 using System.Diagnostics;
 using SFE.Application.Events;
+using SFE.Domain.Abstractions;
 
 namespace SFE.WPF.ViewModels;
 
@@ -15,6 +16,7 @@ public partial class MainViewModel : BaseViewModel
 {
     private readonly IAuthService _authService;
     private readonly CashSessionState _sessionState;
+    private readonly ITimeProvider _timeProvider;   // 🆕
 
     [ObservableProperty] private object? _currentPage;
     [ObservableProperty] private string _currentPageKey = "";
@@ -44,17 +46,14 @@ public partial class MainViewModel : BaseViewModel
     // ═══ NOTIFICATIONS ═══
     [ObservableProperty] private bool _showNotificationBanner;
     [ObservableProperty] private string _notificationMessage = "";
-    [ObservableProperty] private string _notificationType = "warning"; // "warning", "error", "info"
+    [ObservableProperty] private string _notificationType = "warning";
     [ObservableProperty] private bool _isMcfDisconnectedWarning;
     [ObservableProperty] private string _activeDeviceLabel = "—";
 
     private readonly DispatcherTimer? _deviceCheckTimer;
 
     // ═══════════════════════════════════════════════════════
-    //  PERMISSIONS — individual items (session-gated where needed)
-    // ═══════════════════════════════════════════════════════
-    // ═══════════════════════════════════════════════════════
-    //  PERMISSIONS — individual items (session-gated where needed)
+    //  PERMISSIONS
     // ═══════════════════════════════════════════════════════
     public bool CanAccessDashboard => _authService.HasPermission("dashboard");
     public bool CanAccessPos => _authService.HasPermission("pos") && _sessionState.IsSessionOpen;
@@ -66,7 +65,6 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessTransfers => _authService.HasPermission("transfers");
     public bool CanAccessLoyalty => _authService.HasPermission("loyalty");
 
-    // ★ UPDATED — operators with ONLY closeZ can still open the Z page
     public bool CanAccessReports => (_authService.HasPermission("reports")
                                   || _authService.HasPermission("closeZ"))
                                   && _sessionState.IsSessionOpen;
@@ -76,13 +74,12 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessUsers => _authService.HasPermission("users");
     public bool CanAccessAudit => _authService.HasPermission("audit");
 
-    // ★ NEW — dedicated Z-close capability
     public bool CanCloseZ => _authService.HasPermission("closeZ")
                           && _sessionState.IsSessionOpen
                           && !_sessionState.IsSetupMode;
 
     // ═══════════════════════════════════════════════════════
-    //  DROPDOWN TOGGLES — permission only, NO session gate
+    //  DROPDOWN TOGGLES
     // ═══════════════════════════════════════════════════════
     public bool CanSeeFichier => _authService.HasPermission("pos")
                                || _authService.HasPermission("invoicing");
@@ -93,7 +90,7 @@ public partial class MainViewModel : BaseViewModel
                                || _authService.HasPermission("reports");
 
     public bool CanSeeAffichage => _authService.HasPermission("reports")
-                                || _authService.HasPermission("closeZ")     // ★ NEW
+                                || _authService.HasPermission("closeZ")
                                 || _authService.HasPermission("salesHistory");
 
     public bool CanSeeOutils => _authService.HasPermission("settings")
@@ -102,10 +99,14 @@ public partial class MainViewModel : BaseViewModel
 
     private readonly Dictionary<string, object> _pages = new();
 
-    public MainViewModel(IAuthService authService, CashSessionState sessionState)
+    public MainViewModel(
+        IAuthService authService,
+        CashSessionState sessionState,
+        ITimeProvider timeProvider)          // 🆕
     {
         _authService = authService;
         _sessionState = sessionState;
+        _timeProvider = timeProvider;        // 🆕
         PageTitle = "iKWOOK SFE";
 
         IsSetupMode = sessionState.IsSetupMode;
@@ -116,10 +117,8 @@ public partial class MainViewModel : BaseViewModel
         LoadUserContext();
         NavigateToDefaultPage();
 
-        // ★ Subscribe to fiscal status changes from other ViewModels
         AppEventBus.Subscribe(OnAppEvent);
 
-        // Start periodic device status check (every 5 minutes)
         if (!sessionState.IsSetupMode)
         {
             _ = CheckDeviceStatusAsync();
@@ -270,7 +269,6 @@ public partial class MainViewModel : BaseViewModel
     [RelayCommand]
     private void CloseReportZ()
     {
-        // ★ Permission check FIRST
         if (!_authService.HasPermission("closeZ"))
         {
             System.Windows.MessageBox.Show(
@@ -388,7 +386,6 @@ public partial class MainViewModel : BaseViewModel
         {
             var fiscalDevice = App.ServiceProvider.GetRequiredService<IFiscalDeviceService>();
 
-            // 1. Basic connectivity check
             var status = await fiscalDevice.GetStatusAsync();
             IsDeviceOnline = status.Success;
 
@@ -400,7 +397,6 @@ public partial class MainViewModel : BaseViewModel
                 if (fiscalDevice is FiscalDeviceResolver resolver)
                     ActiveDeviceLabel = resolver.ActiveDeviceLabel;
 
-                // 2. Check MCF-to-DGI connection (7-day rule per spec §1.6.1)
                 await CheckDgiConnectionAsync(fiscalDevice);
             }
             else
@@ -431,7 +427,6 @@ public partial class MainViewModel : BaseViewModel
 
             if (!serverStatus.Success)
             {
-                // Could not determine server status — no banner needed, device itself is online
                 ShowNotificationBanner = false;
                 IsMcfDisconnectedWarning = false;
                 return;
@@ -439,8 +434,9 @@ public partial class MainViewModel : BaseViewModel
 
             if (serverStatus.IsOverSevenDays)
             {
+                // 🆕 Utilise ITimeProvider au lieu de DateTime.Now
                 var daysSince = serverStatus.LastServerConnection.HasValue
-                    ? (DateTime.Now - serverStatus.LastServerConnection.Value).Days
+                    ? (_timeProvider.LocalNow - serverStatus.LastServerConnection.Value).Days
                     : 7;
 
                 NotificationMessage = $"⚠ Le MCF n'a pas communiqué avec le serveur DGI depuis {daysSince} jour(s). " +
@@ -458,7 +454,6 @@ public partial class MainViewModel : BaseViewModel
             }
             else
             {
-                // ★ All good — clear any previous warning
                 ShowNotificationBanner = false;
                 IsMcfDisconnectedWarning = false;
             }
@@ -466,7 +461,6 @@ public partial class MainViewModel : BaseViewModel
         catch (Exception ex)
         {
             Debug.WriteLine($"[MainVM] DGI connection check error: {ex.Message}");
-            // Don't show error banner for this — device is online, just couldn't check DGI
             ShowNotificationBanner = false;
         }
     }
@@ -483,8 +477,6 @@ public partial class MainViewModel : BaseViewModel
         try
         {
             var fiscalDevice = App.ServiceProvider.GetRequiredService<IFiscalDeviceService>();
-            // For MCF: send C2h RESTART command
-            // For e-MCF: just re-check status
             var result = await fiscalDevice.GetServerConnectionStatusAsync();
             if (result.Success)
             {

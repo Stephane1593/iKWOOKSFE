@@ -7,7 +7,7 @@
 public class SessionCloseData
 {
     // ── Opening (from CashSessionInfo) ──
-    public DateTime SessionOpenedAt { get; set; }
+    public DateTimeOffset SessionOpenedAt { get; set; }
     public int PointOfSaleId { get; set; }
     public string OperatorName { get; set; } = "";
 

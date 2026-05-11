@@ -1,4 +1,5 @@
 ﻿using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -10,10 +11,12 @@ namespace SFE.Application.Services;
 public class SettingsService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITimeProvider _time;
 
-    public SettingsService(IUnitOfWork unitOfWork)
+    public SettingsService(IUnitOfWork unitOfWork, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
+        _time = time;
     }
 
     /// <summary>
@@ -72,8 +75,8 @@ public class SettingsService
             DiscountBeforeTax = appSettings?.DiscountBeforeTax ?? true,
             DefaultCurrency = appSettings?.DefaultCurrency ?? Currency.CDF,
             CurrentExchangeRate = appSettings?.CurrentExchangeRate ?? 2800m,
-            CurrentExchangeRateEUR = appSettings?.CurrentExchangeRateEUR ?? 3100m,   // ← NEW
-            CurrentExchangeRateCNY = appSettings?.CurrentExchangeRateCNY ?? 385m,    // ← NEW
+            CurrentExchangeRateEUR = appSettings?.CurrentExchangeRateEUR ?? 3100m,
+            CurrentExchangeRateCNY = appSettings?.CurrentExchangeRateCNY ?? 385m,
             ExchangeRateMode = appSettings?.ExchangeRateMode ?? ExchangeRateMode.Manual,
 
             // POS actif
@@ -120,8 +123,7 @@ public class SettingsService
             company.DeploymentMode = data.DeploymentMode;
             company.ISF = data.CompanyISF;
             company.Logo = data.CompanyLogo;
-            company.DefaultPriceMode = data.DefaultPriceMode;       // ★ KEY FIX
-
+            // (duplicate assignment removed — was assigning DefaultPriceMode twice)
 
             await _unitOfWork.Companies.UpdateAsync(company);
 
@@ -132,10 +134,10 @@ public class SettingsService
                 appSettings.DiscountBeforeTax = data.DiscountBeforeTax;
                 appSettings.DefaultCurrency = data.DefaultCurrency;
                 appSettings.CurrentExchangeRate = data.CurrentExchangeRate;
-                appSettings.CurrentExchangeRateEUR = data.CurrentExchangeRateEUR;   // ← NEW
-                appSettings.CurrentExchangeRateCNY = data.CurrentExchangeRateCNY;   // ← NEW
+                appSettings.CurrentExchangeRateEUR = data.CurrentExchangeRateEUR;
+                appSettings.CurrentExchangeRateCNY = data.CurrentExchangeRateCNY;
                 appSettings.ExchangeRateMode = data.ExchangeRateMode;
-                appSettings.UpdatedAt = DateTime.Now;
+                appSettings.UpdatedAt = _time.UtcNow.UtcDateTime;   // ← ITimeProvider
                 appSettings.CompanyIdNat = data.CompanyISF;
                 appSettings.DefaultPriceMode = data.DefaultPriceMode;
 
@@ -197,10 +199,10 @@ public class SettingsData
     public bool DiscountBeforeTax { get; set; } = true;
     public Currency DefaultCurrency { get; set; } = Currency.CDF;
     public decimal CurrentExchangeRate { get; set; } = 2800m;        // USD
-    public decimal CurrentExchangeRateEUR { get; set; } = 3100m;     // ← NEW
-    public decimal CurrentExchangeRateCNY { get; set; } = 385m;      // ← NEW
+    public decimal CurrentExchangeRateEUR { get; set; } = 3100m;
+    public decimal CurrentExchangeRateCNY { get; set; } = 385m;
     public ExchangeRateMode ExchangeRateMode { get; set; } = ExchangeRateMode.Manual;
-    public DateTime? DgiExchangeRateDate { get; set; }
+    public DateTimeOffset? DgiExchangeRateDate { get; set; }
 
     // POS actif
     public int ActivePosId { get; set; }

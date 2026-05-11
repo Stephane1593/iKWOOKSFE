@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.WPF.Services;
 
@@ -11,6 +12,7 @@ public partial class SessionCloseViewModel : ObservableObject
 {
     private readonly ReportService _reportService;
     private readonly CashSessionState _sessionState;
+    private readonly ITimeProvider _timeProvider;     // 🆕
 
     // ═══ SESSION INFO (read-only) ═══
     [ObservableProperty] private string _operatorName = "";
@@ -21,19 +23,19 @@ public partial class SessionCloseViewModel : ObservableObject
     [ObservableProperty] private string _currentDate = "";
     [ObservableProperty] private string _currentTime = "";
 
-    // ═══ OPENING AMOUNTS (read-only) ═══
+    // ═══ OPENING AMOUNTS ═══
     [ObservableProperty] private decimal _openingUSD;
     [ObservableProperty] private decimal _openingCDF;
     [ObservableProperty] private decimal _openingEUR;
     [ObservableProperty] private decimal _openingCNY;
     [ObservableProperty] private string _openingTotalCDF = "0";
 
-    // ═══ EXCHANGE RATES (read-only) ═══
+    // ═══ EXCHANGE RATES ═══
     [ObservableProperty] private decimal _rateUSD;
     [ObservableProperty] private decimal _rateEUR;
     [ObservableProperty] private decimal _rateCNY;
 
-    // ═══ SALES SUMMARY (loaded async) ═══
+    // ═══ SALES SUMMARY ═══
     [ObservableProperty] private int _totalInvoiceCount;
     [ObservableProperty] private int _salesCount;
     [ObservableProperty] private int _creditNoteCount;
@@ -47,7 +49,7 @@ public partial class SessionCloseViewModel : ObservableObject
     [ObservableProperty] private string _cashSalesEUR = "0";
     [ObservableProperty] private string _cashSalesCNY = "0";
 
-    // ═══ EXPECTED CASH (calculated) ═══
+    // ═══ EXPECTED CASH ═══
     [ObservableProperty] private string _expectedUSD = "0";
     [ObservableProperty] private string _expectedCDF = "0";
     [ObservableProperty] private string _expectedEUR = "0";
@@ -56,14 +58,14 @@ public partial class SessionCloseViewModel : ObservableObject
 
     private decimal _expectedUSDVal, _expectedCDFVal, _expectedEURVal, _expectedCNYVal;
 
-    // ═══ CLOSING AMOUNTS (user input) ═══
+    // ═══ CLOSING AMOUNTS ═══
     [ObservableProperty] private string _closingAmountUSD = "0";
     [ObservableProperty] private string _closingAmountCDF = "0";
     [ObservableProperty] private string _closingAmountEUR = "0";
     [ObservableProperty] private string _closingAmountCNY = "0";
     [ObservableProperty] private string _closingTotalCDF = "0";
 
-    // ═══ VARIANCE (auto-calculated) ═══
+    // ═══ VARIANCE ═══
     [ObservableProperty] private string _varianceUSD = "0";
     [ObservableProperty] private string _varianceCDF = "0";
     [ObservableProperty] private string _varianceEUR = "0";
@@ -93,14 +95,19 @@ public partial class SessionCloseViewModel : ObservableObject
     //  CONSTRUCTOR
     // ═══════════════════════════════════════════
 
-    public SessionCloseViewModel(ReportService reportService, CashSessionState sessionState)
+    public SessionCloseViewModel(
+        ReportService reportService,
+        CashSessionState sessionState,
+        ITimeProvider timeProvider)                  // 🆕
     {
         _reportService = reportService;
         _sessionState = sessionState;
+        _timeProvider = timeProvider;                // 🆕
 
-        var now = DateTime.Now;
-        CurrentDate = now.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
-        CurrentTime = now.ToString("HH:mm");
+        // 🆕 Header clock via provider
+        var localNow = _timeProvider.LocalNow;
+        CurrentDate = localNow.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
+        CurrentTime = localNow.ToString("HH:mm");
 
         LoadSessionInfo();
         _ = LoadSalesSummaryAsync();
@@ -123,24 +130,26 @@ public partial class SessionCloseViewModel : ObservableObject
         OperatorName = session.OperatorName;
         PosName = session.PointOfSaleName;
         PosCode = session.PointOfSaleCode;
-        OpenedAtDisplay = session.OpenedAt.ToString("dd/MM/yyyy HH:mm");
 
-        var duration = DateTime.Now - session.OpenedAt;
+        // 🆕 session.OpenedAt is DateTimeOffset (UTC). Project to local for display.
+        var openedLocal = _timeProvider.ToLocal(session.OpenedAt);
+        OpenedAtDisplay = openedLocal.ToString("dd/MM/yyyy HH:mm");
+
+        // 🆕 Duration: compare two DateTimeOffset values directly — they know their offsets.
+        var duration = _timeProvider.LocalNow - session.OpenedAt;
+        if (duration < TimeSpan.Zero) duration = TimeSpan.Zero;    // safety
         DurationDisplay = $"{(int)duration.TotalHours}h {duration.Minutes:D2}min";
 
-        // Opening amounts
         OpeningUSD = session.OpeningAmountUSD;
         OpeningCDF = session.OpeningAmountCDF;
         OpeningEUR = session.OpeningAmountEUR;
         OpeningCNY = session.OpeningAmountCNY;
         OpeningTotalCDF = session.TotalEquivalentCDF.ToString("N0");
 
-        // Rates
         RateUSD = session.RateUSD;
         RateEUR = session.RateEUR;
         RateCNY = session.RateCNY;
 
-        // Pre-fill closing with opening (common starting point)
         ClosingAmountUSD = session.OpeningAmountUSD.ToString("F2");
         ClosingAmountCDF = session.OpeningAmountCDF.ToString("F0");
         ClosingAmountEUR = session.OpeningAmountEUR.ToString("F2");
@@ -159,6 +168,7 @@ public partial class SessionCloseViewModel : ObservableObject
         IsLoading = true;
         try
         {
+            // 🆕 Pass the DateTimeOffset straight through.
             var summary = await _reportService.CalculateSessionSummaryAsync(
                 session.OpenedAt,
                 session.PointOfSaleId,
@@ -167,7 +177,6 @@ public partial class SessionCloseViewModel : ObservableObject
                 session.OpeningAmountEUR,
                 session.OpeningAmountCNY);
 
-            // Sales summary
             TotalInvoiceCount = summary.TotalInvoiceCount;
             SalesCount = summary.SalesCount;
             CreditNoteCount = summary.CreditNoteCount;
@@ -175,13 +184,11 @@ public partial class SessionCloseViewModel : ObservableObject
             IncompleteCount = summary.IncompleteCount;
             NonCashTotalDisplay = summary.NonCashTotal.ToString("N0");
 
-            // Cash detail
             CashSalesUSD = FormatCashFlow(summary.CashSalesUSD, summary.CashRefundsUSD);
             CashSalesCDF = FormatCashFlow(summary.CashSalesCDF, summary.CashRefundsCDF);
             CashSalesEUR = FormatCashFlow(summary.CashSalesEUR, summary.CashRefundsEUR);
             CashSalesCNY = FormatCashFlow(summary.CashSalesCNY, summary.CashRefundsCNY);
 
-            // Expected
             _expectedUSDVal = summary.ExpectedCashUSD;
             _expectedCDFVal = summary.ExpectedCashCDF;
             _expectedEURVal = summary.ExpectedCashEUR;
@@ -237,11 +244,9 @@ public partial class SessionCloseViewModel : ObservableObject
         decimal.TryParse(ClosingAmountEUR, NumberStyles.Any, CultureInfo.InvariantCulture, out var cEUR);
         decimal.TryParse(ClosingAmountCNY, NumberStyles.Any, CultureInfo.InvariantCulture, out var cCNY);
 
-        // Closing total CDF
         var closingTotal = (cUSD * RateUSD) + cCDF + (cEUR * RateEUR) + (cCNY * RateCNY);
         ClosingTotalCDF = closingTotal.ToString("N0");
 
-        // Variance per currency
         var vUSD = cUSD - _expectedUSDVal;
         var vCDF = cCDF - _expectedCDFVal;
         var vEUR = cEUR - _expectedEURVal;
@@ -274,7 +279,7 @@ public partial class SessionCloseViewModel : ObservableObject
     };
 
     // ═══════════════════════════════════════════
-    //  SET EXPECTED (quick fill)
+    //  SET EXPECTED
     // ═══════════════════════════════════════════
 
     [RelayCommand]
@@ -287,7 +292,7 @@ public partial class SessionCloseViewModel : ObservableObject
     }
 
     // ═══════════════════════════════════════════
-    //  CONFIRM (Generate Z + Close Session)
+    //  CONFIRM
     // ═══════════════════════════════════════════
 
     [RelayCommand]
@@ -307,7 +312,6 @@ public partial class SessionCloseViewModel : ObservableObject
 
         try
         {
-            // Parse closing amounts
             decimal.TryParse(ClosingAmountUSD, NumberStyles.Any, CultureInfo.InvariantCulture, out var cUSD);
             decimal.TryParse(ClosingAmountCDF, NumberStyles.Any, CultureInfo.InvariantCulture, out var cCDF);
             decimal.TryParse(ClosingAmountEUR, NumberStyles.Any, CultureInfo.InvariantCulture, out var cEUR);
@@ -321,10 +325,9 @@ public partial class SessionCloseViewModel : ObservableObject
                 return;
             }
 
-            // Build close data
             var closeData = new SessionCloseData
             {
-                SessionOpenedAt = session.OpenedAt,
+                SessionOpenedAt = session.OpenedAt,        // already DateTimeOffset
                 PointOfSaleId = session.PointOfSaleId,
                 OperatorName = session.OperatorName,
 
@@ -347,16 +350,13 @@ public partial class SessionCloseViewModel : ObservableObject
                 ClosingNotes = string.IsNullOrWhiteSpace(ClosingNotes) ? null : ClosingNotes.Trim()
             };
 
-            // Generate Z report
             GeneratedReport = await _reportService.GenerateSessionZReportAsync(closeData);
 
-            // Close session
             _sessionState.Close();
 
             SuccessMessage = $"✓ Z-Rapport N°{GeneratedReport.ReportNumber} généré avec succès.";
             HasSuccess = true;
 
-            // Signal caller
             SessionClosed?.Invoke();
         }
         catch (Exception ex)
@@ -370,15 +370,8 @@ public partial class SessionCloseViewModel : ObservableObject
         }
     }
 
-    // ═══════════════════════════════════════════
-    //  CANCEL
-    // ═══════════════════════════════════════════
-
     public event Action? CloseRequested;
 
     [RelayCommand]
-    private void Cancel()
-    {
-        CloseRequested?.Invoke();
-    }
+    private void Cancel() => CloseRequested?.Invoke();
 }

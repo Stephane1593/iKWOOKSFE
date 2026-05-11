@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -8,8 +9,10 @@ namespace SFE.Infrastructure.Persistence.Repositories;
 public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 {
     private readonly AppDbContext _db;
-    public InvoiceRepository(AppDbContext context) : base(context) {
+    private readonly ITimeProvider _time;
+    public InvoiceRepository(AppDbContext context, ITimeProvider time) : base(context) {
         _db = context;
+        _time = time;
     }
 
     public async Task<Invoice?> GetWithDetailsAsync(int invoiceId)
@@ -34,8 +37,12 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 
     public async Task<List<Invoice>> GetByDateRangeAsync(DateTime from, DateTime to)
     {
+        var fromOff = new DateTimeOffset(DateTime.SpecifyKind(from, DateTimeKind.Utc));
+        var toOff = new DateTimeOffset(DateTime.SpecifyKind(to, DateTimeKind.Utc));
+
         return await _dbSet
-            .Where(i => i.CreatedAt >= from && i.CreatedAt <= to && i.Status == InvoiceStatus.Normalized)
+            .Where(i => i.CreatedAt >= fromOff && i.CreatedAt <= toOff
+                     && i.Status == InvoiceStatus.Normalized)
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync();
     }
@@ -82,19 +89,19 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 
     public async Task<int> GetTodayCountAsync()
     {
-        var today = DateTime.Today;
-        return await _dbSet.CountAsync(i => i.CreatedAt >= today && i.Status == InvoiceStatus.Normalized);
+        var todayStart = new DateTimeOffset(_time.UtcToday.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        return await _dbSet.CountAsync(i =>
+            i.CreatedAt >= todayStart && i.Status == InvoiceStatus.Normalized);
     }
 
     public async Task<decimal> GetTodayTotalAsync()
     {
-        var today = DateTime.Today;
+        var todayStart = new DateTimeOffset(_time.UtcToday.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var totals = await _dbSet
-            .Where(i => i.CreatedAt >= today && i.Status == InvoiceStatus.Normalized)
+            .Where(i => i.CreatedAt >= todayStart && i.Status == InvoiceStatus.Normalized)
             .Select(i => i.TotalTTC)
-            .ToListAsync();           // ← fetch to memory first
-
-        return totals.Sum();          // ← Sum in C#, not SQLite
+            .ToListAsync();
+        return totals.Sum();
     }
 
     public async Task<List<Invoice>> GetCreditNotesForOriginalAsync(string originalCodeDEFDGI)
@@ -126,12 +133,16 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 
         // ── Filtres ──
         if (criteria.DateFrom.HasValue)
-            query = query.Where(i => i.CreatedAt >= criteria.DateFrom.Value);
+        {
+            var fromOff = new DateTimeOffset(DateTime.SpecifyKind(criteria.DateFrom.Value, DateTimeKind.Utc));
+            query = query.Where(i => i.CreatedAt >= fromOff);
+        }
 
         if (criteria.DateTo.HasValue)
         {
-            var endDate = criteria.DateTo.Value.Date.AddDays(1);
-            query = query.Where(i => i.CreatedAt < endDate);
+            var endOff = new DateTimeOffset(
+                DateTime.SpecifyKind(criteria.DateTo.Value.Date.AddDays(1), DateTimeKind.Utc));
+            query = query.Where(i => i.CreatedAt < endOff);
         }
 
         if (criteria.Type.HasValue)
@@ -177,10 +188,12 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 
     public async Task<InvoicePeriodStats> GetPeriodStatsAsync(DateTime from, DateTime to)
     {
-        var endDate = to.Date.AddDays(1);
+        var fromOff = new DateTimeOffset(DateTime.SpecifyKind(from, DateTimeKind.Utc));
+        var endOff = new DateTimeOffset(DateTime.SpecifyKind(to.Date.AddDays(1), DateTimeKind.Utc));
+
         var invoices = await _db.Invoices
-            .Where(i => i.CreatedAt >= from && i.CreatedAt < endDate
-                        && i.Status == InvoiceStatus.Normalized)
+            .Where(i => i.CreatedAt >= fromOff && i.CreatedAt < endOff
+                     && i.Status == InvoiceStatus.Normalized)
             .ToListAsync();
 
         if (invoices.Count == 0)
@@ -303,7 +316,7 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
     public async Task<List<Invoice>> GetActiveProformasAsync(
         int? pointOfSaleId = null, bool excludeExpired = true)
     {
-        var now = DateTime.Now;
+        var now = _time.UtcNow.UtcDateTime;
         var q = _dbSet
             .Include(i => i.Lines)
             .Where(i => i.Type == InvoiceType.PRO

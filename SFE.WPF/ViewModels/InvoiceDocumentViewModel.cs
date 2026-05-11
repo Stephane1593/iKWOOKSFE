@@ -1,8 +1,10 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Helpers;
@@ -95,8 +97,17 @@ public partial class InvoiceDocumentViewModel : ObservableObject
     // ═══════════════════════════════════════════════════════
 
     public static InvoiceDocumentViewModel Create(
-        Invoice invoice, Company? company, PointOfSale? pos = null, decimal exchangeRate = 0)
+        Invoice invoice,
+        Company? company,
+        ITimeProvider timeProvider,
+        PointOfSale? pos = null,
+        decimal exchangeRate = 0)
     {
+        var createdLocal = timeProvider.ToLocal(invoice.CreatedAt);
+        var normalizedLocal = invoice.NormalizedAt is { } n
+            ? timeProvider.ToLocal(n)
+            : (DateTimeOffset?)null;
+
         var vm = new InvoiceDocumentViewModel
         {
             // Invoice
@@ -106,10 +117,10 @@ public partial class InvoiceDocumentViewModel : ObservableObject
             TypeName = GetTypeName(invoice.Type),
             TypeTitle = GetTypeTitle(invoice.Type),
             Status = invoice.Status,
-            CreatedAt = invoice.CreatedAt,
-            CreatedAtDisplay = invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss"),
+            CreatedAt = createdLocal.DateTime,
+            CreatedAtDisplay = createdLocal.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture),
             OperatorName = invoice.OperatorName,
-            Isf = invoice.ISF,
+            Isf = invoice.ISF ?? "",
 
             // Client
             ClientName = invoice.ClientName ?? "—",
@@ -129,8 +140,8 @@ public partial class InvoiceDocumentViewModel : ObservableObject
             CodeDEFDGI = invoice.CodeDEFDGI ?? "",
             Nim = invoice.NIM ?? "",
             Counters = invoice.Counters ?? "",
-            NormalizedAt = invoice.NormalizedAt,
-            NormalizedAtDisplay = invoice.NormalizedAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "—",
+            NormalizedAt = normalizedLocal?.DateTime,
+            NormalizedAtDisplay = normalizedLocal?.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture) ?? "—",
             HasNormalization = !string.IsNullOrEmpty(invoice.CodeDEFDGI),
         };
 

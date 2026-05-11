@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.Application;
@@ -9,6 +10,9 @@ namespace SFE.Application.Services;
 /// <summary>
 /// Builds an ESC/POS byte stream for thermal printers (58mm or 80mm).
 /// Includes ALL DGI 2026 §1.2 mandatory mentions.
+///
+/// ⚠ DGI §1.1 — every timestamp MUST be routed through <see cref="ITimeProvider"/>.
+/// The invoice stores UTC; this builder converts to app-local (Kinshasa UTC+1 by default).
 /// </summary>
 public static class EscPosReceiptBuilder
 {
@@ -19,8 +23,8 @@ public static class EscPosReceiptBuilder
     private static readonly byte[] ALIGN_RIGHT = { 0x1B, 0x61, 0x02 };
     private static readonly byte[] BOLD_ON = { 0x1B, 0x45, 0x01 };
     private static readonly byte[] BOLD_OFF = { 0x1B, 0x45, 0x00 };
-    private static readonly byte[] DOUBLE_ON = { 0x1D, 0x21, 0x11 }; // double height+width
-    private static readonly byte[] DOUBLE_H_ON = { 0x1D, 0x21, 0x01 }; // double height only
+    private static readonly byte[] DOUBLE_ON = { 0x1D, 0x21, 0x11 };
+    private static readonly byte[] DOUBLE_H_ON = { 0x1D, 0x21, 0x01 };
     private static readonly byte[] SIZE_NORMAL = { 0x1D, 0x21, 0x00 };
     private static readonly byte[] UNDERLINE_ON = { 0x1B, 0x2D, 0x01 };
     private static readonly byte[] UNDERLINE_OFF = { 0x1B, 0x2D, 0x00 };
@@ -29,58 +33,57 @@ public static class EscPosReceiptBuilder
     private static readonly byte[] CUT_PARTIAL = { 0x1D, 0x56, 0x42, 0x03 };
     private static readonly byte[] LF = { 0x0A };
 
-    // ═══════════════════════════════════════════════════════
-    //  FORMATTING CULTURE — single source of truth
-    // ═══════════════════════════════════════════════════════
-    //
-    //  We use InvariantCulture (thousands = ',', decimal = '.') because:
-    //   • fr-FR uses a NON-BREAKING SPACE (U+00A0) as thousand separator,
-    //     which renders as garbage glyphs ('.', 'á', '?') under CP437/850/858.
-    //   • '.' + ',' render identically across every thermal code page.
-    //   • It eliminates ambiguity ("31,000" read as "31 francs").
-    //
-    //  EVERY amount on the receipt MUST go through Fmt() / FmtCompact() / Qty().
-    //  EVERY numeric ToString() MUST pass MONEY explicitly.
-    //
     private static readonly System.Globalization.CultureInfo MONEY =
         System.Globalization.CultureInfo.InvariantCulture;
 
-    /// <summary>Money: always 2 decimals with thousand separators. e.g. 31,000.00</summary>
     private static string Fmt(decimal v) => v.ToString("N2", MONEY);
-
-    /// <summary>Narrow money (same as Fmt — kept for column-layout clarity).</summary>
     private static string FmtCompact(decimal v) => v.ToString("N2", MONEY);
-
-    /// <summary>Quantity: up to 3 decimals, zeros trimmed. e.g. 2, 2.5, 2.125</summary>
     private static string Qty(decimal v) => v.ToString("N3", MONEY);
-
-    /// <summary>Percentage rate: 2 decimals. e.g. 16.00</summary>
     private static string Rate(decimal v) => v.ToString("0.00", MONEY);
 
     // ═══════════════════════════════════════════════════════
-    //  RECEIPT CONTEXT — POS-specific print settings
+    //  RECEIPT CONTEXT
     // ═══════════════════════════════════════════════════════
-
     private class ReceiptContext
     {
         public int Width { get; set; } = 48;
         public int CodePage { get; set; } = 858;
         public string FooterText { get; set; } = "Merci pour votre achat !";
         public bool PrintLogo { get; set; }
+
+        /// <summary>Local wall-clock time for the "Imprimé le …" line.</summary>
+        public DateTimeOffset PrintedAt { get; set; }
+
+        /// <summary>App timezone used to render invoice timestamps.</summary>
+        public TimeZoneInfo Zone { get; set; } = TimeZoneInfo.Utc;
     }
 
     // ═══════════════════════════════════════════════════════
     //  PUBLIC: Build full receipt
     // ═══════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Builds the full ESC/POS byte stream for a receipt.
+    /// </summary>
+    /// <param name="invoice">The invoice to print.</param>
+    /// <param name="company">Issuing company.</param>
+    /// <param name="pos">Point of sale (for paper width, code page, footer, logo flag).</param>
+    /// <param name="time">
+    ///   Time provider — supplies <c>LocalNow</c> for the print stamp and the
+    ///   <c>AppTimeZone</c> used to convert UTC invoice timestamps. Required by DGI §1.1.
+    /// </param>
+    /// <param name="exchangeRate">Optional USD→CDF exchange rate (0 = don't print).</param>
+    /// <param name="isDuplicate">True to stamp "*** DUPLICATA ***".</param>
     public static byte[] Build(
         Invoice invoice,
         Company company,
-        PointOfSale? pos = null,
+        PointOfSale? pos,
+        ITimeProvider time,
         decimal exchangeRate = 0m,
         bool isDuplicate = false)
     {
-        // ── Resolve paper width & settings from POS config ──
+        if (time is null) throw new ArgumentNullException(nameof(time));
+
         int paperWidth = pos?.PaperWidthMm ?? 80;
         int charsPerLine = paperWidth >= 80 ? 48 : 32;
         int codePage = pos?.PrinterCodePage ?? 858;
@@ -91,15 +94,14 @@ public static class EscPosReceiptBuilder
             Width = charsPerLine,
             CodePage = codePage,
             FooterText = footer,
-            PrintLogo = pos?.PrintLogo ?? false
+            PrintLogo = pos?.PrintLogo ?? false,
+            PrintedAt = time.LocalNow,
+            Zone = time.AppTimeZone
         };
 
         var ms = new MemoryStream();
-
-        // ── Initialize printer ──
         Write(ms, INIT);
 
-        // ── Set code page: ESC t n ──
         byte cpByte = codePage switch
         {
             437 => 0x00,
@@ -110,37 +112,26 @@ public static class EscPosReceiptBuilder
         };
         ms.Write(new byte[] { 0x1B, 0x74, cpByte });
 
-        // ═══════ COMPANY LOGO (optional) ═══════
-        if (ctx.PrintLogo && company.Logo != null && company.Logo.Length > 0)
+        // ═══════ COMPANY LOGO ═══════
+        if (ctx.PrintLogo
+            && company.Logo != null
+            && company.Logo.Length > 0
+            && OperatingSystem.IsWindows())
         {
             Write(ms, ALIGN_CENTER);
             WriteBitmapLogo(ms, company.Logo);
             Write(ms, LF);
         }
 
-        // ═══════ (a)(b)(c)(d) HEADER: Company info ═══════
         WriteCompanyHeader(ms, company, pos, ctx);
-
-        // ═══════ INVOICE TYPE BANNER ═══════
         WriteInvoiceTypeBanner(ms, invoice, isDuplicate, ctx);
-
-        // ═══════ (j)(k) REGIME + INVOICE NUMBER ═══════
         WriteInvoiceMeta(ms, invoice, company, ctx);
-
-        // ═══════ (e) CLIENT ═══════
         WriteClientSection(ms, invoice, ctx);
-
-        // ═══════ SEPARATOR ═══════
         WriteDashLine(ms, ctx);
-
-        // ═══════ (l) ARTICLE LINES ═══════
         WriteLineItems(ms, invoice, ctx);
-
-        // ═══════ (m)(n)(o) TAX BREAKDOWN PER GROUP ═══════
         WriteTaxBreakdown(ms, invoice, ctx);
         WriteAdvanceBlock(ms, invoice, ctx);
 
-        // ═══════ (t) SPECIFIC TAX ═══════
         if (invoice.TotalSpecificTax > 0)
         {
             WriteDoubleLine(ms, ctx);
@@ -191,14 +182,13 @@ public static class EscPosReceiptBuilder
 
         // ═══════ (u)(v)(w) DATE, ISF, OPERATOR ═══════
         WriteDoubleLine(ms, ctx);
-        WriteRow(ms, "Date", invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
+        WriteRow(ms, "Date", FormatUtcAsLocal(invoice.CreatedAt, ctx), ctx);
         WriteRow(ms, "ISF", invoice.ISF, ctx);
         WriteRow(ms, "Opérateur", invoice.OperatorName, ctx);
 
         // ═══════ SECURITY — never for proforma ═══════
         if (invoice.Type != InvoiceType.PRO && !string.IsNullOrEmpty(invoice.CodeDEFDGI))
         {
-            // ═══════ (x) SECURITY ELEMENTS ═══════
             WriteDoubleLine(ms, ctx);
             Write(ms, ALIGN_CENTER);
             Write(ms, BOLD_ON);
@@ -218,9 +208,8 @@ public static class EscPosReceiptBuilder
                 WriteRow(ms, "Compteurs", invoice.Counters, ctx);
             if (invoice.NormalizedAt.HasValue)
                 WriteRow(ms, "Normalisée",
-                    invoice.NormalizedAt.Value.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
+                    FormatUtcAsLocal(invoice.NormalizedAt.Value, ctx), ctx);
 
-            // ── QR CODE ──
             if (!string.IsNullOrEmpty(invoice.QRCodeContent))
             {
                 Write(ms, LF);
@@ -240,22 +229,36 @@ public static class EscPosReceiptBuilder
                     $"Valable jusqu'au {invoice.ProformaValidUntil:dd/MM/yyyy}", ctx);
         }
 
-        // ═══════ COMMENTS (if any) ═══════
         WriteComments(ms, invoice, ctx);
 
         // ═══════ FOOTER ═══════
         Write(ms, LF);
         Write(ms, ALIGN_CENTER);
         WriteText(ms, ctx.FooterText, ctx);
-        WriteText(ms, $"Imprimé le {DateTime.Now:dd/MM/yyyy HH:mm}", ctx);
+        WriteText(ms, $"Imprimé le {ctx.PrintedAt:dd/MM/yyyy HH:mm}", ctx);
         WriteText(ms, "Conforme DGI-RDC 2026", ctx);
         WriteDashLine(ms, ctx);
 
-        // ── Feed & cut ──
         Write(ms, FEED_5);
         Write(ms, CUT_PARTIAL);
 
         return ms.ToArray();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  DATE FORMATTING — UTC → app local
+    // ═══════════════════════════════════════════════════════
+
+    private static string FormatUtcAsLocal(DateTimeOffset utc, ReceiptContext ctx)
+        => TimeZoneInfo.ConvertTime(utc, ctx.Zone).ToString("dd/MM/yyyy HH:mm:ss");
+
+    private static string FormatUtcAsLocal(DateTime utc, ReceiptContext ctx)
+    {
+        var asUtc = utc.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(utc, DateTimeKind.Utc)
+            : utc.ToUniversalTime();
+        return TimeZoneInfo.ConvertTimeFromUtc(asUtc, ctx.Zone)
+                           .ToString("dd/MM/yyyy HH:mm:ss");
     }
 
     // ═══════════════════════════════════════════════════════
@@ -275,25 +278,21 @@ public static class EscPosReceiptBuilder
 
         Write(ms, LF);
 
-        // §1.2(b) NIF
         Write(ms, BOLD_ON);
         WriteText(ms, $"NIF: {company.NIF}", ctx);
         Write(ms, BOLD_OFF);
 
-        // §1.2(c) Address where sale occurred
         if (pos != null && !string.IsNullOrWhiteSpace(pos.Address))
             WriteText(ms, $"{pos.Address}, {pos.City}, {pos.Name}", ctx);
         else if (!string.IsNullOrWhiteSpace(company.Address))
             WriteText(ms, $"{company.Address}, {company.City}", ctx);
 
-        // §1.2(d) Contact
         if (!string.IsNullOrWhiteSpace(company.Phone))
             WriteText(ms, $"Tél: {company.Phone}", ctx);
         if (!string.IsNullOrWhiteSpace(company.Email))
             WriteText(ms, $"Email: {company.Email}", ctx);
         if (!string.IsNullOrWhiteSpace(company.RCCM))
             WriteText(ms, $"RCCM: {company.RCCM}", ctx);
-     
 
         WriteText(ms, $"ISF: {company.ISF}", ctx);
         Write(ms, LF);
@@ -307,7 +306,6 @@ public static class EscPosReceiptBuilder
         Write(ms, BOLD_ON);
         Write(ms, DOUBLE_H_ON);
 
-        // §1.2(f)(g)(h)(i) — Type mentions
         string title = invoice.Type switch
         {
             InvoiceType.FV => "FACTURE DE VENTE",
@@ -334,7 +332,6 @@ public static class EscPosReceiptBuilder
         WriteText(ms, title, ctx);
         Write(ms, SIZE_NORMAL);
 
-        // §1.2(h) — EXPORTATION mention
         if (invoice.Type is InvoiceType.EV or InvoiceType.ET or InvoiceType.EA)
         {
             Write(ms, BOLD_ON);
@@ -342,7 +339,6 @@ public static class EscPosReceiptBuilder
             Write(ms, BOLD_OFF);
         }
 
-        // §1.2(g) — Credit note nature
         if (invoice.Type is InvoiceType.FA or InvoiceType.EA
             && invoice.CreditNoteNature.HasValue)
         {
@@ -360,7 +356,6 @@ public static class EscPosReceiptBuilder
                 WriteText(ms, $"Réf. orig.: {invoice.OriginalInvoiceReference}", ctx);
         }
 
-        // §1.2(f) — DUPLICATA
         if (isDuplicate)
         {
             Write(ms, BOLD_ON);
@@ -379,18 +374,16 @@ public static class EscPosReceiptBuilder
     {
         Write(ms, ALIGN_LEFT);
 
-        // §1.2(j) Tax regime label
         string regime = company.DefaultPriceMode == PriceMode.TTC
             ? "MODE PRIX TTC" : "MODE PRIX HT";
         WriteRow(ms, "Régime", regime, ctx);
 
-        // §1.2(k) Sequential invoice number
         Write(ms, BOLD_ON);
         WriteRow(ms, "N° Facture", invoice.InvoiceNumber, ctx);
         Write(ms, BOLD_OFF);
 
         WriteRow(ms, "Type", $"{invoice.Type} — {GetTypeLabel(invoice.Type)}", ctx);
-        WriteRow(ms, "Date", invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss"), ctx);
+        WriteRow(ms, "Date", FormatUtcAsLocal(invoice.CreatedAt, ctx), ctx);
     }
 
     private static void WriteClientSection(
@@ -399,7 +392,6 @@ public static class EscPosReceiptBuilder
         WriteDashLine(ms, ctx);
         Write(ms, ALIGN_LEFT);
 
-        // §1.2(e) Client info
         string typeMention = invoice.ClientType switch
         {
             ClientType.PP => "[PP] Personne physique",
@@ -428,7 +420,6 @@ public static class EscPosReceiptBuilder
         Write(ms, ALIGN_LEFT);
         Write(ms, BOLD_ON);
 
-        // Adapt column headers to paper width
         if (ctx.Width >= 48)
             WriteText(ms, " Article           Grp  Qté       P.U.      Total", ctx);
         else
@@ -469,7 +460,6 @@ public static class EscPosReceiptBuilder
                 WriteText(ms, detail, ctx);
             }
 
-            // Discount line — §1.2(l)
             if (ln.DiscountType != DiscountType.None && ln.DiscountAmount > 0)
             {
                 string discDesc = ln.DiscountType == DiscountType.Percentage
@@ -478,7 +468,6 @@ public static class EscPosReceiptBuilder
                 WriteText(ms, discDesc, ctx);
             }
 
-            // Specific tax per item
             if (ln.TaxSpecificAmount > 0)
                 WriteText(ms, $"   T.S.: {Fmt(ln.TaxSpecificAmount)}", ctx);
         }
@@ -493,7 +482,6 @@ public static class EscPosReceiptBuilder
         Write(ms, BOLD_OFF);
         WriteDashLine(ms, ctx);
 
-        // §1.2(m)(n)(o) — Per group: total, rate, tax amount
         var groups = invoice.Lines
             .GroupBy(l => l.TaxGroup)
             .OrderBy(g => g.Key);
@@ -510,9 +498,9 @@ public static class EscPosReceiptBuilder
             Write(ms, BOLD_ON);
             WriteText(ms, $" Groupe {letter} — {label}", ctx);
             Write(ms, BOLD_OFF);
-            WriteRow(ms, "  Taux TVA", $"{Rate(rate)}%", ctx);   // §1.2(n)
-            WriteRow(ms, "  Total HT", Fmt(groupHT), ctx);       // §1.2(m)
-            WriteRow(ms, "  TVA", Fmt(groupTVA), ctx);      // §1.2(o)
+            WriteRow(ms, "  Taux TVA", $"{Rate(rate)}%", ctx);
+            WriteRow(ms, "  Total HT", Fmt(groupHT), ctx);
+            WriteRow(ms, "  TVA", Fmt(groupTVA), ctx);
             WriteRow(ms, "  Total TTC", Fmt(groupTTC), ctx);
         }
 
@@ -579,40 +567,27 @@ public static class EscPosReceiptBuilder
     // ═══════════════════════════════════════════════════════
     //  QR CODE — ESC/POS GS ( k
     // ═══════════════════════════════════════════════════════
-
     private static void WriteQrCode(MemoryStream ms, string content)
     {
         byte[] data = Encoding.UTF8.GetBytes(content);
 
-        // 1. Select model 2
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00 });
-
-        // 2. Set module size (6 dots — good for 80mm)
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06 });
-
-        // 3. Set error correction level M (≈15%)
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31 });
 
-        // 4. Store data
         int storeLen = data.Length + 3;
         byte sL = (byte)(storeLen % 256);
         byte sH = (byte)(storeLen / 256);
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, sL, sH, 0x31, 0x50, 0x30 });
         ms.Write(data);
 
-        // 5. Print stored QR code
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30 });
     }
 
     // ═══════════════════════════════════════════════════════
-    //  BITMAP LOGO — ESC/POS raster print (GS v 0)
+    //  BITMAP LOGO — Windows only
     // ═══════════════════════════════════════════════════════
-
-    /// <summary>
-    /// Prints a company logo bitmap using GS v 0 raster bit image.
-    /// Expects a PNG/BMP stored in Company.Logo.
-    /// Auto-scales to fit paper width.
-    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static void WriteBitmapLogo(MemoryStream ms, byte[] logoData)
     {
         try
@@ -620,11 +595,8 @@ public static class EscPosReceiptBuilder
             using var logoMs = new MemoryStream(logoData);
             using var bitmap = new System.Drawing.Bitmap(logoMs);
 
-            // Scale to max 384 dots (80mm) or 288 dots (58mm)
             int maxDots = 384;
             int targetWidth = Math.Min(bitmap.Width, maxDots);
-
-            // Width must be multiple of 8
             targetWidth = (targetWidth / 8) * 8;
             if (targetWidth == 0) return;
 
@@ -639,7 +611,6 @@ public static class EscPosReceiptBuilder
                 g.DrawImage(bitmap, 0, 0, targetWidth, targetHeight);
             }
 
-            // Convert to monochrome raster data
             int widthBytes = targetWidth / 8;
             var rasterData = new byte[widthBytes * targetHeight];
 
@@ -650,7 +621,7 @@ public static class EscPosReceiptBuilder
                     var pixel = scaled.GetPixel(x, y);
                     int brightness = (pixel.R + pixel.G + pixel.B) / 3;
 
-                    if (brightness < 128) // Dark pixel → print
+                    if (brightness < 128)
                     {
                         int byteIndex = y * widthBytes + x / 8;
                         int bitIndex = 7 - (x % 8);
@@ -659,7 +630,6 @@ public static class EscPosReceiptBuilder
                 }
             }
 
-            // GS v 0  m  xL xH  yL yH  d1...dk
             byte xL = (byte)(widthBytes % 256);
             byte xH = (byte)(widthBytes / 256);
             byte yL = (byte)(targetHeight % 256);
@@ -683,7 +653,6 @@ public static class EscPosReceiptBuilder
 
     private static void WriteText(MemoryStream ms, string text, ReceiptContext ctx)
     {
-        // Word-wrap for narrow paper
         if (text.Length > ctx.Width)
         {
             foreach (var line in WordWrap(text, ctx.Width))
@@ -701,7 +670,6 @@ public static class EscPosReceiptBuilder
         }
     }
 
-    /// <summary>Two-column row: left-aligned label, right-aligned value.</summary>
     private static void WriteRow(
         MemoryStream ms, string label, string value, ReceiptContext ctx)
     {
@@ -724,10 +692,6 @@ public static class EscPosReceiptBuilder
     private static void WriteDoubleLine(MemoryStream ms, ReceiptContext ctx)
         => WriteText(ms, new string('=', ctx.Width), ctx);
 
-    // ═══════════════════════════════════════════════════════
-    //  WORD WRAP
-    // ═══════════════════════════════════════════════════════
-
     private static List<string> WordWrap(string text, int maxWidth)
     {
         var lines = new List<string>();
@@ -744,7 +708,6 @@ public static class EscPosReceiptBuilder
                     current.Clear();
                 }
 
-                // Handle words longer than maxWidth
                 if (word.Length > maxWidth)
                 {
                     for (int i = 0; i < word.Length; i += maxWidth)
@@ -763,10 +726,6 @@ public static class EscPosReceiptBuilder
 
         return lines;
     }
-
-    // ═══════════════════════════════════════════════════════
-    //  MISC HELPERS
-    // ═══════════════════════════════════════════════════════
 
     private static decimal GetEffectiveUnitPrice(InvoiceLine ln, PriceMode mode)
         => mode == PriceMode.TTC ? ln.UnitPriceTTC : ln.UnitPriceHT;

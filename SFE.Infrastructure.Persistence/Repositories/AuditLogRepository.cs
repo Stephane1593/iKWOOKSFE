@@ -14,16 +14,18 @@ public class AuditLogRepository : Repository<AuditLogEntry>, IAuditLogRepository
     {
         var query = _dbSet.AsNoTracking().AsQueryable();
 
-        // ── Date range ──
+        // ── Date range (DateTimeOffset end-to-end) ──
+        // Caller is responsible for passing already-normalized bounds
+        // (start-of-day / end-of-day in the user's local offset).
         if (criteria.DateFrom.HasValue)
         {
-            var from = criteria.DateFrom.Value.Date;
+            var from = criteria.DateFrom.Value;
             query = query.Where(e => e.Timestamp >= from);
         }
         if (criteria.DateTo.HasValue)
         {
-            var to = criteria.DateTo.Value.Date.AddDays(1);
-            query = query.Where(e => e.Timestamp < to);
+            var to = criteria.DateTo.Value;
+            query = query.Where(e => e.Timestamp <= to);
         }
 
         // ── Module ──
@@ -62,13 +64,12 @@ public class AuditLogRepository : Repository<AuditLogEntry>, IAuditLogRepository
         return (items, totalCount);
     }
 
-    public async Task<AuditLogStats> GetStatsAsync(DateTime from, DateTime to)
+    public async Task<AuditLogStats> GetStatsAsync(DateTimeOffset from, DateTimeOffset to)
     {
-        var fromDate = from.Date;
-        var toDate = to.Date.AddDays(1);
-
+        // Bounds are passed in already normalized by the caller
+        // (ToStartOfDayOffset / ToEndOfDayOffset in the ViewModel).
         var entries = await _dbSet.AsNoTracking()
-            .Where(e => e.Timestamp >= fromDate && e.Timestamp < toDate)
+            .Where(e => e.Timestamp >= from && e.Timestamp <= to)
             .GroupBy(e => e.Module)
             .Select(g => new { Module = g.Key, Count = g.Count() })
             .ToListAsync();
@@ -76,16 +77,28 @@ public class AuditLogRepository : Repository<AuditLogEntry>, IAuditLogRepository
         return new AuditLogStats
         {
             TotalCount = entries.Sum(e => e.Count),
-            InvoiceCount = entries.Where(e => e.Module == AuditModule.Invoicing).Sum(e => e.Count),
-            ReportCount = entries.Where(e => e.Module == AuditModule.Reports).Sum(e => e.Count),
+
+            InvoiceCount = entries.Where(e => e.Module == AuditModule.Invoicing)
+                                  .Sum(e => e.Count),
+
+            ReportCount = entries.Where(e => e.Module == AuditModule.Reports)
+                                  .Sum(e => e.Count),
+
             AuthCount = entries.Where(e => e.Module == AuditModule.Authentication
-                                            || e.Module == AuditModule.Session).Sum(e => e.Count),
-            StockCount = entries.Where(e => e.Module == AuditModule.Stock).Sum(e => e.Count),
+                                           || e.Module == AuditModule.Session)
+                                  .Sum(e => e.Count),
+
+            StockCount = entries.Where(e => e.Module == AuditModule.Stock)
+                                  .Sum(e => e.Count),
+
             SettingsCount = entries.Where(e => e.Module == AuditModule.Settings
-                                            || e.Module == AuditModule.Users).Sum(e => e.Count),
+                                            || e.Module == AuditModule.Users)
+                                   .Sum(e => e.Count),
+
             OtherCount = entries.Where(e => e.Module == AuditModule.Products
                                             || e.Module == AuditModule.Clients
-                                            || e.Module == AuditModule.System).Sum(e => e.Count),
+                                            || e.Module == AuditModule.System)
+                                   .Sum(e => e.Count),
         };
     }
 

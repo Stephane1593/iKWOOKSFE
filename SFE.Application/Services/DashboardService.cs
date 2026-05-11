@@ -1,4 +1,5 @@
 ﻿using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using System.Diagnostics;
 
@@ -7,22 +8,43 @@ namespace SFE.Application.Services;
 public class DashboardService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITimeProvider _time;
 
-    public DashboardService(IUnitOfWork unitOfWork)
+    public DashboardService(IUnitOfWork unitOfWork, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
+        _time = time;
     }
 
     public async Task<DashboardData> LoadDashboardAsync(int? activePosId = null)
     {
+        // ══════════════════════════════════════════════════════
+        //  "NOW" — DGI §1.1 single source of truth
+        // ══════════════════════════════════════════════════════
+        // For a DRC business, the "business day" is the LOCAL day
+        // (Kinshasa UTC+1 or Lubumbashi UTC+2), not the UTC day.
+        // Using UTC days would put late-night sales into the previous day.
+        var nowLocal = _time.LocalNow;                            // DateTimeOffset
+        var nowUtc = _time.UtcNow;                              // DateTimeOffset
+        var todayLocal = DateOnly.FromDateTime(nowLocal.DateTime);
+
+        // Start of local today, tagged with the local offset.
+        // Used as the lower bound for time-range queries in UTC-equivalent form.
+        var todayStartLocal = new DateTimeOffset(
+            todayLocal.ToDateTime(TimeOnly.MinValue),
+            nowLocal.Offset);
+
         Debug.WriteLine("╔══════════════════════════════════════════╗");
         Debug.WriteLine("║     DASHBOARD SERVICE - START            ║");
         Debug.WriteLine("╚══════════════════════════════════════════╝");
         Debug.WriteLine($"  activePosId = {activePosId?.ToString() ?? "NULL"}");
-        Debug.WriteLine($"  DateTime.Now   = {DateTime.Now}");
-        Debug.WriteLine($"  DateTime.Today = {DateTime.Today}");
+        Debug.WriteLine($"  nowLocal    = {nowLocal:O}  (offset {nowLocal.Offset})");
+        Debug.WriteLine($"  nowUtc      = {nowUtc:O}");
+        Debug.WriteLine($"  todayLocal  = {todayLocal:yyyy-MM-dd}");
 
-        // ══════════ STEP 1: BASIC KPIs ══════════
+        // ══════════════════════════════════════════════════════
+        //  STEP 1: BASIC KPIs
+        // ══════════════════════════════════════════════════════
         Debug.WriteLine("\n── STEP 1: Basic KPIs ──");
 
         var totalProducts = await _unitOfWork.Products.CountAsync();
@@ -54,36 +76,45 @@ public class DashboardService
             lowStockAlerts = 0;
         }
 
-        // ══════════ STEP 2: SEARCH INVOICES ══════════
-        Debug.WriteLine("\n── STEP 2: Search invoices (last 30 days, Normalized) ──");
+        // ══════════════════════════════════════════════════════
+        //  STEP 2: SEARCH INVOICES (last 30 local days)
+        // ══════════════════════════════════════════════════════
+        Debug.WriteLine("\n── STEP 2: Search invoices (last 30 local days, Normalized) ──");
 
-        var thirtyDaysAgo = DateTime.Today.AddDays(-30);
-        Debug.WriteLine($"  DateFrom = {thirtyDaysAgo}");
-        Debug.WriteLine($"  DateTo   = {DateTime.Now}");
-        Debug.WriteLine($"  Status   = {InvoiceStatus.Normalized}");
+        var thirtyDaysAgoLocal = todayStartLocal.AddDays(-30);
+        Debug.WriteLine($"  DateFromLocal = {thirtyDaysAgoLocal:O}");
+        Debug.WriteLine($"  DateToLocal   = {nowLocal:O}");
+        Debug.WriteLine($"  Status        = {InvoiceStatus.Normalized}");
 
         var result = await _unitOfWork.Invoices.SearchAsync(
             new InvoiceSearchCriteria
             {
-                DateFrom = thirtyDaysAgo,
-                DateTo = DateTime.Now,
+                // If SearchCriteria takes DateTime, wall-clock local is fine
+                // because the repo compares it against invoice CreatedAt in the
+                // same logical frame. If it's already DateTimeOffset, pass the
+                // DTO directly and remove .DateTime.
+                DateFrom = thirtyDaysAgoLocal.DateTime,
+                DateTo = nowLocal.DateTime,
                 Status = InvoiceStatus.Normalized
             }, 1, int.MaxValue);
 
         Debug.WriteLine($"  ✅ SearchAsync returned: {result.Items.Count} invoices");
 
-        // Log first 5 invoices
         foreach (var inv in result.Items.Take(5))
         {
             Debug.WriteLine(
-                $"    → {inv.InvoiceNumber} | Created={inv.CreatedAt:yyyy-MM-dd HH:mm} | " +
+                $"    → {inv.InvoiceNumber} | " +
+                $"LocalAtCreate={inv.CreatedAt.DateTime:yyyy-MM-dd HH:mm} | " +
+                $"Offset={inv.CreatedAt.Offset} | " +
                 $"Type={inv.Type} | TTC={inv.TotalTTC:N0} | " +
                 $"PosId={inv.PointOfSaleId} | " +
                 $"Lines={inv.Lines?.Count ?? -1} | " +
                 $"Payments={inv.Payments?.Count ?? -1}");
         }
 
-        // ══════════ STEP 3: POS FILTER ══════════
+        // ══════════════════════════════════════════════════════
+        //  STEP 3: POS FILTER
+        // ══════════════════════════════════════════════════════
         var invoices = result.Items;
         if (activePosId is > 0)
         {
@@ -104,61 +135,74 @@ public class DashboardService
             Debug.WriteLine("\n── STEP 3: POS filter SKIPPED (no activePosId) ──");
         }
 
-        // ══════════ STEP 4: CHECK Lines & Payments ══════════
+        // ══════════════════════════════════════════════════════
+        //  STEP 4: Lines & Payments check
+        // ══════════════════════════════════════════════════════
         Debug.WriteLine("\n── STEP 4: Lines & Payments check ──");
-        var withLines = invoices.Count(i => i.Lines != null && i.Lines.Count > 0);
-        var withPayments = invoices.Count(i => i.Payments != null && i.Payments.Count > 0);
-        var nullLines = invoices.Count(i => i.Lines == null);
-        var nullPayments = invoices.Count(i => i.Payments == null);
+        var withLines = invoices.Count(i => i.Lines is { Count: > 0 });
+        var withPayments = invoices.Count(i => i.Payments is { Count: > 0 });
+        var nullLines = invoices.Count(i => i.Lines is null);
+        var nullPayments = invoices.Count(i => i.Payments is null);
         Debug.WriteLine($"  Invoices with Lines:    {withLines} (null: {nullLines})");
         Debug.WriteLine($"  Invoices with Payments: {withPayments} (null: {nullPayments})");
 
         if (nullLines > 0)
-            Debug.WriteLine($"  ⚠️ {nullLines} invoices have NULL Lines → " +
-                            $"TopProducts will be EMPTY! Add .Include(i => i.Lines) in SearchAsync");
+            Debug.WriteLine($"  ⚠️ {nullLines} invoices have NULL Lines → TopProducts EMPTY!");
         if (nullPayments > 0)
-            Debug.WriteLine($"  ⚠️ {nullPayments} invoices have NULL Payments → " +
-                            $"PaymentBreakdown will be EMPTY! Add .Include(i => i.Payments) in SearchAsync");
+            Debug.WriteLine($"  ⚠️ {nullPayments} invoices have NULL Payments → PaymentBreakdown EMPTY!");
 
-        // ══════════ STEP 5: IsSale check ══════════
+        // ══════════════════════════════════════════════════════
+        //  STEP 5: Type breakdown
+        // ══════════════════════════════════════════════════════
         Debug.WriteLine("\n── STEP 5: Type breakdown ──");
-        var typeCounts = invoices.GroupBy(i => i.Type)
-            .Select(g => $"{g.Key}={g.Count()} (IsSale={g.Key.IsSale()}, IsCreditNote={g.Key.IsCreditNote()})")
-            .ToList();
-        foreach (var tc in typeCounts)
-            Debug.WriteLine($"    {tc}");
+        foreach (var g in invoices.GroupBy(i => i.Type))
+            Debug.WriteLine($"    {g.Key}={g.Count()} " +
+                            $"(IsSale={g.Key.IsSale()}, IsCreditNote={g.Key.IsCreditNote()})");
 
         var salesInvoices = invoices.Where(i => i.Type.IsSale()).ToList();
         Debug.WriteLine($"  Total sale invoices: {salesInvoices.Count}");
 
-        // ══════════ BUILD DATA (original logic) ══════════
+        // ══════════════════════════════════════════════════════
+        //  STEP 6: Build charts
+        // ══════════════════════════════════════════════════════
         Debug.WriteLine("\n── STEP 6: Building charts ──");
 
-        // ── Last 7 days sales ──
+        // Bucketing helper: the invoice's own local calendar day.
+        // DateTimeOffset.DateTime = wall clock at the stored offset,
+        // so a sale stamped 2026-05-08 00:30 +02:00 (Lubumbashi) correctly
+        // falls on May 8 even when the viewer is in Kinshasa (+01:00) or
+        // the machine is in UTC.
+        static DateOnly InvoiceDay(DateTimeOffset dto)
+            => DateOnly.FromDateTime(dto.DateTime);
+
+        // ── Last 7 days sales (LOCAL day buckets) ──
         var last7Days = Enumerable.Range(0, 7)
-            .Select(i => DateTime.Today.AddDays(-6 + i))
-            .Select(date =>
+            .Select(offset => todayLocal.AddDays(-6 + offset))
+            .Select(day =>
             {
-                var sales = invoices.Where(x => x.CreatedAt.Date == date && x.Type.IsSale())
-                    .Sum(x => x.TotalTTC);
-                var credits = invoices.Where(x => x.CreatedAt.Date == date && x.Type.IsCreditNote())
-                    .Sum(x => x.TotalTTC);
+                var sales = invoices.Where(x => InvoiceDay(x.CreatedAt) == day && x.Type.IsSale())
+                                      .Sum(x => x.TotalTTC);
+                var credits = invoices.Where(x => InvoiceDay(x.CreatedAt) == day && x.Type.IsCreditNote())
+                                      .Sum(x => x.TotalTTC);
                 return new DailySalesPoint
                 {
-                    Date = date,
+                    Date = day,
                     Amount = sales - credits,
-                    Count = invoices.Count(x => x.CreatedAt.Date == date)
+                    Count = invoices.Count(x => InvoiceDay(x.CreatedAt) == day)
                 };
             })
             .ToList();
 
-        Debug.WriteLine($"  Last 7 days: {string.Join(", ", last7Days.Select(d => $"{d.Date:dd/MM}={d.Amount:N0}"))}");
+        Debug.WriteLine($"  Last 7 local days: {string.Join(", ", last7Days.Select(d => $"{d.Date:dd/MM}={d.Amount:N0}"))}");
+
+        // ── Month scope: first day of LOCAL current month ──
+        var monthStartLocal = new DateOnly(todayLocal.Year, todayLocal.Month, 1);
+        var monthInvoices = invoices
+            .Where(i => InvoiceDay(i.CreatedAt) >= monthStartLocal)
+            .ToList();
+        Debug.WriteLine($"  Month invoices (since {monthStartLocal:yyyy-MM-dd} local): {monthInvoices.Count}");
 
         // ── Payment breakdown (this month) ──
-        var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-        var monthInvoices = invoices.Where(i => i.CreatedAt >= monthStart).ToList();
-        Debug.WriteLine($"  Month invoices (since {monthStart:dd/MM}): {monthInvoices.Count}");
-
         var paymentBreakdown = monthInvoices
             .Where(inv => inv.Type.IsSale())
             .SelectMany(inv => inv.Payments ?? [])
@@ -215,33 +259,37 @@ public class DashboardService
             {
                 InvoiceNumber = i.InvoiceNumber,
                 ClientName = string.IsNullOrWhiteSpace(i.ClientName)
-                    ? "Client comptoir" : i.ClientName,
+                                ? "Client comptoir"
+                                : i.ClientName,
                 Amount = i.TotalTTC,
                 Type = i.Type,
-                Date = i.CreatedAt,
+                Date = i.CreatedAt,            // DateTimeOffset — offset preserved
                 Status = i.Status
             })
             .ToList();
 
         Debug.WriteLine($"  Recent invoices: {recentInvoices.Count}");
 
-        // ── Period comparisons ──
-        var yesterday = DateTime.Today.AddDays(-1);
+        // ── Period comparisons (LOCAL day) ──
+        var yesterdayLocal = todayLocal.AddDays(-1);
         var yesterdaySales = invoices
-            .Where(i => i.CreatedAt.Date == yesterday && i.Type.IsSale())
+            .Where(i => InvoiceDay(i.CreatedAt) == yesterdayLocal && i.Type.IsSale())
             .Sum(i => i.TotalTTC);
 
-        var dow = (int)DateTime.Today.DayOfWeek;
+        // Week starts Monday (ISO 8601). DayOfWeek.Sunday = 0.
+        var dow = (int)nowLocal.DayOfWeek;
         var daysFromMonday = dow == 0 ? 6 : dow - 1;
-        var weekStart = DateTime.Today.AddDays(-daysFromMonday);
+        var weekStartLocal = todayLocal.AddDays(-daysFromMonday);
 
-        var weekSalesNet = invoices.Where(i => i.CreatedAt.Date >= weekStart && i.Type.IsSale())
-                            .Sum(i => i.TotalTTC)
-                         - invoices.Where(i => i.CreatedAt.Date >= weekStart && i.Type.IsCreditNote())
-                            .Sum(i => i.TotalTTC);
+        var weekSalesNet =
+            invoices.Where(i => InvoiceDay(i.CreatedAt) >= weekStartLocal && i.Type.IsSale())
+                    .Sum(i => i.TotalTTC)
+          - invoices.Where(i => InvoiceDay(i.CreatedAt) >= weekStartLocal && i.Type.IsCreditNote())
+                    .Sum(i => i.TotalTTC);
 
-        var monthSalesNet = monthInvoices.Where(i => i.Type.IsSale()).Sum(i => i.TotalTTC)
-                          - monthInvoices.Where(i => i.Type.IsCreditNote()).Sum(i => i.TotalTTC);
+        var monthSalesNet =
+            monthInvoices.Where(i => i.Type.IsSale()).Sum(i => i.TotalTTC)
+          - monthInvoices.Where(i => i.Type.IsCreditNote()).Sum(i => i.TotalTTC);
 
         Debug.WriteLine($"\n── FINAL RESULTS ──");
         Debug.WriteLine($"  TodaySales={todayTotal:N0} TodayCount={todayCount}");
@@ -302,7 +350,8 @@ public class DashboardData
 
 public class DailySalesPoint
 {
-    public DateTime Date { get; set; }
+    /// <summary>LOCAL calendar day (Kinshasa/Lubumbashi) represented by this bucket.</summary>
+    public DateOnly Date { get; set; }
     public decimal Amount { get; set; }
     public int Count { get; set; }
 }
@@ -344,11 +393,16 @@ public class RecentInvoiceItem
     public string ClientName { get; set; } = "";
     public decimal Amount { get; set; }
     public InvoiceType Type { get; set; }
-    public DateTime Date { get; set; }
+
+    /// <summary>Fiscal timestamp with offset preserved (anti-fraud audit).</summary>
+    public DateTimeOffset Date { get; set; }
     public InvoiceStatus Status { get; set; }
 
-    // ── View helpers ──
-    public string FormattedDate => Date.ToString("dd/MM HH:mm");
+    // ── View helpers (displayed at the invoice's own local wall clock) ──
+    // Using .DateTime (wall clock at the invoice's stored offset) rather than
+    // .LocalDateTime (viewer's machine offset) ensures a Lubumbashi invoice
+    // still shows its Lubumbashi time even if the viewer is in Kinshasa.
+    public string FormattedDate => Date.DateTime.ToString("dd/MM HH:mm");
     public string FormattedAmount => $"{Amount:N0} CDF";
     public string TypeLabel => Type.ToString();
 

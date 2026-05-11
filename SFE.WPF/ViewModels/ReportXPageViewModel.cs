@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using SFE.WPF.Services;
 
@@ -16,21 +17,23 @@ public partial class ReportXPageViewModel : BaseReportListViewModel
     [ObservableProperty] private DateTime _periodicFrom = DateTime.Today;
     [ObservableProperty] private DateTime _periodicTo = DateTime.Today;
 
-    [ObservableProperty] private bool _isBusy;
+    // 🔧 FIX : plus de _timeProvider shadow, plus de _isBusy redondant
+    // → on utilise IsLoading hérité de la base
 
     public ReportXPageViewModel(
         IUnitOfWork uow,
         ReportService reportService,
         CashSessionState sessionState,
-        IAuthService authService)
-        : base(uow, reportService, sessionState, authService)
+        IAuthService authService,
+        ITimeProvider timeProvider)
+        : base(uow, reportService, sessionState, authService, timeProvider)
     {
     }
 
     [RelayCommand]
     private async Task GenerateXDaily()
     {
-        IsBusy = true;
+        IsLoading = true;                    // 🔧 unifié
         ClearStatus();
 
         try
@@ -48,26 +51,29 @@ public partial class ReportXPageViewModel : BaseReportListViewModel
         }
         finally
         {
-            IsBusy = false;
+            IsLoading = false;
         }
     }
 
     [RelayCommand]
     private async Task GenerateXPeriodic()
     {
-        if (PeriodicFrom > PeriodicTo)
+        if (PeriodicFrom.Date > PeriodicTo.Date)
         {
             ShowStatus("La date de début doit précéder la date de fin.", true);
             return;
         }
 
-        IsBusy = true;
+        IsLoading = true;
         ClearStatus();
 
         try
         {
+            // 🔧 borne exclusive — évite de perdre les ms du dernier jour
             var report = await _reportService.GenerateReportXPeriodicAsync(
-                GetOperatorName(), PeriodicFrom, PeriodicTo.Date.AddDays(1).AddSeconds(-1));
+                GetOperatorName(),
+                PeriodicFrom.Date,
+                PeriodicTo.Date.AddDays(1));   // [from, to) exclusif
 
             await LoadAsync();
             ShowStatus($"✓ X-Rapport périodique N°{report.ReportNumber} généré.", false);
@@ -81,7 +87,7 @@ public partial class ReportXPageViewModel : BaseReportListViewModel
         }
         finally
         {
-            IsBusy = false;
+            IsLoading = false;
         }
     }
 }

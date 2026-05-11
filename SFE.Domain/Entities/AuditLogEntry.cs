@@ -9,7 +9,7 @@ namespace SFE.Domain.Entities;
 public class AuditLogEntry
 {
     public long Id { get; set; }
-    public DateTime Timestamp { get; set; } = DateTime.Now;
+    public DateTimeOffset Timestamp { get; set; }
 
     // ── What ──
     public AuditAction Action { get; set; }

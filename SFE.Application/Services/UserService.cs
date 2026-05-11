@@ -17,33 +17,30 @@ public class UserService
     public const string ITTechRoleName = "IT Tech";
     public const string InspecteurDGIRoleName = "Inspecteur DGI";
 
-    /// <summary>Roles only SuperAdmin can manage.</summary>
     private static readonly HashSet<string> SuperAdminOnlyRoleNames =
         new(StringComparer.OrdinalIgnoreCase) { SuperAdminRoleName, ITTechRoleName };
 
-    /// <summary>Roles SuperAdmin OR IT Tech can manage.</summary>
     private static readonly HashSet<string> ElevatedRoleNames =
         new(StringComparer.OrdinalIgnoreCase) { InspecteurDGIRoleName };
 
-    /// <summary>All known permission keys with French labels.</summary>
     public static readonly List<(string Key, string Label)> AllPermissions = new()
-{
-    ("dashboard",      "Tableau de bord"),
-    ("pos",            "Point de vente (caisse)"),
-    ("invoicing",      "Facturation"),
-    ("clients",        "Clients"),
-    ("salesHistory",   "Historique des ventes"),
-    ("products",       "Produits"),
-    ("stock",          "Stock"),
-    ("transfers",      "Transferts stock"),
-    ("loyalty",        "Programme fidélité"),
-    ("reports",        "Rapports (X, A, historique)"),   // ← updated label
-    ("closeZ",         "Clôture Z (fin de session)"),    // ★ NEW
-    ("settings",       "Paramètres"),
-    ("users",          "Gestion utilisateurs"),
-    ("audit",          "Journal d'audit"),
-    ("bypassPosCheck", "Accès sans POS")
-};
+    {
+        ("dashboard",      "Tableau de bord"),
+        ("pos",            "Point de vente (caisse)"),
+        ("invoicing",      "Facturation"),
+        ("clients",        "Clients"),
+        ("salesHistory",   "Historique des ventes"),
+        ("products",       "Produits"),
+        ("stock",          "Stock"),
+        ("transfers",      "Transferts stock"),
+        ("loyalty",        "Programme fidélité"),
+        ("reports",        "Rapports (X, A, historique)"),
+        ("closeZ",         "Clôture Z (fin de session)"),
+        ("settings",       "Paramètres"),
+        ("users",          "Gestion utilisateurs"),
+        ("audit",          "Journal d'audit"),
+        ("bypassPosCheck", "Accès sans POS")
+    };
 
     public UserService(IUnitOfWork unitOfWork, IAuditService audit)
     {
@@ -62,12 +59,6 @@ public class UserService
     public async Task<List<Role>> GetAllRolesAsync()
         => await _uow.GetRepository<Role>().GetAllAsync();
 
-    /// <summary>
-    /// Returns roles the given user is allowed to assign.
-    /// SuperAdmin  → all except SuperAdmin itself.
-    /// IT Tech     → all except SuperAdmin and IT Tech (but INCLUDING Inspecteur DGI).
-    /// Others      → all except SuperAdmin, IT Tech, and Inspecteur DGI.
-    /// </summary>
     public async Task<List<Role>> GetAssignableRolesAsync(User currentUser)
     {
         var allRoles = await _uow.GetRepository<Role>().GetAllAsync();
@@ -114,7 +105,6 @@ public class UserService
 
     // ═══════ PRIVILEGE RESOLVER ═══════
 
-    /// <summary>Returns (isSuperAdmin, isITTech) for the given user.</summary>
     private async Task<(bool isSA, bool isIT)> ResolvePrivilegesAsync(int userId)
     {
         var cu = await _uow.Users.GetByIdAsync(userId);
@@ -126,10 +116,6 @@ public class UserService
 
     // ═══════ USER-LEVEL AUTHORIZATION ═══════
 
-    /// <summary>
-    /// Returns null when authorized, or an error message when not.
-    /// Checks whether currentUserId may manage a USER whose role is targetRole.
-    /// </summary>
     private async Task<string?> AuthorizeUserManagementAsync(int currentUserId, Role targetRole)
     {
         if (IsSuperAdminRole(targetRole))
@@ -188,11 +174,14 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.UserCreated, user.Id.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.UserCreated, AuditModule.Users,
-            user.Id.ToString(),
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.UserCreated,
+            AuditModule.Users,
             $"Utilisateur « {user.Username} » ({user.FullName}) · Rôle « {targetRole.Name} »" +
-            (user.PointOfSaleId.HasValue ? $" · POS #{user.PointOfSaleId}" : ""));
+                (user.PointOfSaleId.HasValue ? $" · POS #{user.PointOfSaleId}" : ""),
+            entityType: "User",
+            entityId: user.Id.ToString());
 
         return ServiceResult.Ok();
     }
@@ -218,7 +207,6 @@ public class UserService
                 return ServiceResult.Fail("Le nom d'utilisateur du SuperAdmin ne peut pas être modifié.");
         }
 
-        // ── Guard on EXISTING role ──
         var existingRole = await _uow.GetRepository<Role>().GetByIdAsync(existing.RoleId);
         if (existingRole != null && IsRestrictedRole(existingRole) && !IsSuperAdminRole(existingRole))
         {
@@ -232,7 +220,6 @@ public class UserService
         if (user.RoleId <= 0)
             return ServiceResult.Fail("Veuillez sélectionner un rôle.");
 
-        // ── Guard on NEW role (if changed) ──
         string? newRoleName = null;
         if (user.RoleId != existing.RoleId)
         {
@@ -254,7 +241,6 @@ public class UserService
                 return ServiceResult.Fail($"Le nom d'utilisateur « {user.Username} » est déjà pris.");
         }
 
-        // Capture changes for audit before overwriting
         var changes = new List<string>();
         if (existing.FullName != user.FullName.Trim())
             changes.Add($"Nom : « {existing.FullName} » → « {user.FullName.Trim()} »");
@@ -285,12 +271,16 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.UserUpdated, existing.Id.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
+        // ── AUDIT ── (fixed argument order)
         var detail = changes.Count > 0
             ? $"Utilisateur « {existing.Username} » · {string.Join(" · ", changes)}"
             : $"Utilisateur « {existing.Username} » · Aucune modification détectée";
-        await _audit.LogAsync(AuditAction.UserUpdated, AuditModule.Users,
-            existing.Id.ToString(), detail);
+        await _audit.LogAsync(
+            AuditAction.UserUpdated,
+            AuditModule.Users,
+            detail,
+            entityType: "User",
+            entityId: existing.Id.ToString());
 
         return ServiceResult.Ok();
     }
@@ -315,7 +305,6 @@ public class UserService
                 return ServiceResult.Fail(authError);
         }
 
-        // Capture info before deletion
         var username = user.Username;
         var fullName = user.FullName;
         var roleName = userRole?.Name ?? "?";
@@ -326,10 +315,13 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.UserDeleted, userId.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.UserDeleted, AuditModule.Users,
-            userId.ToString(),
-            $"Utilisateur « {username} » ({fullName}) · Rôle « {roleName} » · Supprimé");
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.UserDeleted,
+            AuditModule.Users,
+            $"Utilisateur « {username} » ({fullName}) · Rôle « {roleName} » · Supprimé",
+            entityType: "User",
+            entityId: userId.ToString());
 
         return ServiceResult.Ok();
     }
@@ -361,12 +353,15 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.UserUpdated, userId.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
+        // ── AUDIT ── (fixed argument order)
         var action = user.IsActive ? AuditAction.UserActivated : AuditAction.UserDeactivated;
-        await _audit.LogAsync(action, AuditModule.Users,
-            userId.ToString(),
+        await _audit.LogAsync(
+            action,
+            AuditModule.Users,
             $"Utilisateur « {user.Username} » ({user.FullName}) · " +
-            (user.IsActive ? "Activé" : "Désactivé"));
+                (user.IsActive ? "Activé" : "Désactivé"),
+            entityType: "User",
+            entityId: userId.ToString());
 
         return ServiceResult.Ok();
     }
@@ -376,7 +371,6 @@ public class UserService
     public async Task<ServiceResult> CreateRoleAsync(
         string name, Dictionary<string, bool> permissions, int currentUserId)
     {
-        // ── Only SuperAdmin can create roles ──
         var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
         if (!isSA)
             return ServiceResult.Fail("Seul le SuperAdmin peut créer de nouveaux rôles.");
@@ -409,10 +403,13 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.RoleCreated, role.Id.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.RoleCreated, AuditModule.Users,
-            role.Id.ToString(),
-            $"Rôle « {role.Name} » · Permissions : {(enabledPerms.Count > 0 ? string.Join(", ", enabledPerms) : "aucune")}");
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.RoleCreated,
+            AuditModule.Users,
+            $"Rôle « {role.Name} » · Permissions : {(enabledPerms.Count > 0 ? string.Join(", ", enabledPerms) : "aucune")}",
+            entityType: "Role",
+            entityId: role.Id.ToString());
 
         return ServiceResult.Ok();
     }
@@ -425,14 +422,12 @@ public class UserService
         if (role == null)
             return ServiceResult.Fail("Rôle introuvable.");
 
-        // ★ GLOBAL GUARD — only SuperAdmin can modify ANY role
         var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
         if (!isSA)
             return ServiceResult.Fail("Seul le SuperAdmin peut modifier les rôles.");
 
         if (IsSuperAdminRole(role))
             return ServiceResult.Fail("Le rôle SuperAdmin ne peut pas être modifié.");
-
 
         if (string.IsNullOrWhiteSpace(name))
             return ServiceResult.Fail("Le nom du rôle est obligatoire.");
@@ -447,7 +442,6 @@ public class UserService
                 return ServiceResult.Fail($"Le rôle « {name} » existe déjà.");
         }
 
-        // Capture changes for audit
         var changes = new List<string>();
         if (role.Name != name.Trim())
             changes.Add($"Nom : « {role.Name} » → « {name.Trim()} »");
@@ -469,12 +463,16 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.RoleUpdated, role.Id.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
+        // ── AUDIT ── (fixed argument order)
         var detail = changes.Count > 0
             ? $"Rôle « {role.Name} » · {string.Join(" · ", changes)}"
             : $"Rôle « {role.Name} » · Aucune modification détectée";
-        await _audit.LogAsync(AuditAction.RoleUpdated, AuditModule.Users,
-            role.Id.ToString(), detail);
+        await _audit.LogAsync(
+            AuditAction.RoleUpdated,
+            AuditModule.Users,
+            detail,
+            entityType: "Role",
+            entityId: role.Id.ToString());
 
         return ServiceResult.Ok();
     }
@@ -486,7 +484,6 @@ public class UserService
         if (role == null)
             return ServiceResult.Fail("Rôle introuvable.");
 
-        // ★ GLOBAL GUARD — only SuperAdmin can modify ANY role
         var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
         if (!isSA)
             return ServiceResult.Fail("Seul le SuperAdmin peut modifier les rôles.");
@@ -494,14 +491,12 @@ public class UserService
         if (IsSuperAdminRole(role))
             return ServiceResult.Fail("Le rôle SuperAdmin ne peut pas être supprimé.");
 
-
         var usersWithRole = await _uow.Users.FindAsync(u => u.RoleId == roleId);
         if (usersWithRole.Any())
             return ServiceResult.Fail(
                 $"Ce rôle est encore attribué à {usersWithRole.Count} utilisateur(s). " +
                 "Réassignez-les avant de supprimer le rôle.");
 
-        // Capture before deletion
         var roleName = role.Name;
 
         await roleRepo.DeleteAsync(role);
@@ -510,10 +505,13 @@ public class UserService
         _uow.EnqueueEvent(AppEvent.RoleDeleted, roleId.ToString());
         await _uow.FlushEventsAsync();
 
-        // ── AUDIT ──
-        await _audit.LogAsync(AuditAction.RoleDeleted, AuditModule.Users,
-            roleId.ToString(),
-            $"Rôle « {roleName} » · Supprimé");
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.RoleDeleted,
+            AuditModule.Users,
+            $"Rôle « {roleName} » · Supprimé",
+            entityType: "Role",
+            entityId: roleId.ToString());
 
         return ServiceResult.Ok();
     }

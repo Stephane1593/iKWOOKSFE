@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -9,11 +10,13 @@ public class AuditService : IAuditService
 {
     private readonly IAuditWriter _writer;
     private readonly IAuthService _auth;
+    private readonly ITimeProvider _time;
 
-    public AuditService(IAuditWriter writer, IAuthService auth)
+    public AuditService(IAuditWriter writer, IAuthService auth, ITimeProvider time)
     {
         _writer = writer;
         _auth = auth;
+        _time = time;
     }
 
     // ── Async (awaitable) ──────────────────────────────
@@ -37,6 +40,9 @@ public class AuditService : IAuditService
         string? codeDEFDGI = null, string? invoiceNumber = null,
         string? details = null)
     {
+        // IMPORTANT: build the entry synchronously so the timestamp
+        // reflects the moment of the action, not the moment the
+        // background task happens to run.
         var entry = Build(action, module, description,
             entityType, entityId, codeDEFDGI, invoiceNumber, details);
         _ = SafeWriteAsync(entry);
@@ -80,7 +86,11 @@ public class AuditService : IAuditService
             PaymentsCount = invoice.Payments.Count,
             invoice.OriginalInvoiceReference,
             invoice.CreditNoteNature,
-            invoice.AdvanceGroupId
+            invoice.AdvanceGroupId,
+            // Preserve the invoice's own fiscal timestamp inside the audit JSON
+            // so any later clock tampering is detectable by comparison.
+            InvoiceCreatedAtUtc = invoice.CreatedAt.UtcDateTime,
+            InvoiceCreatedAtOffset = invoice.CreatedAt.Offset.ToString()
         });
 
         await LogAsync(action, AuditModule.Invoicing, desc,
@@ -116,7 +126,8 @@ public class AuditService : IAuditService
         var user = _auth.CurrentUser;
         return new AuditLogEntry
         {
-            Timestamp = DateTime.Now,
+            // Unambiguous, DST-proof, anti-fraud timestamp.
+            Timestamp = _time.UtcNow,
             Action = action,
             Module = module,
             Description = description,
@@ -134,7 +145,10 @@ public class AuditService : IAuditService
 
     private async Task SafeWriteAsync(AuditLogEntry entry)
     {
-        try { await _writer.WriteAsync(entry); }
+        try
+        {
+            await _writer.WriteAsync(entry);
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"[AuditService] Fire-and-forget write failed: {ex.Message}");

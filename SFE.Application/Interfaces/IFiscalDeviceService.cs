@@ -67,7 +67,7 @@ public class FiscalInvoiceRequest
     // Devise
     public string CurrencyCode { get; set; } = "CDF";
     public decimal? CurrencyRate { get; set; }
-    public DateTime? CurrencyDate { get; set; }
+    public DateTimeOffset? CurrencyDate { get; set; }   // 🆕 DateTime → DateTimeOffset
 
     // Référence (factures d'avoir FA/EA)
     public string? Reference { get; set; }
@@ -144,11 +144,11 @@ public class FiscalSubmitResult
     public decimal TotalTTC { get; set; }
     public decimal TotalTVA { get; set; }
     public decimal TotalTS { get; set; }   // taxe spécifique
-    public decimal TotalUSD { get; set; }   // MCUR
+    public decimal TotalUSD { get; set; }  // MCUR
 
     // Ventilation par groupe fiscal (A–P)
     public Dictionary<string, decimal> GroupAmounts { get; set; } = new();  // MVA…MVP
-    public Dictionary<string, decimal> GroupTVA { get; set; } = new();  // MTA…MTP
+    public Dictionary<string, decimal> GroupTVA { get; set; } = new();      // MTA…MTP
 }
 
 /// <summary>
@@ -190,7 +190,7 @@ public class FiscalStatusResult
 public class PendingInvoiceInfo
 {
     public string Uid { get; set; } = "";
-    public DateTime Date { get; set; }
+    public DateTimeOffset Date { get; set; }
     public string DateDisplay => Date == default ? "—" : Date.ToString("dd/MM/yyyy HH:mm");
 }
 
@@ -201,7 +201,7 @@ public class PendingInvoiceInfo
 public class FiscalServerConnectionResult
 {
     public bool Success { get; set; }
-    public DateTime? LastServerConnection { get; set; }
+    public DateTimeOffset? LastServerConnection { get; set; }
     public string ConnectionStatus { get; set; } = "DIS"; // DIS/CON/TRA/RES
     public int TransactionsSent { get; set; }
     public int TransactionsPending { get; set; }
@@ -211,7 +211,7 @@ public class FiscalServerConnectionResult
     /// <summary>True if last server connection was more than 7 days ago.</summary>
     public bool IsOverSevenDays =>
         LastServerConnection.HasValue &&
-        (DateTime.Now - LastServerConnection.Value).TotalDays > 7;
+        (DateTimeOffset.Now - LastServerConnection.Value).TotalDays > 7;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -248,11 +248,11 @@ public class FiscalDeviceDetailedInfo
         _ => ConnectionStatus
     };
     /// <summary>MCF C2h: last successful DGI connection. e-MCF: serverDateTime</summary>
-    public DateTime? LastServerConnection { get; set; }
+    public DateTimeOffset? LastServerConnection { get; set; }   // 🆕
     /// <summary>True if last connection > 1 day ago (DGI spec alert)</summary>
     public bool IsConnectionStale =>
         LastServerConnection.HasValue &&
-        (DateTime.Now - LastServerConnection.Value).TotalDays > 1;
+        (DateTimeOffset.Now - LastServerConnection.Value).TotalDays > 1;   // 🆕
     /// <summary>MCF C2h: last error description</summary>
     public string? LastError { get; set; }
 
@@ -272,7 +272,7 @@ public class FiscalDeviceDetailedInfo
 
     // ── Last Invoice (DASHBOARD) ─────────────────────────
     /// <summary>MCF C1h: DFDT — date/time of last invoice</summary>
-    public DateTime? LastInvoiceDate { get; set; }
+    public DateTimeOffset? LastInvoiceDate { get; set; }   // 🆕
     /// <summary>MCF C1h: DFT — type of last invoice (FV, FA, etc.)</summary>
     public string? LastInvoiceType { get; set; }
     /// <summary>MCF C1h: DFS — Code DEF/DGI of last invoice</summary>
@@ -305,9 +305,9 @@ public class FiscalDeviceDetailedInfo
     /// <summary>API version (e-MCF only)</summary>
     public string? ApiVersion { get; set; }
     /// <summary>Token validity date (e-MCF only)</summary>
-    public DateTime? TokenValidUntil { get; set; }
+    public DateTimeOffset? TokenValidUntil { get; set; }   // 🆕
     /// <summary>Server date/time (e-MCF only)</summary>
-    public DateTime? ServerDateTime { get; set; }
+    public DateTimeOffset? ServerDateTime { get; set; }    // 🆕
     /// <summary>e-MCF status: "Actif", "Enregistré", "Désactivé"</summary>
     public string? EmcfStatus { get; set; }
     /// <summary>Full list of e-MCF devices (e-MCF only)</summary>
@@ -319,7 +319,7 @@ public class FiscalDeviceDetailedInfo
 
     // ── Current DateTime ─────────────────────────────────
     /// <summary>MCF C1h DT / e-MCF serverDateTime</summary>
-    public DateTime? DeviceDateTime { get; set; }
+    public DateTimeOffset? DeviceDateTime { get; set; }    // 🆕
 }
 
 /// <summary>e-MCF device info (from info/status emcfList)</summary>
@@ -339,6 +339,6 @@ public class CurrencyRateInfo
 {
     public string Code { get; set; } = "";
     public string Description { get; set; } = "";
-    public DateTime Date { get; set; }
+    public DateTimeOffset Date { get; set; }   // 🆕
     public decimal Rate { get; set; }
 }

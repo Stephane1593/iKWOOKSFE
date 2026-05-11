@@ -47,8 +47,8 @@ public class Product
     // === État ===
     public bool IsActive { get; set; } = true;
     public bool IsFavorite { get; set; } = false;
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     // Multi-devise : stockés à la création/modification
     public decimal UnitPriceHtCdf { get; set; }

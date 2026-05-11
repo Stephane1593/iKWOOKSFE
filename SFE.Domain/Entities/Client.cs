@@ -13,7 +13,7 @@ public class Client
     public string? Email { get; set; }
     public string? RCCM { get; set; }
     public bool IsLoyaltyMember { get; set; } = false;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
 
     // Navigation
     public LoyaltyAccount? LoyaltyAccount { get; set; }

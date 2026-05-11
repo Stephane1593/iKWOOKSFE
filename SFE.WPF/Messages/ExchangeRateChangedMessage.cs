@@ -15,4 +15,4 @@ public record ExchangeRatePayload(
     decimal UsdRate,
     decimal EurRate,
     decimal CnyRate,
-    DateTime? DgiDate);
+    DateTimeOffset? DgiDate);

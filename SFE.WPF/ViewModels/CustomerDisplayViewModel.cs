@@ -1,13 +1,18 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SFE.Domain.Abstractions;
 using SFE.WPF.Helpers;
 
 namespace SFE.WPF.ViewModels;
 
 public partial class CustomerDisplayViewModel : ObservableObject
 {
+    private static readonly CultureInfo FrCulture = new("fr-FR");
+
+    private readonly ITimeProvider _timeProvider;
     private readonly DispatcherTimer _clock;
 
     [ObservableProperty] private string _companyName = "";
@@ -29,19 +34,27 @@ public partial class CustomerDisplayViewModel : ObservableObject
     [ObservableProperty] private string _codeDEFDGI = "";
     [ObservableProperty] private ImageSource? _qrCodeImage;
 
-    public CustomerDisplayViewModel()
+    public CustomerDisplayViewModel(ITimeProvider timeProvider)
     {
+        _timeProvider = timeProvider;
+
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _clock.Tick += (_, _) =>
-        {
-            CurrentTime = DateTime.Now.ToString("HH:mm:ss");
-            CurrentDate = DateTime.Now.ToString("dddd dd MMMM yyyy",
-                new System.Globalization.CultureInfo("fr-FR"));
-        };
+        _clock.Tick += (_, _) => UpdateClock();
         _clock.Start();
-        CurrentTime = DateTime.Now.ToString("HH:mm:ss");
-        CurrentDate = DateTime.Now.ToString("dddd dd MMMM yyyy",
-            new System.Globalization.CultureInfo("fr-FR"));
+
+        // Initial tick so the UI isn't empty for a second.
+        UpdateClock();
+    }
+
+    /// <summary>
+    /// Refreshes the clock displays. Uses the time provider's <see cref="ITimeProvider.LocalNow"/>
+    /// — this is one of the rare places display-local time is correct.
+    /// </summary>
+    private void UpdateClock()
+    {
+        var now = _timeProvider.LocalNow;
+        CurrentTime = now.ToString("HH:mm:ss", FrCulture);
+        CurrentDate = now.ToString("dddd dd MMMM yyyy", FrCulture);
     }
 
     /// <summary>Show idle/welcome screen.</summary>
@@ -89,6 +102,14 @@ public partial class CustomerDisplayViewModel : ObservableObject
         GrandTotal = total;
         CodeDEFDGI = codeDEFDGI;
         QrCodeImage = QrCodeHelper.Generate(qrContent, pixelsPerModule: 10);
+    }
+
+    /// <summary>
+    /// Stop the clock timer. Call on window close to allow the VM to be GC'd.
+    /// </summary>
+    public void StopClock()
+    {
+        _clock.Stop();
     }
 }
 

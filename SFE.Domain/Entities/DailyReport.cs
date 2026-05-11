@@ -14,9 +14,9 @@ public class DailyReport
     public ReportType Type { get; set; }
     public int ReportNumber { get; set; }
     public bool IsPeriodic { get; set; }
-    public DateTime GeneratedAt { get; set; } = DateTime.Now;
-    public DateTime PeriodStart { get; set; }
-    public DateTime PeriodEnd { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; }
+    public DateTimeOffset PeriodStart { get; set; }
+    public DateTimeOffset PeriodEnd { get; set; }
 
     // ── En-tête entreprise (snapshot) ──
     public string CompanyName { get; set; } = "";
@@ -50,7 +50,7 @@ public class DailyReport
     // ══════════════════════════════════════════════════════════
 
     // ── Ouverture ──
-    public DateTime? SessionOpenedAt { get; set; }
+    public DateTimeOffset? SessionOpenedAt { get; set; }
     public decimal OpeningAmountUSD { get; set; }
     public decimal OpeningAmountCDF { get; set; }
     public decimal OpeningAmountEUR { get; set; }

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.Infrastructure.EMcf;
@@ -18,16 +19,21 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     private readonly PointOfSaleService _posService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly StockService _stockService;
+    private readonly ITimeProvider _time;
 
     public PointOfSaleManagementViewModel(
-        PointOfSaleService posService, IUnitOfWork unitOfWork, StockService stockService)
+        PointOfSaleService posService,
+        IUnitOfWork unitOfWork,
+        StockService stockService,
+        ITimeProvider time)
     {
         _posService = posService;
         _unitOfWork = unitOfWork;
         _stockService = stockService;
+        _time = time ?? throw new ArgumentNullException(nameof(time));
         PageTitle = "Points de vente";
 
-        _ = LoadAsync();   // ← ADD THIS
+        _ = LoadAsync();
     }
 
     // ══════════════════════════════════════════════
@@ -143,7 +149,6 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [RelayCommand]
     private async Task LoadAsync()
     {
-
         if (CompanyId == 0)
         {
             var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
@@ -417,7 +422,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         try
         {
             int charsPerLine = EditPaperWidth >= 80 ? 48 : 32;
-            byte[] receipt = BuildTestReceipt(charsPerLine, EditCodePage);
+            // 🆕 Passer le temps via ITimeProvider plutôt que DateTime.Now
+            byte[] receipt = BuildTestReceipt(charsPerLine, EditCodePage, _time.LocalNow);
             RawPrinterHelper.SendBytesToPrinter(printerName, receipt, "SFE-TestPrint");
 
             _ = ShowSuccessAsync($"🖨 Ticket test envoyé à « {printerName} ».");
@@ -453,8 +459,9 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     /// <summary>
     /// Construit un ticket test ESC/POS complet pour vérifier
     /// l'alignement, les accents et la largeur papier.
+    /// La date/heure est injectée par l'appelant pour rester testable.
     /// </summary>
-    private static byte[] BuildTestReceipt(int charsPerLine, int codePage)
+    private static byte[] BuildTestReceipt(int charsPerLine, int codePage, DateTimeOffset now)
     {
         using var ms = new MemoryStream();
 
@@ -513,7 +520,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         PrintLine($"Largeur : {(charsPerLine >= 48 ? 80 : 58)} mm");
         PrintLine($"Caractères/ligne : {charsPerLine}");
         PrintLine($"Code page : {codePage}");
-        PrintLine($"Date : {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
+        PrintLine($"Date : {now:dd/MM/yyyy HH:mm:ss}");       // 🆕 DateTimeOffset injecté
         PrintLine("");
         PrintLine("Caractères spéciaux :");
         PrintLine("é è ê ë à â ù û ç ô î ï €");
@@ -575,14 +582,17 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             IFiscalDeviceService device;
             if (pos.DeviceType == DeviceType.EMcf || pos.DeviceType == DeviceType.Hybrid)
             {
+                // 🆕 Passe _time aux clients fiscaux (signature refactorisée)
                 device = new EMcfHttpClient(
                     pos.EmcfApiUrl ?? "",
                     pos.EmcfToken ?? "",
-                    ""); // NIF loaded from company
+                    "",              // NIF loaded from company
+                    _time);
             }
             else
             {
-                var mcf = new McfSerialClient(pos.McfPortName ?? "COM3", pos.McfBaudRate);
+                // 🆕 ITimeProvider en 2e argument, baudRate en 3e (valeur par défaut 115200)
+                var mcf = new McfSerialClient(pos.McfPortName ?? "COM3", _time, pos.McfBaudRate);
                 mcf.Connect();
                 device = mcf;
             }
@@ -594,7 +604,12 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
                 // Save connection info to POS
                 pos.LastKnownNIM = status.NIM;
                 pos.LastKnownNIF = status.NIF;
-                pos.LastConnectionTestAt = DateTime.Now;
+
+                // 🆕 Plutôt que DateTime.Now, on passe par ITimeProvider.
+                // Si LastConnectionTestAt est DateTime (Kind=Utc attendu), on stocke UTC :
+                pos.LastConnectionTestAt = _time.UtcNow.UtcDateTime;
+                // ─ Si le champ est au contraire censé contenir du temps local,
+                //   remplacer par :  _time.LocalNow.LocalDateTime
 
                 if (!string.IsNullOrEmpty(status.NIM))
                     pos.EmcfNIM = status.NIM;

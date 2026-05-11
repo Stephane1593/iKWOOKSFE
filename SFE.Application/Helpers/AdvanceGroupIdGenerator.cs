@@ -1,4 +1,5 @@
 ﻿using System.Security.Cryptography;
+using SFE.Domain.Abstractions;
 
 namespace SFE.Application.Helpers;
 
@@ -9,9 +10,9 @@ namespace SFE.Application.Helpers;
 /// </summary>
 public static class AdvanceGroupIdGenerator
 {
-    public static string Generate(DateTime? referenceDate = null)
+    public static string Generate(ITimeProvider time,DateTime? referenceDate = null)
     {
-        var date = referenceDate ?? DateTime.Now;
+        var date = referenceDate ?? time.UtcNow;
         Span<byte> buf = stackalloc byte[4];
         RandomNumberGenerator.Fill(buf);
         var hex = Convert.ToHexString(buf);  // 8 uppercase chars

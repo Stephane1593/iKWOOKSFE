@@ -12,6 +12,7 @@ using SFE.WPF.Views;
 using SFE.WPF.Views.Pages;
 using QuestPDF.Infrastructure;
 using System.Text;
+using SFE.Domain.Abstractions;
 
 namespace SFE.WPF;
 
@@ -163,7 +164,8 @@ public partial class App : System.Windows.Application
 
                         var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
                         var settingsService = ServiceProvider.GetRequiredService<SettingsService>();
-                        var sessionVm = new SessionOpenViewModel(uow, authService, settingsService);
+                        var timeProvider = ServiceProvider.GetRequiredService<ITimeProvider>();
+                        var sessionVm = new SessionOpenViewModel(uow, authService, settingsService, timeProvider);
                         var sessionDialog = new SessionOpenDialog { DataContext = sessionVm };
 
                         sessionVm.SessionConfirmed += () => sessionDialog.DialogResult = true;
@@ -290,6 +292,7 @@ public partial class App : System.Windows.Application
                    .AddInterceptors(walInterceptor),
             ServiceLifetime.Transient);
 
+        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
         // ═══ Repositories & Unit of Work ═══
         services.AddTransient<IUnitOfWork, UnitOfWork>();
 
@@ -312,6 +315,9 @@ public partial class App : System.Windows.Application
         services.AddTransient<UserService>();
         services.AddTransient<CategoryService>();
         services.AddScoped<IInvoiceAdvanceService, InvoiceAdvanceService>();
+        services.AddSingleton<TenantContext>();
+        services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddSingleton<ITenantProvider>(sp => sp.GetRequiredService<TenantContext>());
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();
@@ -343,6 +349,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IAuditWriter, AuditWriter>();
         services.AddSingleton<IAuditService, AuditService>();
         services.AddTransient<AuditLogViewModel>();
+        
 
         // ═══ Fenêtres & Pages ═══
         services.AddTransient<MainWindow>();

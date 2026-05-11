@@ -7,11 +7,10 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
-using SFE.Domain.Entities;
 using SFE.WPF.Views.Pages;
 using SFE.WPF.ViewModels;
 using Size = System.Windows.Size;
+using SFE.Domain.Abstractions;
 
 namespace SFE.WPF.Helpers;
 
@@ -21,19 +20,23 @@ public static class InvoicePrintHelper
     //  PUBLIC — Print  (QuestPDF → temp PDF → system viewer)
     // ═══════════════════════════════════════════════════════
 
-    public static void Print(InvoiceDocumentViewModel viewModel)
+    public static void Print(InvoiceDocumentViewModel viewModel, ITimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(time);
 
         string tempDir = Path.Combine(Path.GetTempPath(), "SFE_Invoices");
         Directory.CreateDirectory(tempDir);
         CleanTempFiles(tempDir, TimeSpan.FromDays(1));
 
+        // 🆕 Utilise l'horloge injectée (heure locale du POS, cohérence multi-fuseaux)
+        var stamp = time.ToLocal(time.UtcNow, viewModel.SourcePos?.TimeZoneId);
+
         string tempPath = Path.Combine(tempDir,
             SanitizeFileName(
-                $"Facture_{viewModel.InvoiceNumber}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
+                $"Facture_{viewModel.InvoiceNumber}_{stamp:yyyyMMdd_HHmmss}.pdf"));
 
-        GeneratePdf(viewModel, tempPath);
+        GeneratePdf(viewModel, tempPath, time);
 
         Process.Start(new ProcessStartInfo(tempPath) { UseShellExecute = true });
     }
@@ -42,9 +45,10 @@ public static class InvoicePrintHelper
     //  PUBLIC — Export  (SaveFileDialog → PDF or PNG)
     // ═══════════════════════════════════════════════════════
 
-    public static bool ExportPdf(InvoiceDocumentViewModel viewModel)
+    public static bool ExportPdf(InvoiceDocumentViewModel viewModel, ITimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(time);
 
         var dlg = new SaveFileDialog
         {
@@ -62,7 +66,7 @@ public static class InvoicePrintHelper
         if (ext == ".png")
             ExportAsPng(viewModel, dlg.FileName);
         else
-            GeneratePdf(viewModel, dlg.FileName);
+            GeneratePdf(viewModel, dlg.FileName, time);
 
         Process.Start(new ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
         return true;
@@ -72,8 +76,14 @@ public static class InvoicePrintHelper
     //  CORE — Generate PDF using QuestPDF (proper pagination)
     // ═══════════════════════════════════════════════════════
 
-    public static void GeneratePdf(InvoiceDocumentViewModel viewModel, string outputPath)
+    public static void GeneratePdf(
+        InvoiceDocumentViewModel viewModel,
+        string outputPath,
+        ITimeProvider time)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(time);
+
         // ── If we have the raw source data, use the native QuestPDF document ──
         if (viewModel.SourceInvoice != null)
         {
@@ -85,13 +95,19 @@ public static class InvoicePrintHelper
             }
             catch { /* non-critical */ }
 
+            // 🆕 On passe explicitement ITimeProvider au document PDF :
+            //    InvoicePdfDocument s'en sert pour afficher l'heure d'impression
+            //    dans le fuseau du POS (SourcePos?.TimeZoneId), et non dans
+            //    celui du serveur d'application.
             var doc = new InvoicePdfDocument(
                 viewModel.SourceInvoice,
+                time,
                 viewModel.SourceCompany,
                 viewModel.SourcePos,
                 viewModel.SourceExchangeRate,
                 viewModel.SourceLogoBytes,
-                qrBytes, printNumber:viewModel.PrintNumber);
+                qrBytes,
+                printNumber: viewModel.PrintNumber);
 
             doc.GeneratePdf(outputPath);
             return;
@@ -105,10 +121,6 @@ public static class InvoicePrintHelper
     //  QR CODE GENERATION  (requires NuGet: QRCoder)
     // ═══════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Generates a QR-code PNG byte array.
-    /// Install NuGet: <c>QRCoder</c> if not already present.
-    /// </summary>
     private static byte[]? GenerateQrCodeBytes(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
@@ -304,6 +316,9 @@ public static class InvoicePrintHelper
     {
         try
         {
+            // 🆕 Intentionnellement basé sur DateTime.Now du système de fichiers :
+            //    c'est l'horloge du disque qu'on compare aux métadonnées de fichier,
+            //    pas la logique métier. Pas besoin d'ITimeProvider ici.
             var cutoff = DateTime.Now - maxAge;
             foreach (var file in Directory.GetFiles(directory, "*.pdf"))
                 if (File.GetCreationTime(file) < cutoff)

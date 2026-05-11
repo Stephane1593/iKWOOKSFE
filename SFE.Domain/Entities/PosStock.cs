@@ -30,9 +30,9 @@ public class PosStock
     public decimal? MaxStockLevel { get; set; }
 
     // === Audit ===
-    public DateTime LastMovementAt { get; set; } = DateTime.Now;
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset LastMovementAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     // === Navigation ===
     public Product Product { get; set; } = null!;

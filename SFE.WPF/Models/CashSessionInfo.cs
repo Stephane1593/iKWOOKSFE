@@ -2,7 +2,7 @@
 
 public class CashSessionInfo
 {
-    public DateTime OpenedAt { get; set; } = DateTime.Now;
+    public DateTimeOffset OpenedAt { get; set; }
     public string OperatorName { get; set; } = "";
 
     // Point of Sale

@@ -36,8 +36,8 @@ namespace SFE.Domain.Entities
         public string? Unit { get; set; } // pièce, kg, litre...
 
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
-        public DateTime? UpdatedAt { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
 
         // Navigation
         public ICollection<InvoiceLine> InvoiceLines { get; set; } = new List<InvoiceLine>();

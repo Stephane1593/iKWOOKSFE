@@ -1,4 +1,5 @@
 ﻿using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -6,6 +7,13 @@ namespace SFE.Application.Services;
 
 public class InvoiceAdvanceService : IInvoiceAdvanceService
 {
+    private readonly ITimeProvider _time;
+
+    public InvoiceAdvanceService(ITimeProvider time)
+    {
+        _time = time;
+    }
+
     public Invoice BuildAdvanceInvoice(AdvanceBuildContext ctx)
     {
         // ── Guards ──
@@ -62,7 +70,12 @@ public class InvoiceAdvanceService : IInvoiceAdvanceService
             Type = ctx.IsExport ? InvoiceType.ET : InvoiceType.FT,
             Status = InvoiceStatus.Draft,
             PriceMode = ctx.PriceMode,
-            CreatedAt = DateTime.Now,
+
+            // ⚠ DGI §1.1 — anti-fraud timestamp via ITimeProvider.
+            // Invoice.CreatedAt is DateTimeOffset: the offset is preserved so
+            // Lubumbashi (+02:00) and Kinshasa (+01:00) entries remain
+            // unambiguous even when cross-queried.
+            CreatedAt = _time.UtcNow,
 
             AdvanceGroupId = ctx.AdvanceGroupId,
             OrderTotal = ctx.OrderTotal,

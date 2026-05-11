@@ -1,9 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SFE.Application.Services;
+using SFE.Domain.Abstractions;
+using SFE.Domain.Common;
 using SFE.Domain.Entities;
+using SFE.Infrastructure.Persistence.Converters;
 
 namespace SFE.Infrastructure.Persistence;
 
-public class AppDbContext : DbContext
+public sealed class AppDbContext : DbContext
 {
     // ═══ DbSets ═══
     public DbSet<Company> Companies => Set<Company>();
@@ -23,14 +27,16 @@ public class AppDbContext : DbContext
     public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
     public DbSet<StockTransferLine> StockTransferLines { get; set; } = null!;
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
-    public DbSet<DailyReport> DailyReports { get; set; }
-    public DbSet<ReportInvoiceTypeSummary> ReportInvoiceTypeSummaries { get; set; }
-    public DbSet<ReportTaxGroupDetail> ReportTaxGroupDetails { get; set; }
-    public DbSet<ReportPaymentSummary> ReportPaymentSummaries { get; set; }
-    public DbSet<ArticleReportLine> ArticleReportLines { get; set; }
+    public DbSet<DailyReport> DailyReports { get; set; } = null!;
+    public DbSet<ReportInvoiceTypeSummary> ReportInvoiceTypeSummaries { get; set; } = null!;
+    public DbSet<ReportTaxGroupDetail> ReportTaxGroupDetails { get; set; } = null!;
+    public DbSet<ReportPaymentSummary> ReportPaymentSummaries { get; set; } = null!;
+    public DbSet<ArticleReportLine> ArticleReportLines { get; set; } = null!;
     public DbSet<AuditLogEntry> AuditLogEntries { get; set; } = null!;
 
     private readonly string _dbPath;
+    private readonly ITimeProvider _time;
+    private readonly ITenantProvider _tenant;
 
     // ── Design-time / fallback constructor ──
     public AppDbContext()
@@ -40,19 +46,27 @@ public class AppDbContext : DbContext
             "SFE");
         Directory.CreateDirectory(appData);
         _dbPath = Path.Combine(appData, "sfe.db");
+
+        // Fallbacks design-time (migrations EF)
+        _time = new SystemTimeProvider();
+        _tenant = new TenantContext();
     }
 
-    // ── DI constructor (used at runtime) ──
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    // ── DI constructor (runtime) ──
+    public AppDbContext(
+        DbContextOptions<AppDbContext> options,
+        ITimeProvider time,
+        ITenantProvider tenant) : base(options)
     {
         _dbPath = string.Empty;
+        _time = time ?? throw new ArgumentNullException(nameof(time));
+        _tenant = tenant ?? throw new ArgumentNullException(nameof(tenant));
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
         {
-            // Fallback (design-time) — also gets WAL + busy_timeout
             optionsBuilder
                 .UseSqlite($"Data Source={_dbPath};Cache=Shared")
                 .AddInterceptors(new SqliteWalInterceptor());
@@ -62,6 +76,135 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // 1) Applique d'abord toutes les IEntityTypeConfiguration
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // 2) Conversion GLOBALE DateTimeOffset → long pour SQLite
+        ApplyDateTimeOffsetConversions(modelBuilder);
+
+        // 3) Global query filters (tenant + soft-delete)
+        ApplyGlobalFilters(modelBuilder);
+    }
+
+    private static void ApplyDateTimeOffsetConversions(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.GetValueConverter() != null) continue;
+
+                if (property.ClrType == typeof(DateTimeOffset))
+                {
+                    property.SetValueConverter(DateTimeOffsetConverters.ToTicks);
+                    property.SetColumnType("INTEGER");
+                }
+                else if (property.ClrType == typeof(DateTimeOffset?))
+                {
+                    property.SetValueConverter(DateTimeOffsetConverters.ToNullableTicks);
+                    property.SetColumnType("INTEGER");
+                }
+            }
+        }
+    }
+
+    private void ApplyGlobalFilters(ModelBuilder modelBuilder)
+    {
+        foreach (var et in modelBuilder.Model.GetEntityTypes())
+        {
+            var clr = et.ClrType;
+
+            // ⚠️ Ordre important : SyncableEntity hérite généralement de SyncableRootEntity
+            //    donc tester le plus spécifique d'abord.
+            if (typeof(SyncableEntity).IsAssignableFrom(clr))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(SetTenantFilter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .MakeGenericMethod(clr);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+            else if (typeof(SyncableRootEntity).IsAssignableFrom(clr))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(SetRootSoftDeleteFilter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .MakeGenericMethod(clr);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+        }
+    }
+
+    // Tenant + soft-delete filter
+    private void SetTenantFilter<T>(ModelBuilder mb) where T : SyncableEntity
+    {
+        mb.Entity<T>().HasQueryFilter(e =>
+            e.DeletedAtUtc == null &&
+            (_tenant.IsBootstrapMode || e.CompanyId == _tenant.CompanyId));
+    }
+
+    // Soft-delete filter only (root entities, non-tenant-scoped)
+    private void SetRootSoftDeleteFilter<T>(ModelBuilder mb) where T : SyncableRootEntity
+    {
+        mb.Entity<T>().HasQueryFilter(e => e.DeletedAtUtc == null);
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        ApplyAuditAndTenantStamps();
+        return await base.SaveChangesAsync(ct);
+    }
+
+    public override int SaveChanges()
+    {
+        ApplyAuditAndTenantStamps();
+        return base.SaveChanges();
+    }
+
+    private void ApplyAuditAndTenantStamps()
+    {
+        var now = _time.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<SyncableRootEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    if (entry.Entity.CreatedAtUtc == default)
+                        entry.Entity.CreatedAtUtc = now;
+                    entry.Entity.UpdatedAtUtc = now;
+                    if (entry.Entity.SyncId == default)
+                        entry.Entity.SyncId = Ulid.NewUlid();
+
+                    // Stamp origin POS automatically
+                    if (entry.Entity.OriginPointOfSaleSyncId is null &&
+                        _tenant.CurrentPointOfSaleSyncId is { } posSyncId)
+                    {
+                        entry.Entity.OriginPointOfSaleId = _tenant.CurrentPointOfSaleId;
+                        entry.Entity.OriginPointOfSaleSyncId = posSyncId;
+                    }
+
+                    // Stamp CompanyId on tenant-scoped entities
+                    if (entry.Entity is SyncableEntity scoped &&
+                        scoped.CompanyId == 0 &&
+                        !_tenant.IsBootstrapMode &&
+                        _tenant.IsAuthenticated)
+                    {
+                        scoped.CompanyId = _tenant.CompanyId;
+                    }
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.MarkUpdated(now);
+                    break;
+
+                case EntityState.Deleted:
+                    // Convert hard-delete to soft-delete
+                    entry.State = EntityState.Modified;
+                    entry.Entity.MarkDeleted(now);
+                    break;
+            }
+        }
     }
 }

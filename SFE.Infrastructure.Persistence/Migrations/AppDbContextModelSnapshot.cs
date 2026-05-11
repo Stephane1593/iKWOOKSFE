@@ -82,11 +82,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("ExchangeRateUpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("ExchangeRateUpdatedAt")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -110,8 +110,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                             DefaultPriceMode = "TTC",
                             DiscountBeforeTax = true,
                             ExchangeRateMode = "Manual",
-                            ExchangeRateUpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            ExchangeRateUpdatedAt = 639028188000000000L,
+                            UpdatedAt = 639028188000000000L
                         });
                 });
 
@@ -212,8 +212,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("Timestamp")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("Timestamp")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("UserId")
                         .HasColumnType("INTEGER");
@@ -259,8 +259,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Email")
                         .HasMaxLength(200)
@@ -439,8 +439,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)")
                         .HasDefaultValue(0m);
 
-                    b.Property<DateTime>("GeneratedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("GeneratedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("GrandTotalHT")
                         .HasColumnType("decimal(18,2)");
@@ -491,11 +491,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("PeriodEnd")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("PeriodEnd")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("PeriodStart")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("PeriodStart")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("PointOfSaleId")
                         .HasColumnType("INTEGER");
@@ -521,8 +521,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<int>("ReportNumber")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("SessionOpenedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("SessionOpenedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("TotalInvoiceCount")
                         .HasColumnType("INTEGER");
@@ -661,8 +661,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("CreditNoteNature")
                         .HasColumnType("INTEGER");
@@ -672,8 +672,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("CurrencyDate")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("CurrencyDate")
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("CurrencyRate")
                         .HasPrecision(18, 4)
@@ -692,8 +692,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("FirstPrintedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("FirstPrintedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ISF")
                         .IsRequired()
@@ -705,16 +705,16 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("LastPrintedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LastPrintedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("NIM")
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("NormalizedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("NormalizedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("OperatorId")
                         .IsRequired()
@@ -756,8 +756,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
 
-                    b.Property<DateTime?>("ProformaValidUntil")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("ProformaValidUntil")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("QRCodeContent")
                         .IsRequired()
@@ -827,8 +827,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1045,11 +1045,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<int>("CurrentBalance")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("EnrolledAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("EnrolledAt")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("LastActivityAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LastActivityAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("TierLevel")
                         .HasColumnType("INTEGER");
@@ -1087,8 +1087,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<int>("Points")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("Timestamp")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("Timestamp")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1116,7 +1116,9 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("AllowNegativeStock")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("AutoPrintReceipt")
                         .ValueGeneratedOnAdd()
@@ -1171,31 +1173,36 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("LastConnectionTestAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LastConnectionTestAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("LastKnownNIF")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LastKnownNIM")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("ManagesStock")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
 
                     b.Property<int>("McfBaudRate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(115200);
 
-                    b.Property<DateTime?>("McfLastServerConnection")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("McfLastServerConnection")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("McfPortName")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("McfServerStatus")
+                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -1242,6 +1249,10 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasDefaultValue("");
 
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -1258,11 +1269,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("LastMovementAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("LastMovementAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal?>("MaxStockLevel")
                         .HasPrecision(18, 4)
@@ -1282,8 +1293,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1316,8 +1327,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("DefaultDiscountType")
                         .HasColumnType("INTEGER");
@@ -1397,8 +1408,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1430,8 +1441,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Icon")
                         .IsRequired()
@@ -1582,8 +1593,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<int?>("CounterpartPointOfSaleId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -1656,11 +1667,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("CancelledAt")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -1675,15 +1686,15 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("ReceivedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("ReceivedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ReceivedBy")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("ShippedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("ShippedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1760,8 +1771,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long?>("LastLoginAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

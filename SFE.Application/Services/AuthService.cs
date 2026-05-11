@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -27,10 +28,11 @@ public class AuthService : IAuthService
     public async Task<User?> LoginAsync(string username, string password)
     {
         var uow = _sp.GetRequiredService<IUnitOfWork>();
+        var time = _sp.GetRequiredService<ITimeProvider>();     // DGI §1.1
+        var audit = _sp.GetRequiredService<IAuditService>();
+
         var hash = HashPassword(password);
         var user = await uow.Users.AuthenticateAsync(username, hash);
-
-        var audit = _sp.GetRequiredService<IAuditService>();   // ← single declaration
 
         if (user == null)
         {
@@ -42,7 +44,9 @@ public class AuthService : IAuthService
         _currentUser = user;
         _permCache = null;
 
-        user.LastLoginAt = DateTime.Now;
+        // ⚠ DGI §1.1 — never DateTime.Now. UTC is the canonical fiscal form;
+        // both Kinshasa (UTC+1) and Lubumbashi (UTC+2) store the same instant.
+        user.LastLoginAt = time.UtcNow.UtcDateTime;
         await uow.SaveChangesAsync();
 
         UserChanged?.Invoke();
@@ -93,8 +97,6 @@ public class AuthService : IAuthService
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
         return Convert.ToHexString(bytes).ToLower();
     }
-
-    // Optional: in AuthService
 
     public async Task RefreshCurrentUserAsync()
     {

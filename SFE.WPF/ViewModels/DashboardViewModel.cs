@@ -9,6 +9,9 @@ using SFE.Domain.Enums;
 using SkiaSharp;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.Windows.Threading;   // DispatcherTimer
+using SFE.Domain.Abstractions;    // ITimeProvider
 
 namespace SFE.WPF.ViewModels;
 
@@ -16,6 +19,21 @@ public partial class DashboardViewModel : BaseViewModel
 {
     private readonly DashboardService _dashboardService;
     private readonly IFiscalDeviceService _fiscalDevice;
+
+    private readonly ITimeProvider _time;
+    private DispatcherTimer? _clockTimer;
+
+    [ObservableProperty] private string _greetingText = "Bonjour";
+    [ObservableProperty] private string _greetingSubtext = "Bonne journée de travail";
+    [ObservableProperty] private string _greetingIconKey = "WeatherSunny"; // MaterialDesign PackIcon name
+    [ObservableProperty] private string _fullDateLabel = "";
+
+    [ObservableProperty] private int _daysUntilMonthEnd;
+    [ObservableProperty] private string _monthEndLabel = "";
+    [ObservableProperty] private string _fiscalReminder = "";
+
+    [ObservableProperty]
+    private ObservableCollection<CityTimeItem> _cityClocks = [];
 
     // ══════════ KPI ══════════
     [ObservableProperty] private string _todaySalesAmount = "0 CDF";
@@ -89,11 +107,21 @@ public partial class DashboardViewModel : BaseViewModel
         { InvoiceType.EA, SKColor.Parse("#EC4899") },
     };
 
-    public DashboardViewModel(DashboardService dashboardService, IFiscalDeviceService fiscalDevice)
+    public DashboardViewModel(
+        DashboardService dashboardService,
+        IFiscalDeviceService fiscalDevice,
+        ITimeProvider time)                   // 🆕
     {
         _dashboardService = dashboardService;
         _fiscalDevice = fiscalDevice;
+        _time = time;                      // 🆕
+
         PageTitle = "Tableau de bord";
+
+        InitializeCityClocks();                        // 🆕
+        StartClockTimer();                             // 🆕
+        TickClock();                                   // 🆕 initial paint
+
         _ = LoadDashboardAsync();
     }
 
@@ -235,6 +263,95 @@ public partial class DashboardViewModel : BaseViewModel
         {
             IsFiscalLoading = false;
         }
+
+
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // WORLD CLOCK — DRC cities (UTC+1 Kinshasa / UTC+2 Lubumbashi)
+    // ══════════════════════════════════════════════════════════════
+
+    private void InitializeCityClocks()
+    {
+        // DRC is split across two fixed offsets — no DST observed.
+        var tzWest = TimeSpan.FromHours(1); // W. Central Africa Standard Time
+        var tzEast = TimeSpan.FromHours(2); // South Africa Standard Time
+
+        CityClocks =
+        [
+            new CityTimeItem { CityName = "Kinshasa",   Region = "Capitale",        UtcOffset = tzWest },
+            new CityTimeItem { CityName = "Matadi",     Region = "Kongo-Central",   UtcOffset = tzWest },
+            new CityTimeItem { CityName = "Lubumbashi", Region = "Haut-Katanga",    UtcOffset = tzEast },
+            new CityTimeItem { CityName = "Goma",       Region = "Nord-Kivu",       UtcOffset = tzEast },
+            new CityTimeItem { CityName = "Bukavu",     Region = "Sud-Kivu",        UtcOffset = tzEast },
+            new CityTimeItem { CityName = "Kisangani",  Region = "Tshopo",          UtcOffset = tzEast },
+        ];
+    }
+
+    private void StartClockTimer()
+    {
+        _clockTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _clockTimer.Tick += (_, _) => TickClock();
+        _clockTimer.Start();
+    }
+
+    private void TickClock()
+    {
+        var utcNow = _time.UtcNow;
+
+        // Per-city tick
+        foreach (var c in CityClocks)
+            c.Update(utcNow);
+
+        // Banner — use Kinshasa (capital) as the reference wall clock
+        var kinshasa = utcNow.ToOffset(TimeSpan.FromHours(1));
+        var hour = kinshasa.Hour;
+
+        (GreetingText, GreetingSubtext, GreetingIconKey) = hour switch
+        {
+            >= 5 and < 12 => ("Bonjour", "Bonne journée de travail", "WeatherSunsetUp"),
+            >= 12 and < 17 => ("Bon après-midi", "L'activité bat son plein", "WeatherSunny"),
+            >= 17 and < 21 => ("Bonsoir", "Fin de journée en vue", "WeatherSunset"),
+            _ => ("Bonne soirée", "Hors des heures d'ouverture", "WeatherNight")
+        };
+
+        // French long-form date: "vendredi 8 mai 2026"
+        var frFR = CultureInfo.GetCultureInfo("fr-FR");
+        FullDateLabel = char.ToUpper(kinshasa.ToString("dddd", frFR)[0])
+                      + kinshasa.ToString("dddd d MMMM yyyy", frFR)[1..];
+
+        // Fiscal countdown — DRC DGI monthly declarations are due by the 15th
+        // of the following month. We surface "days until month-end" which is
+        // the internal cutoff most accounting teams track.
+        var todayLocal = DateOnly.FromDateTime(kinshasa.DateTime);
+        var lastDayOfMonth = new DateOnly(
+            todayLocal.Year, todayLocal.Month,
+            DateTime.DaysInMonth(todayLocal.Year, todayLocal.Month));
+
+        DaysUntilMonthEnd = lastDayOfMonth.DayNumber - todayLocal.DayNumber;
+        MonthEndLabel = lastDayOfMonth.ToString("dd MMM", frFR);
+
+        FiscalReminder = DaysUntilMonthEnd switch
+        {
+            0 => "🔔 Dernier jour du mois — clôture aujourd'hui",
+            1 => "⚠️ Clôture mensuelle demain",
+            <= 3 => $"📅 Clôture dans {DaysUntilMonthEnd} jours — préparez vos déclarations",
+            <= 7 => $"📅 Fin du mois dans {DaysUntilMonthEnd} jours",
+            _ => $"📅 {DaysUntilMonthEnd} jours avant fin de mois"
+        };
+    }
+
+    /// <summary>
+    /// Call from the page's Unloaded event to stop the clock timer
+    /// when navigating away from the dashboard.
+    /// </summary>
+    public void StopClock()
+    {
+        _clockTimer?.Stop();
+        _clockTimer = null;
     }
 
     // ────────────────────────────────────────────────

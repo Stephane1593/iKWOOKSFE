@@ -3,6 +3,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Helpers;
@@ -20,6 +21,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private readonly IUnitOfWork _unitOfWork;
     private readonly InvoiceService _invoiceService;
     private readonly IAuthService _auth;
+    private readonly ITimeProvider _timeProvider;   // 🆕
 
     // ══════════════════════ RESULTS ══════════════════════
     public ObservableCollection<InvoiceListItemViewModel> Invoices { get; } = new();
@@ -27,8 +29,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
     // ══════════════════════ DOCUMENT / DETAIL PANEL ══════
     [ObservableProperty] private InvoiceDocumentViewModel? _documentViewModel;
-    [ObservableProperty] private bool _showDocument;      // pop-out overlay
-    [ObservableProperty] private bool _showDetailPanel;    // inline right panel
+    [ObservableProperty] private bool _showDocument;
+    [ObservableProperty] private bool _showDetailPanel;
 
     // Detail-panel header
     [ObservableProperty] private string _detailTypeLabel = "";
@@ -123,11 +125,16 @@ public partial class SalesHistoryViewModel : BaseViewModel
     //  CTOR
     // ═════════════════════════════════════════════════════
 
-    public SalesHistoryViewModel(IUnitOfWork unitOfWork,InvoiceService invoiceService, IAuthService auth)
+    public SalesHistoryViewModel(
+        IUnitOfWork unitOfWork,
+        InvoiceService invoiceService,
+        IAuthService auth,
+        ITimeProvider timeProvider)               // 🆕
     {
         _unitOfWork = unitOfWork;
         _invoiceService = invoiceService;
         _auth = auth;
+        _timeProvider = timeProvider;             // 🆕
         PageTitle = "Journal des ventes";
         _ = InitializeAsync();
     }
@@ -189,7 +196,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
             var operators = await _unitOfWork.Invoices.GetDistinctOperatorNamesAsync();
 
             AvailableOperators.Clear();
-            AvailableOperators.Add("");  // "Tous" — empty = no filter
+            AvailableOperators.Add("");
 
             foreach (var name in operators.OrderBy(n => n))
                 AvailableOperators.Add(name);
@@ -234,7 +241,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
     private void ApplyPeriodPreset(string preset)
     {
-        var today = DateTime.Today;
+        // 🆕 Use local "today" from the time provider rather than DateTime.Today
+        var today = _timeProvider.LocalNow.Date;
         switch (preset)
         {
             case "Aujourd'hui":
@@ -293,7 +301,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
             Invoices.Clear();
             foreach (var inv in items)
-                Invoices.Add(InvoiceListItemViewModel.FromEntity(inv));
+                Invoices.Add(InvoiceListItemViewModel.FromEntity(inv, _timeProvider)); // 🆕
 
             NoResults = Invoices.Count == 0;
             await LoadPeriodStatsAsync();
@@ -342,7 +350,6 @@ public partial class SalesHistoryViewModel : BaseViewModel
     //  VIEW INVOICE → INLINE DETAIL PANEL
     // ═════════════════════════════════════════════════════
 
-    /// <summary>View invoice — now uses the shared builder too.</summary>
     [RelayCommand]
     private async Task ViewInvoice(InvoiceListItemViewModel? item)
     {
@@ -355,19 +362,24 @@ public partial class SalesHistoryViewModel : BaseViewModel
             var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(item.InvoiceId);
             if (invoice == null) return;
 
-            // ✅ APRÈS — preview only, doesn't burn a tirage number
+            // Preview only — doesn't burn a tirage number
             DocumentViewModel = await BuildDocumentViewModelAsync(invoice, printNumber: null);
+
+            // 🆕 Local projection for all DateTimeOffset fields
+            var createdLocal = _timeProvider.ToLocal(invoice.CreatedAt);
+            var firstPrintLocal = invoice.FirstPrintedAt is { } f ? _timeProvider.ToLocal(f) : (DateTimeOffset?)null;
+            var lastPrintLocal = invoice.LastPrintedAt is { } l ? _timeProvider.ToLocal(l) : (DateTimeOffset?)null;
 
             // Populate detail panel header
             DetailTypeLabel = invoice.Type.Label();
             DetailNumber = invoice.InvoiceNumber ?? $"#{invoice.Id}";
-            DetailDate = invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm");
+            DetailDate = createdLocal.ToString("dd/MM/yyyy HH:mm");   // 🆕
             DetailOperator = invoice.OperatorName ?? "—";
             DetailClient = invoice.ClientName ?? "Client comptoir";
             DetailClientNIF = invoice.ClientNIF ?? "—";
             DetailCodeDEF = invoice.CodeDEFDGI ?? "—";
 
-            // 🆕 Print status
+            // Print status
             DetailPrintBadge = invoice.PrintCount switch
             {
                 0 => "JAMAIS IMPRIMÉE",
@@ -378,8 +390,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
             DetailPrintStatus = invoice.PrintCount switch
             {
                 0 => "Aucun tirage enregistré",
-                1 => $"Original imprimé le {invoice.FirstPrintedAt:dd/MM/yyyy 'à' HH:mm}",
-                _ => $"{invoice.PrintCount} tirages · dernier {invoice.LastPrintedAt:dd/MM/yyyy 'à' HH:mm}"
+                1 => $"Original imprimé le {firstPrintLocal:dd/MM/yyyy 'à' HH:mm}",   // 🆕
+                _ => $"{invoice.PrintCount} tirages · dernier {lastPrintLocal:dd/MM/yyyy 'à' HH:mm}" // 🆕
             };
 
             DetailPrintBadgeFg = invoice.PrintCount switch
@@ -433,12 +445,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
     // ═════════════════════════════════════════════════════
 
     [RelayCommand]
-    private void CloseDetailPanel()
-    {
-        ShowDetailPanel = false;
-    }
+    private void CloseDetailPanel() => ShowDetailPanel = false;
 
-    /// <summary>Pop out the inline detail into the full overlay dialog.</summary>
     [RelayCommand]
     private void PopOutDetail()
     {
@@ -448,20 +456,12 @@ public partial class SalesHistoryViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    private void CloseDocument()
-    {
-        ShowDocument = false;
-    }
+    private void CloseDocument() => ShowDocument = false;
 
     // ═════════════════════════════════════════════════════
-    //  PRINT / EXPORT / COPY  (FIXED)
+    //  PRINT / EXPORT / COPY
     // ═════════════════════════════════════════════════════
 
-    /// <summary>Build a full InvoiceDocumentViewModel for the given invoice.</summary>
-    /// <param name="printNumber">
-    /// Numéro de tirage à imprimer sur le PDF (1 = ORIGINAL, ≥2 = DUPLICATA N°x).
-    /// Null = utilise la valeur actuelle de Invoice.PrintCount + 1 sans incrémenter (preview).
-    /// </param>
     private async Task<InvoiceDocumentViewModel?> BuildDocumentViewModelAsync(
         Invoice invoice, int? printNumber = null)
     {
@@ -488,7 +488,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
         catch { /* non-blocking */ }
 
-        var vm = InvoiceDocumentViewModel.Create(invoice, company, pos, exchangeRate);
+        // 🆕 Pass the ITimeProvider (correct signature: invoice, company, timeProvider, pos, rate)
+        var vm = InvoiceDocumentViewModel.Create(invoice, company, _timeProvider, pos, exchangeRate);
 
         if (vm != null)
         {
@@ -498,7 +499,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
             vm.SourceExchangeRate = exchangeRate;
             vm.SourceLogoBytes = logoBytes;
 
-            // 🆕 Print marker — peek (no DB write) by default
+            // Print marker — peek (no DB write) by default
             vm.PrintNumber = printNumber ?? Math.Max(1, invoice.PrintCount + 1);
         }
 
@@ -514,7 +515,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
         try
         {
-            // 🆕 Register a new tirage (DUPLICATA on subsequent calls)
+            var time = _timeProvider;
             var vm = await RegisterPrintAndBuildVmAsync(DocumentViewModel.SourceInvoice.Id);
             if (vm == null)
             {
@@ -523,16 +524,14 @@ public partial class SalesHistoryViewModel : BaseViewModel
                 return;
             }
 
-            // Refresh the on-screen VM so the panel reflects the new print count
             DocumentViewModel = vm;
 
-            InvoicePrintHelper.Print(vm);
+            InvoicePrintHelper.Print(vm, time);
 
             var marker = vm.PrintNumber <= 1 ? "Original" : $"Duplicata N°{vm.PrintNumber - 1}";
             StatusMessage = $"✓ {marker} — {vm.InvoiceNumber}";
             ShowSuccess = true;
 
-            // Refresh list row so PrintCount badge updates
             await RefreshSelectedRowAsync();
         }
         catch (Exception ex)
@@ -553,8 +552,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
         try
         {
             var invoiceId = DocumentViewModel.SourceInvoice.Id;
+            var time = _timeProvider;
 
-            // Peek the future print number (no DB write yet)
             int peekNo = await _invoiceService.PeekPrintNumberAsync(invoiceId);
             var inv = await _unitOfWork.Invoices.GetWithDetailsAsync(invoiceId);
             if (inv == null) { StatusMessage = "Facture introuvable."; ShowError = true; return; }
@@ -562,10 +561,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
             var vm = await BuildDocumentViewModelAsync(inv, peekNo);
             if (vm == null) { StatusMessage = "Impossible de préparer le document."; ShowError = true; return; }
 
-            // ExportPdf returns false if user cancelled the SaveFileDialog
-            if (InvoicePrintHelper.ExportPdf(vm))
+            if (InvoicePrintHelper.ExportPdf(vm,time))
             {
-                // 🆕 Only commit the tirage if the file was actually saved
                 try { await _invoiceService.RegisterPrintAsync(invoiceId); }
                 catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[Export] RegisterPrint failed: {ex.Message}"); }
 
@@ -576,7 +573,6 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
                 await RefreshSelectedRowAsync();
             }
-            // else: user cancelled — silent
         }
         catch (Exception ex)
         {
@@ -595,7 +591,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
 
         try
         {
-            // 🆕 Atomically issue a new tirage (will be DUPLICATA N°x for already-printed invoices)
+            var time = _timeProvider;
             var vm = await RegisterPrintAndBuildVmAsync(item.InvoiceId);
             if (vm == null)
             {
@@ -604,13 +600,12 @@ public partial class SalesHistoryViewModel : BaseViewModel
                 return;
             }
 
-            InvoicePrintHelper.Print(vm);
+            InvoicePrintHelper.Print(vm, time);
 
             var marker = vm.PrintNumber <= 1 ? "Original" : $"Duplicata N°{vm.PrintNumber - 1}";
             StatusMessage = $"✓ {marker} — {vm.InvoiceNumber}";
             ShowSuccess = true;
 
-            // Refresh the row in the list so PrintCount stays accurate
             await RefreshRowAsync(item);
         }
         catch (Exception ex)
@@ -620,8 +615,6 @@ public partial class SalesHistoryViewModel : BaseViewModel
         }
         finally { IsBusy = false; }
     }
-
-
 
     [RelayCommand]
     private void CopyCodeDEF()
@@ -664,10 +657,6 @@ public partial class SalesHistoryViewModel : BaseViewModel
             SelectedPeriodPreset = "Personnalisé";
     }
 
-    /// <summary>
-    /// Atomically registers a new tirage (ORIGINAL or DUPLICATA) and rebuilds
-    /// the document VM with the correct print marker.
-    /// </summary>
     private async Task<InvoiceDocumentViewModel?> RegisterPrintAndBuildVmAsync(int invoiceId)
     {
         int printNo;
@@ -678,7 +667,7 @@ public partial class SalesHistoryViewModel : BaseViewModel
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[Print] RegisterPrint failed: {ex.Message}");
-            printNo = 1; // safety: at least produce something
+            printNo = 1;
         }
 
         var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(invoiceId);
@@ -695,14 +684,18 @@ public partial class SalesHistoryViewModel : BaseViewModel
             var fresh = await _unitOfWork.Invoices.GetByIdAsync(item.InvoiceId);
             if (fresh == null) return;
 
+            // 🆕 Convert DateTimeOffset? → DateTime? via the time provider
             item.PrintCount = fresh.PrintCount;
-            item.FirstPrintedAt = fresh.FirstPrintedAt;
-            item.LastPrintedAt = fresh.LastPrintedAt;
+            item.FirstPrintedAt = fresh.FirstPrintedAt is { } f
+                ? _timeProvider.ToLocal(f).DateTime
+                : (DateTime?)null;
+            item.LastPrintedAt = fresh.LastPrintedAt is { } l
+                ? _timeProvider.ToLocal(l).DateTime
+                : (DateTime?)null;
         }
         catch { /* non-blocking */ }
     }
 
-    /// <summary>Refreshes the currently selected row.</summary>
     private async Task RefreshSelectedRowAsync()
     {
         if (SelectedInvoice != null)

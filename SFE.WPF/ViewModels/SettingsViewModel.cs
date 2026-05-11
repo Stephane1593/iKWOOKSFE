@@ -5,6 +5,7 @@ using Microsoft.Win32;
 using SFE.Application.Events;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using SFE.Infrastructure.EMcf;
 using SFE.Infrastructure.Mcf;
@@ -12,6 +13,7 @@ using SFE.WPF.Messages;
 using SFE.WPF.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;        // ★ FIX #3
 using System.IO;
 using System.IO.Ports;
 using System.Windows.Media;
@@ -23,9 +25,13 @@ public partial class SettingsViewModel : BaseViewModel
 {
     private readonly SettingsService _settingsService;
     private readonly IFiscalDeviceService _fiscalDevice;
+    private readonly ITimeProvider _time;         // ★ FIX #1
     private int _companyId;
     private int _activePosId;
     private bool _isLoading;
+
+    // Culture invariante pour tous les round-trips numériques — ★ FIX #3
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     // ══════════ ENTREPRISE ══════════
     [ObservableProperty] private string _companyName = "";
@@ -82,7 +88,7 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private bool _hasDgiRate;
     [ObservableProperty] private string _dgiUsdRate = "—";
     [ObservableProperty] private string _dgiUsdDate = "—";
-    private DateTime? _dgiExchangeRateDate;
+    private DateTimeOffset? _dgiExchangeRateDate;
 
     // ══════════ FIDÉLITÉ ══════════
     [ObservableProperty] private bool _isLoyaltyEnabled;
@@ -158,11 +164,13 @@ public partial class SettingsViewModel : BaseViewModel
     public SettingsViewModel(
         SettingsService settingsService,
         IAuthService authService,
-        IFiscalDeviceService fiscalDevice)
+        IFiscalDeviceService fiscalDevice,
+        ITimeProvider time)                       // ★ FIX #1
     {
         _settingsService = settingsService;
         _authService = authService;
         _fiscalDevice = fiscalDevice;
+        _time = time;
         PageTitle = "Paramètres";
 
         RefreshComPorts();
@@ -279,9 +287,10 @@ public partial class SettingsViewModel : BaseViewModel
     /// </summary>
     private void BroadcastExchangeRates()
     {
-        decimal.TryParse(CurrentExchangeRate, out var usd);
-        decimal.TryParse(CurrentExchangeRateEUR, out var eur);
-        decimal.TryParse(CurrentExchangeRateCNY, out var cny);
+        // ★ FIX #3 — culture invariante
+        decimal.TryParse(CurrentExchangeRate, NumberStyles.Any, Inv, out var usd);
+        decimal.TryParse(CurrentExchangeRateEUR, NumberStyles.Any, Inv, out var eur);
+        decimal.TryParse(CurrentExchangeRateCNY, NumberStyles.Any, Inv, out var cny);
 
         WeakReferenceMessenger.Default.Send(
             new ExchangeRateChangedMessage(
@@ -341,24 +350,26 @@ public partial class SettingsViewModel : BaseViewModel
             IsPriceModeTTC = data.DefaultPriceMode == PriceMode.TTC;
             DiscountBeforeTax = data.DiscountBeforeTax;
             DefaultCurrency = data.DefaultCurrency;
-            CurrentExchangeRate = data.CurrentExchangeRate.ToString("F2");
-            CurrentExchangeRateEUR = data.CurrentExchangeRateEUR.ToString("F2");
-            CurrentExchangeRateCNY = data.CurrentExchangeRateCNY.ToString("F2");
+
+            // ★ FIX #3 — format invariant (round-trip stable)
+            CurrentExchangeRate = data.CurrentExchangeRate.ToString("F2", Inv);
+            CurrentExchangeRateEUR = data.CurrentExchangeRateEUR.ToString("F2", Inv);
+            CurrentExchangeRateCNY = data.CurrentExchangeRateCNY.ToString("F2", Inv);
             ExchangeRateMode = data.ExchangeRateMode;
 
             // ── Restore DGI rate info ──
             _dgiExchangeRateDate = data.DgiExchangeRateDate;
             if (_dgiExchangeRateDate.HasValue && data.CurrentExchangeRate > 0)
             {
-                DgiUsdRate = data.CurrentExchangeRate.ToString("N2");
-                DgiUsdDate = _dgiExchangeRateDate.Value.ToString("dd/MM/yyyy");
+                DgiUsdRate = data.CurrentExchangeRate.ToString("N2", Inv);
+                DgiUsdDate = _dgiExchangeRateDate.Value.ToString("dd/MM/yyyy", Inv);
                 HasDgiRate = true;
             }
 
             IsLoyaltyEnabled = data.LoyaltyEnabled;
-            LoyaltyEarnRate = data.LoyaltyEarnRate.ToString("0");
-            LoyaltyRedeemRate = data.LoyaltyRedeemRate.ToString("0");
-            LoyaltyMinRedeemPoints = data.LoyaltyMinRedeemPoints.ToString();
+            LoyaltyEarnRate = data.LoyaltyEarnRate.ToString("0", Inv);
+            LoyaltyRedeemRate = data.LoyaltyRedeemRate.ToString("0", Inv);
+            LoyaltyMinRedeemPoints = data.LoyaltyMinRedeemPoints.ToString(Inv);
 
             IsLoaded = true;
         }
@@ -388,7 +399,44 @@ public partial class SettingsViewModel : BaseViewModel
 
         try
         {
-            decimal.TryParse(CurrentExchangeRate, out var rate);
+            // ★ FIX #4 — validation stricte, plus de fallbacks magiques
+            if (!TryParseDecimalStrict(CurrentExchangeRate, out var rateUsd, out var errUsd))
+            {
+                SaveStatus = $"Taux USD invalide : {errUsd}";
+                ShowSaveError = true;
+                return;
+            }
+            if (!TryParseDecimalStrict(CurrentExchangeRateEUR, out var rateEur, out var errEur))
+            {
+                SaveStatus = $"Taux EUR invalide : {errEur}";
+                ShowSaveError = true;
+                return;
+            }
+            if (!TryParseDecimalStrict(CurrentExchangeRateCNY, out var rateCny, out var errCny))
+            {
+                SaveStatus = $"Taux CNY invalide : {errCny}";
+                ShowSaveError = true;
+                return;
+            }
+            if (!TryParseDecimalStrict(LoyaltyEarnRate, out var earn, out var errEarn, allowZero: true))
+            {
+                SaveStatus = $"Taux de gain fidélité invalide : {errEarn}";
+                ShowSaveError = true;
+                return;
+            }
+            if (!TryParseDecimalStrict(LoyaltyRedeemRate, out var redeem, out var errRedeem, allowZero: true))
+            {
+                SaveStatus = $"Taux de conversion fidélité invalide : {errRedeem}";
+                ShowSaveError = true;
+                return;
+            }
+            if (!int.TryParse(LoyaltyMinRedeemPoints, NumberStyles.Integer, Inv, out var minPts)
+                || minPts < 0)
+            {
+                SaveStatus = "Nombre minimum de points invalide.";
+                ShowSaveError = true;
+                return;
+            }
 
             var data = new SettingsData
             {
@@ -405,15 +453,15 @@ public partial class SettingsViewModel : BaseViewModel
                 DefaultPriceMode = IsPriceModeTTC ? PriceMode.TTC : PriceMode.HT,
                 DiscountBeforeTax = DiscountBeforeTax,
                 DefaultCurrency = DefaultCurrency,
-                CurrentExchangeRate = rate > 0 ? rate : 2800m,
-                CurrentExchangeRateEUR = decimal.TryParse(CurrentExchangeRateEUR, out var rateEUR) ? rateEUR : 3100m,
-                CurrentExchangeRateCNY = decimal.TryParse(CurrentExchangeRateCNY, out var rateCNY) ? rateCNY : 385m,
+                CurrentExchangeRate = rateUsd,
+                CurrentExchangeRateEUR = rateEur,
+                CurrentExchangeRateCNY = rateCny,
                 ExchangeRateMode = ExchangeRateMode,
-                DgiExchangeRateDate = _dgiExchangeRateDate,   // ★ persist DGI date
+                DgiExchangeRateDate = _dgiExchangeRateDate,
                 LoyaltyEnabled = IsLoyaltyEnabled,
-                LoyaltyEarnRate = decimal.TryParse(LoyaltyEarnRate, out var earn) ? earn : 1000m,
-                LoyaltyRedeemRate = decimal.TryParse(LoyaltyRedeemRate, out var redeem) ? redeem : 500m,
-                LoyaltyMinRedeemPoints = int.TryParse(LoyaltyMinRedeemPoints, out var minPts) ? minPts : 100,
+                LoyaltyEarnRate = earn,
+                LoyaltyRedeemRate = redeem,
+                LoyaltyMinRedeemPoints = minPts,
                 DeploymentMode = DeploymentMode.Standalone,
                 ActivePosId = _activePosId,
                 DeviceType = IsEmcfSelected ? DeviceType.EMcf : DeviceType.Mcf,
@@ -430,7 +478,7 @@ public partial class SettingsViewModel : BaseViewModel
             if (_fiscalDevice is FiscalDeviceResolver resolver)
                 resolver.Invalidate();
 
-            // ★ Broadcast all changed settings so the rest of the app picks them up
+            // ★ Broadcast so the rest of the app picks up changes
             WeakReferenceMessenger.Default.Send(
                 new PriceModeChangedMessage(data.DefaultPriceMode));
             WeakReferenceMessenger.Default.Send(
@@ -476,7 +524,6 @@ public partial class SettingsViewModel : BaseViewModel
 
             if (info.CurrencyRates == null || info.CurrencyRates.Count == 0)
             {
-                // ★ Better message for MCF that doesn't return rates
                 DgiRateStatus = IsEmcfSelected
                     ? "Aucun taux de change retourné par la DGI."
                     : "Le MCF n'a pas retourné de taux de change. Vérifiez que le dispositif est synchronisé avec le serveur DGI.";
@@ -495,14 +542,7 @@ public partial class SettingsViewModel : BaseViewModel
                 return;
             }
 
-            // ── Update UI fields ──
-            CurrentExchangeRate = usdRate.Rate.ToString("F2");
-            DgiUsdRate = usdRate.Rate.ToString("N2");
-            DgiUsdDate = usdRate.Date != default
-                ? usdRate.Date.ToString("dd/MM/yyyy")
-                : DateTime.Now.ToString("dd/MM/yyyy");
-            _dgiExchangeRateDate = usdRate.Date != default ? usdRate.Date : DateTime.Now;
-            HasDgiRate = true;
+            ApplyDgiUsdRateToUi(usdRate.Rate, usdRate.Date);
 
             // ── Update device info display table ──
             DeviceCurrencyRates.Clear();
@@ -512,31 +552,15 @@ public partial class SettingsViewModel : BaseViewModel
                 {
                     Code = cr.Code ?? "?",
                     Description = cr.Description ?? "",
-                    Date = cr.Date != default ? cr.Date.ToString("dd/MM/yyyy") : "—",
-                    Rate = cr.Rate.ToString("N2")
+                    Date = cr.Date != default ? cr.Date.ToString("dd/MM/yyyy", Inv) : "—",
+                    Rate = cr.Rate.ToString("N2", Inv)
                 });
             }
 
-            // ── Auto-save to database so the value persists ──
-            try
-            {
-                var currentSettings = await _settingsService.LoadSettingsAsync();
-                currentSettings.CurrentExchangeRate = usdRate.Rate;
-                currentSettings.DgiExchangeRateDate = _dgiExchangeRateDate;
-                await _settingsService.SaveSettingsAsync(currentSettings);
+            // ★ FIX #6 — auto-save factorisé
+            await PersistDgiUsdRateAsync(usdRate.Rate, _dgiExchangeRateDate);
 
-                // ★ Broadcast so POS/Invoice screens pick it up immediately
-                BroadcastExchangeRates();
-
-                Debug.WriteLine($"[Settings] DGI rate saved: 1 USD = {usdRate.Rate:N2} CDF");
-            }
-            catch (Exception saveEx)
-            {
-                Debug.WriteLine($"[Settings] Failed to auto-save DGI rate: {saveEx.Message}");
-                // Non-fatal: the UI already shows the rate, user can click Save manually
-            }
-
-            DgiRateStatus = $"✓ Taux USD appliqué : 1 USD = {usdRate.Rate:N2} CDF — Date DGI : {DgiUsdDate}";
+            DgiRateStatus = $"✓ Taux USD appliqué : 1 USD = {usdRate.Rate.ToString("N2", Inv)} CDF — Date DGI : {DgiUsdDate}";
             ShowDgiRateSuccess = true;
 
             await Task.Delay(5000);
@@ -598,11 +622,11 @@ public partial class SettingsViewModel : BaseViewModel
             };
 
             DeviceLastSync = info.LastServerConnection.HasValue
-                ? info.LastServerConnection.Value.ToString("dd/MM/yyyy HH:mm:ss")
+                ? info.LastServerConnection.Value.ToString("dd/MM/yyyy HH:mm:ss", Inv)
                 : "—";
 
             DeviceDateTime = info.DeviceDateTime.HasValue
-                ? info.DeviceDateTime.Value.ToString("dd/MM/yyyy HH:mm:ss")
+                ? info.DeviceDateTime.Value.ToString("dd/MM/yyyy HH:mm:ss", Inv)
                 : "—";
 
             // ── Taxpayer ──
@@ -613,19 +637,21 @@ public partial class SettingsViewModel : BaseViewModel
             DeviceTaxpayerEmail = info.TaxpayerEmail ?? "—";
 
             // ── Counters ──
-            DeviceTotalTransactions = info.TotalTransactions.ToString("N0");
-            DeviceSalesCount = info.SalesInvoiceCount.ToString("N0");
-            DeviceCreditNoteCount = info.CreditNoteCount.ToString("N0");
-            DeviceTransactionsSent = info.TransactionsSent.ToString("N0");
-            DeviceTransactionsInDevice = info.TransactionsInDevice.ToString("N0");
-            DevicePendingCount = info.PendingRequestsCount.ToString();
+            DeviceTotalTransactions = info.TotalTransactions.ToString("N0", Inv);
+            DeviceSalesCount = info.SalesInvoiceCount.ToString("N0", Inv);
+            DeviceCreditNoteCount = info.CreditNoteCount.ToString("N0", Inv);
+            DeviceTransactionsSent = info.TransactionsSent.ToString("N0", Inv);
+            DeviceTransactionsInDevice = info.TransactionsInDevice.ToString("N0", Inv);
+            DevicePendingCount = info.PendingRequestsCount.ToString(Inv);
 
             // ── Last Invoice ──
             if (info.LastInvoiceDate.HasValue)
             {
                 DeviceLastInvoice = $"{info.LastInvoiceType ?? ""} {info.LastInvoiceNumber ?? ""}" +
-                    $" — {info.LastInvoiceDate.Value:dd/MM/yyyy HH:mm}" +
-                    (info.LastInvoiceAmount.HasValue ? $" — {info.LastInvoiceAmount.Value:N0} CDF" : "");
+                    $" — {info.LastInvoiceDate.Value.ToString("dd/MM/yyyy HH:mm", Inv)}" +
+                    (info.LastInvoiceAmount.HasValue
+                        ? $" — {info.LastInvoiceAmount.Value.ToString("N0", Inv)} CDF"
+                        : "");
             }
             else
             {
@@ -633,7 +659,7 @@ public partial class SettingsViewModel : BaseViewModel
             }
 
             // ── e-MCF specific ──
-            DeviceTokenValid = info.TokenValidUntil?.ToString("dd/MM/yyyy HH:mm") ?? "—";
+            DeviceTokenValid = info.TokenValidUntil?.ToString("dd/MM/yyyy HH:mm", Inv) ?? "—";
             DeviceApiVersion = info.ApiVersion ?? "—";
             DeviceEmcfStatus = info.EmcfStatus ?? "—";
             DeviceLastError = info.LastError ?? "Aucune";
@@ -645,7 +671,7 @@ public partial class SettingsViewModel : BaseViewModel
             for (int i = 0; i < 16; i++)
             {
                 if (info.TaxRates[i] != 0)
-                    activeTaxes.Add($"{taxGroups[i]}={info.TaxRates[i]:F1}%");
+                    activeTaxes.Add($"{taxGroups[i]}={info.TaxRates[i].ToString("F1", Inv)}%");
             }
             DeviceTaxRatesDisplay = activeTaxes.Count > 0
                 ? string.Join("  |  ", activeTaxes)
@@ -661,8 +687,8 @@ public partial class SettingsViewModel : BaseViewModel
                     {
                         Code = cr.Code ?? "?",
                         Description = cr.Description ?? "",
-                        Date = cr.Date != default ? cr.Date.ToString("dd/MM/yyyy") : "—",
-                        Rate = cr.Rate.ToString("N2")
+                        Date = cr.Date != default ? cr.Date.ToString("dd/MM/yyyy", Inv) : "—",
+                        Rate = cr.Rate.ToString("N2", Inv)
                     });
                 }
 
@@ -671,27 +697,10 @@ public partial class SettingsViewModel : BaseViewModel
                     r.Code.Equals("USD", StringComparison.OrdinalIgnoreCase));
                 if (usd != null && usd.Rate > 0)
                 {
-                    DgiUsdRate = usd.Rate.ToString("N2");
-                    DgiUsdDate = usd.Date != default ? usd.Date.ToString("dd/MM/yyyy") : "—";
-                    _dgiExchangeRateDate = usd.Date != default ? usd.Date : DateTime.Now;
-                    HasDgiRate = true;
+                    ApplyDgiUsdRateToUi(usd.Rate, usd.Date);
 
-                    // Update the settings field
-                    CurrentExchangeRate = usd.Rate.ToString("F2");
-
-                    // ★ Auto-save to database
-                    try
-                    {
-                        var currentSettings = await _settingsService.LoadSettingsAsync();
-                        currentSettings.CurrentExchangeRate = usd.Rate;
-                        currentSettings.DgiExchangeRateDate = _dgiExchangeRateDate;
-                        await _settingsService.SaveSettingsAsync(currentSettings);
-                        BroadcastExchangeRates();
-                    }
-                    catch (Exception saveEx)
-                    {
-                        Debug.WriteLine($"[Settings] Auto-save DGI rate failed: {saveEx.Message}");
-                    }
+                    // ★ FIX #6 — auto-save factorisé
+                    await PersistDgiUsdRateAsync(usd.Rate, _dgiExchangeRateDate);
                 }
             }
 
@@ -749,6 +758,7 @@ public partial class SettingsViewModel : BaseViewModel
         ShowSaveError = false;
 
         var sw = Stopwatch.StartNew();
+        var nowLocal = _time.LocalNow;             // ★ FIX #1 — pour affichage opérateur
 
         try
         {
@@ -766,13 +776,14 @@ public partial class SettingsViewModel : BaseViewModel
                     TestResponseTime = "—";
                     TestNIM = "—";
                     TestServerVersion = "—";
-                    TestDetails = $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}";
+                    TestDetails = $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}";
                     TestRawResponse = "(aucun appel effectué)";
                     HasTestResult = true;
                     return;
                 }
 
-                var client = new EMcfHttpClient(EmcfApiUrl, EmcfToken, CompanyNIF);
+                // ★ FIX #2 — EMcfHttpClient est IDisposable
+                using var client = new EMcfHttpClient(EmcfApiUrl, EmcfToken, CompanyNIF,_time);
                 var status = await client.GetStatusAsync();
                 sw.Stop();
 
@@ -788,7 +799,12 @@ public partial class SettingsViewModel : BaseViewModel
                     TestMessage = "Connexion e-MCF réussie. Machine identifiée avec succès.";
                     TestNIM = status.NIM ?? "—";
                     TestServerVersion = "e-MCF (API REST)";
-                    TestDetails = $"Mode : e-MCF (API REST)\nURL : {EmcfApiUrl}\nNIF : {CompanyNIF}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails =
+                        $"Mode : e-MCF (API REST)\n" +
+                        $"URL : {EmcfApiUrl}\n" +
+                        $"NIF : {CompanyNIF}\n" +
+                        $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                        $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"{{ \"success\": true, \"nim\": \"{status.NIM}\" }}";
 
                     await AppEventBus.PublishAsync(new AppEventArgs
@@ -803,7 +819,11 @@ public partial class SettingsViewModel : BaseViewModel
                     TestMessage = status.ErrorMessage ?? "Erreur de connexion inconnue.";
                     TestNIM = "—";
                     TestServerVersion = "—";
-                    TestDetails = $"Mode : e-MCF (API REST)\nURL : {EmcfApiUrl}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails =
+                        $"Mode : e-MCF (API REST)\n" +
+                        $"URL : {EmcfApiUrl}\n" +
+                        $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                        $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"{{ \"success\": false, \"error\": \"{status.ErrorMessage}\" }}";
 
                     await AppEventBus.PublishAsync(new AppEventArgs
@@ -824,7 +844,7 @@ public partial class SettingsViewModel : BaseViewModel
                     TestResponseTime = "—";
                     TestNIM = "—";
                     TestServerVersion = "—";
-                    TestDetails = $"Testé le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}";
+                    TestDetails = $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}";
                     TestRawResponse = "(aucun appel effectué)";
                     HasTestResult = true;
                     return;
@@ -835,7 +855,7 @@ public partial class SettingsViewModel : BaseViewModel
                 if (_fiscalDevice is FiscalDeviceResolver resolver)
                     resolver.Invalidate();
 
-                using var mcfClient = new McfSerialClient(SelectedComPort, BaudRate);
+                using var mcfClient = new McfSerialClient(SelectedComPort,_time, BaudRate);
                 mcfClient.Connect();
                 var status = await mcfClient.GetStatusAsync();
                 sw.Stop();
@@ -851,7 +871,15 @@ public partial class SettingsViewModel : BaseViewModel
                     TestMessage = $"MCF détecté et opérationnel sur {SelectedComPort}.";
                     TestNIM = status.NIM ?? "—";
                     TestServerVersion = "MCF (Port Série)";
-                    TestDetails = $"Mode : MCF (Port Série)\nPort : {SelectedComPort}\nBaud Rate : {BaudRate}\nNIF : {status.NIF}\nNIM : {status.NIM}\nFormat : 8N1\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails =
+                        $"Mode : MCF (Port Série)\n" +
+                        $"Port : {SelectedComPort}\n" +
+                        $"Baud Rate : {BaudRate}\n" +
+                        $"NIF : {status.NIF}\n" +
+                        $"NIM : {status.NIM}\n" +
+                        $"Format : 8N1\n" +
+                        $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                        $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"NIM={status.NIM}, NIF={status.NIF}, Success=true";
 
                     await AppEventBus.PublishAsync(new AppEventArgs
@@ -866,7 +894,12 @@ public partial class SettingsViewModel : BaseViewModel
                     TestMessage = status.ErrorMessage ?? "Impossible de communiquer avec le MCF.";
                     TestNIM = "—";
                     TestServerVersion = "—";
-                    TestDetails = $"Mode : MCF (Port Série)\nPort : {SelectedComPort}\nBaud Rate : {BaudRate}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps de réponse : {sw.ElapsedMilliseconds} ms";
+                    TestDetails =
+                        $"Mode : MCF (Port Série)\n" +
+                        $"Port : {SelectedComPort}\n" +
+                        $"Baud Rate : {BaudRate}\n" +
+                        $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                        $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
                     TestRawResponse = $"Error: {status.ErrorMessage}";
 
                     await AppEventBus.PublishAsync(new AppEventArgs
@@ -890,7 +923,10 @@ public partial class SettingsViewModel : BaseViewModel
             TestResponseTime = $"{sw.ElapsedMilliseconds} ms";
             TestNIM = "—";
             TestServerVersion = "—";
-            TestDetails = $"Exception : {ex.GetType().Name}\nTesté le : {DateTime.Now:dd/MM/yyyy HH:mm:ss}\nTemps : {sw.ElapsedMilliseconds} ms";
+            TestDetails =
+                $"Exception : {ex.GetType().Name}\n" +
+                $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                $"Temps : {sw.ElapsedMilliseconds} ms";
             TestRawResponse = ex.ToString();
             HasTestResult = true;
 
@@ -933,6 +969,94 @@ public partial class SettingsViewModel : BaseViewModel
         ShowSaveSuccess = true;
 
         return Task.CompletedTask;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ★ FIX #1 + #6 — Applique un taux USD DGI sur les champs UI (sans persistance).
+    /// Utilise UtcNow comme fallback si la DGI ne renvoie pas de date.
+    /// </summary>
+    private void ApplyDgiUsdRateToUi(decimal rate, DateTimeOffset dgiDate)
+    {
+        var effectiveDate = dgiDate != default
+            ? dgiDate
+            // Fallback : on utilise UtcNow pour rester cohérent avec la doctrine §1.1.
+            // Sémantiquement c'est "la DGI n'a pas horodaté, on note le moment de l'appel".
+            : _time.UtcNow;
+
+        CurrentExchangeRate = rate.ToString("F2", Inv);
+        DgiUsdRate = rate.ToString("N2", Inv);
+        DgiUsdDate = effectiveDate.ToString("dd/MM/yyyy", Inv);
+        _dgiExchangeRateDate = effectiveDate;
+        HasDgiRate = true;
+    }
+
+    /// <summary>
+    /// ★ FIX #6 — Persiste le taux USD DGI en base en préservant les autres
+    /// champs de paramètres. Non-bloquant : les erreurs sont logguées sans
+    /// interrompre le flux UI.
+    /// </summary>
+    private async Task PersistDgiUsdRateAsync(decimal rate, DateTimeOffset? dgiDate)
+    {
+        try
+        {
+            var current = await _settingsService.LoadSettingsAsync();
+            current.CurrentExchangeRate = rate;
+            current.DgiExchangeRateDate = dgiDate;
+            await _settingsService.SaveSettingsAsync(current);
+
+            // ★ Broadcast so POS/Invoice screens pick it up immediately
+            BroadcastExchangeRates();
+
+            Debug.WriteLine($"[Settings] DGI rate saved: 1 USD = {rate.ToString("N2", Inv)} CDF");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Settings] Auto-save DGI rate failed: {ex.Message}");
+            // Non-fatal : l'UI affiche déjà le taux, l'utilisateur peut cliquer Save.
+        }
+    }
+
+    /// <summary>
+    /// ★ FIX #3 + #4 — Parse décimal culture-invariant avec message d'erreur explicite.
+    /// </summary>
+    private static bool TryParseDecimalStrict(
+        string? input,
+        out decimal value,
+        out string error,
+        bool allowZero = false)
+    {
+        value = 0m;
+        error = "";
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            error = "valeur vide";
+            return false;
+        }
+
+        if (!decimal.TryParse(input.Trim(), NumberStyles.Any, Inv, out value))
+        {
+            error = $"« {input} » n'est pas un nombre valide";
+            return false;
+        }
+
+        if (!allowZero && value <= 0m)
+        {
+            error = "la valeur doit être strictement positive";
+            return false;
+        }
+
+        if (allowZero && value < 0m)
+        {
+            error = "la valeur ne peut pas être négative";
+            return false;
+        }
+
+        return true;
     }
 }
 

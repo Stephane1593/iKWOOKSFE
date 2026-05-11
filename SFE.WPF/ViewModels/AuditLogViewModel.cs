@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -13,6 +14,7 @@ namespace SFE.WPF.ViewModels;
 public partial class AuditLogViewModel : BaseViewModel, IActivatable
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITimeProvider _time;
 
     // ═══════════════ RESULTS ═══════════════
     public ObservableCollection<AuditLogItemVm> Entries { get; } = new();
@@ -36,8 +38,9 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
     [ObservableProperty] private bool _hasDetails;
 
     // ═══════════════ FILTERS ═══════════════
-    [ObservableProperty] private DateTime _dateFrom = DateTime.Today;
-    [ObservableProperty] private DateTime _dateTo = DateTime.Today;
+    // Kept as DateTime for WPF DatePicker binding; converted to DateTimeOffset at the boundary.
+    [ObservableProperty] private DateTime _dateFrom;
+    [ObservableProperty] private DateTime _dateTo;
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private string _filterUser = "";
     [ObservableProperty] private AuditModule? _filterModule;
@@ -83,10 +86,16 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
     // CTOR
     // ═══════════════════════════════════════════
 
-    public AuditLogViewModel(IUnitOfWork unitOfWork)
+    public AuditLogViewModel(IUnitOfWork unitOfWork, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
+        _time = time;
         PageTitle = "Journal d'audit";
+
+        // Sensible defaults before first activation
+        var today = _time.LocalNow.Date;
+        _dateFrom = today;
+        _dateTo = today;
     }
 
     public async Task ActivateAsync()
@@ -142,7 +151,7 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
 
     private void ApplyPeriodPreset(string preset)
     {
-        var today = DateTime.Today;
+        var today = _time.LocalNow.Date;
         switch (preset)
         {
             case "Aujourd'hui":
@@ -168,6 +177,27 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
         }
     }
 
+    /// <summary>
+    /// Converts a local filter DateTime (midnight) into a DateTimeOffset
+    /// using the current local offset from the injected time provider.
+    /// </summary>
+    private DateTimeOffset ToStartOfDayOffset(DateTime date)
+    {
+        var local = DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified);
+        return new DateTimeOffset(local, _time.LocalNow.Offset);
+    }
+
+    /// <summary>
+    /// Converts a local filter DateTime into a DateTimeOffset representing
+    /// the end of that day (23:59:59.9999999).
+    /// </summary>
+    private DateTimeOffset ToEndOfDayOffset(DateTime date)
+    {
+        var local = DateTime.SpecifyKind(
+            date.Date.AddDays(1).AddTicks(-1), DateTimeKind.Unspecified);
+        return new DateTimeOffset(local, _time.LocalNow.Offset);
+    }
+
     private async Task LoadAsync()
     {
         IsBusy = true;
@@ -176,8 +206,8 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
         {
             var criteria = new AuditLogSearchCriteria
             {
-                DateFrom = DateFrom,
-                DateTo = DateTo,
+                DateFrom = ToStartOfDayOffset(DateFrom),
+                DateTo = ToEndOfDayOffset(DateTo),
                 Module = FilterModule,
                 UserName = string.IsNullOrWhiteSpace(FilterUser) ? null : FilterUser.Trim(),
                 SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim()
@@ -198,7 +228,7 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
 
             Entries.Clear();
             foreach (var e in items)
-                Entries.Add(AuditLogItemVm.FromEntity(e));
+                Entries.Add(AuditLogItemVm.FromEntity(e, _time));
 
             NoResults = Entries.Count == 0;
             await LoadStatsAsync();
@@ -211,7 +241,9 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
     {
         try
         {
-            var s = await _unitOfWork.AuditLogs.GetStatsAsync(DateFrom, DateTo);
+            var s = await _unitOfWork.AuditLogs.GetStatsAsync(
+                ToStartOfDayOffset(DateFrom),
+                ToEndOfDayOffset(DateTo));
             StatsTotalCount = s.TotalCount;
             StatsInvoiceCount = s.InvoiceCount;
             StatsReportCount = s.ReportCount;
@@ -241,7 +273,9 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
         if (item == null) { ShowDetailPanel = false; return; }
         SelectedEntry = item;
 
-        DetailTimestamp = item.Timestamp.ToString("dd/MM/yyyy HH:mm:ss");
+        // Show timestamp in the user's local time zone (via time provider offset)
+        var local = item.Timestamp.ToOffset(_time.LocalNow.Offset);
+        DetailTimestamp = local.ToString("dd/MM/yyyy HH:mm:ss");
         DetailUser = item.UserName;
         DetailModule = item.ModuleLabel;
         DetailAction = item.ActionLabel;
@@ -284,8 +318,8 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
             // Fetch ALL matching entries (not just current page)
             var criteria = new AuditLogSearchCriteria
             {
-                DateFrom = DateFrom,
-                DateTo = DateTo,
+                DateFrom = ToStartOfDayOffset(DateFrom),
+                DateTo = ToEndOfDayOffset(DateTo),
                 Module = FilterModule,
                 UserName = string.IsNullOrWhiteSpace(FilterUser) ? null : FilterUser.Trim(),
                 SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim()
@@ -303,15 +337,17 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
 
             if (dlg.ShowDialog() != true) return;
 
+            var offset = _time.LocalNow.Offset;
             var sb = new StringBuilder();
             sb.AppendLine("Date;Heure;Utilisateur;Module;Action;Description;" +
                           "N° Facture;Code DEF/DGI;Entité;ID Entité;PDV;Détails");
 
             foreach (var e in items)
             {
+                var localTs = e.Timestamp.ToOffset(offset);
                 sb.AppendLine(string.Join(";",
-                    Esc(e.Timestamp.ToString("dd/MM/yyyy")),
-                    Esc(e.Timestamp.ToString("HH:mm:ss")),
+                    Esc(localTs.ToString("dd/MM/yyyy")),
+                    Esc(localTs.ToString("HH:mm:ss")),
                     Esc(e.UserName),
                     Esc(e.Module.Label()),
                     Esc(e.Action.Label()),
@@ -370,7 +406,13 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
 public class AuditLogItemVm
 {
     public long Id { get; set; }
-    public DateTime Timestamp { get; set; }
+
+    /// <summary>The original stored timestamp (UTC-relative via DateTimeOffset).</summary>
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>Timestamp rendered in the user's local time zone (set at creation).</summary>
+    public DateTimeOffset LocalTimestamp { get; set; }
+
     public AuditAction Action { get; set; }
     public AuditModule Module { get; set; }
     public string Description { get; set; } = "";
@@ -382,9 +424,9 @@ public class AuditLogItemVm
     public string Details { get; set; } = "";
     public string PointOfSaleName { get; set; } = "";
 
-    // ── Display helpers ──
-    public string DateDisplay => Timestamp.ToString("dd/MM/yyyy");
-    public string TimeDisplay => Timestamp.ToString("HH:mm:ss");
+    // ── Display helpers (in user's local time zone) ──
+    public string DateDisplay => LocalTimestamp.ToString("dd/MM/yyyy");
+    public string TimeDisplay => LocalTimestamp.ToString("HH:mm:ss");
     public string ModuleLabel => Module.Label();
     public string ActionLabel => Action.Label();
     public string CodeDEFShort => string.IsNullOrEmpty(CodeDEFDGI) ? ""
@@ -438,10 +480,11 @@ public class AuditLogItemVm
         _ => "·"
     };
 
-    public static AuditLogItemVm FromEntity(AuditLogEntry e) => new()
+    public static AuditLogItemVm FromEntity(AuditLogEntry e, ITimeProvider time) => new()
     {
         Id = e.Id,
         Timestamp = e.Timestamp,
+        LocalTimestamp = e.Timestamp.ToOffset(time.LocalNow.Offset),
         Action = e.Action,
         Module = e.Module,
         Description = e.Description,

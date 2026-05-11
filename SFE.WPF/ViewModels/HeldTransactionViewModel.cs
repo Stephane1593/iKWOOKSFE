@@ -13,7 +13,7 @@ public class HeldTransactionViewModel
     public string Id { get; set; } = $"H{Interlocked.Increment(ref _counter):D3}";
     public string Label { get; set; } = "";
     public string Reason { get; set; } = "";
-    public DateTime HeldAt { get; set; }
+    public DateTimeOffset HeldAt { get; set; }
     public decimal TotalTTC { get; set; }
     public int ItemCount { get; set; }
     public string OperatorName { get; set; } = "";
@@ -28,7 +28,7 @@ public class HeldTransactionViewModel
 
     public ObservableCollection<CartItemSnapshot> Items { get; } = new();
 
-    public string TimeDisplay => HeldAt.ToString("HH:mm");
+    public string TimeDisplay => HeldAt.ToLocalTime().ToString("HH:mm");
     public string TotalDisplay => $"{TotalTTC:N0}";
 }
 

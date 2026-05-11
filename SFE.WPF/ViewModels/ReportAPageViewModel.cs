@@ -1,7 +1,7 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using SFE.WPF.Services;
 
@@ -12,21 +12,22 @@ public partial class ReportAPageViewModel : BaseReportListViewModel
     protected override ReportType ReportType => ReportType.A;
     protected override string TypePrefix => "A";
 
-    [ObservableProperty] private bool _isBusy;
+    // 🔧 FIX : suppression de _timeProvider (shadow) et _isBusy (redondant)
 
     public ReportAPageViewModel(
         IUnitOfWork uow,
         ReportService reportService,
         CashSessionState sessionState,
-        IAuthService authService)
-        : base(uow, reportService, sessionState, authService)
+        IAuthService authService,
+        ITimeProvider timeProvider)
+        : base(uow, reportService, sessionState, authService, timeProvider)
     {
     }
 
     [RelayCommand]
     private async Task GenerateA()
     {
-        IsBusy = true;
+        IsLoading = true;
         ClearStatus();
 
         try
@@ -44,7 +45,7 @@ public partial class ReportAPageViewModel : BaseReportListViewModel
         }
         finally
         {
-            IsBusy = false;
+            IsLoading = false;
         }
     }
 }
