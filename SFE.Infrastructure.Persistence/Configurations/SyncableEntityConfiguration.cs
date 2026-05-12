@@ -9,7 +9,7 @@ public static class SyncableEntityConfiguration
 {
     /// <summary>Configures columns shared by every syncable entity (root or tenant-scoped).</summary>
     public static void ApplySyncableRootConfig<T>(this EntityTypeBuilder<T> b)
-        where T : SyncableRootEntity
+        where T : SyncableEntity
     {
         b.HasKey(e => e.Id);
 

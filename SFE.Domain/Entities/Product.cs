@@ -1,11 +1,15 @@
-﻿using SFE.Domain.Enums;
+﻿using SFE.Domain.Common;
+using SFE.Domain.Enums;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SFE.Domain.Entities;
 
-public class Product
+public class Product : SyncableEntity
 {
-    public int Id { get; set; }
+
+    // Id, CompanyId, SyncId, Version, CreatedAtUtc, UpdatedAtUtc,
+    // DeletedAtUtc, OriginPointOfSaleSyncId — all inherited.
+   // public int Id { get; set; }
 
     // === Identification ===
     public string Code { get; set; } = string.Empty;
@@ -42,13 +46,14 @@ public class Product
 
     // === Catégorie ===
     public int? CategoryId { get; set; }
+    public Ulid? CategorySyncId { get; set; }     // portable FK (set when Category is assigned)
     public ProductCategory? Category { get; set; }
 
     // === État ===
     public bool IsActive { get; set; } = true;
     public bool IsFavorite { get; set; } = false;
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset? UpdatedAt { get; set; }
+  //  public DateTimeOffset CreatedAt { get; set; }
+  //  public DateTimeOffset? UpdatedAt { get; set; }
 
     // Multi-devise : stockés à la création/modification
     public decimal UnitPriceHtCdf { get; set; }

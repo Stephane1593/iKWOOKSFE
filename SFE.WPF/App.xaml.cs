@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Infrastructure.Persistence;
+using SFE.Infrastructure.Persistence.Interceptors; // ← add if SyncTrackingInterceptor lives here
 using SFE.Infrastructure.EMcf;
 using SFE.WPF.ViewModels;
 using SFE.WPF.Services;
@@ -55,7 +56,6 @@ public partial class App : System.Windows.Application
             {
                 case SessionAction.JoinExisting:
                     {
-                        // Same POS — shift handover
                         var session = sessionState.Current!;
                         MessageBox.Show(
                             $"Une session de caisse est déjà ouverte.\n\n" +
@@ -68,19 +68,16 @@ public partial class App : System.Windows.Application
                             MessageBoxButton.OK,
                             MessageBoxImage.Information);
 
-                        // Update the operator name on the session
                         sessionState.Current!.OperatorName = authService.CurrentUser!.FullName;
                         break;
                     }
 
                 case SessionAction.BlockedWrongPos:
                     {
-                        // User is assigned to a different POS than the open session
                         var session = sessionState.Current!;
                         var user = authService.CurrentUser!;
                         var userPosId = user.PointOfSaleId;
 
-                        // Try to get the user's POS name for the message
                         string userPosDisplay = "un autre point de vente";
                         if (userPosId.HasValue)
                         {
@@ -91,7 +88,7 @@ public partial class App : System.Windows.Application
                                 if (userPos != null)
                                     userPosDisplay = $"{userPos.Code} — {userPos.Name}";
                             }
-                            catch { /* fallback to generic message */ }
+                            catch { /* fallback */ }
                         }
 
                         MessageBox.Show(
@@ -109,12 +106,11 @@ public partial class App : System.Windows.Application
                             MessageBoxImage.Warning);
 
                         authService.Logout();
-                        continue; // back to login
+                        continue;
                     }
 
                 case SessionAction.BlockedNoPos:
                     {
-                        // User has no POS assigned AND can't bypass — blocked
                         var session = sessionState.Current!;
 
                         MessageBox.Show(
@@ -132,7 +128,6 @@ public partial class App : System.Windows.Application
 
                 case SessionAction.BypassToSetup:
                     {
-                        // IT Tech with active session on different POS — enter setup mode
                         var session = sessionState.Current!;
 
                         var choice = MessageBox.Show(
@@ -151,14 +146,12 @@ public partial class App : System.Windows.Application
                             continue;
                         }
 
-                        // Don't touch the existing session — just layer setup mode
                         sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
                         break;
                     }
 
                 case SessionAction.ShowDialog:
                     {
-                        // No session open — normal flow
                         if (sessionState.IsSetupMode)
                             sessionState.Close();
 
@@ -201,18 +194,12 @@ public partial class App : System.Windows.Application
 
             if (mainVm.Reason == MainViewModel.CloseReason.ZClose)
             {
-                // Z-close: clear everything
                 sessionState.Close();
             }
             else if (mainVm.Reason == MainViewModel.CloseReason.Logout)
             {
-                // Regular logout
                 if (sessionState.IsSetupMode)
-                {
-                    // IT Tech was in setup mode — just exit setup, preserve session
                     sessionState.ExitSetupMode();
-                }
-                // If a normal session is open, it stays open for next user
             }
 
             authService.Logout();
@@ -225,17 +212,16 @@ public partial class App : System.Windows.Application
 
     private enum SessionAction
     {
-        ShowDialog,       // No session — show normal dialog
-        JoinExisting,     // Same POS — join session
-        BlockedWrongPos,  // Different POS — can't work
-        BlockedNoPos,     // No POS assigned, can't bypass
-        BypassToSetup     // IT Tech — setup mode
+        ShowDialog,
+        JoinExisting,
+        BlockedWrongPos,
+        BlockedNoPos,
+        BypassToSetup
     }
 
     private static SessionAction ResolveSessionAction(
         IAuthService authService, CashSessionState sessionState)
     {
-        // No session open → normal flow
         if (!sessionState.IsSessionOpen)
             return SessionAction.ShowDialog;
 
@@ -247,29 +233,18 @@ public partial class App : System.Windows.Application
         var userPosId = user.PointOfSaleId;
         bool canBypass = authService.HasPermission("bypassPosCheck");
 
-        // ── Case 1: User assigned to the SAME POS → join ──
         if (userPosId.HasValue && userPosId.Value == openPosId)
             return SessionAction.JoinExisting;
 
-        // ── Case 2: User assigned to DIFFERENT POS ──
         if (userPosId.HasValue && userPosId.Value != openPosId)
         {
-            // IT Tech with bypass → can enter setup mode
-            if (canBypass)
-                return SessionAction.BypassToSetup;
-
-            // Regular user → blocked
+            if (canBypass) return SessionAction.BypassToSetup;
             return SessionAction.BlockedWrongPos;
         }
 
-        // ── Case 3: User has NO POS assigned ──
         if (!userPosId.HasValue)
         {
-            // IT Tech → setup mode
-            if (canBypass)
-                return SessionAction.BypassToSetup;
-
-            // Regular user without POS → blocked
+            if (canBypass) return SessionAction.BypassToSetup;
             return SessionAction.BlockedNoPos;
         }
 
@@ -284,15 +259,24 @@ public partial class App : System.Windows.Application
             "SFE");
         Directory.CreateDirectory(appDataPath);
         var dbPath = Path.Combine(appDataPath, "sfe.db");
+        var connString = $"Data Source={dbPath};Cache=Shared";
 
+        // Stateless interceptor — safe as singleton
         var walInterceptor = new SqliteWalInterceptor();
 
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
-                   .AddInterceptors(walInterceptor),
-            ServiceLifetime.Transient);
+        // ─── Sync tracking interceptor (stateful, needs DI) ───
+        services.AddScoped<SyncTrackingInterceptor>();
+
+        services.AddDbContext<AppDbContext>((sp, opt) =>
+        {
+            opt.UseSqlite(connString)
+               .AddInterceptors(
+                   walInterceptor,
+                   sp.GetRequiredService<SyncTrackingInterceptor>());
+        }, ServiceLifetime.Transient);
 
         services.AddSingleton<ITimeProvider, SystemTimeProvider>();
+
         // ═══ Repositories & Unit of Work ═══
         services.AddTransient<IUnitOfWork, UnitOfWork>();
 
@@ -349,7 +333,6 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IAuditWriter, AuditWriter>();
         services.AddSingleton<IAuditService, AuditService>();
         services.AddTransient<AuditLogViewModel>();
-        
 
         // ═══ Fenêtres & Pages ═══
         services.AddTransient<MainWindow>();

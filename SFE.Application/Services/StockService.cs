@@ -760,7 +760,7 @@ public class StockService
         if (product != null)
         {
             product.StockQuantity = totalStock;
-            product.UpdatedAt = NowUtc;
+            product.UpdatedAtUtc = NowUtc;
             await _unitOfWork.Products.UpdateAsync(product);
         }
     }

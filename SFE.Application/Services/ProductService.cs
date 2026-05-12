@@ -53,7 +53,7 @@ public class ProductService
         }
 
         // ⚠ DGI §1.1 — ITimeProvider only. UTC is canonical across DRC regions.
-        product.CreatedAt = _time.UtcNow.UtcDateTime;
+        product.CreatedAtUtc = _time.UtcNow.UtcDateTime;
 
         await _unitOfWork.Products.AddAsync(product);
         await _unitOfWork.SaveChangesAsync();
@@ -86,7 +86,7 @@ public class ProductService
                 return new ProductSaveResult { Success = false, ErrorMessage = $"Le code « {product.Code} » est déjà utilisé." };
         }
 
-        product.UpdatedAt = _time.UtcNow.UtcDateTime;
+        product.UpdatedAtUtc = _time.UtcNow.UtcDateTime;
 
         await _unitOfWork.Products.UpdateAsync(product);
         await _unitOfWork.SaveChangesAsync();
@@ -112,7 +112,7 @@ public class ProductService
         if (product != null)
         {
             product.IsActive = false;
-            product.UpdatedAt = _time.UtcNow.UtcDateTime;
+            product.UpdatedAtUtc = _time.UtcNow.UtcDateTime;
 
             await _unitOfWork.Products.UpdateAsync(product);
             await _unitOfWork.SaveChangesAsync();
@@ -196,7 +196,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBoissons.Id,
                 StockQuantity = 200, MinStockLevel = 20, TrackStock = true,
-                IsActive = true, IsFavorite = true, CreatedAt = seedTime
+                IsActive = true, IsFavorite = true, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -209,7 +209,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBoissons.Id,
                 StockQuantity = 150, MinStockLevel = 15, TrackStock = true,
-                IsActive = true, IsFavorite = true, CreatedAt = seedTime
+                IsActive = true, IsFavorite = true, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -222,7 +222,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBoissons.Id,
                 StockQuantity = 80, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -235,7 +235,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBoissons.Id,
                 StockQuantity = 300, MinStockLevel = 30, TrackStock = true,
-                IsActive = true, IsFavorite = true, CreatedAt = seedTime
+                IsActive = true, IsFavorite = true, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -248,7 +248,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBoissons.Id,
                 StockQuantity = 40, MinStockLevel = 5, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -261,7 +261,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBoissons.Id,
                 StockQuantity = 25, MinStockLevel = 3, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
 
             // ══════════════════════════════════════════
@@ -278,7 +278,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 50, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = true, CreatedAt = seedTime
+                IsActive = true, IsFavorite = true, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -291,7 +291,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 100, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -304,7 +304,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 60, MinStockLevel = 8, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -317,7 +317,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 80, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -330,7 +330,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 40, MinStockLevel = 5, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -343,7 +343,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 90, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -356,7 +356,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 60, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
 
             // ══════════════════════════════════════════
@@ -373,7 +373,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catHygiene.Id,
                 StockQuantity = 100, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -386,7 +386,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catHygiene.Id,
                 StockQuantity = 70, MinStockLevel = 10, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -399,7 +399,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catHygiene.Id,
                 StockQuantity = 50, MinStockLevel = 5, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -412,7 +412,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catHygiene.Id,
                 StockQuantity = 65, MinStockLevel = 8, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
 
             // ══════════════════════════════════════════
@@ -429,7 +429,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catServices.Id,
                 StockQuantity = 0, MinStockLevel = 0, TrackStock = false,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -442,7 +442,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catServices.Id,
                 StockQuantity = 0, MinStockLevel = 0, TrackStock = false,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -455,7 +455,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.Percentage, DefaultDiscountValue = 10,
                 CategoryId = catServices.Id,
                 StockQuantity = 0, MinStockLevel = 0, TrackStock = false,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -468,7 +468,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catServices.Id,
                 StockQuantity = 0, MinStockLevel = 0, TrackStock = false,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
 
             // ══════════════════════════════════════════
@@ -485,7 +485,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.Percentage, DefaultDiscountValue = 5,
                 CategoryId = catBureau.Id,
                 StockQuantity = 30, MinStockLevel = 5, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -498,7 +498,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBureau.Id,
                 StockQuantity = 200, MinStockLevel = 20, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -511,7 +511,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBureau.Id,
                 StockQuantity = 10, MinStockLevel = 3, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -524,7 +524,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBureau.Id,
                 StockQuantity = 25, MinStockLevel = 5, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
 
             // ══════════════════════════════════════════
@@ -541,7 +541,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 20, MinStockLevel = 2, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -554,7 +554,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catAliments.Id,
                 StockQuantity = 15, MinStockLevel = 2, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
             new()
             {
@@ -567,7 +567,7 @@ public class ProductService
                 DefaultDiscountType = DiscountType.None, DefaultDiscountValue = 0,
                 CategoryId = catBureau.Id,
                 StockQuantity = 5, MinStockLevel = 1, TrackStock = true,
-                IsActive = true, IsFavorite = false, CreatedAt = seedTime
+                IsActive = true, IsFavorite = false, CreatedAtUtc = seedTime
             },
         };
 

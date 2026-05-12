@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Linq.Expressions;
+using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using SFE.Application.Services;
 using SFE.Domain.Abstractions;
 using SFE.Domain.Common;
@@ -47,12 +49,11 @@ public sealed class AppDbContext : DbContext
         Directory.CreateDirectory(appData);
         _dbPath = Path.Combine(appData, "sfe.db");
 
-        // Fallbacks design-time (migrations EF)
         _time = new SystemTimeProvider();
         _tenant = new TenantContext();
     }
 
-    // ── DI constructor (runtime) ──
+    // ── Runtime constructor (DI) ──
     public AppDbContext(
         DbContextOptions<AppDbContext> options,
         ITimeProvider time,
@@ -77,10 +78,10 @@ public sealed class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // 1) Applique d'abord toutes les IEntityTypeConfiguration
+        // 1) Toutes les IEntityTypeConfiguration
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // 2) Conversion GLOBALE DateTimeOffset → long pour SQLite
+        // 2) Conversion globale DateTimeOffset → long pour SQLite
         ApplyDateTimeOffsetConversions(modelBuilder);
 
         // 3) Global query filters (tenant + soft-delete)
@@ -111,32 +112,32 @@ public sealed class AppDbContext : DbContext
 
     private void ApplyGlobalFilters(ModelBuilder modelBuilder)
     {
+        // NOTE: SyncableEntity and SyncableRootEntity are PARALLEL hierarchies
+        // (neither inherits from the other), so the two branches are mutually
+        // exclusive — no ordering trick needed.
         foreach (var et in modelBuilder.Model.GetEntityTypes())
         {
             var clr = et.ClrType;
 
-            // ⚠️ Ordre important : SyncableEntity hérite généralement de SyncableRootEntity
-            //    donc tester le plus spécifique d'abord.
             if (typeof(SyncableEntity).IsAssignableFrom(clr))
             {
-                var method = typeof(AppDbContext)
+                typeof(AppDbContext)
                     .GetMethod(nameof(SetTenantFilter),
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                    .MakeGenericMethod(clr);
-                method.Invoke(this, new object[] { modelBuilder });
+                        BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(clr)
+                    .Invoke(this, new object[] { modelBuilder });
             }
             else if (typeof(SyncableRootEntity).IsAssignableFrom(clr))
             {
-                var method = typeof(AppDbContext)
+                typeof(AppDbContext)
                     .GetMethod(nameof(SetRootSoftDeleteFilter),
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                    .MakeGenericMethod(clr);
-                method.Invoke(this, new object[] { modelBuilder });
+                        BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(clr)
+                    .Invoke(this, new object[] { modelBuilder });
             }
         }
     }
 
-    // Tenant + soft-delete filter
     private void SetTenantFilter<T>(ModelBuilder mb) where T : SyncableEntity
     {
         mb.Entity<T>().HasQueryFilter(e =>
@@ -144,16 +145,19 @@ public sealed class AppDbContext : DbContext
             (_tenant.IsBootstrapMode || e.CompanyId == _tenant.CompanyId));
     }
 
-    // Soft-delete filter only (root entities, non-tenant-scoped)
     private void SetRootSoftDeleteFilter<T>(ModelBuilder mb) where T : SyncableRootEntity
     {
         mb.Entity<T>().HasQueryFilter(e => e.DeletedAtUtc == null);
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    // ═══════════════════════════════════════════════════════════════
+    // SaveChanges — applies stamps for BOTH hierarchies
+    // ═══════════════════════════════════════════════════════════════
+
+    public override Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         ApplyAuditAndTenantStamps();
-        return await base.SaveChangesAsync(ct);
+        return base.SaveChangesAsync(ct);
     }
 
     public override int SaveChanges()
@@ -166,45 +170,77 @@ public sealed class AppDbContext : DbContext
     {
         var now = _time.UtcNow;
 
+        // ── (1) Tenant-scoped entities (Product, Invoice, Client, …) ──
+        foreach (var entry in ChangeTracker.Entries<SyncableEntity>())
+            StampSyncable(entry, now);
+
+        // ── (2) Tenant-root entity (Company) ──
         foreach (var entry in ChangeTracker.Entries<SyncableRootEntity>())
+            StampRoot(entry, now);
+    }
+
+    private void StampSyncable(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<SyncableEntity> entry,
+        DateTimeOffset now)
+    {
+        var e = entry.Entity;
+
+        switch (entry.State)
         {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    if (entry.Entity.CreatedAtUtc == default)
-                        entry.Entity.CreatedAtUtc = now;
-                    entry.Entity.UpdatedAtUtc = now;
-                    if (entry.Entity.SyncId == default)
-                        entry.Entity.SyncId = Ulid.NewUlid();
+            case EntityState.Added:
+                if (e.SyncId == default) e.SyncId = Ulid.NewUlid();
+                if (e.CreatedAtUtc == default) e.CreatedAtUtc = now;
+                e.UpdatedAtUtc = now;
+                if (e.Version == 0) e.Version = 1;
 
-                    // Stamp origin POS automatically
-                    if (entry.Entity.OriginPointOfSaleSyncId is null &&
-                        _tenant.CurrentPointOfSaleSyncId is { } posSyncId)
-                    {
-                        entry.Entity.OriginPointOfSaleId = _tenant.CurrentPointOfSaleId;
-                        entry.Entity.OriginPointOfSaleSyncId = posSyncId;
-                    }
+                // Stamp tenant
+                if (e.CompanyId == 0 && !_tenant.IsBootstrapMode && _tenant.IsAuthenticated)
+                    e.CompanyId = _tenant.CompanyId;
 
-                    // Stamp CompanyId on tenant-scoped entities
-                    if (entry.Entity is SyncableEntity scoped &&
-                        scoped.CompanyId == 0 &&
-                        !_tenant.IsBootstrapMode &&
-                        _tenant.IsAuthenticated)
-                    {
-                        scoped.CompanyId = _tenant.CompanyId;
-                    }
-                    break;
+                // Stamp origin POS (only if not already set by business code)
+                if (e.OriginPointOfSaleSyncId is null &&
+                    _tenant.CurrentPointOfSaleSyncId is { } posSyncId)
+                {
+                    e.OriginPointOfSaleId = _tenant.CurrentPointOfSaleId;
+                    e.OriginPointOfSaleSyncId = posSyncId;
+                }
+                break;
 
-                case EntityState.Modified:
-                    entry.Entity.MarkUpdated(now);
-                    break;
+            case EntityState.Modified:
+                e.MarkUpdated(now);
+                break;
 
-                case EntityState.Deleted:
-                    // Convert hard-delete to soft-delete
-                    entry.State = EntityState.Modified;
-                    entry.Entity.MarkDeleted(now);
-                    break;
-            }
+            case EntityState.Deleted:
+                // Hard-delete → soft-delete rewrite
+                entry.State = EntityState.Modified;
+                e.MarkDeleted(now);
+                break;
+        }
+    }
+
+    private static void StampRoot(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<SyncableRootEntity> entry,
+        DateTimeOffset now)
+    {
+        var e = entry.Entity;
+
+        switch (entry.State)
+        {
+            case EntityState.Added:
+                if (e.SyncId == default) e.SyncId = Ulid.NewUlid();
+                if (e.CreatedAtUtc == default) e.CreatedAtUtc = now;
+                e.UpdatedAtUtc = now;
+                if (e.Version == 0) e.Version = 1;
+                break;
+
+            case EntityState.Modified:
+                e.MarkUpdated(now);
+                break;
+
+            case EntityState.Deleted:
+                entry.State = EntityState.Modified;
+                e.MarkDeleted(now);
+                break;
         }
     }
 }
