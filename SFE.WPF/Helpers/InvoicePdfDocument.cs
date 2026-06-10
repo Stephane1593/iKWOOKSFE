@@ -240,7 +240,7 @@ public class InvoicePdfDocument : IDocument
                             tags.Add(($"DUPLICATA N°{_printNumber - 1}", ColRed));
                     }
 
-                    if (_inv.IsExport) tags.Add(("EXPORTATION", ColTeal));
+                    if (_inv.IsExport) tags.Add(("A L'EXPORTATION", ColTeal));
                     if (_inv.IsAdvanceInvoice) tags.Add(("D'ACOMPTE", ColAmber));
                     if (_inv.IsProforma) tags.Add(("DOCUMENT NON FISCAL", ColGrey));
 
@@ -481,7 +481,7 @@ public class InvoicePdfDocument : IDocument
                     Cb(ln.LineNumber.ToString());
                     Cb(ln.Code ?? "");
                     Cb(ln.Name ?? "");
-                    Cb($"[{ln.TaxGroup}][{ln.ItemType}]");
+                    Cb($"[{ln.TaxGroup.DisplayCode(ln.TaxGroupAType)}][{ln.ItemType}]");
                     Cb(M(unitPrice), right: true);
                     Cb(Q(ln.Quantity), right: true);
                     Cb(ln.Unit ?? "pce");
@@ -499,7 +499,7 @@ public class InvoicePdfDocument : IDocument
 
     private static string FormatDiscount(InvoiceLine ln) => ln.DiscountType switch
     {
-        DiscountType.Percentage => $"-{Q(ln.DiscountValue)}% ({M(ln.DiscountAmount)})",
+        DiscountType.Percentage => $"-{QPct(ln.DiscountValue)}% ({M(ln.DiscountAmount)})",
         DiscountType.FixedAmount => $"-{M(ln.DiscountAmount)}",
         _ => ""
     };
@@ -876,7 +876,8 @@ public class InvoicePdfDocument : IDocument
     //  HELPERS
     // ════════════════════════════════════════════════════════════
     private static string M(decimal v) => v.ToString("N2", FR);
-    private static string Q(decimal v) => v.ToString("0.###", FR);
+    private static string Q(decimal v) => v.ToString("0.000", FR);  // quantities
+    private static string QPct(decimal v) => v.ToString("0.##", FR);   // percentages
     private static string R(decimal v) => v.ToString("0.##", FR);
     private static string X(decimal v) => v.ToString("N4", FR);
 
@@ -981,10 +982,10 @@ public class InvoicePdfDocument : IDocument
 
     private static string CreditNatureLabel(CreditNoteNature? n) => n switch
     {
-        CreditNoteNature.COR => "Correction",
-        CreditNoteNature.RAN => "Annulation",
-        CreditNoteNature.RAM => "Avoir suite reprise",
-        CreditNoteNature.RRR => "Rabais / Remise / Ristourne",
+        CreditNoteNature.COR => "COR (Correction)",
+        CreditNoteNature.RAN => "RAN (Annulation)",
+        CreditNoteNature.RAM => "RAM (Avoir suite reprise)",
+        CreditNoteNature.RRR => "RRR (Rabais / Remise / Ristourne)",
         _ => "—"
     };
 

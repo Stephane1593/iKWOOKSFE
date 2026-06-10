@@ -1,97 +1,120 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- ══════════ PALETTE ENTREPRISE ══════════ -->
-    <!-- Basée sur : Bleu #37B1E4  ·  Rouge #FD0F0F -->
+    <!--  ══════════ PALETTE ENTREPRISE ══════════  -->
+    <!--  Basée sur : Bleu #37B1E4  ·  Rouge #FD0F0F  -->
 
-    <!-- Couleurs principales -->
+    <!--  Couleurs principales  -->
     <Color x:Key="PrimaryColor">#37B1E4</Color>
     <Color x:Key="PrimaryLightColor">#E1F3FB</Color>
     <Color x:Key="PrimaryDarkColor">#1A8CBF</Color>
     <Color x:Key="SecondaryColor">#FD4D4D</Color>
     <Color x:Key="AccentColor">#FD0F0F</Color>
 
-    <!-- Couleurs sémantiques -->
+    <!--  Couleurs sémantiques  -->
     <Color x:Key="SuccessColor">#10B981</Color>
     <Color x:Key="WarningColor">#F59E0B</Color>
     <Color x:Key="ErrorColor">#FD0F0F</Color>
     <Color x:Key="InfoColor">#37B1E4</Color>
 
-    <!-- Arrière-plans -->
+    <!--  Arrière-plans  -->
     <Color x:Key="BackgroundColor">#F4F9FC</Color>
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
     <Color x:Key="CardColor">#FFFFFF</Color>
 
-    <!-- Sidebar (dérivée du bleu primaire) -->
+    <!--  Sidebar (dérivée du bleu primaire)  -->
     <Color x:Key="SidebarBgColor">#0D2B3E</Color>
     <Color x:Key="SidebarTextColor">#7CAFC8</Color>
     <Color x:Key="SidebarHoverColor">#143D55</Color>
     <Color x:Key="SidebarActiveColor">#37B1E4</Color>
     <Color x:Key="SidebarActiveBgColor">#0A3550</Color>
 
-    <!-- Textes -->
+    <!--  Textes  -->
     <Color x:Key="TextPrimaryColor">#0C1D29</Color>
     <Color x:Key="TextSecondaryColor">#4A6B7C</Color>
     <Color x:Key="TextMutedColor">#8BAAB9</Color>
     <Color x:Key="TextOnPrimaryColor">#FFFFFF</Color>
 
-    <!-- Bordures -->
+    <!--  Bordures  -->
     <Color x:Key="BorderColor">#CFE2EC</Color>
     <Color x:Key="BorderLightColor">#E8F1F7</Color>
 
-    <!-- ══════════ BRUSHES ══════════ -->
+    <!--  ══════════ BRUSHES ══════════  -->
 
-    <SolidColorBrush x:Key="PrimaryBrush"         Color="{StaticResource PrimaryColor}"/>
-    <SolidColorBrush x:Key="PrimaryLightBrush"     Color="{StaticResource PrimaryLightColor}"/>
-    <SolidColorBrush x:Key="PrimaryDarkBrush"      Color="{StaticResource PrimaryDarkColor}"/>
-    <SolidColorBrush x:Key="SecondaryBrush"        Color="{StaticResource SecondaryColor}"/>
-    <SolidColorBrush x:Key="AccentBrush"           Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="PrimaryBrush"
+                     Color="{StaticResource PrimaryColor}" />
+    <SolidColorBrush x:Key="PrimaryLightBrush"
+                     Color="{StaticResource PrimaryLightColor}" />
+    <SolidColorBrush x:Key="PrimaryDarkBrush"
+                     Color="{StaticResource PrimaryDarkColor}" />
+    <SolidColorBrush x:Key="SecondaryBrush"
+                     Color="{StaticResource SecondaryColor}" />
+    <SolidColorBrush x:Key="AccentBrush"
+                     Color="{StaticResource AccentColor}" />
 
-    <SolidColorBrush x:Key="SuccessBrush"          Color="{StaticResource SuccessColor}"/>
-    <SolidColorBrush x:Key="WarningBrush"          Color="{StaticResource WarningColor}"/>
-    <SolidColorBrush x:Key="ErrorBrush"            Color="{StaticResource ErrorColor}"/>
-    <SolidColorBrush x:Key="InfoBrush"             Color="{StaticResource InfoColor}"/>
+    <SolidColorBrush x:Key="SuccessBrush"
+                     Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="WarningBrush"
+                     Color="{StaticResource WarningColor}" />
+    <SolidColorBrush x:Key="ErrorBrush"
+                     Color="{StaticResource ErrorColor}" />
+    <SolidColorBrush x:Key="InfoBrush"
+                     Color="{StaticResource InfoColor}" />
 
-    <SolidColorBrush x:Key="BackgroundBrush"       Color="{StaticResource BackgroundColor}"/>
-    <SolidColorBrush x:Key="SurfaceBrush"          Color="{StaticResource SurfaceColor}"/>
-    <SolidColorBrush x:Key="CardBrush"             Color="{StaticResource CardColor}"/>
+    <SolidColorBrush x:Key="BackgroundBrush"
+                     Color="{StaticResource BackgroundColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush"
+                     Color="{StaticResource SurfaceColor}" />
+    <SolidColorBrush x:Key="CardBrush"
+                     Color="{StaticResource CardColor}" />
 
-    <SolidColorBrush x:Key="SidebarBgBrush"        Color="{StaticResource SidebarBgColor}"/>
-    <SolidColorBrush x:Key="SidebarTextBrush"      Color="{StaticResource SidebarTextColor}"/>
-    <SolidColorBrush x:Key="SidebarHoverBrush"     Color="{StaticResource SidebarHoverColor}"/>
-    <SolidColorBrush x:Key="SidebarActiveBrush"    Color="{StaticResource SidebarActiveColor}"/>
-    <SolidColorBrush x:Key="SidebarActiveBgBrush"  Color="{StaticResource SidebarActiveBgColor}"/>
+    <SolidColorBrush x:Key="SidebarBgBrush"
+                     Color="{StaticResource SidebarBgColor}" />
+    <SolidColorBrush x:Key="SidebarTextBrush"
+                     Color="{StaticResource SidebarTextColor}" />
+    <SolidColorBrush x:Key="SidebarHoverBrush"
+                     Color="{StaticResource SidebarHoverColor}" />
+    <SolidColorBrush x:Key="SidebarActiveBrush"
+                     Color="{StaticResource SidebarActiveColor}" />
+    <SolidColorBrush x:Key="SidebarActiveBgBrush"
+                     Color="{StaticResource SidebarActiveBgColor}" />
 
-    <SolidColorBrush x:Key="TextPrimaryBrush"      Color="{StaticResource TextPrimaryColor}"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush"    Color="{StaticResource TextSecondaryColor}"/>
-    <SolidColorBrush x:Key="TextMutedBrush"        Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextOnPrimaryBrush"    Color="{StaticResource TextOnPrimaryColor}"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush"
+                     Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush"
+                     Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextMutedBrush"
+                     Color="{StaticResource TextMutedColor}" />
+    <SolidColorBrush x:Key="TextOnPrimaryBrush"
+                     Color="{StaticResource TextOnPrimaryColor}" />
 
-    <SolidColorBrush x:Key="BorderBrush"           Color="{StaticResource BorderColor}"/>
-    <SolidColorBrush x:Key="BorderLightBrush"      Color="{StaticResource BorderLightColor}"/>
+    <SolidColorBrush x:Key="BorderBrush"
+                     Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="BorderLightBrush"
+                     Color="{StaticResource BorderLightColor}" />
 
-    <!-- ══════════ GRADIENTS ══════════ -->
+    <!--  ══════════ GRADIENTS ══════════  -->
 
-    <!-- Bleu primaire → bleu profond -->
+    <!--  Bleu primaire → bleu profond  -->
     <LinearGradientBrush x:Key="PrimaryGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#37B1E4" Offset="0"/>
-        <GradientStop Color="#1A8CBF" Offset="1"/>
+        <GradientStop Offset="0" Color="#37B1E4" />
+        <GradientStop Offset="1" Color="#1A8CBF" />
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="SuccessGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#10B981" Offset="0"/>
-        <GradientStop Color="#34D399" Offset="1"/>
+        <GradientStop Offset="0" Color="#10B981" />
+        <GradientStop Offset="1" Color="#34D399" />
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="WarningGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#F59E0B" Offset="0"/>
-        <GradientStop Color="#FBBF24" Offset="1"/>
+        <GradientStop Offset="0" Color="#F59E0B" />
+        <GradientStop Offset="1" Color="#FBBF24" />
     </LinearGradientBrush>
 
-    <!-- Rouge accent → rouge doux -->
+    <!--  Rouge accent → rouge doux  -->
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#FD0F0F" Offset="0"/>
-        <GradientStop Color="#FF5252" Offset="1"/>
+        <GradientStop Offset="0" Color="#FD0F0F" />
+        <GradientStop Offset="1" Color="#FF5252" />
     </LinearGradientBrush>
 
 </ResourceDictionary>

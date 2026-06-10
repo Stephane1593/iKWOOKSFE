@@ -91,6 +91,8 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private string _articleName = "";
     [ObservableProperty] private ItemType _articleItemType = ItemType.BIE;
     [ObservableProperty] private TaxGroup _articleTaxGroup = TaxGroup.B;
+    [ObservableProperty] private TaxGroupAType? _articleTaxGroupAType;   // 🆕
+
     [ObservableProperty] private string _articleUnitPrice = "";
     [ObservableProperty] private string _articleQuantity = "1";
     [ObservableProperty] private string _articleUnit = "pce";
@@ -302,6 +304,7 @@ public partial class InvoicingViewModel : BaseViewModel,
         ArticleName = product.Name;
         ArticleItemType = product.ItemType;
         ArticleTaxGroup = product.TaxGroup;
+        ArticleTaxGroupAType = product.TaxGroupAType;   // 🆕
 
         if (SelectedPriceMode == PriceMode.TTC)
         {
@@ -646,6 +649,7 @@ public partial class InvoicingViewModel : BaseViewModel,
             Name = ArticleName,
             ItemType = ArticleItemType,
             TaxGroup = ArticleTaxGroup,
+            TaxGroupAType = ArticleTaxGroup == TaxGroup.A ? ArticleTaxGroupAType : null,  // 🆕
             TaxRate = taxRate,
             UnitPriceHT = ht,
             UnitPriceTTC = ttc,
@@ -1367,6 +1371,7 @@ public partial class InvoicingViewModel : BaseViewModel,
                 Name = lineVm.Name,
                 ItemType = lineVm.ItemType,
                 TaxGroup = lineVm.TaxGroup,
+                TaxGroupAType = lineVm.TaxGroup == TaxGroup.A ? lineVm.TaxGroupAType : null,  // 🆕
                 TaxRate = lineVm.TaxRate,
                 UnitPriceHT = lineVm.UnitPriceHT,
                 UnitPriceTTC = lineVm.UnitPriceTTC,
@@ -1617,6 +1622,7 @@ public partial class InvoicingViewModel : BaseViewModel,
             UnitPriceTTC = ol.UnitPriceTTC,
             Quantity = selection.SelectedQuantity,
             TaxGroup = ol.TaxGroup,
+            TaxGroupAType = ol.TaxGroupAType,   // 🆕 preserve
             TaxRate = taxRate,
             PriceMode = SelectedPriceMode,
             DiscountType = ol.DiscountType,

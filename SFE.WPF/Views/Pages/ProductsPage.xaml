@@ -6,30 +6,36 @@
 
     <UserControl.Resources>
 
-        <!-- ── Thin round scrollbar ── -->
-        <Style x:Key="SlimScrollThumb" TargetType="Thumb">
-            <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <!--  ── Thin round scrollbar ──  -->
+        <Style x:Key="SlimScrollThumb"
+               TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border CornerRadius="3" Background="{StaticResource BorderBrush}"
-                                Opacity="0.45" Margin="1"/>
+                        <Border Margin="1"
+                                Background="{StaticResource BorderBrush}"
+                                CornerRadius="3"
+                                Opacity="0.45" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <Style x:Key="SlimVerticalScrollBar" TargetType="ScrollBar">
-            <Setter Property="Width" Value="6"/>
-            <Setter Property="MinWidth" Value="6"/>
+        <Style x:Key="SlimVerticalScrollBar"
+               TargetType="ScrollBar">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="MinWidth" Value="6" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollBar">
                         <Grid>
-                            <Border Background="Transparent" CornerRadius="3"/>
-                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Border Background="Transparent"
+                                    CornerRadius="3" />
+                            <Track x:Name="PART_Track"
+                                   IsDirectionReversed="True">
                                 <Track.Thumb>
-                                    <Thumb Style="{StaticResource SlimScrollThumb}"/>
+                                    <Thumb Style="{StaticResource SlimScrollThumb}" />
                                 </Track.Thumb>
                             </Track>
                         </Grid>
@@ -38,280 +44,360 @@
             </Setter>
         </Style>
 
-        <Style x:Key="PanelScrollViewer" TargetType="ScrollViewer">
-            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
-            <Setter Property="PanningMode" Value="VerticalOnly"/>
+        <Style x:Key="PanelScrollViewer"
+               TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="PanningMode" Value="VerticalOnly" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollViewer">
                         <Grid>
-                            <ScrollContentPresenter Margin="0"/>
+                            <ScrollContentPresenter Margin="0" />
                             <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       Margin="0,4,1,4"
                                        HorizontalAlignment="Right"
-                                       Value="{TemplateBinding VerticalOffset}"
                                        Maximum="{TemplateBinding ScrollableHeight}"
+                                       Style="{StaticResource SlimVerticalScrollBar}"
                                        ViewportSize="{TemplateBinding ViewportHeight}"
                                        Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
-                                       Style="{StaticResource SlimVerticalScrollBar}"
-                                       Margin="0,4,1,4"/>
+                                       Value="{TemplateBinding VerticalOffset}" />
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- ── Form label (local override for tighter spacing) ── -->
-        <Style x:Key="PanelLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="Margin" Value="0,0,0,5"/>
+        <!--  ── Form label (local override for tighter spacing) ──  -->
+        <Style x:Key="PanelLabel"
+               TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,5" />
         </Style>
 
-        <!-- ── Section divider ── -->
-        <Style x:Key="SectionDivider" TargetType="Border">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Background" Value="#E5E7EB"/>
-            <Setter Property="Margin" Value="0,20,0,20"/>
+        <!--  ── Section divider ──  -->
+        <Style x:Key="SectionDivider"
+               TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="#E5E7EB" />
+            <Setter Property="Margin" Value="0,20,0,20" />
         </Style>
 
     </UserControl.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- LEFT PANEL — Product list                                  -->
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <DockPanel Grid.Column="0" Margin="28,24,14,24">
+        <!--  ══════════════════════════════════════════════════════════  -->
+        <!--  LEFT PANEL — Product list  -->
+        <!--  ══════════════════════════════════════════════════════════  -->
+        <DockPanel Grid.Column="0"
+                   Margin="28,24,14,24">
 
-            <!-- ── HEADER CARD ── -->
-            <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="20" Margin="0,0,0,16">
+            <!--  ── HEADER CARD ──  -->
+            <Border Margin="0,0,0,16"
+                    Padding="20"
+                    DockPanel.Dock="Top"
+                    Style="{StaticResource CardStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border CornerRadius="10" Padding="10" Margin="0,0,14,0"
-                                VerticalAlignment="Center">
+                    <StackPanel VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                        <Border Margin="0,0,14,0"
+                                Padding="10"
+                                VerticalAlignment="Center"
+                                CornerRadius="10">
                             <Border.Background>
-                                <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                                <SolidColorBrush Opacity="0.08"
+                                                 Color="{StaticResource PrimaryColor}" />
                             </Border.Background>
-                            <materialDesign:PackIcon Kind="PackageVariantClosed" Width="22" Height="22"
-                                                     Foreground="{StaticResource PrimaryBrush}"/>
+                            <materialDesign:PackIcon Width="22"
+                                                     Height="22"
+                                                     Foreground="{StaticResource PrimaryBrush}"
+                                                     Kind="PackageVariantClosed" />
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Catalogue Produits" Style="{StaticResource SectionTitleStyle}" Margin="0"/>
-                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,0">
-                                <Run Text="{Binding ProductCount, Mode=OneWay}"/>
-                                <Run Text=" produit(s)"/>
+                            <TextBlock Margin="0"
+                                       Style="{StaticResource SectionTitleStyle}"
+                                       Text="Catalogue Produits" />
+                            <TextBlock Margin="0,3,0,0"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run Text="{Binding ProductCount, Mode=OneWay}" />
+                                <Run Text=" produit(s)" />
                             </TextBlock>
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Search bar -->
-                    <Border Grid.Column="1" Background="#F3F4F6" CornerRadius="10"
-                            Margin="20,0,12,0" Padding="14,0" MinHeight="42">
+                    <!--  Search bar  -->
+                    <Border Grid.Column="1"
+                            MinHeight="42"
+                            Margin="20,0,12,0"
+                            Padding="14,0"
+                            Background="#F3F4F6"
+                            CornerRadius="10">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <materialDesign:PackIcon Kind="Magnify" Width="18" Height="18"
+                            <materialDesign:PackIcon Width="18"
+                                                     Height="18"
+                                                     Margin="0,0,10,0"
+                                                     VerticalAlignment="Center"
                                                      Foreground="{StaticResource TextMutedBrush}"
-                                                     VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                     Kind="Magnify" />
                             <TextBox Grid.Column="1"
-                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
-                                     FontFamily="{StaticResource AppFont}" FontSize="13"
-                                     Background="Transparent" BorderThickness="0"
-                                     VerticalAlignment="Center" Padding="0,8"/>
+                                     Padding="0,8"
+                                     VerticalAlignment="Center"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     FontFamily="{StaticResource AppFont}"
+                                     FontSize="13"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}" />
                         </Grid>
                     </Border>
 
-                    <!-- Category filter -->
-                    <ComboBox Grid.Column="2" ItemsSource="{Binding Categories}"
-                              SelectedItem="{Binding SelectedCategoryFilter}"
+                    <!--  Category filter  -->
+                    <ComboBox Grid.Column="2"
+                              MinWidth="150"
+                              MinHeight="42"
+                              Margin="0,0,10,0"
+                              Padding="10,8"
                               DisplayMemberPath="Name"
+                              FontFamily="{StaticResource AppFont}"
+                              FontSize="13"
+                              ItemsSource="{Binding Categories}"
+                              SelectedItem="{Binding SelectedCategoryFilter}"
                               Style="{StaticResource ModernComboBoxStyle}"
-                              FontFamily="{StaticResource AppFont}" FontSize="13"
-                              Padding="10,8" MinWidth="150" MinHeight="42" Margin="0,0,10,0"
-                              ToolTip="Filtrer par catégorie"/>
+                              ToolTip="Filtrer par catégorie" />
 
-                    <!-- Add button -->
-                    <Button Grid.Column="3" Command="{Binding StartNewProductCommand}"
-                            Background="{StaticResource PrimaryBrush}" Foreground="White"
-                            FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
-                            Padding="18,10" BorderThickness="0" Cursor="Hand" MinHeight="44">
+                    <!--  Add button  -->
+                    <Button Grid.Column="3"
+                            MinHeight="44"
+                            Padding="18,10"
+                            Background="{StaticResource PrimaryBrush}"
+                            BorderThickness="0"
+                            Command="{Binding StartNewProductCommand}"
+                            Cursor="Hand"
+                            FontFamily="{StaticResource AppFont}"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="White">
                         <Button.Effect>
-                            <DropShadowEffect Color="{StaticResource PrimaryColor}"
-                                              BlurRadius="12" ShadowDepth="2" Opacity="0.18"/>
+                            <DropShadowEffect BlurRadius="12"
+                                              Opacity="0.18"
+                                              ShadowDepth="2"
+                                              Color="{StaticResource PrimaryColor}" />
                         </Button.Effect>
                         <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Plus" Width="18" Height="18"
-                                                     VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Nouveau produit" VerticalAlignment="Center"/>
+                            <materialDesign:PackIcon Width="18"
+                                                     Height="18"
+                                                     Margin="0,0,8,0"
+                                                     VerticalAlignment="Center"
+                                                     Kind="Plus" />
+                            <TextBlock VerticalAlignment="Center"
+                                       Text="Nouveau produit" />
                         </StackPanel>
                     </Button>
                 </Grid>
             </Border>
 
-            <!-- ── STATUS BANNERS ── -->
-            <Border DockPanel.Dock="Top" Margin="0,0,0,10" CornerRadius="8" Padding="14,10"
-                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                    BorderThickness="1">
+            <!--  ── STATUS BANNERS ──  -->
+            <Border Margin="0,0,0,10"
+                    Padding="14,10"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    DockPanel.Dock="Top"
+                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Border.Background>
-                    <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.06"/>
+                    <SolidColorBrush Opacity="0.06"
+                                     Color="{StaticResource SuccessColor}" />
                 </Border.Background>
                 <Border.BorderBrush>
-                    <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.2"/>
+                    <SolidColorBrush Opacity="0.2"
+                                     Color="{StaticResource SuccessColor}" />
                 </Border.BorderBrush>
                 <StackPanel Orientation="Horizontal">
-                    <materialDesign:PackIcon Kind="CheckCircleOutline" Width="18" Height="18"
+                    <materialDesign:PackIcon Width="18"
+                                             Height="18"
+                                             Margin="0,0,10,0"
+                                             VerticalAlignment="Center"
                                              Foreground="{StaticResource SuccessBrush}"
-                                             VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                               FontFamily="{StaticResource AppFont}" FontSize="13"
-                               VerticalAlignment="Center"/>
+                                             Kind="CheckCircleOutline" />
+                    <TextBlock VerticalAlignment="Center"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="13"
+                               Foreground="{StaticResource SuccessBrush}"
+                               Text="{Binding StatusMessage}" />
                 </StackPanel>
             </Border>
 
-            <Border DockPanel.Dock="Top" Margin="0,0,0,10" CornerRadius="8" Padding="14,10"
-                    Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                    BorderThickness="1">
+            <Border Margin="0,0,0,10"
+                    Padding="14,10"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    DockPanel.Dock="Top"
+                    Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Border.Background>
-                    <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.06"/>
+                    <SolidColorBrush Opacity="0.06"
+                                     Color="{StaticResource WarningColor}" />
                 </Border.Background>
                 <Border.BorderBrush>
-                    <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.2"/>
+                    <SolidColorBrush Opacity="0.2"
+                                     Color="{StaticResource WarningColor}" />
                 </Border.BorderBrush>
                 <StackPanel Orientation="Horizontal">
-                    <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18"
+                    <materialDesign:PackIcon Width="18"
+                                             Height="18"
+                                             Margin="0,0,10,0"
+                                             VerticalAlignment="Center"
                                              Foreground="{StaticResource ErrorBrush}"
-                                             VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
-                               FontFamily="{StaticResource AppFont}" FontSize="13"
-                               TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                             Kind="AlertCircleOutline" />
+                    <TextBlock VerticalAlignment="Center"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="13"
+                               Foreground="{StaticResource ErrorBrush}"
+                               Text="{Binding StatusMessage}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
-            <!-- ══════════════════════════════════════════════════════ -->
-            <!-- PRODUCT GRID (fills remaining space)                   -->
-            <!-- ══════════════════════════════════════════════════════ -->
-            <Border Style="{StaticResource CardStyle}" Padding="0" ClipToBounds="True">
+            <!--  ══════════════════════════════════════════════════════  -->
+            <!--  PRODUCT GRID (fills remaining space)  -->
+            <!--  ══════════════════════════════════════════════════════  -->
+            <Border Padding="0"
+                    ClipToBounds="True"
+                    Style="{StaticResource CardStyle}">
                 <Grid>
-                    <!-- Empty State -->
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Margin="0,40">
+                    <!--  Empty State  -->
+                    <StackPanel Margin="0,40"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
                         <StackPanel.Style>
                             <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ProductCount}" Value="0">
-                                        <Setter Property="Visibility" Value="Visible"/>
+                                    <DataTrigger Binding="{Binding ProductCount}"
+                                                 Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
-                        <Border Width="72" Height="72" CornerRadius="36"
-                                HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <Border Width="72"
+                                Height="72"
+                                Margin="0,0,0,14"
+                                HorizontalAlignment="Center"
+                                CornerRadius="36">
                             <Border.Background>
-                                <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.06"/>
+                                <SolidColorBrush Opacity="0.06"
+                                                 Color="{StaticResource PrimaryColor}" />
                             </Border.Background>
-                            <materialDesign:PackIcon Kind="PackageVariantClosed"
-                                                     Width="32" Height="32"
+                            <materialDesign:PackIcon Width="32"
+                                                     Height="32"
                                                      HorizontalAlignment="Center"
                                                      VerticalAlignment="Center"
-                                                     Foreground="{StaticResource TextMutedBrush}"/>
+                                                     Foreground="{StaticResource TextMutedBrush}"
+                                                     Kind="PackageVariantClosed" />
                         </Border>
-                        <TextBlock Text="Aucun produit trouvé"
-                                   FontFamily="{StaticResource AppFont}" FontSize="15"
+                        <TextBlock HorizontalAlignment="Center"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="15"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="Ajoutez un produit ou modifiez vos filtres"
-                                   FontFamily="{StaticResource AppFont}" FontSize="12"
+                                   Text="Aucun produit trouvé" />
+                        <TextBlock Margin="0,4,0,0"
+                                   HorizontalAlignment="Center"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"
-                                   HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                   Text="Ajoutez un produit ou modifiez vos filtres" />
                     </StackPanel>
 
-                    <!-- DataGrid -->
-                    <DataGrid ItemsSource="{Binding Products}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False" CanUserDeleteRows="False"
+                    <!--  DataGrid  -->
+                    <DataGrid AutoGenerateColumns="False"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
                               CanUserReorderColumns="False"
                               CanUserSortColumns="True"
-                              IsReadOnly="True"
+                              EnableRowVirtualization="True"
+                              FontFamily="{StaticResource AppFont}"
+                              FontSize="12"
                               GridLinesVisibility="Horizontal"
-                              HorizontalGridLinesBrush="#F1F5F9"
                               HeadersVisibility="Column"
-                              BorderThickness="0"
-                              Background="Transparent"
-                              FontFamily="{StaticResource AppFont}" FontSize="12"
+                              HorizontalGridLinesBrush="#F1F5F9"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding Products}"
                               RowHeight="54"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              SelectedItem="{Binding SelectedProduct}"
                               SelectionMode="Single"
                               SelectionUnit="FullRow"
-                              SelectedItem="{Binding SelectedProduct}"
-                              ScrollViewer.VerticalScrollBarVisibility="Auto"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                              ScrollViewer.CanContentScroll="True"
                               VirtualizingPanel.IsVirtualizing="True"
-                              VirtualizingPanel.VirtualizationMode="Recycling"
-                              EnableRowVirtualization="True">
+                              VirtualizingPanel.VirtualizationMode="Recycling">
 
-                        <!-- ── Column Header Style ── -->
+                        <!--  ── Column Header Style ──  -->
                         <DataGrid.ColumnHeaderStyle>
                             <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#F8FAFC"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                <Setter Property="FontSize" Value="11"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="Padding" Value="8,12"/>
-                                <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                <Setter Property="Background" Value="#F8FAFC" />
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                <Setter Property="FontSize" Value="11" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Setter Property="Padding" Value="8,12" />
+                                <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                <Setter Property="HorizontalContentAlignment" Value="Left" />
                             </Style>
                         </DataGrid.ColumnHeaderStyle>
 
-                        <!-- ── Row Style ── -->
+                        <!--  ── Row Style ──  -->
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Background" Value="Transparent"/>
-                                <Setter Property="BorderBrush" Value="Transparent"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="Margin" Value="0"/>
-                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="Cursor" Value="Hand" />
                                 <Style.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="#EFF6FF"/>
+                                        <Setter Property="Background" Value="#EFF6FF" />
                                     </Trigger>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#F9FAFB"/>
+                                        <Setter Property="Background" Value="#F9FAFB" />
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
                         </DataGrid.RowStyle>
 
-                        <!-- ── Cell Style ── -->
+                        <!--  ── Cell Style ──  -->
                         <DataGrid.CellStyle>
                             <Style TargetType="DataGridCell">
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
                                 <Style.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
@@ -319,27 +405,33 @@
 
                         <DataGrid.Columns>
 
-                            <!-- ★ FAVORITE -->
-                            <DataGridTemplateColumn Header="" Width="38" CanUserSort="False"
-                                                    CanUserResize="False">
+                            <!--  ★ FAVORITE  -->
+                            <DataGridTemplateColumn Width="38"
+                                                    CanUserResize="False"
+                                                    CanUserSort="False"
+                                                    Header="">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Button Background="Transparent" BorderThickness="0"
-                                                Cursor="Hand" HorizontalAlignment="Center"
-                                                MinWidth="34" MinHeight="34"
-                                                Command="{Binding DataContext.ToggleFavoriteCommand,
-                                                    RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        <Button MinWidth="34"
+                                                MinHeight="34"
+                                                HorizontalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 CommandParameter="{Binding}"
+                                                Cursor="Hand"
                                                 ToolTip="Favori">
-                                            <materialDesign:PackIcon Width="17" Height="17">
+                                            <materialDesign:PackIcon Width="17"
+                                                                     Height="17">
                                                 <materialDesign:PackIcon.Style>
                                                     <Style TargetType="materialDesign:PackIcon">
-                                                        <Setter Property="Kind" Value="StarOutline"/>
-                                                        <Setter Property="Foreground" Value="#D1D5DB"/>
+                                                        <Setter Property="Kind" Value="StarOutline" />
+                                                        <Setter Property="Foreground" Value="#D1D5DB" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsFavorite}" Value="True">
-                                                                <Setter Property="Kind" Value="Star"/>
-                                                                <Setter Property="Foreground" Value="#F59E0B"/>
+                                                            <DataTrigger Binding="{Binding IsFavorite}"
+                                                                         Value="True">
+                                                                <Setter Property="Kind" Value="Star" />
+                                                                <Setter Property="Foreground" Value="#F59E0B" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -350,48 +442,55 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- CODE -->
-                            <DataGridTemplateColumn Header="Code" Width="90"
+                            <!--  CODE  -->
+                            <DataGridTemplateColumn Width="90"
+                                                    Header="Code"
                                                     SortMemberPath="Code">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Code}"
-                                                   FontFamily="Consolas" FontSize="11.5"
+                                        <TextBlock Padding="8,0,4,0"
+                                                   VerticalAlignment="Center"
+                                                   FontFamily="Consolas"
+                                                   FontSize="11.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Padding="8,0,4,0"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                                   Text="{Binding Code}"
+                                                   TextTrimming="CharacterEllipsis" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- DÉSIGNATION (Name + Description) -->
-                            <DataGridTemplateColumn Header="Désignation" Width="*"
+                            <!--  DÉSIGNATION (Name + Description)  -->
+                            <DataGridTemplateColumn Width="*"
+                                                    Header="Désignation"
                                                     SortMemberPath="Name">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center" Margin="8,0,4,0">
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="12.5" FontWeight="SemiBold"
+                                        <StackPanel Margin="8,0,4,0"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12.5"
+                                                       FontWeight="SemiBold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding Description}"
+                                                       Text="{Binding Name}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock MaxHeight="16"
                                                        FontFamily="{StaticResource AppFont}"
                                                        FontSize="10.5"
                                                        Foreground="{StaticResource TextMutedBrush}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       MaxHeight="16">
+                                                       Text="{Binding Description}"
+                                                       TextTrimming="CharacterEllipsis">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Setter Property="Visibility" Value="Visible" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Description}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <DataTrigger Binding="{Binding Description}"
+                                                                         Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <DataTrigger Binding="{Binding Description}"
+                                                                         Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -402,37 +501,43 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- CATÉGORIE -->
-                            <DataGridTemplateColumn Header="Catégorie" Width="110"
+                            <!--  CATÉGORIE  -->
+                            <DataGridTemplateColumn Width="110"
+                                                    Header="Catégorie"
                                                     SortMemberPath="Category.Name">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="6" Padding="8,4"
+                                        <Border Margin="4,0,0,0"
+                                                Padding="8,4"
+                                                HorizontalAlignment="Left"
                                                 VerticalAlignment="Center"
-                                                HorizontalAlignment="Left" Margin="4,0,0,0">
+                                                CornerRadius="6">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background">
                                                         <Setter.Value>
-                                                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.05"/>
+                                                            <SolidColorBrush Opacity="0.05"
+                                                                             Color="{StaticResource PrimaryColor}" />
                                                         </Setter.Value>
                                                     </Setter>
-                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Category}" Value="{x:Null}">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <DataTrigger Binding="{Binding Category}"
+                                                                     Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
                                             <TextBlock FontFamily="{StaticResource AppFont}"
-                                                       FontSize="11" FontWeight="SemiBold"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
                                                        Foreground="{StaticResource PrimaryBrush}"
                                                        TextTrimming="CharacterEllipsis">
                                                 <TextBlock.Text>
                                                     <MultiBinding StringFormat="{}{0} {1}">
-                                                        <Binding Path="Category.Icon"/>
-                                                        <Binding Path="Category.Name"/>
+                                                        <Binding Path="Category.Icon" />
+                                                        <Binding Path="Category.Name" />
                                                     </MultiBinding>
                                                 </TextBlock.Text>
                                             </TextBlock>
@@ -441,77 +546,99 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- TAX GROUP (color-coded badge) -->
-                            <DataGridTemplateColumn Header="Grp" Width="44"
-                                                    SortMemberPath="TaxGroup">
+                            <!--  TAX GROUP (color-coded badge)  -->
+                            <DataGridTemplateColumn Width="56"
+                        Header="Grp"
+                        SortMemberPath="TaxGroup">
                                 <DataGridTemplateColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="4,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+               TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="4,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="6" Width="28" Height="28"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center">
+                                        <Border MinWidth="28"
+                    Height="28"
+                    Padding="4,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    CornerRadius="6">
                                             <Border.Style>
                                                 <Style TargetType="Border">
+                                                    <!-- Default (B, E, F, G, H, I, J, K, L, M, N, O, P…) -->
                                                     <Setter Property="Background">
                                                         <Setter.Value>
-                                                            <SolidColorBrush Color="#6366F1" Opacity="0.08"/>
+                                                            <SolidColorBrush Opacity="0.08" Color="#6366F1" />
                                                         </Setter.Value>
                                                     </Setter>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding TaxGroup}" Value="A">
+                                                        <!-- A (Exonéré) -->
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Color="#10B981" Opacity="0.10"/>
+                                                                    <SolidColorBrush Opacity="0.10" Color="#10B981" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding TaxGroup}" Value="C">
+                                                        <!-- A-HC (Hors champ) — same green, slightly stronger -->
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A-HC">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Color="#F59E0B" Opacity="0.10"/>
+                                                                    <SolidColorBrush Opacity="0.14" Color="#10B981" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding TaxGroup}" Value="D">
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="C">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Color="#3B82F6" Opacity="0.10"/>
+                                                                    <SolidColorBrush Opacity="0.10" Color="#F59E0B" />
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="D">
+                                                            <Setter Property="Background">
+                                                                <Setter.Value>
+                                                                    <SolidColorBrush Opacity="0.10" Color="#3B82F6" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBlock Text="{Binding TaxGroup}"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="12" FontWeight="Bold"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center">
+                                            <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontFamily="{StaticResource AppFont}"
+                           FontWeight="Bold"
+                           Text="{Binding TaxGroupDisplay}"
+                           ToolTip="{Binding TaxGroup}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="#6366F1"/>
+                                                        <!-- Default size + color -->
+                                                        <Setter Property="FontSize" Value="12" />
+                                                        <Setter Property="Foreground" Value="#6366F1" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding TaxGroup}" Value="A">
-                                                                <Setter Property="Foreground" Value="#10B981"/>
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A">
+                                                                <Setter Property="Foreground" Value="#10B981" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding TaxGroup}" Value="C">
-                                                                <Setter Property="Foreground" Value="#D97706"/>
+                                                            <!-- A-HC: shrink font a touch to fit 4 chars cleanly -->
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A-HC">
+                                                                <Setter Property="Foreground" Value="#059669" />
+                                                                <Setter Property="FontSize" Value="10" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding TaxGroup}" Value="D">
-                                                                <Setter Property="Foreground" Value="#3B82F6"/>
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="C">
+                                                                <Setter Property="Foreground" Value="#D97706" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="D">
+                                                                <Setter Property="Foreground" Value="#3B82F6" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -522,179 +649,192 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- HT CDF -->
-                            <DataGridTextColumn Header="HT CDF"
+                            <!--  HT CDF  -->
+                            <DataGridTextColumn Width="85"
                                                 Binding="{Binding UnitPriceHtCdf, StringFormat=N0}"
-                                                Width="85"
+                                                Header="HT CDF"
                                                 SortMemberPath="UnitPriceHtCdf">
                                 <DataGridTextColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="8,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="8,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTextColumn.HeaderStyle>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="HorizontalAlignment" Value="Right"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="FontFamily" Value="Consolas"/>
-                                        <Setter Property="FontSize" Value="12"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                        <Setter Property="Padding" Value="0,0,8,0"/>
+                                        <Setter Property="HorizontalAlignment" Value="Right" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="FontFamily" Value="Consolas" />
+                                        <Setter Property="FontSize" Value="12" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                        <Setter Property="Padding" Value="0,0,8,0" />
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <!-- TTC CDF (primary, bold) -->
-                            <DataGridTextColumn Header="TTC CDF"
+                            <!--  TTC CDF (primary, bold)  -->
+                            <DataGridTextColumn Width="95"
                                                 Binding="{Binding UnitPriceTtcCdf, StringFormat=N0}"
-                                                Width="95"
+                                                Header="TTC CDF"
                                                 SortMemberPath="UnitPriceTtcCdf">
                                 <DataGridTextColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="8,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="8,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTextColumn.HeaderStyle>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="HorizontalAlignment" Value="Right"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="FontFamily" Value="Consolas"/>
-                                        <Setter Property="FontSize" Value="12.5"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                                        <Setter Property="Padding" Value="0,0,8,0"/>
+                                        <Setter Property="HorizontalAlignment" Value="Right" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="FontFamily" Value="Consolas" />
+                                        <Setter Property="FontSize" Value="12.5" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                                        <Setter Property="Padding" Value="0,0,8,0" />
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <!-- USD (stacked HT/TTC) -->
-                            <DataGridTemplateColumn Header="USD" Width="90"
+                            <!--  USD (stacked HT/TTC)  -->
+                            <DataGridTemplateColumn Width="90"
+                                                    Header="USD"
                                                     SortMemberPath="UnitPriceHtUsd">
                                 <DataGridTemplateColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="8,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="8,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center"
+                                        <StackPanel Margin="0,0,8,0"
                                                     HorizontalAlignment="Right"
-                                                    Margin="0,0,8,0">
-                                            <TextBlock FontFamily="Consolas" FontSize="11"
-                                                       HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"
                                                        Foreground="{StaticResource TextSecondaryBrush}">
-                                                <Run Text="{Binding UnitPriceHtUsd, StringFormat=N2, Mode=OneWay}"/>
-                                                <Run Text=" HT" FontSize="8" FontFamily="{StaticResource AppFont}"
+                                                <Run Text="{Binding UnitPriceHtUsd, StringFormat=N2, Mode=OneWay}" />
+                                                <Run FontFamily="{StaticResource AppFont}"
+                                                     FontSize="8"
                                                      FontWeight="Bold"
-                                                     Foreground="{StaticResource TextMutedBrush}"/>
+                                                     Foreground="{StaticResource TextMutedBrush}"
+                                                     Text=" HT" />
                                             </TextBlock>
-                                            <TextBlock FontFamily="Consolas" FontSize="10.5"
-                                                       HorizontalAlignment="Right"
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10.5"
                                                        Foreground="{StaticResource TextMutedBrush}">
-                                                <Run Text="{Binding UnitPriceTtcUsd, StringFormat=N2, Mode=OneWay}"/>
-                                                <Run Text=" TTC" FontSize="8" FontFamily="{StaticResource AppFont}"
-                                                     FontWeight="Bold"/>
+                                                <Run Text="{Binding UnitPriceTtcUsd, StringFormat=N2, Mode=OneWay}" />
+                                                <Run FontFamily="{StaticResource AppFont}"
+                                                     FontSize="8"
+                                                     FontWeight="Bold"
+                                                     Text=" TTC" />
                                             </TextBlock>
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- SPECIFIC TAX -->
-                            <DataGridTemplateColumn Header="Taxe Spéc." Width="82"
-                                                    CanUserSort="False">
+                            <!--  SPECIFIC TAX  -->
+                            <DataGridTemplateColumn Width="82"
+                                                    CanUserSort="False"
+                                                    Header="Taxe Spéc.">
                                 <DataGridTemplateColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="4,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="4,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center"
-                                                    HorizontalAlignment="Center">
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
                                             <StackPanel.Style>
                                                 <Style TargetType="StackPanel">
-                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasSpecificTax}" Value="False">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <DataTrigger Binding="{Binding HasSpecificTax}"
+                                                                     Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </StackPanel.Style>
-                                            <Border CornerRadius="5" Padding="6,2"
-                                                    HorizontalAlignment="Center">
+                                            <Border Padding="6,2"
+                                                    HorizontalAlignment="Center"
+                                                    CornerRadius="5">
                                                 <Border.Background>
-                                                    <SolidColorBrush Color="#F59E0B" Opacity="0.10"/>
+                                                    <SolidColorBrush Opacity="0.10"
+                                                                     Color="#F59E0B" />
                                                 </Border.Background>
-                                                <TextBlock Text="{Binding SpecificTaxDisplay}"
-                                                           FontFamily="Consolas" FontSize="11"
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
                                                            FontWeight="SemiBold"
                                                            Foreground="#D97706"
-                                                           HorizontalAlignment="Center"/>
+                                                           Text="{Binding SpecificTaxDisplay}" />
                                             </Border>
-                                            <TextBlock Text="{Binding TaxSpecificModeShort}"
+                                            <TextBlock Margin="0,2,0,0"
+                                                       HorizontalAlignment="Center"
                                                        FontFamily="{StaticResource AppFont}"
                                                        FontSize="9"
                                                        Foreground="{StaticResource TextMutedBrush}"
-                                                       HorizontalAlignment="Center"
-                                                       Margin="0,2,0,0"/>
+                                                       Text="{Binding TaxSpecificModeShort}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- DISCOUNT -->
-                            <DataGridTemplateColumn Header="Remise" Width="72"
-                                                    CanUserSort="False">
+                            <!--  DISCOUNT  -->
+                            <DataGridTemplateColumn Width="72"
+                                                    CanUserSort="False"
+                                                    Header="Remise">
                                 <DataGridTemplateColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="4,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="4,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
@@ -703,153 +843,171 @@
                                                 VerticalAlignment="Center">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasDefaultDiscount}" Value="False">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <DataTrigger Binding="{Binding HasDefaultDiscount}"
+                                                                     Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <Border CornerRadius="5" Padding="6,3">
+                                            <Border Padding="6,3"
+                                                    CornerRadius="5">
                                                 <Border.Background>
-                                                    <SolidColorBrush Color="#8B5CF6" Opacity="0.08"/>
+                                                    <SolidColorBrush Opacity="0.08"
+                                                                     Color="#8B5CF6" />
                                                 </Border.Background>
-                                                <TextBlock Text="{Binding DefaultDiscountDisplay}"
-                                                           FontFamily="Consolas" FontSize="11"
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
                                                            FontWeight="SemiBold"
                                                            Foreground="#7C3AED"
-                                                           HorizontalAlignment="Center"/>
+                                                           Text="{Binding DefaultDiscountDisplay}" />
                                             </Border>
                                         </Border>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- UNIT -->
-                            <DataGridTemplateColumn Header="Unité" Width="55"
+                            <!--  UNIT  -->
+                            <DataGridTemplateColumn Width="55"
+                                                    Header="Unité"
                                                     SortMemberPath="Unit">
                                 <DataGridTemplateColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="4,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="4,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="5" Padding="6,3"
+                                        <Border Padding="6,3"
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"
-                                                Background="#F1F5F9">
-                                            <TextBlock Text="{Binding Unit}"
+                                                Background="#F1F5F9"
+                                                CornerRadius="5">
+                                            <TextBlock HorizontalAlignment="Center"
                                                        FontFamily="{StaticResource AppFont}"
-                                                       FontSize="11" FontWeight="SemiBold"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                       HorizontalAlignment="Center"/>
+                                                       Text="{Binding Unit}" />
                                         </Border>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- STOCK (with low-stock indicator) -->
-                            <DataGridTemplateColumn Header="Stock" Width="68"
+                            <!--  STOCK (with low-stock indicator)  -->
+                            <DataGridTemplateColumn Width="68"
+                                                    Header="Stock"
                                                     SortMemberPath="StockQuantity">
                                 <DataGridTemplateColumn.HeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader"
-                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                        <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        <Setter Property="Background" Value="#F8FAFC"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-                                        <Setter Property="FontSize" Value="11"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                        <Setter Property="Padding" Value="8,12"/>
-                                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
+                                           TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                        <Setter Property="Background" Value="#F8FAFC" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+                                        <Setter Property="FontSize" Value="11" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Padding" Value="8,12" />
+                                        <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                                     </Style>
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center"
+                                        <StackPanel Margin="0,0,8,0"
                                                     HorizontalAlignment="Right"
-                                                    Margin="0,0,8,0">
-                                            <TextBlock Text="{Binding StockQuantity, StringFormat=N0}"
-                                                       FontFamily="Consolas" FontSize="12"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       FontFamily="Consolas"
+                                                       FontSize="12"
                                                        FontWeight="SemiBold"
-                                                       HorizontalAlignment="Right">
+                                                       Text="{Binding StockQuantity, StringFormat=N0}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground"
-                                                                Value="{StaticResource TextPrimaryBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsLowStock}" Value="True">
-                                                                <Setter Property="Foreground" Value="#EF4444"/>
+                                                            <DataTrigger Binding="{Binding IsLowStock}"
+                                                                         Value="True">
+                                                                <Setter Property="Foreground" Value="#EF4444" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <!-- min level -->
+                                            <!--  min level  -->
                                             <TextBlock HorizontalAlignment="Right"
                                                        FontFamily="{StaticResource AppFont}"
                                                        FontSize="9"
                                                        Foreground="{StaticResource TextMutedBrush}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding TrackStock}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            <DataTrigger Binding="{Binding TrackStock}"
+                                                                         Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
-                                                <Run Text="min:"/>
-                                                <Run Text="{Binding MinStockLevel, StringFormat=N0, Mode=OneWay}"/>
+                                                <Run Text="min:" />
+                                                <Run Text="{Binding MinStockLevel, StringFormat=N0, Mode=OneWay}" />
                                             </TextBlock>
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- ACTIONS -->
-                            <DataGridTemplateColumn Header="" Width="86"
-                                                    CanUserSort="False" CanUserResize="False">
+                            <!--  ACTIONS  -->
+                            <DataGridTemplateColumn Width="86"
+                                                    CanUserResize="False"
+                                                    CanUserSort="False"
+                                                    Header="">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center">
-                                            <!-- Edit -->
-                                            <Button Background="Transparent" BorderThickness="0"
-                                                    Cursor="Hand" ToolTip="Modifier"
-                                                    MinWidth="36" MinHeight="36"
-                                                    Command="{Binding DataContext.StartEditProductCommand,
-                                                        RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}">
-                                                <materialDesign:PackIcon Kind="PencilOutline"
-                                                                         Width="16" Height="16"
-                                                                         Foreground="{StaticResource PrimaryBrush}"/>
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Orientation="Horizontal">
+                                            <!--  Edit  -->
+                                            <Button MinWidth="36"
+                                                    MinHeight="36"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Command="{Binding DataContext.StartEditProductCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand"
+                                                    ToolTip="Modifier">
+                                                <materialDesign:PackIcon Width="16"
+                                                                         Height="16"
+                                                                         Foreground="{StaticResource PrimaryBrush}"
+                                                                         Kind="PencilOutline" />
                                             </Button>
-                                            <!-- Delete -->
-                                            <Button Background="Transparent" BorderThickness="0"
-                                                    Cursor="Hand" ToolTip="Supprimer"
-                                                    MinWidth="36" MinHeight="36"
-                                                    Command="{Binding DataContext.DeleteProductCommand,
-                                                        RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}">
-                                                <materialDesign:PackIcon Kind="TrashCanOutline"
-                                                                         Width="16" Height="16"
+                                            <!--  Delete  -->
+                                            <Button MinWidth="36"
+                                                    MinHeight="36"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Command="{Binding DataContext.DeleteProductCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand"
+                                                    ToolTip="Supprimer">
+                                                <materialDesign:PackIcon Width="16"
+                                                                         Height="16"
                                                                          Foreground="{StaticResource TextMutedBrush}"
-                                                                         Opacity="0.7"/>
+                                                                         Kind="TrashCanOutline"
+                                                                         Opacity="0.7" />
                                             </Button>
                                         </StackPanel>
                                     </DataTemplate>
@@ -862,213 +1020,338 @@
             </Border>
         </DockPanel>
 
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- RIGHT PANEL — Edit form                                    -->
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <Border Grid.Column="1" Width="430" Margin="0,24,28,24"
+        <!--  ══════════════════════════════════════════════════════════  -->
+        <!--  RIGHT PANEL — Edit form  -->
+        <!--  ══════════════════════════════════════════════════════════  -->
+        <Border Grid.Column="1"
+                Width="430"
+                Margin="0,24,28,24"
                 Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border Style="{StaticResource CardStyle}" Padding="0">
-                <ScrollViewer Style="{StaticResource PanelScrollViewer}" PanningMode="VerticalOnly">
+            <Border Padding="0"
+                    Style="{StaticResource CardStyle}">
+                <ScrollViewer PanningMode="VerticalOnly"
+                              Style="{StaticResource PanelScrollViewer}">
                     <StackPanel Margin="26,24,26,24">
 
-                        <!-- ── TITLE BAR ── -->
+                        <!--  ── TITLE BAR ──  -->
                         <Grid Margin="0,0,0,22">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border CornerRadius="8" Padding="8" Margin="0,0,12,0">
+                            <StackPanel VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                <Border Margin="0,0,12,0"
+                                        Padding="8"
+                                        CornerRadius="8">
                                     <Border.Background>
-                                        <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                                        <SolidColorBrush Opacity="0.08"
+                                                         Color="{StaticResource PrimaryColor}" />
                                     </Border.Background>
-                                    <materialDesign:PackIcon Kind="PencilBoxOutline" Width="20" Height="20"
-                                                             Foreground="{StaticResource PrimaryBrush}"/>
+                                    <materialDesign:PackIcon Width="20"
+                                                             Height="20"
+                                                             Foreground="{StaticResource PrimaryBrush}"
+                                                             Kind="PencilBoxOutline" />
                                 </Border>
-                                <TextBlock Text="{Binding FormTitle}" Style="{StaticResource SectionTitleStyle}"
-                                           Margin="0" VerticalAlignment="Center"/>
+                                <TextBlock Margin="0"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource SectionTitleStyle}"
+                                           Text="{Binding FormTitle}" />
                             </StackPanel>
-                            <Button HorizontalAlignment="Right" VerticalAlignment="Center"
-                                    Background="Transparent" BorderThickness="0"
-                                    Cursor="Hand" MinWidth="40" MinHeight="40"
-                                    Command="{Binding CancelEditCommand}">
-                                <materialDesign:PackIcon Kind="Close" Width="20" Height="20"
-                                                         Foreground="{StaticResource TextMutedBrush}"/>
+                            <Button MinWidth="40"
+                                    MinHeight="40"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Command="{Binding CancelEditCommand}"
+                                    Cursor="Hand">
+                                <materialDesign:PackIcon Width="20"
+                                                         Height="20"
+                                                         Foreground="{StaticResource TextMutedBrush}"
+                                                         Kind="Close" />
                             </Button>
                         </Grid>
 
-                        <!-- ═══════════════════════════════════ -->
-                        <!-- SECTION : IDENTITÉ                   -->
-                        <!-- ═══════════════════════════════════ -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                            <Border CornerRadius="6" Padding="5" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <!--  ═══════════════════════════════════  -->
+                        <!--  SECTION : IDENTITÉ  -->
+                        <!--  ═══════════════════════════════════  -->
+                        <StackPanel Margin="0,0,0,14"
+                                    Orientation="Horizontal">
+                            <Border Margin="0,0,8,0"
+                                    Padding="5"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="6">
                                 <Border.Background>
-                                    <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.07"/>
+                                    <SolidColorBrush Opacity="0.07"
+                                                     Color="{StaticResource PrimaryColor}" />
                                 </Border.Background>
-                                <materialDesign:PackIcon Kind="TagOutline" Width="14" Height="14"
-                                                         Foreground="{StaticResource PrimaryBrush}"/>
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Foreground="{StaticResource PrimaryBrush}"
+                                                         Kind="TagOutline" />
                             </Border>
-                            <TextBlock Text="IDENTITÉ PRODUIT" Style="{StaticResource PanelLabel}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                            <TextBlock Margin="0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource PanelLabel}"
+                                       Text="IDENTITÉ PRODUIT" />
                         </StackPanel>
 
-                        <!-- ── CODE (auto-generated) + BARCODE ── -->
+                        <!--  ── CODE (auto-generated) + BARCODE ──  -->
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Margin="0,0,8,0">
-                                <TextBlock Text="CODE PRODUIT" Style="{StaticResource PanelLabel}"/>
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="CODE PRODUIT" />
                                 <Grid>
-                                    <TextBox Text="{Binding EditCode, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox MinHeight="42"
                                              Style="{StaticResource ModernTextBoxStyle}"
-                                             MinHeight="42"
-                                             ToolTip="Auto-généré à la sélection de catégorie — modifiable"/>
-                                    <!-- Small auto-badge -->
-                                    <Border HorizontalAlignment="Right" VerticalAlignment="Center"
-                                            Margin="0,0,8,0" CornerRadius="4" Padding="5,2"
+                                             Text="{Binding EditCode, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Auto-généré à la sélection de catégorie — modifiable" />
+                                    <!--  Small auto-badge  -->
+                                    <Border Margin="0,0,8,0"
+                                            Padding="5,2"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="4"
                                             Visibility="{Binding IsNewProduct, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Border.Background>
-                                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                                            <SolidColorBrush Opacity="0.08"
+                                                             Color="{StaticResource PrimaryColor}" />
                                         </Border.Background>
-                                        <TextBlock Text="AUTO" FontFamily="{StaticResource AppFont}"
-                                                   FontSize="9" FontWeight="Bold"
-                                                   Foreground="{StaticResource PrimaryBrush}"/>
+                                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                                   FontSize="9"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource PrimaryBrush}"
+                                                   Text="AUTO" />
                                     </Border>
                                 </Grid>
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Text="CODE-BARRES" Style="{StaticResource PanelLabel}"/>
-                                <TextBox Text="{Binding EditBarcode, UpdateSourceTrigger=PropertyChanged}"
+                            <StackPanel Grid.Column="1"
+                                        Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="CODE-BARRES" />
+                                <TextBox MinHeight="42"
                                          Style="{StaticResource ModernTextBoxStyle}"
-                                         MinHeight="42"/>
+                                         Text="{Binding EditBarcode, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                         </Grid>
 
-                        <!-- Name -->
+                        <!--  Name  -->
                         <StackPanel Margin="0,0,0,14">
-                            <TextBlock Text="DÉSIGNATION *" Style="{StaticResource PanelLabel}"/>
-                            <TextBox Text="{Binding EditName}" FontFamily="{StaticResource AppFont}"
+                            <TextBlock Style="{StaticResource PanelLabel}"
+                                       Text="DÉSIGNATION *" />
+                            <TextBox MinHeight="44"
+                                     FontFamily="{StaticResource AppFont}"
+                                     FontSize="15"
+                                     FontWeight="SemiBold"
                                      Style="{StaticResource ModernTextBoxStyle}"
-                                     FontSize="15" FontWeight="SemiBold" MinHeight="44"/>
+                                     Text="{Binding EditName}" />
                         </StackPanel>
 
-                        <!-- Description -->
+                        <!--  Description  -->
                         <StackPanel Margin="0,0,0,14">
-                            <TextBlock Text="DESCRIPTION" Style="{StaticResource PanelLabel}"/>
-                            <TextBox Text="{Binding EditDescription}" FontFamily="{StaticResource AppFont}"
+                            <TextBlock Style="{StaticResource PanelLabel}"
+                                       Text="DESCRIPTION" />
+                            <TextBox MinHeight="60"
+                                     AcceptsReturn="True"
+                                     FontFamily="{StaticResource AppFont}"
                                      Style="{StaticResource ModernTextBoxStyle}"
-                                     TextWrapping="Wrap" AcceptsReturn="True" MinHeight="60"/>
+                                     Text="{Binding EditDescription}"
+                                     TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <!-- Category -->
+                        <!--  Category  -->
                         <StackPanel Margin="0,0,0,4">
-                            <TextBlock Text="CATÉGORIE" Style="{StaticResource PanelLabel}"/>
-                            <ComboBox ItemsSource="{Binding Categories}"
-                                      SelectedItem="{Binding EditCategory}"
+                            <TextBlock Style="{StaticResource PanelLabel}"
+                                       Text="CATÉGORIE" />
+                            <ComboBox MinHeight="42"
                                       DisplayMemberPath="Name"
-                                      Style="{StaticResource ModernComboBoxStyle}"
-                                      MinHeight="42"/>
+                                      ItemsSource="{Binding Categories}"
+                                      SelectedItem="{Binding EditCategory}"
+                                      Style="{StaticResource ModernComboBoxStyle}" />
                         </StackPanel>
 
-                        <Border Style="{StaticResource SectionDivider}"/>
+                        <Border Style="{StaticResource SectionDivider}" />
 
-                        <!-- ═══════════════════════════════════ -->
-                        <!-- SECTION : FISCALITÉ                  -->
-                        <!-- ═══════════════════════════════════ -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                            <Border CornerRadius="6" Padding="5" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <!--  ═══════════════════════════════════  -->
+                        <!--  SECTION : FISCALITÉ  -->
+                        <!--  ═══════════════════════════════════  -->
+                        <StackPanel Margin="0,0,0,14"
+                                    Orientation="Horizontal">
+                            <Border Margin="0,0,8,0"
+                                    Padding="5"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="6">
                                 <Border.Background>
-                                    <SolidColorBrush Color="#9333EA" Opacity="0.08"/>
+                                    <SolidColorBrush Opacity="0.08"
+                                                     Color="#9333EA" />
                                 </Border.Background>
-                                <materialDesign:PackIcon Kind="ReceiptTextOutline" Width="14" Height="14"
-                                                         Foreground="#9333EA"/>
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Foreground="#9333EA"
+                                                         Kind="ReceiptTextOutline" />
                             </Border>
-                            <TextBlock Text="FISCALITÉ" Style="{StaticResource PanelLabel}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                            <TextBlock Margin="0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource PanelLabel}"
+                                       Text="FISCALITÉ" />
                         </StackPanel>
 
-                        <!-- Item type + Tax group -->
+                        <!--  Item type + Tax group  -->
                         <Grid Margin="0,0,0,14">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
-                                <TextBlock Text="TYPE ARTICLE" Style="{StaticResource PanelLabel}"/>
-                                <ComboBox ItemsSource="{Binding ItemTypes}"
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="TYPE ARTICLE" />
+                                <ComboBox MinHeight="42"
+                                          ItemsSource="{Binding ItemTypes}"
                                           SelectedItem="{Binding EditItemType}"
-                                          Style="{StaticResource ModernComboBoxStyle}" MinHeight="42"/>
+                                          Style="{StaticResource ModernComboBoxStyle}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Text="GROUPE TVA" Style="{StaticResource PanelLabel}"/>
-                                <ComboBox ItemsSource="{Binding TaxGroups}"
+                            <StackPanel Grid.Column="1"
+                                        Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="GROUPE TVA" />
+                                <ComboBox MinHeight="42"
+                                          ItemsSource="{Binding TaxGroups}"
                                           SelectedItem="{Binding EditTaxGroup}"
-                                          Style="{StaticResource ModernComboBoxStyle}" MinHeight="42"/>
+                                          Style="{StaticResource ModernComboBoxStyle}" />
                             </StackPanel>
                         </Grid>
-
-                        <!-- Active tax rate info -->
-                        <Border CornerRadius="8" Padding="12,10" Margin="0,0,0,14"
-                                Visibility="{Binding ActiveTaxRateDisplay, Converter={StaticResource StringToVisibilityConverter}}"
-                                BorderThickness="1">
+                        <!--  ── Variant for group A (Exonéré vs Hors champ) ──  -->
+                        <StackPanel Margin="0,0,0,14"
+                                    Visibility="{Binding ShowTaxGroupAVariant, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Style="{StaticResource PanelLabel}"
+                                       Text="NATURE DU GROUPE A" />
+                            <ComboBox MinHeight="42"
+                                      ItemsSource="{Binding TaxGroupATypes}"
+                                      SelectedItem="{Binding EditTaxGroupAType}"
+                                      Style="{StaticResource ModernComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Margin="0,0,10,0"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryBrush}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="[A]" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding}"
+                                                                         Value="HorsChamp">
+                                                                <Setter Property="Text" Value="[A-HC]" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Exonéré de TVA" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding}"
+                                                                         Value="HorsChamp">
+                                                                <Setter Property="Text" Value="Hors champ de TVA" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <!--  Active tax rate info  -->
+                        <Border Margin="0,0,0,14"
+                                Padding="12,10"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Visibility="{Binding ActiveTaxRateDisplay, Converter={StaticResource StringToVisibilityConverter}}">
                             <Border.Background>
-                                <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.04"/>
+                                <SolidColorBrush Opacity="0.04"
+                                                 Color="{StaticResource PrimaryColor}" />
                             </Border.Background>
                             <Border.BorderBrush>
-                                <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.15"/>
+                                <SolidColorBrush Opacity="0.15"
+                                                 Color="{StaticResource PrimaryColor}" />
                             </Border.BorderBrush>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="InformationOutline" Width="16" Height="16"
+                                <materialDesign:PackIcon Width="16"
+                                                         Height="16"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
                                                          Foreground="{StaticResource PrimaryBrush}"
-                                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Text="{Binding ActiveTaxRateDisplay}"
-                                           FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="#1E40AF" TextWrapping="Wrap"
-                                           VerticalAlignment="Center"/>
+                                                         Kind="InformationOutline" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="12"
+                                           Foreground="#1E40AF"
+                                           Text="{Binding ActiveTaxRateDisplay}"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
-                        <!-- Specific tax sub-section -->
-                        <TextBlock Text="TAXE SPÉCIFIQUE" Style="{StaticResource PanelLabel}"
-                                   FontWeight="Bold" Margin="0,0,0,8"/>
+                        <!--  Specific tax sub-section  -->
+                        <TextBlock Margin="0,0,0,8"
+                                   FontWeight="Bold"
+                                   Style="{StaticResource PanelLabel}"
+                                   Text="TAXE SPÉCIFIQUE" />
 
                         <StackPanel Margin="0,0,0,10">
-                            <TextBlock Text="TYPE DE TAXE" Style="{StaticResource PanelLabel}"/>
-                            <ComboBox ItemsSource="{Binding SpecificTaxTypes}"
+                            <TextBlock Style="{StaticResource PanelLabel}"
+                                       Text="TYPE DE TAXE" />
+                            <ComboBox MinHeight="42"
+                                      ItemsSource="{Binding SpecificTaxTypes}"
                                       SelectedItem="{Binding EditSpecificTaxType}"
-                                      Style="{StaticResource ModernComboBoxStyle}" MinHeight="42"/>
+                                      Style="{StaticResource ModernComboBoxStyle}" />
                         </StackPanel>
 
-                        <!-- Value + Mode (when type ≠ None) -->
+                        <!--  Value + Mode (when type ≠ None)  -->
                         <Grid Margin="0,0,0,12"
                               Visibility="{Binding ShowSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
-                                <TextBlock >
+                                <TextBlock>
                                     <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource PanelLabel}">
-                                            <Setter Property="Text" Value="MONTANT FIXE / UNITÉ"/>
+                                        <Style BasedOn="{StaticResource PanelLabel}"
+                                               TargetType="TextBlock">
+                                            <Setter Property="Text" Value="MONTANT FIXE / UNITÉ" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EditSpecificTaxType}" Value="Percentage">
-                                                    <Setter Property="Text" Value="TAUX (%)"/>
+                                                <DataTrigger Binding="{Binding EditSpecificTaxType}"
+                                                             Value="Percentage">
+                                                    <Setter Property="Text" Value="TAUX (%)" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBox Text="{Binding EditSpecificTaxValue, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}" MinHeight="42">
+                                <TextBox MinHeight="42"
+                                         Style="{StaticResource ModernTextBoxStyle}"
+                                         Text="{Binding EditSpecificTaxValue, UpdateSourceTrigger=PropertyChanged}">
                                     <TextBox.ToolTip>
                                         <TextBlock>
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="Ex : 230 (montant fixe par unité vendue)"/>
+                                                    <Setter Property="Text" Value="Ex : 230 (montant fixe par unité vendue)" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding EditSpecificTaxType}" Value="Percentage">
-                                                            <Setter Property="Text" Value="Ex : 10 (pour 10 % du montant HT)"/>
+                                                        <DataTrigger Binding="{Binding EditSpecificTaxType}"
+                                                                     Value="Percentage">
+                                                            <Setter Property="Text" Value="Ex : 10 (pour 10 % du montant HT)" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -1077,50 +1360,61 @@
                                     </TextBox.ToolTip>
                                 </TextBox>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Text="MODE D'APPLICATION" Style="{StaticResource PanelLabel}"/>
-                                <ComboBox ItemsSource="{Binding TaxSpecificModes}"
+                            <StackPanel Grid.Column="1"
+                                        Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="MODE D'APPLICATION" />
+                                <ComboBox MinHeight="42"
+                                          ItemsSource="{Binding TaxSpecificModes}"
                                           SelectedItem="{Binding EditTaxSpecificMode}"
-                                          Style="{StaticResource ModernComboBoxStyle}" MinHeight="42"/>
+                                          Style="{StaticResource ModernComboBoxStyle}" />
                             </StackPanel>
                         </Grid>
 
-                        <!-- Info mode T.S. -->
-                        <Border CornerRadius="8" Padding="12,10" Margin="0,0,0,10"
+                        <!--  Info mode T.S.  -->
+                        <Border Margin="0,0,0,10"
+                                Padding="12,10"
                                 BorderThickness="1"
+                                CornerRadius="8"
                                 Visibility="{Binding ShowSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
-                                <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.05"/>
+                                <SolidColorBrush Opacity="0.05"
+                                                 Color="{StaticResource WarningColor}" />
                             </Border.Background>
                             <Border.BorderBrush>
-                                <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.18"/>
+                                <SolidColorBrush Opacity="0.18"
+                                                 Color="{StaticResource WarningColor}" />
                             </Border.BorderBrush>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Width="16" Height="16"
-                                                         VerticalAlignment="Center" Margin="0,0,8,0">
+                                <materialDesign:PackIcon Width="16"
+                                                         Height="16"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center">
                                     <materialDesign:PackIcon.Style>
                                         <Style TargetType="materialDesign:PackIcon">
-                                            <Setter Property="Kind" Value="FlashOutline"/>
-                                            <Setter Property="Foreground" Value="#92400E"/>
+                                            <Setter Property="Kind" Value="FlashOutline" />
+                                            <Setter Property="Foreground" Value="#92400E" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EditTaxSpecificMode}" Value="OnTotal">
-                                                    <Setter Property="Kind" Value="ChartBoxOutline"/>
+                                                <DataTrigger Binding="{Binding EditTaxSpecificMode}"
+                                                             Value="OnTotal">
+                                                    <Setter Property="Kind" Value="ChartBoxOutline" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </materialDesign:PackIcon.Style>
                                 </materialDesign:PackIcon>
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="#92400E" TextWrapping="Wrap"
-                                           VerticalAlignment="Center">
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="12"
+                                           Foreground="#92400E"
+                                           TextWrapping="Wrap">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text"
-                                                    Value="Par article : T.S. calculée sur chaque ligne individuellement."/>
+                                            <Setter Property="Text" Value="Par article : T.S. calculée sur chaque ligne individuellement." />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EditTaxSpecificMode}" Value="OnTotal">
-                                                    <Setter Property="Text"
-                                                            Value="Sur le total : T.S. différée, calculée une seule fois sur le sous-total regroupé."/>
+                                                <DataTrigger Binding="{Binding EditTaxSpecificMode}"
+                                                             Value="OnTotal">
+                                                    <Setter Property="Text" Value="Sur le total : T.S. différée, calculée une seule fois sur le sous-total regroupé." />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1129,42 +1423,50 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Info type T.S. -->
-                        <Border CornerRadius="8" Padding="12,10" Margin="0,0,0,4"
+                        <!--  Info type T.S.  -->
+                        <Border Margin="0,0,0,4"
+                                Padding="12,10"
                                 BorderThickness="1"
+                                CornerRadius="8"
                                 Visibility="{Binding ShowSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
-                                <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.04"/>
+                                <SolidColorBrush Opacity="0.04"
+                                                 Color="{StaticResource SuccessColor}" />
                             </Border.Background>
                             <Border.BorderBrush>
-                                <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.15"/>
+                                <SolidColorBrush Opacity="0.15"
+                                                 Color="{StaticResource SuccessColor}" />
                             </Border.BorderBrush>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Width="16" Height="16"
-                                                         VerticalAlignment="Center" Margin="0,0,8,0">
+                                <materialDesign:PackIcon Width="16"
+                                                         Height="16"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center">
                                     <materialDesign:PackIcon.Style>
                                         <Style TargetType="materialDesign:PackIcon">
-                                            <Setter Property="Kind" Value="PackageVariantClosed"/>
-                                            <Setter Property="Foreground" Value="#166534"/>
+                                            <Setter Property="Kind" Value="PackageVariantClosed" />
+                                            <Setter Property="Foreground" Value="#166534" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EditSpecificTaxType}" Value="Percentage">
-                                                    <Setter Property="Kind" Value="Percent"/>
+                                                <DataTrigger Binding="{Binding EditSpecificTaxType}"
+                                                             Value="Percentage">
+                                                    <Setter Property="Kind" Value="Percent" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </materialDesign:PackIcon.Style>
                                 </materialDesign:PackIcon>
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="#166534" TextWrapping="Wrap"
-                                           VerticalAlignment="Center">
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="12"
+                                           Foreground="#166534"
+                                           TextWrapping="Wrap">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text"
-                                                    Value="Montant fixe par unité vendue (ex : 230 CDF × quantité)."/>
+                                            <Setter Property="Text" Value="Montant fixe par unité vendue (ex : 230 CDF × quantité)." />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EditSpecificTaxType}" Value="Percentage">
-                                                    <Setter Property="Text"
-                                                            Value="Pourcentage appliqué sur le montant HT (ex : 10 % du HT)."/>
+                                                <DataTrigger Binding="{Binding EditSpecificTaxType}"
+                                                             Value="Percentage">
+                                                    <Setter Property="Text" Value="Pourcentage appliqué sur le montant HT (ex : 10 % du HT)." />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1173,357 +1475,502 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource SectionDivider}"/>
+                        <Border Style="{StaticResource SectionDivider}" />
 
-                        <!-- ═══════════════════════════════════════════ -->
-                        <!-- SECTION : TARIFICATION MULTI-DEVISE         -->
-                        <!-- ═══════════════════════════════════════════ -->
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,16">
-                            <Border CornerRadius="6" Padding="5" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <!--  ═══════════════════════════════════════════  -->
+                        <!--  SECTION : TARIFICATION MULTI-DEVISE  -->
+                        <!--  ═══════════════════════════════════════════  -->
+                        <StackPanel Margin="0,12,0,16"
+                                    Orientation="Horizontal">
+                            <Border Margin="0,0,8,0"
+                                    Padding="5"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="6">
                                 <Border.Background>
-                                    <SolidColorBrush Color="#059669" Opacity="0.08"/>
+                                    <SolidColorBrush Opacity="0.08"
+                                                     Color="#059669" />
                                 </Border.Background>
-                                <materialDesign:PackIcon Kind="CurrencyUsd" Width="14" Height="14"
-                                                         Foreground="#059669"/>
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Foreground="#059669"
+                                                         Kind="CurrencyUsd" />
                             </Border>
-                            <TextBlock Text="TARIFICATION MULTI-DEVISE" Style="{StaticResource PanelLabel}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                            <TextBlock Margin="0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource PanelLabel}"
+                                       Text="TARIFICATION MULTI-DEVISE" />
                         </StackPanel>
 
-                        <!-- ★ DUAL PRICE INPUTS: HT + TTC side-by-side ★ -->
+                        <!--  ★ DUAL PRICE INPUTS: HT + TTC side-by-side ★  -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Prix unitaire HT (CDF) -->
+                            <!--  Prix unitaire HT (CDF)  -->
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Style="{StaticResource PanelLabel}">
-                                    <Run Text="PRIX UNITAIRE HT (CDF)"/>
-                                    <Run Text=" *" Foreground="{StaticResource WarningBrush}"/>
+                                    <Run Text="PRIX UNITAIRE HT (CDF)" />
+                                    <Run Foreground="{StaticResource WarningBrush}"
+                                         Text=" *" />
                                 </TextBlock>
-                                <Border CornerRadius="10" BorderThickness="2" MinHeight="52">
+                                <Border MinHeight="52"
+                                        BorderThickness="2"
+                                        CornerRadius="10">
                                     <Border.BorderBrush>
-                                        <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.6"/>
+                                        <SolidColorBrush Opacity="0.6"
+                                                         Color="{StaticResource PrimaryColor}" />
                                     </Border.BorderBrush>
                                     <Border.Background>
-                                        <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.02"/>
+                                        <SolidColorBrush Opacity="0.02"
+                                                         Color="{StaticResource PrimaryColor}" />
                                     </Border.Background>
-                                    <TextBox Text="{Binding EditPriceHtInput, UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="{StaticResource AppFont}" FontSize="20" FontWeight="Bold"
+                                    <TextBox MinHeight="50"
+                                             Padding="14,0"
+                                             VerticalContentAlignment="Center"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FontFamily="{StaticResource AppFont}"
+                                             FontSize="20"
+                                             FontWeight="Bold"
                                              Foreground="{StaticResource PrimaryBrush}"
-                                             Background="Transparent" BorderThickness="0"
-                                             VerticalContentAlignment="Center" Padding="14,0"
-                                             MinHeight="50"
-                                             ToolTip="Saisissez le prix HT — le TTC se calcule automatiquement"/>
+                                             Text="{Binding EditPriceHtInput, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Saisissez le prix HT — le TTC se calcule automatiquement" />
                                 </Border>
                             </StackPanel>
 
-                            <!-- Prix unitaire TTC (CDF) -->
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <!--  Prix unitaire TTC (CDF)  -->
+                            <StackPanel Grid.Column="1"
+                                        Margin="8,0,0,0">
                                 <TextBlock Style="{StaticResource PanelLabel}">
-                                    <Run Text="PRIX UNITAIRE TTC (CDF)"/>
-                                    <Run Text=" *" Foreground="{StaticResource WarningBrush}"/>
+                                    <Run Text="PRIX UNITAIRE TTC (CDF)" />
+                                    <Run Foreground="{StaticResource WarningBrush}"
+                                         Text=" *" />
                                 </TextBlock>
-                                <Border CornerRadius="10" BorderThickness="2" MinHeight="52"
-                                        BorderBrush="#D1D5DB" Background="#FAFAFA">
-                                    <TextBox Text="{Binding EditPriceTtcInput, UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="{StaticResource AppFont}" FontSize="20" FontWeight="Bold"
+                                <Border MinHeight="52"
+                                        Background="#FAFAFA"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="2"
+                                        CornerRadius="10">
+                                    <TextBox MinHeight="50"
+                                             Padding="14,0"
+                                             VerticalContentAlignment="Center"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FontFamily="{StaticResource AppFont}"
+                                             FontSize="20"
+                                             FontWeight="Bold"
                                              Foreground="{StaticResource TextPrimaryBrush}"
-                                             Background="Transparent" BorderThickness="0"
-                                             VerticalContentAlignment="Center" Padding="14,0"
-                                             MinHeight="50"
-                                             ToolTip="Saisissez le prix TTC — le HT se calcule automatiquement"/>
+                                             Text="{Binding EditPriceTtcInput, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Saisissez le prix TTC — le HT se calcule automatiquement" />
                                 </Border>
                             </StackPanel>
                         </Grid>
 
-                        <!-- ── COMPUTED 4-PRICE CARD ── -->
-                        <Border Background="#F8FAFC" CornerRadius="10" Padding="16" Margin="0,0,0,12"
-                                BorderBrush="#E2E8F0" BorderThickness="1"
+                        <!--  ── COMPUTED 4-PRICE CARD ──  -->
+                        <Border Margin="0,0,0,12"
+                                Padding="16"
+                                Background="#F8FAFC"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="10"
                                 Visibility="{Binding HasPriceCalculation, Converter={StaticResource BoolToVisibilityConverter}}">
                             <StackPanel>
-                                <!-- Row 1: CDF -->
+                                <!--  Row 1: CDF  -->
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- HT CDF -->
-                                    <Border CornerRadius="8" Padding="10,8" Margin="0,0,6,0"
-                                            Background="Transparent">
+                                    <!--  HT CDF  -->
+                                    <Border Margin="0,0,6,0"
+                                            Padding="10,8"
+                                            Background="Transparent"
+                                            CornerRadius="8">
                                         <StackPanel>
-                                            <TextBlock Text="HT CDF" FontFamily="{StaticResource AppFont}"
-                                                       FontSize="10" FontWeight="Bold"
-                                                       Foreground="{StaticResource TextMutedBrush}"/>
-                                            <TextBlock Text="{Binding CalcHtCdf, StringFormat=N2}"
-                                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Text="HT CDF" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="15"
                                                        FontWeight="SemiBold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                                       Margin="0,3,0,0"/>
+                                                       Text="{Binding CalcHtCdf, StringFormat=N2}" />
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- TTC CDF -->
-                                    <Border Grid.Column="1" CornerRadius="8" Padding="10,8" Margin="6,0,0,0">
+                                    <!--  TTC CDF  -->
+                                    <Border Grid.Column="1"
+                                            Margin="6,0,0,0"
+                                            Padding="10,8"
+                                            CornerRadius="8">
                                         <Border.Background>
-                                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.06"/>
+                                            <SolidColorBrush Opacity="0.06"
+                                                             Color="{StaticResource PrimaryColor}" />
                                         </Border.Background>
                                         <StackPanel>
-                                            <TextBlock Text="TTC CDF" FontFamily="{StaticResource AppFont}"
-                                                       FontSize="10" FontWeight="Bold"
-                                                       Foreground="{StaticResource PrimaryBrush}"/>
-                                            <TextBlock Text="{Binding CalcTtcCdf, StringFormat=N2}"
-                                                       FontFamily="{StaticResource AppFont}" FontSize="15"
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="10"
                                                        FontWeight="Bold"
                                                        Foreground="{StaticResource PrimaryBrush}"
-                                                       Margin="0,3,0,0"/>
+                                                       Text="TTC CDF" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryBrush}"
+                                                       Text="{Binding CalcTtcCdf, StringFormat=N2}" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
 
-                                <!-- Thin separator -->
-                                <Border Height="1" Background="#E5E7EB" Margin="4,0,4,10"/>
+                                <!--  Thin separator  -->
+                                <Border Height="1"
+                                        Margin="4,0,4,10"
+                                        Background="#E5E7EB" />
 
-                                <!-- Row 2: USD -->
+                                <!--  Row 2: USD  -->
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- HT USD -->
-                                    <Border CornerRadius="8" Padding="10,8" Margin="0,0,6,0"
-                                            Background="Transparent">
+                                    <!--  HT USD  -->
+                                    <Border Margin="0,0,6,0"
+                                            Padding="10,8"
+                                            Background="Transparent"
+                                            CornerRadius="8">
                                         <StackPanel>
-                                            <TextBlock Text="HT USD" FontFamily="{StaticResource AppFont}"
-                                                       FontSize="10" FontWeight="Bold"
-                                                       Foreground="{StaticResource TextMutedBrush}"/>
-                                            <TextBlock Text="{Binding CalcHtUsd, StringFormat=N4}"
-                                                       FontFamily="{StaticResource AppFont}" FontSize="14"
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Text="HT USD" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                                       Margin="0,3,0,0"/>
+                                                       Text="{Binding CalcHtUsd, StringFormat=N4}" />
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- TTC USD -->
-                                    <Border Grid.Column="1" CornerRadius="8" Padding="10,8" Margin="6,0,0,0"
-                                            Background="Transparent">
+                                    <!--  TTC USD  -->
+                                    <Border Grid.Column="1"
+                                            Margin="6,0,0,0"
+                                            Padding="10,8"
+                                            Background="Transparent"
+                                            CornerRadius="8">
                                         <StackPanel>
-                                            <TextBlock Text="TTC USD" FontFamily="{StaticResource AppFont}"
-                                                       FontSize="10" FontWeight="Bold"
-                                                       Foreground="{StaticResource TextMutedBrush}"/>
-                                            <TextBlock Text="{Binding CalcTtcUsd, StringFormat=N4}"
-                                                       FontFamily="{StaticResource AppFont}" FontSize="14"
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Text="TTC USD" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14"
                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Margin="0,3,0,0"/>
+                                                       Text="{Binding CalcTtcUsd, StringFormat=N4}" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
                             </StackPanel>
                         </Border>
 
-                        <!-- Exchange rate info -->
-                        <Border CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                        <!--  Exchange rate info  -->
+                        <Border Margin="0,0,0,6"
+                                Padding="10,8"
+                                CornerRadius="6">
                             <Border.Background>
-                                <SolidColorBrush Color="#059669" Opacity="0.04"/>
+                                <SolidColorBrush Opacity="0.04"
+                                                 Color="#059669" />
                             </Border.Background>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="SwapHorizontal" Width="15" Height="15"
+                                <materialDesign:PackIcon Width="15"
+                                                         Height="15"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
                                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           VerticalAlignment="Center">
-                                    <Run Text="Taux actif : 1 USD ="/>
-                                    <Run Text="{Binding ExchangeRate, StringFormat=N0, Mode=OneWay}"
-                                         FontWeight="SemiBold"/>
-                                    <Run Text=" CDF"/>
+                                                         Kind="SwapHorizontal" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Taux actif : 1 USD =" />
+                                    <Run FontWeight="SemiBold"
+                                         Text="{Binding ExchangeRate, StringFormat=N0, Mode=OneWay}" />
+                                    <Run Text=" CDF" />
                                 </TextBlock>
                             </StackPanel>
                         </Border>
 
-                        <!-- Unit -->
+                        <!--  Unit  -->
                         <StackPanel Margin="0,10,0,4">
-                            <TextBlock Text="UNITÉ DE MESURE" Style="{StaticResource PanelLabel}"/>
-                            <ComboBox ItemsSource="{Binding CommonUnits}"
-                                      SelectedItem="{Binding EditUnit}" IsEditable="True"
+                            <TextBlock Style="{StaticResource PanelLabel}"
+                                       Text="UNITÉ DE MESURE" />
+                            <ComboBox MinHeight="42"
+                                      IsEditable="True"
+                                      ItemsSource="{Binding CommonUnits}"
+                                      SelectedItem="{Binding EditUnit}"
                                       Style="{StaticResource ModernComboBoxStyle}"
-                                      MinHeight="42"
-                                      ToolTip="Sélectionnez ou saisissez l'unité"/>
+                                      ToolTip="Sélectionnez ou saisissez l'unité" />
                         </StackPanel>
 
-                        <Border Style="{StaticResource SectionDivider}"/>
+                        <Border Style="{StaticResource SectionDivider}" />
 
-                        <!-- ═══════════════════════════════════ -->
-                        <!-- SECTION : REMISE PAR DÉFAUT          -->
-                        <!-- ═══════════════════════════════════ -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                            <Border CornerRadius="6" Padding="5" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <!--  ═══════════════════════════════════  -->
+                        <!--  SECTION : REMISE PAR DÉFAUT  -->
+                        <!--  ═══════════════════════════════════  -->
+                        <StackPanel Margin="0,0,0,14"
+                                    Orientation="Horizontal">
+                            <Border Margin="0,0,8,0"
+                                    Padding="5"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="6">
                                 <Border.Background>
-                                    <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.08"/>
+                                    <SolidColorBrush Opacity="0.08"
+                                                     Color="{StaticResource WarningColor}" />
                                 </Border.Background>
-                                <materialDesign:PackIcon Kind="PercentCircleOutline" Width="14" Height="14"
-                                                         Foreground="#DC2626"/>
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Foreground="#DC2626"
+                                                         Kind="PercentCircleOutline" />
                             </Border>
-                            <TextBlock Text="REMISE PAR DÉFAUT" Style="{StaticResource PanelLabel}"
-                                       Foreground="#DC2626" VerticalAlignment="Center" Margin="0"/>
+                            <TextBlock Margin="0"
+                                       VerticalAlignment="Center"
+                                       Foreground="#DC2626"
+                                       Style="{StaticResource PanelLabel}"
+                                       Text="REMISE PAR DÉFAUT" />
                         </StackPanel>
 
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
-                                <TextBlock Text="TYPE DE REMISE" Style="{StaticResource PanelLabel}"/>
-                                <ComboBox ItemsSource="{Binding DiscountTypes}"
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="TYPE DE REMISE" />
+                                <ComboBox MinHeight="42"
+                                          ItemsSource="{Binding DiscountTypes}"
                                           SelectedItem="{Binding EditDefaultDiscountType}"
-                                          Style="{StaticResource ModernComboBoxStyle}" MinHeight="42"/>
+                                          Style="{StaticResource ModernComboBoxStyle}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0"
+                            <StackPanel Grid.Column="1"
+                                        Margin="8,0,0,0"
                                         Visibility="{Binding ShowDiscountValue, Converter={StaticResource BoolToVisibilityConverter}}">
-                                <TextBlock >
+                                <TextBlock>
                                     <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource PanelLabel}">
-                                            <Setter Property="Text" Value="MONTANT FIXE (CDF)"/>
+                                        <Style BasedOn="{StaticResource PanelLabel}"
+                                               TargetType="TextBlock">
+                                            <Setter Property="Text" Value="MONTANT FIXE (CDF)" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EditDefaultDiscountType}" Value="Percentage">
-                                                    <Setter Property="Text" Value="POURCENTAGE (%)"/>
+                                                <DataTrigger Binding="{Binding EditDefaultDiscountType}"
+                                                             Value="Percentage">
+                                                    <Setter Property="Text" Value="POURCENTAGE (%)" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBox Text="{Binding EditDefaultDiscountValue, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource ModernTextBoxStyle}" MinHeight="42"/>
+                                <TextBox MinHeight="42"
+                                         Style="{StaticResource ModernTextBoxStyle}"
+                                         Text="{Binding EditDefaultDiscountValue, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                         </Grid>
 
-                        <!-- Discount info -->
-                        <Border CornerRadius="8" Padding="12,10" Margin="0,0,0,4"
+                        <!--  Discount info  -->
+                        <Border Margin="0,0,0,4"
+                                Padding="12,10"
                                 BorderThickness="1"
+                                CornerRadius="8"
                                 Visibility="{Binding ShowDiscountValue, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
-                                <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.04"/>
+                                <SolidColorBrush Opacity="0.04"
+                                                 Color="{StaticResource WarningColor}" />
                             </Border.Background>
                             <Border.BorderBrush>
-                                <SolidColorBrush Color="{StaticResource WarningColor}" Opacity="0.12"/>
+                                <SolidColorBrush Opacity="0.12"
+                                                 Color="{StaticResource WarningColor}" />
                             </Border.BorderBrush>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="TagHeartOutline" Width="16" Height="16"
+                                <materialDesign:PackIcon Width="16"
+                                                         Height="16"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
                                                          Foreground="#DC2626"
-                                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Text="Cette remise sera appliquée automatiquement lorsque ce produit est ajouté au panier ou à une facture."
-                                           FontFamily="{StaticResource AppFont}" FontSize="12"
-                                           Foreground="#DC2626" TextWrapping="Wrap"
-                                           VerticalAlignment="Center"/>
+                                                         Kind="TagHeartOutline" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="12"
+                                           Foreground="#DC2626"
+                                           Text="Cette remise sera appliquée automatiquement lorsque ce produit est ajouté au panier ou à une facture."
+                                           TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource SectionDivider}"/>
+                        <Border Style="{StaticResource SectionDivider}" />
 
-                        <!-- ═══════════════════════════════════ -->
-                        <!-- SECTION : STOCK                      -->
-                        <!-- ═══════════════════════════════════ -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                            <Border CornerRadius="6" Padding="5" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <!--  ═══════════════════════════════════  -->
+                        <!--  SECTION : STOCK  -->
+                        <!--  ═══════════════════════════════════  -->
+                        <StackPanel Margin="0,0,0,14"
+                                    Orientation="Horizontal">
+                            <Border Margin="0,0,8,0"
+                                    Padding="5"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="6">
                                 <Border.Background>
-                                    <SolidColorBrush Color="#EA580C" Opacity="0.08"/>
+                                    <SolidColorBrush Opacity="0.08"
+                                                     Color="#EA580C" />
                                 </Border.Background>
-                                <materialDesign:PackIcon Kind="Warehouse" Width="14" Height="14"
-                                                         Foreground="#EA580C"/>
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Foreground="#EA580C"
+                                                         Kind="Warehouse" />
                             </Border>
-                            <TextBlock Text="STOCK" Style="{StaticResource PanelLabel}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                            <TextBlock Margin="0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource PanelLabel}"
+                                       Text="STOCK" />
                         </StackPanel>
 
-                        <CheckBox Content="Suivre le stock" IsChecked="{Binding EditTrackStock}"
-                                  FontFamily="{StaticResource AppFont}" FontSize="13"
-                                  MinHeight="40" Margin="0,0,0,12"/>
+                        <CheckBox MinHeight="40"
+                                  Margin="0,0,0,12"
+                                  Content="Suivre le stock"
+                                  FontFamily="{StaticResource AppFont}"
+                                  FontSize="13"
+                                  IsChecked="{Binding EditTrackStock}" />
 
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
-                                <TextBlock Text="QUANTITÉ EN STOCK" Style="{StaticResource PanelLabel}"/>
-                                <TextBox Text="{Binding EditStockQuantity}"
-                                         Style="{StaticResource ModernTextBoxStyle}" MinHeight="42"/>
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="QUANTITÉ EN STOCK" />
+                                <TextBox MinHeight="42"
+                                         Style="{StaticResource ModernTextBoxStyle}"
+                                         Text="{Binding EditStockQuantity}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Text="SEUIL MINIMUM" Style="{StaticResource PanelLabel}"/>
-                                <TextBox Text="{Binding EditMinStockLevel}"
-                                         Style="{StaticResource ModernTextBoxStyle}" MinHeight="42"/>
+                            <StackPanel Grid.Column="1"
+                                        Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource PanelLabel}"
+                                           Text="SEUIL MINIMUM" />
+                                <TextBox MinHeight="42"
+                                         Style="{StaticResource ModernTextBoxStyle}"
+                                         Text="{Binding EditMinStockLevel}" />
                             </StackPanel>
                         </Grid>
 
-                        <Border Style="{StaticResource SectionDivider}"/>
+                        <Border Style="{StaticResource SectionDivider}" />
 
-                        <!-- ═══════════════════════════════════ -->
-                        <!-- SECTION : OPTIONS                    -->
-                        <!-- ═══════════════════════════════════ -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                            <Border CornerRadius="6" Padding="5" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <!--  ═══════════════════════════════════  -->
+                        <!--  SECTION : OPTIONS  -->
+                        <!--  ═══════════════════════════════════  -->
+                        <StackPanel Margin="0,0,0,14"
+                                    Orientation="Horizontal">
+                            <Border Margin="0,0,8,0"
+                                    Padding="5"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="6">
                                 <Border.Background>
-                                    <SolidColorBrush Color="#F59E0B" Opacity="0.1"/>
+                                    <SolidColorBrush Opacity="0.1"
+                                                     Color="#F59E0B" />
                                 </Border.Background>
-                                <materialDesign:PackIcon Kind="CogOutline" Width="14" Height="14"
-                                                         Foreground="#D97706"/>
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Foreground="#D97706"
+                                                         Kind="CogOutline" />
                             </Border>
-                            <TextBlock Text="OPTIONS" Style="{StaticResource PanelLabel}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                            <TextBlock Margin="0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource PanelLabel}"
+                                       Text="OPTIONS" />
                         </StackPanel>
 
-                        <Border Background="#FEFCE8" CornerRadius="10" Padding="16" Margin="0,0,0,4">
+                        <Border Margin="0,0,0,4"
+                                Padding="16"
+                                Background="#FEFCE8"
+                                CornerRadius="10">
                             <StackPanel>
-                                <CheckBox IsChecked="{Binding EditIsFavorite}"
-                                          FontFamily="{StaticResource AppFont}" FontSize="13"
-                                          MinHeight="40" Margin="0,0,0,6">
+                                <CheckBox MinHeight="40"
+                                          Margin="0,0,0,6"
+                                          FontFamily="{StaticResource AppFont}"
+                                          FontSize="13"
+                                          IsChecked="{Binding EditIsFavorite}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Kind="Star" Width="16" Height="16"
+                                        <materialDesign:PackIcon Width="16"
+                                                                 Height="16"
+                                                                 Margin="0,0,8,0"
+                                                                 VerticalAlignment="Center"
                                                                  Foreground="#F59E0B"
-                                                                 VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBlock Text="Produit favori (accès rapide en caisse)"
-                                                   VerticalAlignment="Center"/>
+                                                                 Kind="Star" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Text="Produit favori (accès rapide en caisse)" />
                                     </StackPanel>
                                 </CheckBox>
-                                <CheckBox Content="Produit actif" IsChecked="{Binding EditIsActive}"
-                                          FontFamily="{StaticResource AppFont}" FontSize="13"
-                                          MinHeight="40"/>
+                                <CheckBox MinHeight="40"
+                                          Content="Produit actif"
+                                          FontFamily="{StaticResource AppFont}"
+                                          FontSize="13"
+                                          IsChecked="{Binding EditIsActive}" />
                             </StackPanel>
                         </Border>
 
-                        <!-- ═══════════════════════════════════ -->
-                        <!-- ACTION BUTTONS                       -->
-                        <!-- ═══════════════════════════════════ -->
+                        <!--  ═══════════════════════════════════  -->
+                        <!--  ACTION BUTTONS  -->
+                        <!--  ═══════════════════════════════════  -->
                         <Grid Margin="0,24,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button Command="{Binding CancelEditCommand}"
-                                    FontFamily="{StaticResource AppFont}" FontSize="13"
-                                    Padding="14,10" Margin="0,0,8,0" Cursor="Hand"
-                                    Background="#F3F4F6" BorderThickness="0" MinHeight="46">
-                                <TextBlock Text="Annuler" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Button MinHeight="46"
+                                    Margin="0,0,8,0"
+                                    Padding="14,10"
+                                    Background="#F3F4F6"
+                                    BorderThickness="0"
+                                    Command="{Binding CancelEditCommand}"
+                                    Cursor="Hand"
+                                    FontFamily="{StaticResource AppFont}"
+                                    FontSize="13">
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="Annuler" />
                             </Button>
-                            <Button Grid.Column="1" Command="{Binding SaveProductCommand}"
-                                    Background="{StaticResource PrimaryBrush}" Foreground="White"
-                                    FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="SemiBold"
-                                    Padding="14,10" Margin="8,0,0,0" Cursor="Hand"
-                                    BorderThickness="0" MinHeight="46">
+                            <Button Grid.Column="1"
+                                    MinHeight="46"
+                                    Margin="8,0,0,0"
+                                    Padding="14,10"
+                                    Background="{StaticResource PrimaryBrush}"
+                                    BorderThickness="0"
+                                    Command="{Binding SaveProductCommand}"
+                                    Cursor="Hand"
+                                    FontFamily="{StaticResource AppFont}"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="White">
                                 <Button.Effect>
-                                    <DropShadowEffect Color="{StaticResource PrimaryColor}"
-                                                      BlurRadius="10" ShadowDepth="2" Opacity="0.15"/>
+                                    <DropShadowEffect BlurRadius="10"
+                                                      Opacity="0.15"
+                                                      ShadowDepth="2"
+                                                      Color="{StaticResource PrimaryColor}" />
                                 </Button.Effect>
                                 <StackPanel Orientation="Horizontal">
-                                    <materialDesign:PackIcon Kind="ContentSave" Width="18" Height="18"
-                                                             VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBlock Text="Enregistrer" VerticalAlignment="Center"/>
+                                    <materialDesign:PackIcon Width="18"
+                                                             Height="18"
+                                                             Margin="0,0,8,0"
+                                                             VerticalAlignment="Center"
+                                                             Kind="ContentSave" />
+                                    <TextBlock VerticalAlignment="Center"
+                                               Text="Enregistrer" />
                                 </StackPanel>
                             </Button>
                         </Grid>

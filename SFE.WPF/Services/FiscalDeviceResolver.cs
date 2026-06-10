@@ -20,10 +20,11 @@ namespace SFE.WPF.Services;
 ///   4. A successful Submit on primary clears the failed flag immediately.
 ///   5. Finalize / Cancel always go to the same device that did Submit.
 ///   6. GetDiagnostics() exposes everything needed to debug fallback issues.
-///
-/// TIME: All timestamps go through ITimeProvider (DGI §1.1). DateTime.UtcNow
-/// is banned here — local clock tampering would distort retry cooldowns and
-/// diagnostics.
+///   7. If DeviceType=MCF and DisableFallback=true → no fallback is ever built.
+///   8. 🆕 Invalidate() is thread-safe (acquires _lock).
+///   9. 🆕 AcquireExclusiveAccessAsync() lets a caller own the COM port
+///      exclusively (e.g. for "Test connection") and prevents the resolver
+///      from rebuilding while suspended.
 /// </summary>
 public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 {
@@ -49,17 +50,35 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     private readonly Dictionary<string, IFiscalDeviceService> _invoiceDeviceMap = new();
     private readonly object _mapLock = new();
 
+    // 🆕 Exclusive-access lease counter. While > 0, EnsureDevicesAsync refuses
+    // to (re)build devices so a "Test connection" command can own the port.
+    private int _suspendCount;
+
     private static readonly TimeSpan PrimaryRetryInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan FallbackRebuildInterval = TimeSpan.FromSeconds(30);
 
-    public string ActiveDeviceLabel => _primaryFailed
-        ? (_fallbackDevice != null ? "Fallback" : "Primaire (échec, pas de fallback)")
-        : "Primaire";
+    // 🆕 Give USB-serial drivers a beat to release the handle after Close().
+    private static readonly TimeSpan PortReleaseDelay = TimeSpan.FromMilliseconds(300);
+
+    public string ActiveDeviceLabel
+    {
+        get
+        {
+            if (!_primaryFailed) return "Primaire";
+            if (_fallbackDevice != null) return "Fallback";
+            if (_cachedSettings != null
+                && _cachedSettings.DeviceType == DeviceType.Mcf
+                && _cachedSettings.DisableFallback)
+                return "Primaire (échec, mode MCF strict)";
+            return "Primaire (échec, pas de fallback)";
+        }
+    }
 
     public bool IsPrimaryFailed => _primaryFailed;
     public DateTimeOffset? PrimaryFailedAt => _primaryFailedAt;
     public bool HasFallback => _fallbackDevice != null;
     public string? FallbackUnavailableReason => _fallbackUnavailableReason;
+    public bool IsSuspended => Volatile.Read(ref _suspendCount) > 0;
 
     public FiscalDeviceResolver(SettingsService settingsService, ITimeProvider time)
     {
@@ -73,12 +92,20 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
     private async Task EnsureDevicesAsync()
     {
+        // 🆕 If a Test command is currently leasing the port, don't rebuild.
+        if (Volatile.Read(ref _suspendCount) > 0)
+        {
+            throw new InvalidOperationException(
+                "Le dispositif fiscal est temporairement réservé par une autre opération " +
+                "(test de connexion en cours). Veuillez patienter quelques secondes.");
+        }
+
         var settings = await _settingsService.LoadSettingsAsync();
         _cachedSettings = settings;
 
         var configKey = settings.DeviceType == DeviceType.EMcf
-            ? $"emcf|{settings.EmcfApiUrl}|{settings.EmcfToken}|{settings.CompanyNIF}|{settings.EmcfNIM}|{settings.McfPortName}|{settings.McfBaudRate}"
-            : $"mcf|{settings.McfPortName}|{settings.McfBaudRate}|{settings.EmcfApiUrl}|{settings.EmcfToken}";
+            ? $"emcf|{settings.EmcfApiUrl}|{settings.EmcfToken}|{settings.CompanyNIF}|{settings.EmcfNIM}|{settings.McfPortName}|{settings.McfBaudRate}|DF={settings.DisableFallback}"
+            : $"{settings.DeviceType.ToString().ToLowerInvariant()}|{settings.McfPortName}|{settings.McfBaudRate}|{settings.EmcfApiUrl}|{settings.EmcfToken}|DF={settings.DisableFallback}";
 
         if (_initialized && _lastDeviceType == settings.DeviceType && _lastConfigKey == configKey)
         {
@@ -97,17 +124,35 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
         lock (_mapLock) { _invoiceDeviceMap.Clear(); }
 
-        if (settings.DeviceType == DeviceType.EMcf)
+        switch (settings.DeviceType)
         {
-            _primaryDevice = BuildEmcfDevice(settings);
-            Debug.WriteLine("[FiscalResolver] ✓ e-MCF primary built");
-            TryEnsureFallback(settings);
-        }
-        else
-        {
-            _primaryDevice = BuildMcfDeviceOrThrow(settings);
-            Debug.WriteLine("[FiscalResolver] ✓ MCF primary built");
-            TryEnsureFallback(settings);
+            case DeviceType.EMcf:
+                _primaryDevice = BuildEmcfDevice(settings);
+                Debug.WriteLine("[FiscalResolver] ✓ e-MCF primary built");
+                TryEnsureFallback(settings);
+                break;
+
+            case DeviceType.Mcf:
+                _primaryDevice = BuildMcfDeviceOrThrow(settings);
+                Debug.WriteLine("[FiscalResolver] ✓ MCF primary built");
+                if (settings.DisableFallback)
+                {
+                    _fallbackUnavailableReason = "Mode MCF strict — fallback désactivé par configuration.";
+                    Debug.WriteLine("[FiscalResolver] ⚠ Fallback DISABLED (MCF strict)");
+                }
+                else
+                {
+                    TryEnsureFallback(settings);
+                }
+                break;
+
+            case DeviceType.Hybrid:
+                _primaryDevice = BuildEmcfDevice(settings);
+                Debug.WriteLine("[FiscalResolver] ✓ Hybrid: e-MCF primary built");
+                if (settings.DisableFallback)
+                    Debug.WriteLine("[FiscalResolver] ℹ DisableFallback ignored in Hybrid mode");
+                TryEnsureFallback(settings);
+                break;
         }
 
         _lastDeviceType = settings.DeviceType;
@@ -115,13 +160,15 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         _initialized = true;
     }
 
-    /// <summary>
-    /// Lazily builds the fallback device. Safe to call repeatedly — if a previous
-    /// attempt failed, it retries every <see cref="FallbackRebuildInterval"/>.
-    /// </summary>
     private void TryEnsureFallback(SettingsData settings)
     {
         if (_fallbackDevice != null) return;
+
+        if (settings.DeviceType == DeviceType.Mcf && settings.DisableFallback)
+        {
+            _fallbackUnavailableReason = "Mode MCF strict — fallback désactivé par configuration.";
+            return;
+        }
 
         if (_lastFallbackBuildAttempt.HasValue
             && _time.UtcNow - _lastFallbackBuildAttempt.Value < FallbackRebuildInterval)
@@ -133,7 +180,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
         try
         {
-            if (settings.DeviceType == DeviceType.EMcf)
+            if (settings.DeviceType == DeviceType.EMcf || settings.DeviceType == DeviceType.Hybrid)
             {
                 if (string.IsNullOrWhiteSpace(settings.McfPortName)
                     || settings.McfPortName == "(aucun port détecté)")
@@ -157,7 +204,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 _fallbackUnavailableReason = null;
                 Debug.WriteLine($"[FiscalResolver] ✓ MCF fallback ready on {settings.McfPortName}");
             }
-            else
+            else // DeviceType.Mcf with fallback enabled
             {
                 if (string.IsNullOrWhiteSpace(settings.EmcfApiUrl)
                     || string.IsNullOrWhiteSpace(settings.EmcfToken))
@@ -181,7 +228,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         }
     }
 
-    // NOTE: no longer static — needs _time to flow into the infra clients.
     private IFiscalDeviceService BuildEmcfDevice(SettingsData settings)
         => new EMcfHttpClient(settings.EmcfApiUrl, settings.EmcfToken, settings.CompanyNIF, _time);
 
@@ -216,18 +262,88 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 🆕 Thread-safe invalidation. Acquires the resolver's lock so we never
+    /// dispose a device that's mid-call.
+    /// </summary>
     public void Invalidate()
     {
-        DisposeDevice(_primaryDevice);
-        DisposeDevice(_fallbackDevice);
-        _primaryDevice = null;
-        _fallbackDevice = null;
-        _primaryFailed = false;
-        _primaryFailedAt = null;
-        _initialized = false;
-        _fallbackUnavailableReason = null;
-        _lastFallbackBuildAttempt = null;
-        lock (_mapLock) { _invoiceDeviceMap.Clear(); }
+        _lock.Wait();
+        try
+        {
+            DisposeDevice(_primaryDevice);
+            DisposeDevice(_fallbackDevice);
+            _primaryDevice = null;
+            _fallbackDevice = null;
+            _primaryFailed = false;
+            _primaryFailedAt = null;
+            _initialized = false;
+            _fallbackUnavailableReason = null;
+            _lastFallbackBuildAttempt = null;
+            lock (_mapLock) { _invoiceDeviceMap.Clear(); }
+            Debug.WriteLine("[FiscalResolver] Invalidate() done");
+        }
+        finally { _lock.Release(); }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 🆕 EXCLUSIVE-ACCESS LEASE
+    // ══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Releases the COM port (and HTTP client) and prevents the resolver from
+    /// rebuilding them until the returned handle is disposed. Use this around
+    /// a "Test connection" UI action so the test code is the SOLE owner of the
+    /// serial port for its duration.
+    /// </summary>
+    public async Task<IDisposable> AcquireExclusiveAccessAsync(
+        CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            DisposeDevice(_primaryDevice);
+            DisposeDevice(_fallbackDevice);
+            _primaryDevice = null;
+            _fallbackDevice = null;
+            _initialized = false;
+            _primaryFailed = false;
+            _primaryFailedAt = null;
+            _fallbackUnavailableReason = null;
+            _lastFallbackBuildAttempt = null;
+            Interlocked.Increment(ref _suspendCount);
+            Debug.WriteLine($"[FiscalResolver] Lease ACQUIRED (suspendCount={_suspendCount})");
+        }
+        finally { _lock.Release(); }
+
+        // Give USB-serial drivers time to release the handle.
+        try { await Task.Delay(PortReleaseDelay, ct); }
+        catch (OperationCanceledException) { /* still hand back the lease */ }
+
+        return new ExclusiveLease(this);
+    }
+
+    private void ReleaseExclusiveAccess()
+    {
+        var newCount = Interlocked.Decrement(ref _suspendCount);
+        if (newCount < 0)
+        {
+            // Defensive: never let the counter go negative.
+            Interlocked.Exchange(ref _suspendCount, 0);
+            newCount = 0;
+        }
+        Debug.WriteLine($"[FiscalResolver] Lease RELEASED (suspendCount={newCount})");
+    }
+
+    private sealed class ExclusiveLease : IDisposable
+    {
+        private FiscalDeviceResolver? _r;
+        public ExclusiveLease(FiscalDeviceResolver r) => _r = r;
+        public void Dispose()
+        {
+            var r = Interlocked.Exchange(ref _r, null);
+            r?.ReleaseExclusiveAccess();
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -249,6 +365,8 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         public string ActiveLabel { get; set; } = "";
         public string[] AvailableSerialPorts { get; set; } = Array.Empty<string>();
         public string? ConfiguredPortName { get; set; }
+        public bool DisableFallback { get; set; }
+        public bool IsSuspended { get; set; }   // 🆕
     }
 
     public async Task<ResolverDiagnostics> GetDiagnosticsAsync()
@@ -256,10 +374,26 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await EnsureDevicesAsync();
+            try { await EnsureDevicesAsync(); }
+            catch (InvalidOperationException) when (IsSuspended)
+            {
+                // Suspended for a Test command — that's fine, just report state.
+            }
 
-            string primaryType = _cachedSettings?.DeviceType == DeviceType.EMcf ? "e-MCF" : "MCF";
-            string fallbackType = _cachedSettings?.DeviceType == DeviceType.EMcf ? "MCF" : "e-MCF";
+            string primaryType = _cachedSettings?.DeviceType switch
+            {
+                DeviceType.EMcf => "e-MCF",
+                DeviceType.Mcf => "MCF",
+                DeviceType.Hybrid => "e-MCF (Hybride)",
+                _ => "?"
+            };
+            string fallbackType = _cachedSettings?.DeviceType switch
+            {
+                DeviceType.EMcf => "MCF",
+                DeviceType.Mcf => "e-MCF",
+                DeviceType.Hybrid => "MCF",
+                _ => "?"
+            };
 
             return new ResolverDiagnostics
             {
@@ -273,7 +407,9 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 LastFallbackBuildAttempt = _lastFallbackBuildAttempt,
                 ActiveLabel = ActiveDeviceLabel,
                 AvailableSerialPorts = SerialPort.GetPortNames(),
-                ConfiguredPortName = _cachedSettings?.McfPortName
+                ConfiguredPortName = _cachedSettings?.McfPortName,
+                DisableFallback = _cachedSettings?.DisableFallback ?? false,
+                IsSuspended = IsSuspended
             };
         }
         finally { _lock.Release(); }
@@ -322,7 +458,13 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await EnsureDevicesAsync();
+            try { await EnsureDevicesAsync(); }
+            catch (InvalidOperationException ex) when (IsSuspended)
+            {
+                // Resolver is leased out for a Test command — fail soft.
+                Debug.WriteLine($"[FiscalResolver] {operationName} skipped: {ex.Message}");
+                return buildErrorResult(ex);
+            }
 
             if (_primaryFailed && _fallbackDevice != null)
             {
@@ -425,7 +567,12 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await EnsureDevicesAsync();
+            try { await EnsureDevicesAsync(); }
+            catch (InvalidOperationException ex) when (IsSuspended)
+            {
+                Debug.WriteLine($"[FiscalResolver] {operationName} skipped (suspended): {ex.Message}");
+                return buildErrorResult(ex);
+            }
 
             IFiscalDeviceService? targetDevice;
             lock (_mapLock) { _invoiceDeviceMap.TryGetValue(uid, out targetDevice); }
@@ -486,7 +633,11 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await EnsureDevicesAsync();
+            try { await EnsureDevicesAsync(); }
+            catch (InvalidOperationException ex) when (IsSuspended)
+            {
+                return new FiscalSubmitResult { Success = false, ErrorMessage = ex.Message };
+            }
 
             FiscalSubmitResult primaryResult;
             try
@@ -577,7 +728,21 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await EnsureDevicesAsync();
+            try { await EnsureDevicesAsync(); }
+            catch (InvalidOperationException ex) when (IsSuspended)
+            {
+                return new FiscalDeviceDetailedInfo
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+
+            var primaryKind = _cachedSettings?.DeviceType == DeviceType.Mcf
+                ? FiscalDeviceKind.MCF
+                : FiscalDeviceKind.EMcf;
+            var fallbackKind = primaryKind == FiscalDeviceKind.EMcf
+                ? FiscalDeviceKind.MCF : FiscalDeviceKind.EMcf;
 
             FiscalDeviceDetailedInfo result;
             bool usedFallback = false;
@@ -594,7 +759,8 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                             if (result.Success)
                             {
                                 MarkPrimaryRecovered();
-                                result.DeviceTypeLabel = $"{result.DeviceTypeLabel} (récupéré)";
+                                result.RespondingDevice = RespondingDevice.Primary;
+                                result.RespondingDeviceKind = primaryKind;
                                 return result;
                             }
                             _primaryFailedAt = _time.UtcNow;
@@ -663,14 +829,8 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
                 }
             }
 
-            if (result.Success)
-            {
-                if (usedFallback)
-                    result.DeviceTypeLabel = $"{result.DeviceTypeLabel} (fallback)";
-                else if (_fallbackDevice != null)
-                    result.DeviceTypeLabel = $"{result.DeviceTypeLabel} (hybride)";
-            }
-
+            result.RespondingDevice = usedFallback ? RespondingDevice.Fallback : RespondingDevice.Primary;
+            result.RespondingDeviceKind = usedFallback ? fallbackKind : primaryKind;
             return result;
         }
         finally { _lock.Release(); }
@@ -678,12 +838,20 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
     public void Dispose()
     {
-        _lock.Dispose();
-        DisposeDevice(_primaryDevice);
-        DisposeDevice(_fallbackDevice);
-        _primaryDevice = null;
-        _fallbackDevice = null;
-        _initialized = false;
-        lock (_mapLock) { _invoiceDeviceMap.Clear(); }
+        try { _lock.Wait(TimeSpan.FromSeconds(2)); } catch { }
+        try
+        {
+            DisposeDevice(_primaryDevice);
+            DisposeDevice(_fallbackDevice);
+            _primaryDevice = null;
+            _fallbackDevice = null;
+            _initialized = false;
+            lock (_mapLock) { _invoiceDeviceMap.Clear(); }
+        }
+        finally
+        {
+            try { _lock.Release(); } catch { }
+            _lock.Dispose();
+        }
     }
 }

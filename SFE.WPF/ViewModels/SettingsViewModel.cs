@@ -13,7 +13,7 @@ using SFE.WPF.Messages;
 using SFE.WPF.Services;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Globalization;        // ★ FIX #3
+using System.Globalization;
 using System.IO;
 using System.IO.Ports;
 using System.Windows.Media;
@@ -25,12 +25,11 @@ public partial class SettingsViewModel : BaseViewModel
 {
     private readonly SettingsService _settingsService;
     private readonly IFiscalDeviceService _fiscalDevice;
-    private readonly ITimeProvider _time;         // ★ FIX #1
+    private readonly ITimeProvider _time;
     private int _companyId;
     private int _activePosId;
     private bool _isLoading;
 
-    // Culture invariante pour tous les round-trips numériques — ★ FIX #3
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     // ══════════ ENTREPRISE ══════════
@@ -55,6 +54,10 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _emcfNIM = "";
     [ObservableProperty] private string _selectedComPort = "";
     [ObservableProperty] private int _baudRate = 115200;
+
+    [ObservableProperty] private string _activePosDeviceSummary = "—";
+    [ObservableProperty] private string _activePosCode = "";
+    [ObservableProperty] private string _activePosLabel = "—";
 
     // ══════════ COM PORTS ══════════
     public ObservableCollection<string> AvailableComPorts { get; } = new();
@@ -157,6 +160,7 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _licensePlan = "Free";
     [ObservableProperty] private string _licenseMessage = "";
 
+
     // ══════════════════════════════════════════════════════════════
     // CONSTRUCTEUR
     // ══════════════════════════════════════════════════════════════
@@ -165,7 +169,7 @@ public partial class SettingsViewModel : BaseViewModel
         SettingsService settingsService,
         IAuthService authService,
         IFiscalDeviceService fiscalDevice,
-        ITimeProvider time)                       // ★ FIX #1
+        ITimeProvider time)
     {
         _settingsService = settingsService;
         _authService = authService;
@@ -281,13 +285,8 @@ public partial class SettingsViewModel : BaseViewModel
         WeakReferenceMessenger.Default.Send(new DiscountBeforeTaxChangedMessage(value));
     }
 
-    /// <summary>
-    /// Broadcasts the current exchange rates so any open POS/Invoice 
-    /// screen picks them up immediately without restart.
-    /// </summary>
     private void BroadcastExchangeRates()
     {
-        // ★ FIX #3 — culture invariante
         decimal.TryParse(CurrentExchangeRate, NumberStyles.Any, Inv, out var usd);
         decimal.TryParse(CurrentExchangeRateEUR, NumberStyles.Any, Inv, out var eur);
         decimal.TryParse(CurrentExchangeRateCNY, NumberStyles.Any, Inv, out var cny);
@@ -297,10 +296,10 @@ public partial class SettingsViewModel : BaseViewModel
                 new ExchangeRatePayload(usd, eur, cny, _dgiExchangeRateDate)));
     }
 
+
     // ══════════════════════════════════════════════════════════════
     // LOAD SETTINGS
     // ══════════════════════════════════════════════════════════════
-
     private async Task LoadSettingsAsync()
     {
         _isLoading = true;
@@ -320,44 +319,21 @@ public partial class SettingsViewModel : BaseViewModel
             CompanyEmail = data.CompanyEmail;
             CompanyISF = data.CompanyISF;
 
-            IsEmcfSelected = data.DeviceType == DeviceType.EMcf;
-            EmcfApiUrl = data.EmcfApiUrl;
-            EmcfToken = data.EmcfToken;
-            EmcfNIM = data.EmcfNIM;
-
             _companyLogoBytes = data.CompanyLogo;
             CompanyLogoPreview = BytesToImage(_companyLogoBytes);
             HasLogo = _companyLogoBytes is { Length: > 0 };
 
-            // ── COM Port ──
-            if (!string.IsNullOrEmpty(data.McfPortName)
-                && AvailableComPorts.Contains(data.McfPortName))
-            {
-                SelectedComPort = data.McfPortName;
-            }
-            else if (AvailableComPorts.Count > 0
-                && AvailableComPorts[0] != "(aucun port détecté)")
-            {
-                SelectedComPort = AvailableComPorts.First();
-            }
-            else
-            {
-                SelectedComPort = AvailableComPorts.FirstOrDefault() ?? "";
-            }
-
-            BaudRate = data.McfBaudRate > 0 ? data.McfBaudRate : 115200;
+            ApplyActivePosDeviceConfig(data);
 
             IsPriceModeTTC = data.DefaultPriceMode == PriceMode.TTC;
             DiscountBeforeTax = data.DiscountBeforeTax;
             DefaultCurrency = data.DefaultCurrency;
 
-            // ★ FIX #3 — format invariant (round-trip stable)
             CurrentExchangeRate = data.CurrentExchangeRate.ToString("F2", Inv);
             CurrentExchangeRateEUR = data.CurrentExchangeRateEUR.ToString("F2", Inv);
             CurrentExchangeRateCNY = data.CurrentExchangeRateCNY.ToString("F2", Inv);
             ExchangeRateMode = data.ExchangeRateMode;
 
-            // ── Restore DGI rate info ──
             _dgiExchangeRateDate = data.DgiExchangeRateDate;
             if (_dgiExchangeRateDate.HasValue && data.CurrentExchangeRate > 0)
             {
@@ -385,8 +361,42 @@ public partial class SettingsViewModel : BaseViewModel
         }
     }
 
+    private void ApplyActivePosDeviceConfig(SettingsData data)
+    {
+        IsEmcfSelected = data.DeviceType == DeviceType.EMcf;
+        EmcfApiUrl = data.EmcfApiUrl;
+        EmcfToken = data.EmcfToken;
+        EmcfNIM = data.EmcfNIM;
+
+        if (!string.IsNullOrEmpty(data.McfPortName) && AvailableComPorts.Contains(data.McfPortName))
+            SelectedComPort = data.McfPortName;
+        else if (AvailableComPorts.Count > 0 && AvailableComPorts[0] != "(aucun port détecté)")
+            SelectedComPort = AvailableComPorts.First();
+        else
+            SelectedComPort = AvailableComPorts.FirstOrDefault() ?? "";
+
+        BaudRate = data.McfBaudRate > 0 ? data.McfBaudRate : 115200;
+
+        ActivePosCode = data.ActivePosCode ?? "";
+        ActivePosLabel = string.IsNullOrWhiteSpace(data.ActivePosName)
+            ? (data.ActivePosCode ?? "—")
+            : $"{data.ActivePosCode} — {data.ActivePosName}";
+
+        ActivePosDeviceSummary = IsEmcfSelected
+            ? $"e-MCF · {(string.IsNullOrWhiteSpace(EmcfApiUrl) ? "(URL non configurée)" : EmcfApiUrl)}"
+            : $"MCF · {(string.IsNullOrWhiteSpace(SelectedComPort) ? "(port non configuré)" : SelectedComPort)} @ {BaudRate}";
+    }
+
+    [RelayCommand]
+    private async Task RefreshActivePosDeviceConfig()
+    {
+        if (_fiscalDevice is FiscalDeviceResolver resolver)
+            resolver.Invalidate();
+        await LoadSettingsAsync();
+    }
+
     // ══════════════════════════════════════════════════════════════
-    // SAVE SETTINGS — persists everything to database
+    // SAVE SETTINGS
     // ══════════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -399,7 +409,6 @@ public partial class SettingsViewModel : BaseViewModel
 
         try
         {
-            // ★ FIX #4 — validation stricte, plus de fallbacks magiques
             if (!TryParseDecimalStrict(CurrentExchangeRate, out var rateUsd, out var errUsd))
             {
                 SaveStatus = $"Taux USD invalide : {errUsd}";
@@ -438,6 +447,8 @@ public partial class SettingsViewModel : BaseViewModel
                 return;
             }
 
+            var existing = await _settingsService.LoadSettingsAsync();
+
             var data = new SettingsData
             {
                 CompanyId = _companyId,
@@ -464,21 +475,19 @@ public partial class SettingsViewModel : BaseViewModel
                 LoyaltyMinRedeemPoints = minPts,
                 DeploymentMode = DeploymentMode.Standalone,
                 ActivePosId = _activePosId,
-                DeviceType = IsEmcfSelected ? DeviceType.EMcf : DeviceType.Mcf,
-                EmcfApiUrl = EmcfApiUrl,
-                EmcfToken = EmcfToken,
-                EmcfNIM = EmcfNIM,
-                McfPortName = SelectedComPort,
-                McfBaudRate = BaudRate,
+                DeviceType = existing.DeviceType,
+                EmcfApiUrl = existing.EmcfApiUrl,
+                EmcfToken = existing.EmcfToken,
+                EmcfNIM = existing.EmcfNIM,
+                McfPortName = existing.McfPortName,
+                McfBaudRate = existing.McfBaudRate,
             };
 
             await _settingsService.SaveSettingsAsync(data);
 
-            // Force fiscal device resolver to rebuild with new settings
             if (_fiscalDevice is FiscalDeviceResolver resolver)
                 resolver.Invalidate();
 
-            // ★ Broadcast so the rest of the app picks up changes
             WeakReferenceMessenger.Default.Send(
                 new PriceModeChangedMessage(data.DefaultPriceMode));
             WeakReferenceMessenger.Default.Send(
@@ -500,7 +509,7 @@ public partial class SettingsViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════════════════════
-    // FETCH DGI CURRENCY RATES — retrieves USD rate, saves to DB
+    // FETCH DGI CURRENCY RATES
     // ══════════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -531,7 +540,6 @@ public partial class SettingsViewModel : BaseViewModel
                 return;
             }
 
-            // ── DGI returns USD rate ──
             var usdRate = info.CurrencyRates.FirstOrDefault(r =>
                 r.Code.Equals("USD", StringComparison.OrdinalIgnoreCase));
 
@@ -544,7 +552,6 @@ public partial class SettingsViewModel : BaseViewModel
 
             ApplyDgiUsdRateToUi(usdRate.Rate, usdRate.Date);
 
-            // ── Update device info display table ──
             DeviceCurrencyRates.Clear();
             foreach (var cr in info.CurrencyRates)
             {
@@ -557,7 +564,6 @@ public partial class SettingsViewModel : BaseViewModel
                 });
             }
 
-            // ★ FIX #6 — auto-save factorisé
             await PersistDgiUsdRateAsync(usdRate.Rate, _dgiExchangeRateDate);
 
             DgiRateStatus = $"✓ Taux USD appliqué : 1 USD = {usdRate.Rate.ToString("N2", Inv)} CDF — Date DGI : {DgiUsdDate}";
@@ -581,37 +587,54 @@ public partial class SettingsViewModel : BaseViewModel
     // LOAD DETAILED DEVICE INFO
     // ══════════════════════════════════════════════════════════════
 
-    [RelayCommand]
+    private CancellationTokenSource? _deviceInfoCts;
+
+    [ObservableProperty] private string _deviceRespondingBadge = "—";
+    [ObservableProperty] private bool _deviceUsedFallback;
+
+    private bool CanLoadDeviceInfo() => !IsDeviceInfoLoading;
+
+    [RelayCommand(CanExecute = nameof(CanLoadDeviceInfo))]
     private async Task LoadDeviceInfo()
     {
+        _deviceInfoCts?.Cancel();
+        _deviceInfoCts?.Dispose();
+        _deviceInfoCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var ct = _deviceInfoCts.Token;
+
         IsDeviceInfoLoading = true;
-        HasDeviceInfo = false;
-        DeviceInfoSuccess = false;
-        DeviceInfoError = "";
+        LoadDeviceInfoCommand.NotifyCanExecuteChanged();
+
+        ResetDeviceInfoDisplay();
 
         try
         {
-            var info = await _fiscalDevice.GetDetailedInfoAsync();
+            var infoTask = _fiscalDevice.GetDetailedInfoAsync();
+
+            var completed = await Task.WhenAny(infoTask, Task.Delay(Timeout.Infinite, ct));
+            if (completed != infoTask)
+                throw new OperationCanceledException(ct);
+
+            var info = await infoTask;
 
             DeviceInfoSuccess = info.Success;
             HasDeviceInfo = true;
+
+            DeviceRespondingBadge = info.RespondingDeviceBadge;
+            DeviceUsedFallback = info.UsedFallback;
 
             if (!info.Success)
             {
                 DeviceInfoError = info.ErrorMessage ?? "Erreur inconnue";
                 await AppEventBus.PublishAsync(new AppEventArgs
-                {
-                    Event = AppEvent.FiscalDeviceStatusChanged
-                });
+                { Event = AppEvent.FiscalDeviceStatusChanged });
                 return;
             }
 
-            // ── Identity ──
             DeviceInfoType = info.DeviceTypeLabel;
             DeviceNIM = info.NIM ?? "—";
             DeviceNIF = info.NIF ?? "—";
 
-            // ── Connection ──
             DeviceConnectionStatus = info.ConnectionStatus ?? "DIS";
             DeviceConnectionLabel = info.ConnectionStatus switch
             {
@@ -621,22 +644,15 @@ public partial class SettingsViewModel : BaseViewModel
                 _ => "✗ Déconnecté du serveur DGI"
             };
 
-            DeviceLastSync = info.LastServerConnection.HasValue
-                ? info.LastServerConnection.Value.ToString("dd/MM/yyyy HH:mm:ss", Inv)
-                : "—";
+            DeviceLastSync = info.LastServerConnection?.ToString("dd/MM/yyyy HH:mm:ss", Inv) ?? "—";
+            DeviceDateTime = info.DeviceDateTime?.ToString("dd/MM/yyyy HH:mm:ss", Inv) ?? "—";
 
-            DeviceDateTime = info.DeviceDateTime.HasValue
-                ? info.DeviceDateTime.Value.ToString("dd/MM/yyyy HH:mm:ss", Inv)
-                : "—";
-
-            // ── Taxpayer ──
             DeviceTaxpayerName = info.TaxpayerName ?? "—";
             DeviceTaxpayerAddress = info.TaxpayerAddress ?? "—";
             DeviceTaxpayerCity = info.TaxpayerCity ?? "—";
             DeviceTaxpayerPhone = info.TaxpayerPhone ?? "—";
             DeviceTaxpayerEmail = info.TaxpayerEmail ?? "—";
 
-            // ── Counters ──
             DeviceTotalTransactions = info.TotalTransactions.ToString("N0", Inv);
             DeviceSalesCount = info.SalesInvoiceCount.ToString("N0", Inv);
             DeviceCreditNoteCount = info.CreditNoteCount.ToString("N0", Inv);
@@ -644,40 +660,31 @@ public partial class SettingsViewModel : BaseViewModel
             DeviceTransactionsInDevice = info.TransactionsInDevice.ToString("N0", Inv);
             DevicePendingCount = info.PendingRequestsCount.ToString(Inv);
 
-            // ── Last Invoice ──
-            if (info.LastInvoiceDate.HasValue)
-            {
-                DeviceLastInvoice = $"{info.LastInvoiceType ?? ""} {info.LastInvoiceNumber ?? ""}" +
-                    $" — {info.LastInvoiceDate.Value.ToString("dd/MM/yyyy HH:mm", Inv)}" +
-                    (info.LastInvoiceAmount.HasValue
-                        ? $" — {info.LastInvoiceAmount.Value.ToString("N0", Inv)} CDF"
-                        : "");
-            }
-            else
-            {
-                DeviceLastInvoice = "Aucune facture";
-            }
+            DeviceLastInvoice = info.LastInvoiceDate.HasValue
+                ? $"{info.LastInvoiceType ?? ""} {info.LastInvoiceNumber ?? ""}" +
+                  $" — {info.LastInvoiceDate.Value.ToString("dd/MM/yyyy HH:mm", Inv)}" +
+                  (info.LastInvoiceAmount.HasValue
+                      ? $" — {info.LastInvoiceAmount.Value.ToString("N0", Inv)} CDF" : "")
+                : "Aucune facture";
 
-            // ── e-MCF specific ──
             DeviceTokenValid = info.TokenValidUntil?.ToString("dd/MM/yyyy HH:mm", Inv) ?? "—";
             DeviceApiVersion = info.ApiVersion ?? "—";
             DeviceEmcfStatus = info.EmcfStatus ?? "—";
             DeviceLastError = info.LastError ?? "Aucune";
 
-            // ── Tax Rates ──
-            var taxGroups = new[] { "A", "B", "C", "D", "E", "F", "G", "H",
-                                    "I", "J", "K", "L", "M", "N", "O", "P" };
+            var rates = info.TaxRates ?? Array.Empty<decimal>();
+            var taxGroups = new[] { "A","B","C","D","E","F","G","H",
+                                "I","J","K","L","M","N","O","P" };
             var activeTaxes = new List<string>();
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < Math.Min(taxGroups.Length, rates.Length); i++)
             {
-                if (info.TaxRates[i] != 0)
-                    activeTaxes.Add($"{taxGroups[i]}={info.TaxRates[i].ToString("F1", Inv)}%");
+                if (rates[i] != 0)
+                    activeTaxes.Add($"{taxGroups[i]}={rates[i].ToString("F1", Inv)}%");
             }
             DeviceTaxRatesDisplay = activeTaxes.Count > 0
                 ? string.Join("  |  ", activeTaxes)
                 : "Aucun taux configuré";
 
-            // ── Currency Rates (display + auto-apply USD) ──
             DeviceCurrencyRates.Clear();
             if (info.CurrencyRates != null)
             {
@@ -692,19 +699,12 @@ public partial class SettingsViewModel : BaseViewModel
                     });
                 }
 
-                // ★ Auto-apply USD rate from DGI
                 var usd = info.CurrencyRates.FirstOrDefault(r =>
-                    r.Code.Equals("USD", StringComparison.OrdinalIgnoreCase));
+                    string.Equals(r?.Code, "USD", StringComparison.OrdinalIgnoreCase));
                 if (usd != null && usd.Rate > 0)
-                {
                     ApplyDgiUsdRateToUi(usd.Rate, usd.Date);
-
-                    // ★ FIX #6 — auto-save factorisé
-                    await PersistDgiUsdRateAsync(usd.Rate, _dgiExchangeRateDate);
-                }
             }
 
-            // ── e-MCF Devices List ──
             DeviceEmcfList.Clear();
             if (info.EmcfDevices != null)
             {
@@ -716,33 +716,76 @@ public partial class SettingsViewModel : BaseViewModel
                         Status = dev.Status ?? "?",
                         ShopName = dev.ShopName ?? "—",
                         Address = dev.Address ?? "—",
-                        IsActive = dev.NIM == info.NIM
+                        IsActive = string.Equals(dev.NIM, info.NIM, StringComparison.OrdinalIgnoreCase)
                     });
                 }
             }
 
-            // ★ Publish success
             await AppEventBus.PublishAsync(new AppEventArgs
-            {
-                Event = AppEvent.FiscalDeviceStatusChanged
-            });
+            { Event = AppEvent.FiscalDeviceStatusChanged });
+        }
+        catch (OperationCanceledException)
+        {
+            DeviceInfoSuccess = false;
+            DeviceInfoError = "Délai dépassé (20 s). Le dispositif n'a pas répondu. Vérifiez la connexion réseau ou le port série.";
+            HasDeviceInfo = true;
+            await AppEventBus.PublishAsync(new AppEventArgs
+            { Event = AppEvent.FiscalDeviceStatusChanged });
         }
         catch (Exception ex)
         {
             DeviceInfoSuccess = false;
             DeviceInfoError = ex.Message;
             HasDeviceInfo = true;
-
             await AppEventBus.PublishAsync(new AppEventArgs
-            {
-                Event = AppEvent.FiscalDeviceStatusChanged
-            });
+            { Event = AppEvent.FiscalDeviceStatusChanged });
         }
         finally
         {
             IsDeviceInfoLoading = false;
+            LoadDeviceInfoCommand.NotifyCanExecuteChanged();
         }
     }
+
+    private void ResetDeviceInfoDisplay()
+    {
+        HasDeviceInfo = false;
+        DeviceInfoSuccess = false;
+        DeviceInfoError = "";
+
+        DeviceInfoType = "—";
+        DeviceNIM = "—";
+        DeviceNIF = "—";
+        DeviceConnectionStatus = "DIS";
+        DeviceConnectionLabel = "Déconnecté";
+        DeviceLastSync = "—";
+        DeviceDateTime = "—";
+        DeviceTaxpayerName = "—";
+        DeviceTaxpayerAddress = "—";
+        DeviceTaxpayerCity = "—";
+        DeviceTaxpayerPhone = "—";
+        DeviceTaxpayerEmail = "—";
+        DeviceTotalTransactions = "0";
+        DeviceSalesCount = "0";
+        DeviceCreditNoteCount = "0";
+        DeviceTransactionsSent = "0";
+        DeviceTransactionsInDevice = "0";
+        DevicePendingCount = "0";
+        DeviceLastInvoice = "—";
+        DeviceTokenValid = "—";
+        DeviceApiVersion = "—";
+        DeviceEmcfStatus = "—";
+        DeviceLastError = "—";
+        DeviceTaxRatesDisplay = "";
+        DeviceRespondingBadge = "—";
+        DeviceUsedFallback = false;
+
+        DeviceCurrencyRates.Clear();
+        DeviceEmcfList.Clear();
+    }
+
+    partial void OnIsDeviceInfoLoadingChanged(bool value)
+        => LoadDeviceInfoCommand.NotifyCanExecuteChanged();
 
     // ══════════════════════════════════════════════════════════════
     // TEST CONNEXION
@@ -758,7 +801,18 @@ public partial class SettingsViewModel : BaseViewModel
         ShowSaveError = false;
 
         var sw = Stopwatch.StartNew();
-        var nowLocal = _time.LocalNow;             // ★ FIX #1 — pour affichage opérateur
+        var nowLocal = _time.LocalNow;
+
+        // 🆕 Take exclusive ownership of the port for the whole test.
+        IDisposable? lease = null;
+        if (_fiscalDevice is FiscalDeviceResolver resolver)
+        {
+            try { lease = await resolver.AcquireExclusiveAccessAsync(); }
+            catch (Exception leaseEx)
+            {
+                Debug.WriteLine($"[Settings] Lease acquisition failed: {leaseEx.Message}");
+            }
+        }
 
         try
         {
@@ -782,8 +836,7 @@ public partial class SettingsViewModel : BaseViewModel
                     return;
                 }
 
-                // ★ FIX #2 — EMcfHttpClient est IDisposable
-                using var client = new EMcfHttpClient(EmcfApiUrl, EmcfToken, CompanyNIF,_time);
+                using var client = new EMcfHttpClient(EmcfApiUrl, EmcfToken, CompanyNIF, _time);
                 var status = await client.GetStatusAsync();
                 sw.Stop();
 
@@ -852,61 +905,67 @@ public partial class SettingsViewModel : BaseViewModel
 
                 SaveStatus = $"Test connexion MCF sur {SelectedComPort}...";
 
-                if (_fiscalDevice is FiscalDeviceResolver resolver)
-                    resolver.Invalidate();
-
-                using var mcfClient = new McfSerialClient(SelectedComPort,_time, BaudRate);
-                mcfClient.Connect();
-                var status = await mcfClient.GetStatusAsync();
-                sw.Stop();
-
-                TestResponseTime = $"{sw.ElapsedMilliseconds} ms";
-
-                if (status.Success)
+                // 🆕 Explicit dispose so we can null-check on Connect-throw.
+                McfSerialClient? mcfClient = null;
+                try
                 {
-                    SaveStatus = $"✓ MCF détecté — NIM: {status.NIM}, NIF: {status.NIF}";
-                    ShowSaveSuccess = true;
-                    TestSuccess = true;
-                    TestStatus = "CONNECTÉ";
-                    TestMessage = $"MCF détecté et opérationnel sur {SelectedComPort}.";
-                    TestNIM = status.NIM ?? "—";
-                    TestServerVersion = "MCF (Port Série)";
-                    TestDetails =
-                        $"Mode : MCF (Port Série)\n" +
-                        $"Port : {SelectedComPort}\n" +
-                        $"Baud Rate : {BaudRate}\n" +
-                        $"NIF : {status.NIF}\n" +
-                        $"NIM : {status.NIM}\n" +
-                        $"Format : 8N1\n" +
-                        $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
-                        $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
-                    TestRawResponse = $"NIM={status.NIM}, NIF={status.NIF}, Success=true";
+                    mcfClient = new McfSerialClient(SelectedComPort, _time, BaudRate);
+                    mcfClient.Connect();
+                    var status = await mcfClient.GetStatusAsync();
+                    sw.Stop();
 
-                    await AppEventBus.PublishAsync(new AppEventArgs
-                    { Event = AppEvent.FiscalDeviceStatusChanged });
+                    TestResponseTime = $"{sw.ElapsedMilliseconds} ms";
+
+                    if (status.Success)
+                    {
+                        SaveStatus = $"✓ MCF détecté — NIM: {status.NIM}, NIF: {status.NIF}";
+                        ShowSaveSuccess = true;
+                        TestSuccess = true;
+                        TestStatus = "CONNECTÉ";
+                        TestMessage = $"MCF détecté et opérationnel sur {SelectedComPort}.";
+                        TestNIM = status.NIM ?? "—";
+                        TestServerVersion = "MCF (Port Série)";
+                        TestDetails =
+                            $"Mode : MCF (Port Série)\n" +
+                            $"Port : {SelectedComPort}\n" +
+                            $"Baud Rate : {BaudRate}\n" +
+                            $"NIF : {status.NIF}\n" +
+                            $"NIM : {status.NIM}\n" +
+                            $"Format : 8N1\n" +
+                            $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                            $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
+                        TestRawResponse = $"NIM={status.NIM}, NIF={status.NIF}, Success=true";
+
+                        await AppEventBus.PublishAsync(new AppEventArgs
+                        { Event = AppEvent.FiscalDeviceStatusChanged });
+                    }
+                    else
+                    {
+                        SaveStatus = $"✗ Échec: {status.ErrorMessage}";
+                        ShowSaveError = true;
+                        TestSuccess = false;
+                        TestStatus = "ÉCHEC";
+                        TestMessage = status.ErrorMessage ?? "Impossible de communiquer avec le MCF.";
+                        TestNIM = "—";
+                        TestServerVersion = "—";
+                        TestDetails =
+                            $"Mode : MCF (Port Série)\n" +
+                            $"Port : {SelectedComPort}\n" +
+                            $"Baud Rate : {BaudRate}\n" +
+                            $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
+                            $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
+                        TestRawResponse = $"Error: {status.ErrorMessage}";
+
+                        await AppEventBus.PublishAsync(new AppEventArgs
+                        { Event = AppEvent.FiscalDeviceStatusChanged });
+                    }
+
+                    HasTestResult = true;
                 }
-                else
+                finally
                 {
-                    SaveStatus = $"✗ Échec: {status.ErrorMessage}";
-                    ShowSaveError = true;
-                    TestSuccess = false;
-                    TestStatus = "ÉCHEC";
-                    TestMessage = status.ErrorMessage ?? "Impossible de communiquer avec le MCF.";
-                    TestNIM = "—";
-                    TestServerVersion = "—";
-                    TestDetails =
-                        $"Mode : MCF (Port Série)\n" +
-                        $"Port : {SelectedComPort}\n" +
-                        $"Baud Rate : {BaudRate}\n" +
-                        $"Testé le : {nowLocal:dd/MM/yyyy HH:mm:ss}\n" +
-                        $"Temps de réponse : {sw.ElapsedMilliseconds} ms";
-                    TestRawResponse = $"Error: {status.ErrorMessage}";
-
-                    await AppEventBus.PublishAsync(new AppEventArgs
-                    { Event = AppEvent.FiscalDeviceStatusChanged });
+                    mcfClient?.Dispose();
                 }
-
-                HasTestResult = true;
             }
 
             await Task.Delay(4000);
@@ -937,6 +996,8 @@ public partial class SettingsViewModel : BaseViewModel
         {
             IsBusy = false;
             IsTestingConnection = false;
+            // 🆕 Release the lease so the resolver can rebuild on next request.
+            lease?.Dispose();
         }
     }
 
@@ -975,16 +1036,10 @@ public partial class SettingsViewModel : BaseViewModel
     // HELPERS
     // ══════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// ★ FIX #1 + #6 — Applique un taux USD DGI sur les champs UI (sans persistance).
-    /// Utilise UtcNow comme fallback si la DGI ne renvoie pas de date.
-    /// </summary>
     private void ApplyDgiUsdRateToUi(decimal rate, DateTimeOffset dgiDate)
     {
         var effectiveDate = dgiDate != default
             ? dgiDate
-            // Fallback : on utilise UtcNow pour rester cohérent avec la doctrine §1.1.
-            // Sémantiquement c'est "la DGI n'a pas horodaté, on note le moment de l'appel".
             : _time.UtcNow;
 
         CurrentExchangeRate = rate.ToString("F2", Inv);
@@ -994,11 +1049,6 @@ public partial class SettingsViewModel : BaseViewModel
         HasDgiRate = true;
     }
 
-    /// <summary>
-    /// ★ FIX #6 — Persiste le taux USD DGI en base en préservant les autres
-    /// champs de paramètres. Non-bloquant : les erreurs sont logguées sans
-    /// interrompre le flux UI.
-    /// </summary>
     private async Task PersistDgiUsdRateAsync(decimal rate, DateTimeOffset? dgiDate)
     {
         try
@@ -1008,7 +1058,6 @@ public partial class SettingsViewModel : BaseViewModel
             current.DgiExchangeRateDate = dgiDate;
             await _settingsService.SaveSettingsAsync(current);
 
-            // ★ Broadcast so POS/Invoice screens pick it up immediately
             BroadcastExchangeRates();
 
             Debug.WriteLine($"[Settings] DGI rate saved: 1 USD = {rate.ToString("N2", Inv)} CDF");
@@ -1016,13 +1065,9 @@ public partial class SettingsViewModel : BaseViewModel
         catch (Exception ex)
         {
             Debug.WriteLine($"[Settings] Auto-save DGI rate failed: {ex.Message}");
-            // Non-fatal : l'UI affiche déjà le taux, l'utilisateur peut cliquer Save.
         }
     }
 
-    /// <summary>
-    /// ★ FIX #3 + #4 — Parse décimal culture-invariant avec message d'erreur explicite.
-    /// </summary>
     private static bool TryParseDecimalStrict(
         string? input,
         out decimal value,

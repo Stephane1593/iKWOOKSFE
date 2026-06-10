@@ -115,6 +115,9 @@ public class FiscalItemInfo
     public decimal? TaxSpecificAmount { get; set; }
     public decimal? OriginalPrice { get; set; }
     public string? PriceModification { get; set; }
+    
+    public decimal TTC { get; set; }
+    public decimal HT { get; set; }
 }
 
 public class FiscalPaymentInfo
@@ -320,6 +323,47 @@ public class FiscalDeviceDetailedInfo
     // ── Current DateTime ─────────────────────────────────
     /// <summary>MCF C1h DT / e-MCF serverDateTime</summary>
     public DateTimeOffset? DeviceDateTime { get; set; }    // 🆕
+
+
+
+    // ── Routing diagnostics (set by resolver, NOT by individual clients) ──
+    public RespondingDevice RespondingDevice { get; set; } = RespondingDevice.None;
+    public FiscalDeviceKind RespondingDeviceKind { get; set; } = FiscalDeviceKind.Unknown;
+
+    /// <summary>True when the resolver had to use the fallback device.</summary>
+    public bool UsedFallback => RespondingDevice == RespondingDevice.Fallback;
+
+    /// <summary>Human-readable badge: "Primaire (e-MCF)", "Secours (MCF)"…</summary>
+    public string RespondingDeviceBadge =>
+        RespondingDevice switch
+        {
+            RespondingDevice.Primary => $"Primaire ({KindLabel(RespondingDeviceKind)})",
+            RespondingDevice.Fallback => $"Secours ({KindLabel(RespondingDeviceKind)})",
+            _ => "—"
+        };
+
+    private static string KindLabel(FiscalDeviceKind k) => k switch
+    {
+        FiscalDeviceKind.MCF => "MCF",
+        FiscalDeviceKind.EMcf => "e-MCF",
+        _ => "?"
+    };
+}
+
+/// <summary>Which device produced the response.</summary>
+public enum RespondingDevice
+{
+    None,
+    Primary,
+    Fallback
+}
+
+/// <summary>Concrete device kind that produced the response.</summary>
+public enum FiscalDeviceKind
+{
+    Unknown,
+    MCF,
+    EMcf
 }
 
 /// <summary>e-MCF device info (from info/status emcfList)</summary>

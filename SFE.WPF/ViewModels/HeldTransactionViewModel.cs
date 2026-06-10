@@ -42,6 +42,7 @@ public class CartItemSnapshot
     public string Name { get; set; } = "";
     public ItemType ItemType { get; set; }
     public TaxGroup TaxGroup { get; set; }
+    public TaxGroupAType? TaxGroupAType { get; set; }   // 🆕
     public decimal TaxRate { get; set; }
     public decimal UnitPriceHT { get; set; }
     public decimal UnitPriceTTC { get; set; }

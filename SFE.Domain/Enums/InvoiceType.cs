@@ -76,10 +76,10 @@ public static class InvoiceTypeExtensions
     {
         InvoiceType.FV => "FACTURE DE VENTE",
         InvoiceType.FA => "FACTURE D'AVOIR",
-        InvoiceType.FT => "FACTURE D'ACOMPTE",
+        InvoiceType.FT => "FACTURE D'ACOMPTE OU D'AVANCE",
         InvoiceType.EV => "FACTURE DE VENTE",
         InvoiceType.EA => "FACTURE D'AVOIR",
-        InvoiceType.ET => "FACTURE D'ACOMPTE",
+        InvoiceType.ET => "FACTURE D'ACOMPTE OU D'AVANCE",
         InvoiceType.PRO => "FACTURE PROFORMA",
         _ => "FACTURE"
     };

@@ -102,6 +102,12 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         "h", "j", "lot", "crt", "bte", "btle", "sac"
     };
 
+    // ── NEW ──
+    [ObservableProperty] private TaxGroupAType _editTaxGroupAType = TaxGroupAType.Exonere;
+    [ObservableProperty] private bool _showTaxGroupAVariant;
+
+    public TaxGroupAType[] TaxGroupATypes { get; } = Enum.GetValues<TaxGroupAType>();
+
     // ══════════════════════════════════════════════
     //  CONSTRUCTOR
     // ══════════════════════════════════════════════
@@ -185,6 +191,10 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
 
     partial void OnEditTaxGroupChanged(TaxGroup value)
     {
+        ShowTaxGroupAVariant = value == TaxGroup.A;
+        if (value != TaxGroup.A)
+            EditTaxGroupAType = TaxGroupAType.Exonere;   // reset when leaving A
+
         UpdateTaxRateDisplay();
         RecomputeFromBestInput();
     }
@@ -209,8 +219,14 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     private void UpdateTaxRateDisplay()
     {
         var rate = TaxCalculator.GetDefaultRate(EditTaxGroup);
-        ActiveTaxRateDisplay = $"TVA {EditTaxGroup} — {rate}%  ({TaxCalculator.GetGroupLabel(EditTaxGroup)})";
+        var code = EditTaxGroup.DisplayCode(
+            EditTaxGroup == TaxGroup.A ? EditTaxGroupAType : null);
+        ActiveTaxRateDisplay =
+            $"TVA [{code}] — {rate}%  ({EditTaxGroup.GetGroupLabel(EditTaxGroupAType)})";
     }
+
+    // Re-run the display line when the user flips Exonéré ↔ Hors champ
+    partial void OnEditTaxGroupATypeChanged(TaxGroupAType value) => UpdateTaxRateDisplay();
 
     /// <summary>
     /// User entered HT (CDF) → derive TTC, fill TTC input field + 4-price card.
@@ -379,6 +395,8 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         EditDescription = "";
         EditItemType = ItemType.BIE;
         EditTaxGroup = TaxGroup.B;
+        EditTaxGroupAType = TaxGroupAType.Exonere;    // NEW
+        ShowTaxGroupAVariant = false;                  // NEW
         EditSpecificTaxType = SpecificTaxType.None;
         EditSpecificTaxValue = "";
         EditTaxSpecificMode = TaxSpecificMode.PerArticle;
@@ -424,6 +442,8 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         EditDescription = product.Description;
         EditItemType = product.ItemType;
         EditTaxGroup = product.TaxGroup;
+        EditTaxGroupAType = product.TaxGroupAType ?? TaxGroupAType.Exonere;   // NEW
+        ShowTaxGroupAVariant = product.TaxGroup == TaxGroup.A;
         EditSpecificTaxType = product.SpecificTaxType;
         EditSpecificTaxValue = product.SpecificTaxValue > 0
             ? product.SpecificTaxValue.ToString("G") : "";
@@ -438,6 +458,8 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         EditTrackStock = product.TrackStock;
         EditIsFavorite = product.IsFavorite;
         EditIsActive = product.IsActive;
+
+
 
         // ── Populate BOTH price fields without triggering cross-compute ──
         _isUpdatingPrices = true;
@@ -542,6 +564,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
                 Description = EditDescription.Trim(),
                 ItemType = EditItemType,
                 TaxGroup = EditTaxGroup,
+                TaxGroupAType = EditTaxGroup == TaxGroup.A ? EditTaxGroupAType : (TaxGroupAType?)null,
                 SpecificTaxType = EditSpecificTaxType,
                 SpecificTaxValue = specificTaxVal,
                 TaxSpecificMode = EditTaxSpecificMode,
@@ -560,7 +583,6 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
                 IsFavorite = EditIsFavorite,
                 IsActive = EditIsActive
             };
-
             var result = await _productService.CreateAsync(product);
             if (!result.Success) { StatusMessage = result.ErrorMessage; ShowError = true; return; }
             StatusMessage = $"✓ Produit « {product.Name} » créé avec succès.";
@@ -576,6 +598,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             product.Description = EditDescription.Trim();
             product.ItemType = EditItemType;
             product.TaxGroup = EditTaxGroup;
+            product.TaxGroupAType = EditTaxGroup == TaxGroup.A ? EditTaxGroupAType : null;
             product.SpecificTaxType = EditSpecificTaxType;
             product.SpecificTaxValue = specificTaxVal;
             product.TaxSpecificMode = EditTaxSpecificMode;

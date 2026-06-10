@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SFE.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using SFE.Infrastructure.Persistence;
 namespace SFE.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260514070644_AddTaxGroupAType")]
+    partial class AddTaxGroupAType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -953,9 +956,7 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("TaxGroupAType")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(18, 4)
@@ -1152,9 +1153,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
-
-                    b.Property<bool>("DisableFallback")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("EmcfApiUrl")
                         .HasMaxLength(500)
@@ -1386,9 +1384,7 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("TaxGroupAType")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("TaxSpecificMode")
                         .HasColumnType("INTEGER");

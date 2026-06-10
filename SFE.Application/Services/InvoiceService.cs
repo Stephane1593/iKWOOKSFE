@@ -111,6 +111,14 @@ public class InvoiceService
 
     public async Task<NormalizationResult> NormalizeInvoiceAsync(Invoice invoice)
     {
+
+        foreach (var line in invoice.Lines)
+        {
+            if (line.TaxGroup == TaxGroup.A && line.TaxGroupAType == null)
+                line.TaxGroupAType = TaxGroupAType.Exonere;   // or HorsChamp — your business rule
+            else if (line.TaxGroup != TaxGroup.A)
+                line.TaxGroupAType = null;
+        }
         // ── 1. Recalcul + validation ──
         RecalculateTotals(invoice);
 
@@ -935,7 +943,9 @@ public class InvoiceService
                 TaxSpecificValue = fiscalTsValue,
                 TaxSpecificAmount = line.TaxSpecificAmount,
                 OriginalPrice = rawPrice,
-                PriceModification = priceModification
+                PriceModification = priceModification,
+                TTC = line.AmountTTC,
+                HT = line.AmountHT,
             });
         }
 
@@ -1286,6 +1296,7 @@ public class InvoiceService
                 Name = pl.Name,
                 ItemType = pl.ItemType,
                 TaxGroup = pl.TaxGroup,
+                TaxGroupAType = pl.TaxGroupAType,
                 TaxRate = pl.TaxRate,
                 UnitPriceHT = pl.UnitPriceHT,
                 UnitPriceTTC = pl.UnitPriceTTC,

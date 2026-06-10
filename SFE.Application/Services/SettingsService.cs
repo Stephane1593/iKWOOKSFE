@@ -89,6 +89,7 @@ public class SettingsService
             EmcfNIM = activePos?.EmcfNIM ?? "",
             McfPortName = activePos?.McfPortName ?? "",
             McfBaudRate = activePos?.McfBaudRate ?? 115200,
+            DisableFallback = activePos?.DisableFallback ?? false,   // 🆕
 
             TotalPosCount = posList.Count,
             ActivePosCount = posList.Count(p => p.IsActive)
@@ -156,6 +157,7 @@ public class SettingsService
                     pos.EmcfNIM = data.EmcfNIM;
                     pos.McfPortName = data.McfPortName;
                     pos.McfBaudRate = data.McfBaudRate;
+                    pos.DisableFallback = data.DisableFallback;   // 🆕
 
                     await _unitOfWork.PointsOfSale.UpdateAsync(pos);
                 }
@@ -215,6 +217,7 @@ public class SettingsData
     public string McfPortName { get; set; } = string.Empty;
     public int McfBaudRate { get; set; }
     public bool McfPortValidated { get; set; } = false;
+    public bool DisableFallback { get; set; } = false;   // 🆕
 
     // Stats
     public int TotalPosCount { get; set; }

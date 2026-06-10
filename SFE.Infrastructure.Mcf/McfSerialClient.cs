@@ -19,6 +19,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     private readonly int _baudRate;
     private readonly ITimeProvider _time;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private bool _disposed;
 
     public bool IsConnected => _port?.IsOpen == true;
 
@@ -31,13 +32,34 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
 
     public void Connect()
     {
-        _port?.Dispose();
-        _port = new SerialPort(_comPort, _baudRate, Parity.None, 8, StopBits.One)
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(McfSerialClient));
+
+        // 🆕 Cleanly tear down any previous port before opening a new one.
+        if (_port != null)
+        {
+            try { if (_port.IsOpen) _port.Close(); } catch { /* ignore */ }
+            try { _port.Dispose(); } catch { /* ignore */ }
+            _port = null;
+        }
+
+        var port = new SerialPort(_comPort, _baudRate, Parity.None, 8, StopBits.One)
         {
             ReadTimeout = 5000,
             WriteTimeout = 2000
         };
-        _port.Open();
+
+        try
+        {
+            port.Open();
+            _port = port;
+        }
+        catch
+        {
+            // 🆕 If Open() throws, dispose the half-built port so we don't leak a handle.
+            try { port.Dispose(); } catch { /* ignore */ }
+            throw;
+        }
     }
 
     private byte NextSeq()
@@ -65,7 +87,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
     private DateTimeOffset ToLocalOffset(DateTime local)
     {
         var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
-        var offset = _time.LocalNow.Offset;                    // 🆕 via ITimeProvider
+        var offset = _time.LocalNow.Offset;
         return new DateTimeOffset(unspecified, offset);
     }
 
@@ -75,6 +97,9 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
 
     private async Task<McfResponse> SendCommandAsync(byte cmd, string? data = null)
     {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(McfSerialClient));
+
         if (_port == null || !_port.IsOpen)
             throw new InvalidOperationException("MCF non connecté");
 
@@ -171,7 +196,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                 pendingList.Add(new PendingInvoiceInfo
                 {
                     Uid = "MCF",
-                    Date = _time.LocalNow                       // 🆕 via ITimeProvider
+                    Date = _time.LocalNow
                 });
             }
 
@@ -438,51 +463,134 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         var ic = CultureInfo.InvariantCulture;
         var sb = new StringBuilder();
 
+        // ---------- 1. NOM (article name, mandatory) ----------
+        if (string.IsNullOrWhiteSpace(item.Name))
+            return "E:ItemNameRequired";
+
         sb.Append(McfProtocol.EscapeData(item.Name));
 
+        // ---------- 2. [LF DESC] (optional code/description) ----------
         if (!string.IsNullOrEmpty(item.Code))
         {
             sb.Append((char)0x0A);
             sb.Append(McfProtocol.EscapeData(item.Code));
         }
 
+        // ---------- 3. TAB separator ----------
         sb.Append((char)0x09);
+
+        // ---------- 4. ITYPE (BIE / SER / TAX / etc.) ----------
+        if (string.IsNullOrWhiteSpace(item.Type))
+            return "E:ItemTypeRequired";
         sb.Append(item.Type);
+
         sb.Append(',');
+
+        // ---------- 5. TAX group (A / B / C / D / E / F) ----------
+        if (string.IsNullOrWhiteSpace(item.TaxGroup))
+            return "E:TaxGroupRequired";
         sb.Append(item.TaxGroup);
+
+        // ---------- 6. TR% (VAT rate with 2 decimals) ----------
         sb.Append(item.TaxRate.ToString("F2", ic));
         sb.Append('%');
 
-        decimal mon = item.Price * item.Quantity;
-        sb.Append(mon.ToString("F2", ic));
-
-        sb.Append((char)0x09);
-        sb.Append(item.Price.ToString("F2", ic));
-
-        if (item.Quantity != 1)
-        {
-            sb.Append('*');
-            sb.Append(item.Quantity.ToString("G", ic));
-        }
+        // ---------- 7. Compute TS amount (needed for MON) ----------
+        decimal ts = 0m;
+        decimal? tsrRate = null;
+        bool hasTs = false;
 
         if (!string.IsNullOrEmpty(item.TaxSpecificValue))
         {
-            sb.Append(";T");
-            sb.Append(item.TaxSpecificValue);
-            sb.Append(',');
-            sb.Append((item.TaxSpecificAmount ?? 0).ToString("F2", ic));
+            // Normalize: accept "10,0" / "10.0" / "10" → 10.00
+            var tsrStr = item.TaxSpecificValue.Replace(',', '.').TrimEnd('%').Trim();
+            if (decimal.TryParse(tsrStr, NumberStyles.Any, ic, out var parsed) && parsed > 0)
+            {
+                tsrRate = parsed;
+                hasTs = true;
+            }
         }
 
-        if (item.OriginalPrice.HasValue)
+        if (hasTs)
         {
-            sb.Append((char)0x09);
-            sb.Append(item.OriginalPrice.Value.ToString("F2", ic));
-            sb.Append(',');
-            sb.Append(McfProtocol.EscapeData(item.PriceModification ?? ""));
+            // If caller supplied amount, trust it; else compute from rate
+            ts = item.TaxSpecificAmount
+                 ?? Math.Round((item.Price * item.Quantity) * tsrRate.Value / 100m, 2,
+                               MidpointRounding.AwayFromZero);
+        }
+        else if (item.TaxSpecificAmount.HasValue && item.TaxSpecificAmount.Value > 0)
+        {
+            // Fixed-amount TS (no rate, just an amount) — still valid per spec
+            ts = item.TaxSpecificAmount.Value;
+            hasTs = true;
         }
 
-        var resp = await SendCommandAsync(McfProtocol.CMD_REGISTER_ITEM, sb.ToString());
-        return resp.IsError ? "E:Communication" : resp.Data;
+        // ---------- 8. MON (line total) ----------
+        // 🆕 HT mode  → item.HT  (excl. VAT)
+        //    TTC mode → item.TTC (incl. VAT)
+        decimal mon = priceMode?.ToUpperInvariant() == "HT"
+            ? item.HT
+            : item.TTC;
+        sb.Append(mon.ToString("F2", ic));
+
+        // ---------- 9. TAB separator ----------
+        sb.Append((char)0x09);
+
+        // ---------- 10. PR (unit price) ----------
+        sb.Append(item.Price.ToString("F2", ic));
+
+        // ---------- 11. [*QT] (only if quantity ≠ 1) ----------
+        if (item.Quantity != 1m)
+        {
+            sb.Append('*');
+            // Up to 3 decimals; trim trailing zeros for cleanliness, but keep at least integer form
+            sb.Append(item.Quantity.ToString("0.###", ic));
+        }
+
+        // ---------- 12. [;T{TSR},{TS}[,{TSDEC}]] ----------
+        if (hasTs)
+        {
+            sb.Append(";T");
+
+            if (tsrRate.HasValue)
+            {
+                // "0.##" → 10 stays "10", 10.5 stays "10.5", 10.25 stays "10.25"
+                sb.Append(tsrRate.Value.ToString("0.##", ic));
+                sb.Append('%');
+            }
+            // else: fixed-amount TS → no rate token before the comma
+
+            sb.Append(',');
+            sb.Append(ts.ToString("F2", ic));
+
+            //if (item.TaxSpecificDeclared.HasValue)
+            //{
+            //    sb.Append(',');
+            //    sb.Append(item.TaxSpecificDeclared.Value.ToString("F2", ic));
+            //}
+        }
+
+        // ---------- 13. [TAB PRORIG,PRDESC] (price modification) ----------
+        //if (item.OriginalPrice.HasValue)
+        //{
+        //   sb.Append((char)0x09);
+        //   sb.Append(item.OriginalPrice.Value.ToString("F2", ic));
+        //   sb.Append(',');
+        //   sb.Append(McfProtocol.EscapeData(item.PriceModification ?? ""));
+        //}
+
+        // ---------- Send ----------
+        var payload = sb.ToString();
+
+        // Optional: trace exactly what's being sent (very useful while debugging TS issues)
+        Debug.WriteLine($"[31h REGISTER_ITEM] >> {payload}");
+
+        var resp = await SendCommandAsync(McfProtocol.CMD_REGISTER_ITEM, payload);
+
+        if (resp.IsError)
+            return "E:Communication";
+
+        return resp.Data;
     }
 
     private async Task SendCommentsAsync(FiscalInvoiceRequest request)
@@ -674,7 +782,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
                         decimal.TryParse(currRateStr, NumberStyles.Any, ic, out var currRate) &&
                         currRate > 0)
                     {
-                        DateTimeOffset currDate = _time.LocalNow;          // 🆕 via ITimeProvider
+                        DateTimeOffset currDate = _time.LocalNow;
                         if (!string.IsNullOrEmpty(currDateStr) && currDateStr.Length == 8 &&
                             DateTime.TryParseExact(currDateStr, "yyyyMMdd",
                                 ic, DateTimeStyles.None, out var parsedDate))
@@ -806,7 +914,7 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
             return null;
         }
 
-        DateTimeOffset date = _time.LocalNow;                      // 🆕 via ITimeProvider
+        DateTimeOffset date = _time.LocalNow;
         if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 8 &&
             DateTime.TryParseExact(dateStr.Substring(0, 8), "yyyyMMdd",
                 ic, DateTimeStyles.None, out var parsedDate))
@@ -826,10 +934,47 @@ public class McfSerialClient : IFiscalDeviceService, IDisposable
         };
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // 🆕 DISPOSE — robust, idempotent, releases COM handle properly
+    // ══════════════════════════════════════════════════════════════
+
     public void Dispose()
     {
-        _port?.Close();
-        _port?.Dispose();
-        _lock.Dispose();
+        if (_disposed) return;
+        _disposed = true;
+
+        // Snapshot under no lock — we just want to make sure nobody else
+        // initiates a new send while we tear down.
+        var port = _port;
+        _port = null;
+
+        if (port != null)
+        {
+            try
+            {
+                if (port.IsOpen)
+                {
+                    // DiscardInBuffer/DiscardOutBuffer can sometimes prevent
+                    // the FTDI/CH340 driver from holding the handle "busy".
+                    try { port.DiscardInBuffer(); } catch { /* ignore */ }
+                    try { port.DiscardOutBuffer(); } catch { /* ignore */ }
+                    port.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[McfSerialClient] Close error: {ex.Message}");
+            }
+
+            try { port.Dispose(); }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[McfSerialClient] Dispose error: {ex.Message}");
+            }
+        }
+
+        try { _lock.Dispose(); } catch { /* ignore */ }
+
+        GC.SuppressFinalize(this);
     }
 }

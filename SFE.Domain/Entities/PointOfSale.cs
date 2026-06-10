@@ -33,6 +33,13 @@ public class PointOfSale
     public string? McfPortName { get; set; }
     public int McfBaudRate { get; set; } = 115200;
 
+    /// <summary>
+    /// 🆕 STRICT MODE — when DeviceType = Mcf, disables the e-MCF fallback.
+    /// Sales will fail outright if the MCF is unreachable. Ignored for
+    /// EMcf (no fallback meaningful) and Hybrid (Hybrid IS the fallback).
+    /// </summary>
+    public bool DisableFallback { get; set; } = false;
+
     // ═══ CONNECTION STATUS (populated by test/status checks) ═══
 
     /// <summary>Last time the fiscal device connection was successfully tested.</summary>

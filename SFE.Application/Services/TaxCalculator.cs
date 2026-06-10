@@ -468,6 +468,7 @@ public class LineCalculationInput
     public decimal UnitPriceTTC { get; set; }
     public decimal Quantity { get; set; } = 1;
     public TaxGroup TaxGroup { get; set; } = TaxGroup.B;
+    public TaxGroupAType? TaxGroupAType { get; set; }   // 🆕
     public decimal TaxRate { get; set; }
     public PriceMode PriceMode { get; set; } = PriceMode.TTC;
 

@@ -8,144 +8,216 @@ using SFE.Domain.Enums;
 using SFE.Infrastructure.EMcf;
 using SFE.Infrastructure.Mcf;
 using SFE.WPF.Helpers;
+using SFE.WPF.Services;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.IO.Ports;
 using System.Text;
+using System.Windows.Media;
 
 namespace SFE.WPF.ViewModels;
 
+// ════════════════════════════════════════════════════════════════
+//  COM PORT INFO
+// ════════════════════════════════════════════════════════════════
+public partial class ComPortInfo : ObservableObject
+{
+    public string Name { get; }
+    public ComPortStatus Status { get; }
+    public string StatusLabel { get; }
+    public Brush StatusColor { get; }
+    public Brush TextColor { get; }
+
+    public ComPortInfo(string name, ComPortStatus status)
+    {
+        Name = name;
+        Status = status;
+        (StatusLabel, StatusColor, TextColor) = status switch
+        {
+            ComPortStatus.Available => (
+                "Disponible",
+                (Brush)new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)),
+                (Brush)new SolidColorBrush(Color.FromRgb(0x0F, 0x76, 0x4E))),
+            ComPortStatus.InUse => (
+                "Occupé",
+                (Brush)new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
+                (Brush)new SolidColorBrush(Color.FromRgb(0x92, 0x40, 0x0E))),
+            ComPortStatus.NotFound => (
+                "Introuvable",
+                (Brush)new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)),
+                (Brush)new SolidColorBrush(Color.FromRgb(0x9C, 0x1C, 0x1C))),
+            ComPortStatus.Probing => (
+                "Analyse…",
+                (Brush)new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
+                (Brush)new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69))),
+            _ => (
+                "Inconnu",
+                (Brush)new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
+                (Brush)new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69))),
+        };
+        StatusColor.Freeze();
+        TextColor.Freeze();
+    }
+
+    public override bool Equals(object? obj) =>
+        obj is ComPortInfo o && string.Equals(o.Name, Name, StringComparison.OrdinalIgnoreCase);
+
+    public override int GetHashCode() =>
+        StringComparer.OrdinalIgnoreCase.GetHashCode(Name ?? "");
+}
+
+public enum ComPortStatus { Available, InUse, NotFound, Probing }
+
+// ════════════════════════════════════════════════════════════════
+//  POS MANAGEMENT VIEWMODEL
+// ════════════════════════════════════════════════════════════════
 public partial class PointOfSaleManagementViewModel : BaseViewModel
 {
     private readonly PointOfSaleService _posService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly StockService _stockService;
     private readonly ITimeProvider _time;
+    private readonly FiscalDeviceResolver? _resolver;
 
     public PointOfSaleManagementViewModel(
         PointOfSaleService posService,
         IUnitOfWork unitOfWork,
         StockService stockService,
-        ITimeProvider time)
+        ITimeProvider time,
+        FiscalDeviceResolver? resolver = null)
     {
         _posService = posService;
         _unitOfWork = unitOfWork;
         _stockService = stockService;
         _time = time ?? throw new ArgumentNullException(nameof(time));
+        _resolver = resolver;
         PageTitle = "Points de vente";
 
         _ = LoadAsync();
     }
 
-    // ══════════════════════════════════════════════
-    //  PROPRIÉTÉS
-    // ══════════════════════════════════════════════
+    // ── State ──
+    [ObservableProperty] private int _companyId;
+    [ObservableProperty] private ObservableCollection<PointOfSale> _allPos = new();
+    [ObservableProperty] private bool _isEditing;
+    [ObservableProperty] private string _formTitle = "";
+    [ObservableProperty] private bool _isProbingComPorts;
 
-    [ObservableProperty]
-    private int _companyId;
-
-    [ObservableProperty]
-    private ObservableCollection<PointOfSale> _allPos = new();
-
-    [ObservableProperty]
-    private bool _isEditing;
-
-    [ObservableProperty]
-    private string _formTitle = "";
-
-    // ── Champs formulaire : Général ──
-
+    // ── Edit form: General ──
     private int _editId;
+    [ObservableProperty] private string _editCode = "";
+    [ObservableProperty] private string _editName = "";
+    [ObservableProperty] private string _editAddress = "";
+    [ObservableProperty] private string _editCity = "";
+    [ObservableProperty] private string _editPhone = "";
+    [ObservableProperty] private bool _editManagesStock = true;
+    [ObservableProperty] private bool _editAllowNegativeStock;
 
-    [ObservableProperty]
-    private string _editCode = "";
+    // ── Edit form: Fiscal device ──
+    [ObservableProperty] private string _editEmcfUrl = "";
+    [ObservableProperty] private string _editEmcfToken = "";
+    [ObservableProperty] private string _editEmcfNim = "";
 
-    [ObservableProperty]
-    private string _editName = "";
+    [ObservableProperty] private bool _editDisableFallback;
 
-    [ObservableProperty]
-    private string _editAddress = "";
-
-    [ObservableProperty]
-    private string _editCity = "";
-
-    [ObservableProperty]
-    private string _editPhone = "";
-
-    [ObservableProperty]
-    private bool _editManagesStock = true;
-
-    [ObservableProperty]
-    private bool _editAllowNegativeStock;
-
-    [ObservableProperty]
-    private string _editEmcfUrl = "";
-
-    [ObservableProperty]
-    private string _editEmcfToken = "";
-
-    [ObservableProperty]
-    private string _editEmcfNim = "";
-
-    // ── Radio fiscal ──
-
-    private bool _editIsEmcf = true;
-    public bool EditIsEmcf
+    private bool _editIsEmcfOnly = true;
+    public bool EditIsEmcfOnly
     {
-        get => _editIsEmcf;
+        get => _editIsEmcfOnly;
         set
         {
-            if (SetProperty(ref _editIsEmcf, value))
-                OnPropertyChanged(nameof(EditIsEmcf));
+            if (SetProperty(ref _editIsEmcfOnly, value) && value)
+            {
+                _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
+                _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
+                OnPropertyChanged(nameof(ShowEmcfFields));
+                OnPropertyChanged(nameof(ShowMcfFields));
+                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+            }
         }
     }
 
-    // ══════════════════════════════════════════════
-    //  🖨 CHAMPS FORMULAIRE : IMPRIMANTE
-    // ══════════════════════════════════════════════
+    private bool _editIsMcfOnly;
+    public bool EditIsMcfOnly
+    {
+        get => _editIsMcfOnly;
+        set
+        {
+            if (SetProperty(ref _editIsMcfOnly, value) && value)
+            {
+                _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
+                _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
+                OnPropertyChanged(nameof(ShowEmcfFields));
+                OnPropertyChanged(nameof(ShowMcfFields));
+                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+                _ = RefreshComPortsAsync(SelectedComPort?.Name);
+            }
+        }
+    }
 
-    [ObservableProperty]
-    private string _editPrinterName = "";
+    private bool _editIsHybrid;
+    public bool EditIsHybrid
+    {
+        get => _editIsHybrid;
+        set
+        {
+            if (SetProperty(ref _editIsHybrid, value) && value)
+            {
+                _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
+                _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
+                OnPropertyChanged(nameof(ShowEmcfFields));
+                OnPropertyChanged(nameof(ShowMcfFields));
+                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+                _ = RefreshComPortsAsync(SelectedComPort?.Name);
+            }
+        }
+    }
 
-    [ObservableProperty]
-    private int _editPaperWidth = 80;
+    public bool ShowEmcfFields => EditIsEmcfOnly || EditIsHybrid;
+    public bool ShowMcfFields => EditIsMcfOnly || EditIsHybrid;
+    public bool ShowDisableFallbackToggle => EditIsMcfOnly;
 
-    [ObservableProperty]
-    private bool _editAutoPrint = true;
+    // ── Edit form: MCF serial ──
+    [ObservableProperty] private int _editMcfBaudRate = 115200;
 
-    [ObservableProperty]
-    private int _editPrintCopies = 1;
+    public ObservableCollection<ComPortInfo> AvailableComPorts { get; } = new();
+    public int[] AvailableBaudRates { get; } = { 9600, 19200, 38400, 57600, 115200, 230400 };
 
-    [ObservableProperty]
-    private bool _editEnableCustomerDisplay;
+    private ComPortInfo? _selectedComPort;
+    public ComPortInfo? SelectedComPort
+    {
+        get => _selectedComPort;
+        set => SetProperty(ref _selectedComPort, value);
+    }
 
-    [ObservableProperty]
-    private bool _editEnableCashDrawer;
+    private string EditMcfPortName => SelectedComPort?.Name ?? "";
 
-    [ObservableProperty]
-    private int _editCashDrawerPin;
+    // ── Edit form: Inline test result ──
+    [ObservableProperty] private bool _hasEditTestResult;
+    [ObservableProperty] private bool _editTestSuccess;
+    [ObservableProperty] private string _editTestMessage = "";
 
-    [ObservableProperty]
-    private int _editCodePage = 858;
-
-    [ObservableProperty]
-    private bool _editPrintLogo;
-
-    [ObservableProperty]
-    private string _editFooterText = "Merci pour votre achat !";
-
-    // ── Sources ComboBox imprimante ──
+    // ── Edit form: Printer ──
+    [ObservableProperty] private string _editPrinterName = "";
+    [ObservableProperty] private int _editPaperWidth = 80;
+    [ObservableProperty] private bool _editAutoPrint = true;
+    [ObservableProperty] private int _editPrintCopies = 1;
+    [ObservableProperty] private bool _editEnableCustomerDisplay;
+    [ObservableProperty] private bool _editEnableCashDrawer;
+    [ObservableProperty] private int _editCashDrawerPin;
+    [ObservableProperty] private int _editCodePage = 858;
+    [ObservableProperty] private bool _editPrintLogo;
+    [ObservableProperty] private string _editFooterText = "Merci pour votre achat !";
 
     public int[] PaperWidths { get; } = { 80, 58 };
     public int[] PrintCopiesOptions { get; } = { 1, 2, 3 };
     public int[] CashDrawerPins { get; } = { 0, 1 };
     public int[] CodePages { get; } = { 858, 850, 437, 1252 };
-
     public ObservableCollection<string> DetectedPrinters { get; } = new();
 
-    // ══════════════════════════════════════════════
-    //  COMMANDES — CRUD POS
-    // ══════════════════════════════════════════════
-
+    // ════════════════════════════════════════════════════════════
+    //  CRUD
+    // ════════════════════════════════════════════════════════════
     [RelayCommand]
     private async Task LoadAsync()
     {
@@ -174,12 +246,15 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditPhone = "";
         EditManagesStock = true;
         EditAllowNegativeStock = false;
-        EditIsEmcf = true;
+
+        EditIsEmcfOnly = true;
         EditEmcfUrl = "";
         EditEmcfToken = "";
         EditEmcfNim = "";
 
-        // 🖨 Valeurs par défaut imprimante
+        EditMcfBaudRate = 115200;
+        EditDisableFallback = false;
+
         EditPrinterName = "";
         EditPaperWidth = 80;
         EditAutoPrint = true;
@@ -191,9 +266,12 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditPrintLogo = false;
         EditFooterText = "Merci pour votre achat !";
 
-        RefreshPrinterList();
+        HasEditTestResult = false;
         FormTitle = "Nouveau point de vente";
         IsEditing = true;
+
+        _ = RefreshComPortsAsync(null);
+        _ = RefreshPrinterListAsync();
     }
 
     [RelayCommand]
@@ -207,12 +285,21 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditPhone = pos.Phone;
         EditManagesStock = pos.ManagesStock;
         EditAllowNegativeStock = pos.AllowNegativeStock;
-        EditIsEmcf = pos.DeviceType == DeviceType.EMcf;
+
+        switch (pos.DeviceType)
+        {
+            case DeviceType.EMcf: EditIsEmcfOnly = true; break;
+            case DeviceType.Mcf: EditIsMcfOnly = true; break;
+            case DeviceType.Hybrid: EditIsHybrid = true; break;
+        }
+
         EditEmcfUrl = pos.EmcfApiUrl ?? "";
         EditEmcfToken = pos.EmcfToken ?? "";
         EditEmcfNim = pos.EmcfNIM ?? "";
 
-        // 🖨 Charger config imprimante existante
+        EditMcfBaudRate = pos.McfBaudRate > 0 ? pos.McfBaudRate : 115200;
+        EditDisableFallback = pos.DisableFallback;
+
         EditPrinterName = pos.ThermalPrinterName ?? "";
         EditPaperWidth = pos.PaperWidthMm > 0 ? pos.PaperWidthMm : 80;
         EditAutoPrint = pos.AutoPrintReceipt;
@@ -224,9 +311,12 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditPrintLogo = pos.PrintLogo;
         EditFooterText = pos.ReceiptFooterText ?? "Merci pour votre achat !";
 
-        RefreshPrinterList();
+        HasEditTestResult = false;
         FormTitle = $"Modifier {pos.Code}";
         IsEditing = true;
+
+        _ = RefreshComPortsAsync(pos.McfPortName);
+        _ = RefreshPrinterListAsync(EditPrinterName);
     }
 
     [RelayCommand]
@@ -237,7 +327,19 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     {
         if (!await EnsureCompanyLoadedAsync()) return;
 
-        var deviceType = EditIsEmcf ? DeviceType.EMcf : DeviceType.Mcf;
+        var deviceType = EditIsHybrid ? DeviceType.Hybrid
+                       : EditIsEmcfOnly ? DeviceType.EMcf
+                                        : DeviceType.Mcf;
+
+        if (deviceType is DeviceType.Mcf or DeviceType.Hybrid
+            && string.IsNullOrWhiteSpace(EditMcfPortName))
+        {
+            ShowErrorMessage("Veuillez sélectionner un port COM pour le mode MCF/Hybride.");
+            return;
+        }
+
+        var disableFallback = (deviceType == DeviceType.Mcf) && EditDisableFallback;
+
         PosSaveResult result;
 
         if (_editId == 0)
@@ -253,11 +355,15 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
                 ManagesStock = EditManagesStock,
                 AllowNegativeStock = EditAllowNegativeStock,
                 DeviceType = deviceType,
+
                 EmcfApiUrl = NullIfEmpty(EditEmcfUrl),
                 EmcfToken = NullIfEmpty(EditEmcfToken),
                 EmcfNIM = NullIfEmpty(EditEmcfNim),
 
-                // 🖨 Imprimante
+                McfPortName = NullIfEmpty(EditMcfPortName),
+                McfBaudRate = EditMcfBaudRate,
+                DisableFallback = disableFallback,
+
                 ThermalPrinterName = EditPrinterName?.Trim() ?? "",
                 PaperWidthMm = EditPaperWidth,
                 AutoPrintReceipt = EditAutoPrint,
@@ -284,11 +390,15 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             pos.ManagesStock = EditManagesStock;
             pos.AllowNegativeStock = EditAllowNegativeStock;
             pos.DeviceType = deviceType;
+
             pos.EmcfApiUrl = NullIfEmpty(EditEmcfUrl);
             pos.EmcfToken = NullIfEmpty(EditEmcfToken);
             pos.EmcfNIM = NullIfEmpty(EditEmcfNim);
 
-            // 🖨 Imprimante
+            pos.McfPortName = NullIfEmpty(EditMcfPortName);
+            pos.McfBaudRate = EditMcfBaudRate;
+            pos.DisableFallback = disableFallback;
+
             pos.ThermalPrinterName = EditPrinterName?.Trim() ?? "";
             pos.PaperWidthMm = EditPaperWidth;
             pos.AutoPrintReceipt = EditAutoPrint;
@@ -305,6 +415,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         if (result.Success)
         {
+            try { _resolver?.Invalidate(); } catch { /* non-fatal */ }
+
             IsEditing = false;
             await LoadAsync();
             _ = ShowSuccessAsync(_editId == 0 ? "✅ POS créé avec succès." : "✅ POS mis à jour.");
@@ -343,34 +455,237 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         finally { IsBusy = false; }
     }
 
-    // ══════════════════════════════════════════════
-    //  🖨 COMMANDES — IMPRIMANTE
-    // ══════════════════════════════════════════════
+    // ════════════════════════════════════════════════════════════
+    //  COM PORT DETECTION
+    // ════════════════════════════════════════════════════════════
 
     [RelayCommand]
-    private void RefreshPrinterList()
+    private Task RefreshComPorts() => RefreshComPortsAsync(SelectedComPort?.Name);
+
+    private async Task RefreshComPortsAsync(string? preferredPort)
     {
-        var previous = EditPrinterName;
-        DetectedPrinters.Clear();
-        DetectedPrinters.Add(""); // vide = auto-détection
+        if (IsProbingComPorts) return;
+        IsProbingComPorts = true;
+        try
+        {
+            string[] systemPorts;
+            try { systemPorts = SerialPort.GetPortNames().Distinct().OrderBy(p => p).ToArray(); }
+            catch { systemPorts = Array.Empty<string>(); }
+
+            AvailableComPorts.Clear();
+            foreach (var p in systemPorts)
+                AvailableComPorts.Add(new ComPortInfo(p, ComPortStatus.Probing));
+
+            if (!string.IsNullOrWhiteSpace(preferredPort)
+                && !AvailableComPorts.Any(p => string.Equals(p.Name, preferredPort, StringComparison.OrdinalIgnoreCase)))
+            {
+                AvailableComPorts.Add(new ComPortInfo(preferredPort, ComPortStatus.NotFound));
+            }
+
+            SelectedComPort =
+                (!string.IsNullOrWhiteSpace(preferredPort)
+                    ? AvailableComPorts.FirstOrDefault(p =>
+                          string.Equals(p.Name, preferredPort, StringComparison.OrdinalIgnoreCase))
+                    : null)
+                ?? AvailableComPorts.FirstOrDefault();
+
+            if (systemPorts.Length == 0) return;
+
+            // 🆕 If the resolver currently owns a port, do NOT probe it — just mark it InUse.
+            string? activePosPort = null;
+            if (_resolver != null)
+            {
+                try
+                {
+                    var diag = await _resolver.GetDiagnosticsAsync();
+                    activePosPort = diag.ConfiguredPortName;
+                }
+                catch { /* ignore */ }
+            }
+
+            var portsToProbe = systemPorts
+                .Where(p => !string.Equals(p, activePosPort, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            var probed = await Task.Run(() =>
+                portsToProbe
+                    .AsParallel()
+                    .WithDegreeOfParallelism(Math.Max(2, Math.Min(portsToProbe.Length, 8)))
+                    .Select(p => (Name: p, Status: ProbePort(p)))
+                    .ToList());
+
+            // Mark the resolver-owned port as InUse without touching it.
+            if (!string.IsNullOrEmpty(activePosPort)
+                && systemPorts.Contains(activePosPort, StringComparer.OrdinalIgnoreCase))
+            {
+                probed.Add((activePosPort!, ComPortStatus.InUse));
+            }
+
+            foreach (var (name, status) in probed)
+            {
+                var idx = -1;
+                for (int i = 0; i < AvailableComPorts.Count; i++)
+                    if (string.Equals(AvailableComPorts[i].Name, name, StringComparison.OrdinalIgnoreCase))
+                    { idx = i; break; }
+
+                if (idx >= 0)
+                    AvailableComPorts[idx] = new ComPortInfo(name, status);
+            }
+
+            if (SelectedComPort != null)
+            {
+                var keep = SelectedComPort.Name;
+                SelectedComPort = AvailableComPorts.FirstOrDefault(p =>
+                    string.Equals(p.Name, keep, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        finally { IsProbingComPorts = false; }
+    }
+
+    private static ComPortStatus ProbePort(string portName)
+    {
+        try
+        {
+            using var sp = new SerialPort(portName) { ReadTimeout = 50, WriteTimeout = 50 };
+            sp.Open();
+            // Hold briefly so a concurrent legitimate user surfaces as InUse.
+            Thread.Sleep(20);
+            sp.Close();
+            return ComPortStatus.Available;
+        }
+        catch (UnauthorizedAccessException) { return ComPortStatus.InUse; }
+        catch (IOException) { return ComPortStatus.NotFound; }
+        catch { return ComPortStatus.InUse; }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  INLINE MCF / e-MCF TEST
+    // ════════════════════════════════════════════════════════════
+
+    [RelayCommand]
+    private async Task TestEditingPosConnectionAsync()
+    {
+        if (IsProbingComPorts)
+        {
+            EditTestSuccess = false;
+            EditTestMessage = "Analyse des ports en cours, veuillez patienter…";
+            HasEditTestResult = true;
+            return;
+        }
+
+        HasEditTestResult = false;
+        IsBusy = true;
+
+        // 🆕 Take exclusive ownership of any port the resolver might be holding.
+        IDisposable? lease = null;
+        if (_resolver != null)
+        {
+            try { lease = await _resolver.AcquireExclusiveAccessAsync(); }
+            catch { /* non-fatal */ }
+        }
+
+        IFiscalDeviceService? device = null;
+        McfSerialClient? mcfOwned = null;
 
         try
         {
-            foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
-                DetectedPrinters.Add(printer);
-        }
-        catch
-        {
-            // System.Drawing non disponible ou aucune imprimante
-        }
+            if (EditIsMcfOnly || EditIsHybrid)
+            {
+                if (string.IsNullOrWhiteSpace(EditMcfPortName))
+                {
+                    EditTestSuccess = false;
+                    EditTestMessage = "Aucun port COM sélectionné.";
+                    HasEditTestResult = true;
+                    return;
+                }
 
-        // Restaurer la sélection
+                if (SelectedComPort?.Status == ComPortStatus.NotFound)
+                {
+                    EditTestSuccess = false;
+                    EditTestMessage = $"Le port {EditMcfPortName} n'est pas disponible sur cette machine.";
+                    HasEditTestResult = true;
+                    return;
+                }
+
+                mcfOwned = new McfSerialClient(EditMcfPortName, _time, EditMcfBaudRate);
+                mcfOwned.Connect();
+                device = mcfOwned;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(EditEmcfUrl) || string.IsNullOrWhiteSpace(EditEmcfToken))
+                {
+                    EditTestSuccess = false;
+                    EditTestMessage = "URL ou token e-MCF manquant.";
+                    HasEditTestResult = true;
+                    return;
+                }
+                device = new EMcfHttpClient(EditEmcfUrl, EditEmcfToken, "", _time);
+            }
+
+            var status = await device.GetStatusAsync();
+
+            EditTestSuccess = status.Success;
+            EditTestMessage = status.Success
+                ? $"Connexion réussie — NIM : {status.NIM}"
+                : $"Échec : {status.ErrorMessage}";
+            HasEditTestResult = true;
+        }
+        catch (Exception ex)
+        {
+            EditTestSuccess = false;
+            EditTestMessage = $"Erreur : {ex.GetBaseException().Message}";
+            HasEditTestResult = true;
+        }
+        finally
+        {
+            // Dispose mcfOwned if it was created (covers the Connect-throws case);
+            // otherwise dispose the e-MCF client through IDisposable.
+            if (mcfOwned != null)
+            {
+                try { mcfOwned.Dispose(); } catch { }
+            }
+            else if (device is IDisposable d)
+            {
+                try { d.Dispose(); } catch { }
+            }
+
+            IsBusy = false;
+            lease?.Dispose();
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  PRINTER
+    // ════════════════════════════════════════════════════════════
+
+    [RelayCommand]
+    private Task RefreshPrinterList() => RefreshPrinterListAsync();
+
+    private async Task RefreshPrinterListAsync(string? preferred = null)
+    {
+        var previous = preferred ?? EditPrinterName;
+        var found = await Task.Run(() =>
+        {
+            var list = new List<string> { "" };
+            try
+            {
+                foreach (string p in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+                    list.Add(p);
+            }
+            catch { }
+            return list;
+        });
+
+        DetectedPrinters.Clear();
+        foreach (var p in found) DetectedPrinters.Add(p);
+
         if (!string.IsNullOrEmpty(previous) && DetectedPrinters.Contains(previous))
             EditPrinterName = previous;
     }
 
     [RelayCommand]
-    private void AutoDetectPrinter()
+    private async Task AutoDetectPrinterAsync()
     {
         string[] thermalKeywords =
         {
@@ -380,39 +695,41 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             "pos-58", "pos-80", "80mm", "58mm", "optima"
         };
 
-        try
+        var found = await Task.Run(() =>
         {
-            foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+            try
             {
-                string lower = printer.ToLowerInvariant();
-                foreach (var kw in thermalKeywords)
+                foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
                 {
-                    if (lower.Contains(kw))
-                    {
-                        EditPrinterName = printer;
-                        _ = ShowSuccessAsync($"🖨 Imprimante détectée : {printer}");
-                        return;
-                    }
+                    string lower = printer.ToLowerInvariant();
+                    foreach (var kw in thermalKeywords)
+                        if (lower.Contains(kw)) return printer;
                 }
             }
-        }
-        catch { /* ignore */ }
+            catch { }
+            return null!;
+        });
 
-        ShowErrorMessage("Aucune imprimante thermique détectée automatiquement.");
+        if (!string.IsNullOrEmpty(found))
+        {
+            EditPrinterName = found;
+            _ = ShowSuccessAsync($"🖨 Imprimante détectée : {found}");
+        }
+        else
+        {
+            ShowErrorMessage("Aucune imprimante thermique détectée automatiquement.");
+        }
     }
 
     [RelayCommand]
-    private void TestPrint()
+    private async Task TestPrintAsync()
     {
         string printerName = EditPrinterName?.Trim() ?? "";
-
-        // Si vide, tenter auto-détection rapide
         if (string.IsNullOrEmpty(printerName))
         {
-            AutoDetectPrinter();
+            await AutoDetectPrinterAsync();
             printerName = EditPrinterName?.Trim() ?? "";
         }
-
         if (string.IsNullOrEmpty(printerName))
         {
             ShowErrorMessage("Aucune imprimante configurée ou détectée.");
@@ -422,10 +739,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         try
         {
             int charsPerLine = EditPaperWidth >= 80 ? 48 : 32;
-            // 🆕 Passer le temps via ITimeProvider plutôt que DateTime.Now
             byte[] receipt = BuildTestReceipt(charsPerLine, EditCodePage, _time.LocalNow);
-            RawPrinterHelper.SendBytesToPrinter(printerName, receipt, "SFE-TestPrint");
-
+            await Task.Run(() => RawPrinterHelper.SendBytesToPrinter(printerName, receipt, "SFE-TestPrint"));
             _ = ShowSuccessAsync($"🖨 Ticket test envoyé à « {printerName} ».");
         }
         catch (Exception ex)
@@ -434,21 +749,15 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         }
     }
 
-    // ══════════════════════════════════════════════
+    // ════════════════════════════════════════════════════════════
     //  HELPERS
-    // ══════════════════════════════════════════════
+    // ════════════════════════════════════════════════════════════
 
     private async Task<bool> EnsureCompanyLoadedAsync()
     {
         if (CompanyId > 0) return true;
-
         var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
-        if (company != null)
-        {
-            CompanyId = company.Id;
-            return true;
-        }
-
+        if (company != null) { CompanyId = company.Id; return true; }
         ShowErrorMessage("Aucune entreprise configurée.");
         return false;
     }
@@ -456,62 +765,31 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s;
 
-    /// <summary>
-    /// Construit un ticket test ESC/POS complet pour vérifier
-    /// l'alignement, les accents et la largeur papier.
-    /// La date/heure est injectée par l'appelant pour rester testable.
-    /// </summary>
     private static byte[] BuildTestReceipt(int charsPerLine, int codePage, DateTimeOffset now)
     {
         using var ms = new MemoryStream();
-
         void Write(params byte[] data) => ms.Write(data, 0, data.Length);
 
         Encoding enc;
-        try
-        {
-            enc = Encoding.GetEncoding(codePage);
-        }
-        catch
-        {
-            // Ultimate fallback: ASCII never fails
-            enc = Encoding.GetEncoding(437);       // or Encoding.ASCII
-        }
+        try { enc = Encoding.GetEncoding(codePage); }
+        catch { enc = Encoding.GetEncoding(437); }
 
         void PrintLine(string text)
         {
             byte[] bytes = enc.GetBytes(text);
             ms.Write(bytes, 0, bytes.Length);
-            ms.WriteByte(0x0A); // LF
+            ms.WriteByte(0x0A);
         }
 
-        // ── ESC @ : Initialize printer ──
         Write(0x1B, 0x40);
-
-        // ── Set code page ──
-        byte cpByte = codePage switch
-        {
-            437 => 0x00,
-            850 => 0x02,
-            858 => 0x13,
-            1252 => 0x10,
-            _ => 0x13
-        };
+        byte cpByte = codePage switch { 437 => 0x00, 850 => 0x02, 858 => 0x13, 1252 => 0x10, _ => 0x13 };
         Write(0x1B, 0x74, cpByte);
-
-        // ── Center align ──
         Write(0x1B, 0x61, 0x01);
-
-        // ── Bold ON + Double height/width ──
         Write(0x1B, 0x45, 0x01);
         Write(0x1D, 0x21, 0x11);
-
         PrintLine("SFE GECOM");
-
-        // ── Reset size ──
         Write(0x1D, 0x21, 0x00);
         Write(0x1B, 0x45, 0x00);
-
         PrintLine("");
         PrintLine(new string('=', charsPerLine));
         PrintLine("TEST D'IMPRESSION");
@@ -520,14 +798,12 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         PrintLine($"Largeur : {(charsPerLine >= 48 ? 80 : 58)} mm");
         PrintLine($"Caractères/ligne : {charsPerLine}");
         PrintLine($"Code page : {codePage}");
-        PrintLine($"Date : {now:dd/MM/yyyy HH:mm:ss}");       // 🆕 DateTimeOffset injecté
+        PrintLine($"Date : {now:dd/MM/yyyy HH:mm:ss}");
         PrintLine("");
         PrintLine("Caractères spéciaux :");
         PrintLine("é è ê ë à â ù û ç ô î ï €");
         PrintLine("");
         PrintLine(new string('-', charsPerLine));
-
-        // ── Left align for table ──
         Write(0x1B, 0x61, 0x00);
 
         void PrintRow(string left, string right)
@@ -536,25 +812,16 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             if (gap < 1) gap = 1;
             PrintLine(left + new string(' ', gap) + right);
         }
-
         PrintRow("Article test", "1 500,00 CDF");
         PrintRow("TVA 16%", "240,00 CDF");
-
-        // ── Center ──
         Write(0x1B, 0x61, 0x01);
         PrintLine(new string('-', charsPerLine));
-
-        // ── Bold total ──
         Write(0x1B, 0x61, 0x00);
         Write(0x1B, 0x45, 0x01);
-        Write(0x1D, 0x21, 0x01); // Double height
-
+        Write(0x1D, 0x21, 0x01);
         PrintRow("TOTAL TTC", "1 740,00 CDF");
-
         Write(0x1D, 0x21, 0x00);
         Write(0x1B, 0x45, 0x00);
-
-        // ── Center footer ──
         Write(0x1B, 0x61, 0x01);
         PrintLine(new string('=', charsPerLine));
         PrintLine("");
@@ -564,11 +831,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         PrintLine("");
         PrintLine("--- iKWOOK SFE ---");
         PrintLine("");
-
-        // ── Feed 5 lines + Partial cut ──
         Write(0x1B, 0x64, 0x05);
         Write(0x1D, 0x56, 0x01);
-
         return ms.ToArray();
     }
 
@@ -577,44 +841,46 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     {
         if (pos == null) return;
         IsBusy = true;
+
+        // 🆕 Lease the port before opening it directly.
+        IDisposable? lease = null;
+        if (_resolver != null)
+        {
+            try { lease = await _resolver.AcquireExclusiveAccessAsync(); }
+            catch { /* non-fatal */ }
+        }
+
+        IFiscalDeviceService? device = null;
+        McfSerialClient? mcfOwned = null;
+
         try
         {
-            IFiscalDeviceService device;
             if (pos.DeviceType == DeviceType.EMcf || pos.DeviceType == DeviceType.Hybrid)
             {
-                // 🆕 Passe _time aux clients fiscaux (signature refactorisée)
                 device = new EMcfHttpClient(
                     pos.EmcfApiUrl ?? "",
                     pos.EmcfToken ?? "",
-                    "",              // NIF loaded from company
+                    "",
                     _time);
             }
             else
             {
-                // 🆕 ITimeProvider en 2e argument, baudRate en 3e (valeur par défaut 115200)
-                var mcf = new McfSerialClient(pos.McfPortName ?? "COM3", _time, pos.McfBaudRate);
-                mcf.Connect();
-                device = mcf;
+                mcfOwned = new McfSerialClient(pos.McfPortName ?? "COM3", _time, pos.McfBaudRate);
+                mcfOwned.Connect();
+                device = mcfOwned;
             }
 
             var status = await device.GetStatusAsync();
 
             if (status.Success)
             {
-                // Save connection info to POS
                 pos.LastKnownNIM = status.NIM;
                 pos.LastKnownNIF = status.NIF;
-
-                // 🆕 Plutôt que DateTime.Now, on passe par ITimeProvider.
-                // Si LastConnectionTestAt est DateTime (Kind=Utc attendu), on stocke UTC :
                 pos.LastConnectionTestAt = _time.UtcNow.UtcDateTime;
-                // ─ Si le champ est au contraire censé contenir du temps local,
-                //   remplacer par :  _time.LocalNow.LocalDateTime
 
                 if (!string.IsNullOrEmpty(status.NIM))
                     pos.EmcfNIM = status.NIM;
 
-                // Check server connection for MCF
                 var serverStatus = await device.GetServerConnectionStatusAsync();
                 if (serverStatus.Success)
                 {
@@ -624,20 +890,30 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
                 await _posService.UpdateAsync(pos);
                 await LoadAsync();
-
                 _ = ShowSuccessAsync($"✅ Connexion réussie — NIM: {status.NIM}");
             }
             else
             {
                 ShowErrorMessage($"Échec: {status.ErrorMessage}");
             }
-
-            if (device is IDisposable d) d.Dispose();
         }
         catch (Exception ex)
         {
             ShowErrorMessage($"Erreur: {ex.Message}");
         }
-        finally { IsBusy = false; }
+        finally
+        {
+            if (mcfOwned != null)
+            {
+                try { mcfOwned.Dispose(); } catch { }
+            }
+            else if (device is IDisposable d)
+            {
+                try { d.Dispose(); } catch { }
+            }
+
+            IsBusy = false;
+            lease?.Dispose();
+        }
     }
 }

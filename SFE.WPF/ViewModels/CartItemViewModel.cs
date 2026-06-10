@@ -1,6 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using SFE.Application.Services;
 using SFE.Domain.Enums;
+using CommunityToolkit.Mvvm.Messaging;
+using SFE.WPF.Messages;
 
 namespace SFE.WPF.ViewModels;
 
@@ -16,6 +18,7 @@ public partial class CartItemViewModel : ObservableObject
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private ItemType _itemType = ItemType.BIE;
     [ObservableProperty] private TaxGroup _taxGroup = TaxGroup.B;
+    [ObservableProperty] private TaxGroupAType? _taxGroupAType;   // 🆕
     [ObservableProperty] private decimal _taxRate;
     [ObservableProperty] private string _unit = "pce";
 
@@ -49,6 +52,13 @@ public partial class CartItemViewModel : ObservableObject
     // ══════ STOCK ══════
     [ObservableProperty] private decimal _stockQuantity;
     [ObservableProperty] private bool _trackStock;
+
+    // ── ADD in the private-fields region of the class ──────────
+    // État mémorisé pour pouvoir recalculer la ligne depuis OnQuantityChanged
+    // (édition directe via TextBox du panier) sans que PosViewModel ait à
+    // repasser PriceMode/discountBeforeTax.
+    private bool _lastDiscountBeforeTax = true;
+    private bool _isInitialized;
 
     // ══════ AFFICHAGE ══════
     private PriceMode _displayMode = PriceMode.TTC;
@@ -95,7 +105,31 @@ public partial class CartItemViewModel : ObservableObject
         OnPropertyChanged(nameof(TaxGroupLabel));
     }
 
-    partial void OnQuantityChanged(decimal value) { }
+    partial void OnQuantityChanged(decimal value)
+    {
+        // DGI-spec: la quantité est tolérée jusqu'à 3 décimales (ex. 3.587, 3.45).
+        // On tronque l'éventuel surplus pour éviter des arrondis invisibles
+        // qui provoqueraient des écarts de ±1 FC sur le total TTC.
+        var rounded = Math.Round(value, 3, MidpointRounding.AwayFromZero);
+        if (rounded != value)
+        {
+            Quantity = rounded;   // réentrance — le 2ᵉ appel passera par le else
+            return;
+        }
+
+        OnPropertyChanged(nameof(QuantityDisplay));
+
+        // Pendant la construction (object-initializer `new CartItemViewModel { ... }`)
+        // les prix unitaires ne sont pas encore affectés : on saute l'auto-recalcul
+        // et on laisse l'appelant déclencher le premier Recalculate explicite.
+        if (!_isInitialized) return;
+
+        // Édition directe depuis l'UI (TextBox) — on recalcule la ligne avec
+        // le dernier couple (PriceMode, discountBeforeTax) connu, puis on
+        // notifie le PosViewModel pour qu'il rafraîchisse les totaux globaux.
+        Recalculate(_displayMode, _lastDiscountBeforeTax);
+        WeakReferenceMessenger.Default.Send(new CartLineRecalculatedMessage(this));
+    }
 
     // ══════ CALCUL — V12: WinDev-aligned ══════
 
@@ -106,6 +140,8 @@ public partial class CartItemViewModel : ObservableObject
     public void Recalculate(PriceMode mode, bool discountBeforeTax = true)
     {
         _displayMode = mode;
+        _lastDiscountBeforeTax = discountBeforeTax;   // 🆕 mémorisé pour auto-recalc
+        _isInitialized = true;                        // 🆕 débloque OnQuantityChanged
         TaxRate = TaxCalculator.GetDefaultRate(TaxGroup);
 
         var input = new LineCalculationInput

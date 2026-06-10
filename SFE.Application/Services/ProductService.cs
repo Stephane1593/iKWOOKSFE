@@ -52,6 +52,12 @@ public class ProductService
                 return new ProductSaveResult { Success = false, ErrorMessage = $"Le code « {product.Code} » est déjà utilisé." };
         }
 
+        // Normalize: A-variant only meaningful for group A
+        if (product.TaxGroup == TaxGroup.A)
+            product.TaxGroupAType ??= TaxGroupAType.Exonere;
+        else
+            product.TaxGroupAType = null;
+
         // ⚠ DGI §1.1 — ITimeProvider only. UTC is canonical across DRC regions.
         product.CreatedAt = _time.UtcNow.UtcDateTime;
 
@@ -66,7 +72,7 @@ public class ProductService
         await _audit.LogAsync(
             AuditAction.ProductCreated,
             AuditModule.Products,
-            $"{product.Code} — {product.Name} · PU: {product.UnitPrice:N2} CDF · Grp: {product.TaxGroup}",
+           $"{product.Code} — {product.Name} · PU: {product.UnitPrice:N2} CDF · Grp: {product.TaxGroup.DisplayCode(product.TaxGroupAType)}",
             entityType: "Product",
             entityId: product.Id.ToString());
 
@@ -86,6 +92,12 @@ public class ProductService
                 return new ProductSaveResult { Success = false, ErrorMessage = $"Le code « {product.Code} » est déjà utilisé." };
         }
 
+        // Normalize: A-variant only meaningful for group A
+        if (product.TaxGroup == TaxGroup.A)
+            product.TaxGroupAType ??= TaxGroupAType.Exonere;
+        else
+            product.TaxGroupAType = null;
+
         product.UpdatedAt = _time.UtcNow.UtcDateTime;
 
         await _unitOfWork.Products.UpdateAsync(product);
@@ -99,7 +111,7 @@ public class ProductService
         await _audit.LogAsync(
             AuditAction.ProductUpdated,
             AuditModule.Products,
-            $"{product.Code} — {product.Name} · PU: {product.UnitPrice:N2} CDF · Grp: {product.TaxGroup}",
+            $"{product.Code} — {product.Name} · PU: {product.UnitPrice:N2} CDF · Grp: {product.TaxGroup.DisplayCode(product.TaxGroupAType)}",
             entityType: "Product",
             entityId: product.Id.ToString());
 

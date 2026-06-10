@@ -13,6 +13,7 @@ public partial class InvoiceLineViewModel : ObservableObject
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private ItemType _itemType = ItemType.BIE;
     [ObservableProperty] private TaxGroup _taxGroup = TaxGroup.B;
+    [ObservableProperty] private TaxGroupAType? _taxGroupAType;
     [ObservableProperty] private decimal _taxRate;
 
     // ══════ DUAL PRICE ══════
@@ -61,7 +62,7 @@ public partial class InvoiceLineViewModel : ObservableObject
     };
 
     public string TaxGroupDisplay =>
-        $"{(char)('A' + (int)TaxGroup)} ({TaxRate}%)";
+        $"{TaxGroup.DisplayCode(TaxGroupAType)} ({TaxRate}%)";
 
     public string LineAmountDisplay =>
         HasDiscount

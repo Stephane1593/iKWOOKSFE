@@ -22,6 +22,7 @@ public partial class PosViewModel : BaseViewModel,
     IRecipient<PriceModeChangedMessage>,
     IRecipient<DiscountBeforeTaxChangedMessage>,
     IRecipient<ExchangeRateChangedMessage>,
+    IRecipient<CartLineRecalculatedMessage>,
     IActivatable
 {
     private readonly InvoiceService _invoiceService;
@@ -247,6 +248,7 @@ public partial class PosViewModel : BaseViewModel,
         WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
         WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
         WeakReferenceMessenger.Default.Register<ExchangeRateChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<CartLineRecalculatedMessage>(this);   // 🆕
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => UpdateClock();
@@ -259,6 +261,18 @@ public partial class PosViewModel : BaseViewModel,
     {
         ExchangeRate = message.Value.UsdRate;
         UpdateAlternateCurrency();
+    }
+
+    /// <summary>
+    /// Une ligne du panier vient de s'auto-recalculer (édition directe
+    /// de la quantité au clavier). On rafraîchit uniquement les totaux
+    /// globaux — la ligne a déjà mis à jour ses propres montants.
+    /// </summary>
+    public void Receive(CartLineRecalculatedMessage message)
+    {
+        if (IsNormalized) return;
+        if (!CartItems.Contains(message.Value)) return;   // ligne d'un autre panier (held, etc.)
+        RecalculateTotals();
     }
 
     // ══════════════════════════════════════════════════════════
@@ -619,6 +633,7 @@ public partial class PosViewModel : BaseViewModel,
                 Name = product.Name,
                 ItemType = product.ItemType,
                 TaxGroup = product.TaxGroup,
+                TaxGroupAType = product.TaxGroupAType,
                 UnitPriceHT = ht,
                 UnitPriceTTC = ttc,
                 Unit = product.Unit,
@@ -897,6 +912,7 @@ public partial class PosViewModel : BaseViewModel,
             Name = ol.Name,
             ItemType = ol.ItemType,
             TaxGroup = ol.TaxGroup,
+            TaxGroupAType = ol.TaxGroupAType,
             UnitPriceHT = ol.UnitPriceHT,
             UnitPriceTTC = ol.UnitPriceTTC,
             Unit = ol.Unit,
@@ -1564,6 +1580,7 @@ public partial class PosViewModel : BaseViewModel,
                 Name = item.Name,
                 ItemType = item.ItemType,
                 TaxGroup = item.TaxGroup,
+                TaxGroupAType = item.TaxGroup == TaxGroup.A ? item.TaxGroupAType : null,
                 TaxRate = item.TaxRate,
                 UnitPriceHT = item.UnitPriceHT,
                 UnitPriceTTC = item.UnitPriceTTC,
@@ -1659,6 +1676,7 @@ public partial class PosViewModel : BaseViewModel,
                 Name = item.Name,
                 ItemType = item.ItemType,
                 TaxGroup = item.TaxGroup,
+                TaxGroupAType = item.TaxGroupAType,
                 TaxRate = item.TaxRate,
                 UnitPriceHT = item.UnitPriceHT,
                 UnitPriceTTC = item.UnitPriceTTC,

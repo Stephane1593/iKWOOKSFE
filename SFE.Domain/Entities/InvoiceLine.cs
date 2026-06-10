@@ -16,6 +16,7 @@ public class InvoiceLine
     public string Name { get; set; } = string.Empty;
     public ItemType ItemType { get; set; } = ItemType.BIE;
     public TaxGroup TaxGroup { get; set; } = TaxGroup.B;
+    public TaxGroupAType? TaxGroupAType { get; set; }
     public decimal TaxRate { get; set; }          // Taux TVA du groupe (ex: 16.00)
 
     // ══════════════════════════════════════════════

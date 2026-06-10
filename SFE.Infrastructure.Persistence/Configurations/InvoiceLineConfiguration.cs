@@ -16,6 +16,9 @@ public class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
         builder.Property(l => l.Name).IsRequired().HasMaxLength(200);
         builder.Property(l => l.ItemType).HasConversion<int>();
         builder.Property(l => l.TaxGroup).HasConversion<int>();
+        builder.Property(p => p.TaxGroupAType)
+               .HasConversion<int>()
+               .HasDefaultValue(SFE.Domain.Enums.TaxGroupAType.Exonere);
         builder.Property(l => l.TaxRate).HasPrecision(18, 4);
 
         // ── Prix unitaires (DUAL) — précision étendue à 4 décimales ──

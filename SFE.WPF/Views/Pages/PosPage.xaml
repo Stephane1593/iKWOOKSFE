@@ -1833,15 +1833,30 @@
                                                        FontWeight="Bold"
                                                        Text="−" />
                                         </Button>
-                                        <TextBlock MinWidth="48"
-                                                   Margin="8,0"
-                                                   VerticalAlignment="Center"
-                                                   FontFamily="{StaticResource AppFont}"
-                                                   FontSize="14"
-                                                   FontWeight="Bold"
-                                                   Text="{Binding Quantity, StringFormat=N3}"
-                                                   TextAlignment="Center"
-                                                   ToolTip="Quantité actuelle (3 décimales)" />
+                                        <TextBox MinWidth="64"
+                                                 Margin="8,0"
+                                                 Padding="2,4"
+                                                 VerticalAlignment="Center"
+                                                 HorizontalContentAlignment="Center"
+                                                 VerticalContentAlignment="Center"
+                                                 Background="Transparent"
+                                                 BorderBrush="{StaticResource BorderBrush}"
+                                                 BorderThickness="0,0,0,1"
+                                                 FontFamily="{StaticResource AppFont}"
+                                                 FontSize="14"
+                                                 FontWeight="Bold"
+                                                 IsReadOnly="{Binding DataContext.IsNormalized, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                 Text="{Binding Quantity, StringFormat=N3, UpdateSourceTrigger=LostFocus, Mode=TwoWay, ValidatesOnExceptions=True}"
+                                                 ToolTip="Quantité (max 3 décimales, ex. 3.587). Tab ou Entrée pour valider.">
+                                            <TextBox.InputBindings>
+                                                <!--
+                                                    Entrée → déplace le focus, ce qui déclenche LostFocus
+                                                    et donc la mise à jour de la source (Quantity).
+                                                -->
+                                                <KeyBinding Key="Enter"
+                                                            Command="{x:Static ApplicationCommands.NotACommand}" />
+                                            </TextBox.InputBindings>
+                                        </TextBox>
                                         <Button Width="42"
                                                 Height="42"
                                                 Padding="0"
