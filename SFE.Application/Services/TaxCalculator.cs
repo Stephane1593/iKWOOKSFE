@@ -113,11 +113,13 @@ public static class TaxCalculator
 
     public static bool IsItemTypeValidForGroup(ItemType itemType, TaxGroup group)
     {
-        bool isLOrN = group == TaxGroup.L || group == TaxGroup.N;
+        // N is the only group reserved for taxes/redevances.
+        // L is a regular VAT group (often configured at 0% exonéré),
+        // so BIE/SER are perfectly valid in L.
         return itemType switch
         {
-            ItemType.TAX => isLOrN,
-            _ => !isLOrN
+            ItemType.TAX => group == TaxGroup.N,
+            _ => group != TaxGroup.N
         };
     }
 

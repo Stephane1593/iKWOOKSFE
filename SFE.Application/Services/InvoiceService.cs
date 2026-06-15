@@ -675,9 +675,11 @@ public class InvoiceService
             if (line.AmountTTC == 0 && line.TaxGroup != TaxGroup.N)
                 return new($"L'article « {line.Name} » a un montant TTC nul.");
 
-            if ((line.TaxGroup == TaxGroup.L || line.TaxGroup == TaxGroup.N)
-                && line.ItemType != ItemType.TAX)
-                return new($"L'article « {line.Name} » dans le groupe {line.TaxGroup} doit être de type TAX.");
+            if (line.TaxGroup == TaxGroup.N && line.ItemType != ItemType.TAX)
+                return new($"L'article « {line.Name} » (groupe N) doit être de type TAX.");
+
+            if (line.TaxGroup != TaxGroup.N && line.ItemType == ItemType.TAX)
+                return new($"L'article « {line.Name} » : le type TAX est réservé au groupe N.");
 
             if (line.DiscountType == DiscountType.Percentage && line.DiscountValue > 100)
                 return new($"L'article « {line.Name} » : remise > 100 % non autorisée.");
@@ -743,7 +745,7 @@ public class InvoiceService
         if (invoice.Type.IsExport())
         {
             var nonExportLines = invoice.Lines
-                .Where(l => l.TaxGroup != TaxGroup.E && l.TaxGroup != TaxGroup.L && l.TaxGroup != TaxGroup.N)
+                .Where(l => l.TaxGroup != TaxGroup.E && l.TaxGroup != TaxGroup.N)
                 .ToList();
             if (nonExportLines.Any())
                 return new($"Facture d'exportation : les articles doivent être dans le groupe E (Exportation). " +

@@ -148,6 +148,16 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _deviceLastError = "—";
     [ObservableProperty] private string _deviceTaxRatesDisplay = "";
 
+    // ══════════ HEALTH REPORT (synthetic verdict) ══════════
+    [ObservableProperty] private bool _hasHealthReport;
+    [ObservableProperty] private string _deviceHealthStatus = "Unknown";   // Healthy / Degraded / Unhealthy / Unknown
+    [ObservableProperty] private string _deviceHealthLabel = "—";          // Localized label for the badge
+    [ObservableProperty] private string _deviceHealthSummary = "";         // One-line summary
+    [ObservableProperty] private string _deviceHealthBadgeKind = "neutral";// "ok" | "warn" | "error" | "neutral"
+    [ObservableProperty] private string _deviceHealthSyncAge = "—";        // Pre-formatted "il y a 12 min"
+    [ObservableProperty]
+    private ObservableCollection<string> _deviceHealthWarnings = new();
+
     [ObservableProperty]
     private ObservableCollection<CurrencyRateDisplayItem> _deviceCurrencyRates = new();
 
@@ -721,6 +731,15 @@ public partial class SettingsViewModel : BaseViewModel
                 }
             }
 
+            // ─────────────────────────────────────────────────────────
+            // 🆕 HEALTH REPORT — synthetic verdict from C2h fields.
+            //
+            // We only attempt this for MCF (serial). For e-MCF the API
+            // already returns a clean status, so we just mirror the C2h
+            // fields we already have and skip the synthetic report.
+            // ─────────────────────────────────────────────────────────
+            await TryLoadHealthReportAsync(info);
+
             await AppEventBus.PublishAsync(new AppEventArgs
             { Event = AppEvent.FiscalDeviceStatusChanged });
         }
@@ -745,6 +764,143 @@ public partial class SettingsViewModel : BaseViewModel
             IsDeviceInfoLoading = false;
             LoadDeviceInfoCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HEALTH REPORT — populates the synthetic verdict (MCF only).
+    //
+    // This works whether _fiscalDevice is a direct McfSerialClient or
+    // wrapped by FiscalDeviceResolver. For e-MCF or unknown wrappers,
+    // we synthesize a basic verdict from the C1h/C2h data we already
+    // have, so the UI always shows something meaningful.
+    // ══════════════════════════════════════════════════════════════
+    private async Task TryLoadHealthReportAsync(FiscalDeviceDetailedInfo info)
+    {
+        try
+        {
+            // 1. Try the real health report (MCF only).
+            var mcf = ResolveMcfClient(_fiscalDevice);
+            if (mcf != null)
+            {
+                var report = await mcf.GetHealthReportAsync();
+                ApplyHealthReport(report);
+                return;
+            }
+
+            // 2. Fallback: synthesize a verdict from FiscalDeviceDetailedInfo
+            //    (covers e-MCF and any future device type).
+            ApplySyntheticHealthFromDetailedInfo(info);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Settings] Health report failed: {ex.Message}");
+            DeviceHealthStatus = "Unknown";
+            DeviceHealthLabel = "État inconnu";
+            DeviceHealthSummary = $"Impossible de calculer l'état : {ex.Message}";
+            DeviceHealthBadgeKind = "neutral";
+            DeviceHealthWarnings.Clear();
+            HasHealthReport = true;
+        }
+    }
+
+    private static McfSerialClient? ResolveMcfClient(IFiscalDeviceService svc)
+    {
+        if (svc is McfSerialClient direct) return direct;
+
+        if (svc is FiscalDeviceResolver r)
+        {
+            // Prefer the active device, then primary, then fallback.
+            if (r.CurrentDevice is McfSerialClient curr) return curr;
+            if (r.PrimaryDevice is McfSerialClient pri) return pri;
+            if (r.FallbackDevice is McfSerialClient fb) return fb;
+        }
+
+        return null;
+    }
+
+    private void ApplyHealthReport(McfHealthReport report)
+    {
+        DeviceHealthWarnings.Clear();
+        foreach (var w in report.Warnings)
+            DeviceHealthWarnings.Add(w);
+
+        DeviceHealthStatus = report.Status.ToString();
+        DeviceHealthSummary = report.Summary;
+
+        (DeviceHealthLabel, DeviceHealthBadgeKind) = report.Status switch
+        {
+            McfHealth.Healthy => ("✓ Opérationnel", "ok"),
+            McfHealth.Degraded => ("⚠ Dégradé", "warn"),
+            McfHealth.Unhealthy => ("✗ Critique", "error"),
+            _ => ("? État inconnu", "neutral")
+        };
+
+        DeviceHealthSyncAge = report.TimeSinceLastSync.HasValue
+            ? $"il y a {FormatAge(report.TimeSinceLastSync.Value)}"
+            : "jamais synchronisé";
+
+        HasHealthReport = true;
+    }
+
+    private void ApplySyntheticHealthFromDetailedInfo(FiscalDeviceDetailedInfo info)
+    {
+        // Lightweight verdict for non-MCF devices (e-MCF, etc.).
+        DeviceHealthWarnings.Clear();
+
+        var pending = info.PendingRequestsCount;
+        var lastSync = info.LastServerConnection;
+        var hasError = !string.IsNullOrWhiteSpace(info.LastError)
+                       && !string.Equals(info.LastError, "Aucune", StringComparison.OrdinalIgnoreCase);
+
+        TimeSpan? age = lastSync.HasValue
+            ? _time.LocalNow - lastSync.Value
+            : null;
+
+        var status = "Healthy";
+        if (pending > 50 || (age?.TotalHours ?? 0) > 6 || hasError)
+        {
+            status = "Unhealthy";
+            if (pending > 50) DeviceHealthWarnings.Add($"File d'attente saturée : {pending} transactions.");
+            if ((age?.TotalHours ?? 0) > 6) DeviceHealthWarnings.Add($"Synchronisation trop ancienne : {FormatAge(age!.Value)}.");
+            if (hasError) DeviceHealthWarnings.Add($"Dernière erreur : {info.LastError}");
+        }
+        else if (pending > 5 || (age?.TotalHours ?? 0) > 1)
+        {
+            status = "Degraded";
+            if (pending > 5) DeviceHealthWarnings.Add($"File d'attente en croissance : {pending} transactions.");
+            if ((age?.TotalHours ?? 0) > 1) DeviceHealthWarnings.Add($"Dernière sync : {FormatAge(age!.Value)}.");
+        }
+
+        DeviceHealthStatus = status;
+        (DeviceHealthLabel, DeviceHealthBadgeKind) = status switch
+        {
+            "Healthy" => ("✓ Opérationnel", "ok"),
+            "Degraded" => ("⚠ Dégradé", "warn"),
+            "Unhealthy" => ("✗ Critique", "error"),
+            _ => ("? Inconnu", "neutral")
+        };
+
+        DeviceHealthSummary = status switch
+        {
+            "Healthy" => $"OK — {info.TransactionsSent:N0} transactions envoyées, {pending} en attente.",
+            "Degraded" => $"Dégradé — {DeviceHealthWarnings.Count} avertissement(s).",
+            "Unhealthy" => $"Critique — {DeviceHealthWarnings.Count} problème(s) détecté(s).",
+            _ => "État inconnu."
+        };
+
+        DeviceHealthSyncAge = age.HasValue
+            ? $"il y a {FormatAge(age.Value)}"
+            : "jamais synchronisé";
+
+        HasHealthReport = true;
+    }
+
+    private static string FormatAge(TimeSpan age)
+    {
+        if (age.TotalDays >= 1) return $"{age.TotalDays:F1} j";
+        if (age.TotalHours >= 1) return $"{age.TotalHours:F1} h";
+        if (age.TotalMinutes >= 1) return $"{age.TotalMinutes:F0} min";
+        return $"{age.TotalSeconds:F0} s";
     }
 
     private void ResetDeviceInfoDisplay()
@@ -782,6 +938,15 @@ public partial class SettingsViewModel : BaseViewModel
 
         DeviceCurrencyRates.Clear();
         DeviceEmcfList.Clear();
+
+        // 🆕 Health report reset
+        HasHealthReport = false;
+        DeviceHealthStatus = "Unknown";
+        DeviceHealthLabel = "—";
+        DeviceHealthSummary = "";
+        DeviceHealthBadgeKind = "neutral";
+        DeviceHealthSyncAge = "—";
+        DeviceHealthWarnings.Clear();
     }
 
     partial void OnIsDeviceInfoLoadingChanged(bool value)

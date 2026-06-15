@@ -601,8 +601,13 @@ public class ProductService
         if (product.TrackStock && product.StockQuantity < 0)
             return new ValidationResult("Le stock ne peut pas être négatif.");
 
-        if ((product.TaxGroup == TaxGroup.L || product.TaxGroup == TaxGroup.N) && product.ItemType != ItemType.TAX)
-            return new ValidationResult("Les groupes L et N nécessitent le type d'article TAX.");
+        // Only group N is the "levy/tax" slot on this MCF. Group L is a regular VAT group
+        // (BIE/SER), even when the rate is 0%.
+        if (product.TaxGroup == TaxGroup.N && product.ItemType != ItemType.TAX)
+            return new ValidationResult("Le groupe N nécessite le type d'article TAX.");
+
+        if (product.TaxGroup != TaxGroup.N && product.ItemType == ItemType.TAX)
+            return new ValidationResult("Le type TAX n'est valide que pour le groupe N.");
 
         return new ValidationResult { IsValid = true };
     }

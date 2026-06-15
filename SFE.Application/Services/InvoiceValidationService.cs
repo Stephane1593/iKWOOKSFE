@@ -48,11 +48,14 @@ public class InvoiceValidationService
                 errors.Add($"Ligne {line.LineNumber}: le taux de taxe ne peut pas être négatif");
 
             // Type article vs groupe
-            if (line.ItemType == ItemType.TAX && line.TaxGroup is not (TaxGroup.L or TaxGroup.N))
-                errors.Add($"Ligne {line.LineNumber}: le type TAX n'est valide que pour les groupes L et N");
+            // Only group N is reserved for taxes/redevances on this MCF.
+            // Group L is a regular VAT group (often configured at 0% exonéré),
+            // so BIE/SER are perfectly valid in L.
+            if (line.TaxGroup == TaxGroup.N && line.ItemType != ItemType.TAX)
+                errors.Add($"Ligne {line.LineNumber}: l'article « {line.Name} » (groupe N) doit être de type TAX.");
 
-            if (line.ItemType != ItemType.TAX && line.TaxGroup is TaxGroup.L or TaxGroup.N)
-                errors.Add($"Ligne {line.LineNumber}: les groupes L et N exigent le type TAX");
+            if (line.TaxGroup != TaxGroup.N && line.ItemType == ItemType.TAX)
+                errors.Add($"Ligne {line.LineNumber}: l'article « {line.Name} » : le type TAX est réservé au groupe N.");
 
             // Remise
             if (line.DiscountType == DiscountType.Percentage && line.DiscountValue > 100)
@@ -91,11 +94,15 @@ public class InvoiceValidationService
         }
 
         // ── 🆕 Export coherence ──
+        // Allowed on an export invoice:
+        //   E → goods/services being exported
+        //   N → redevances/taxes carried on the same invoice (type TAX)
+        // L is NOT allowed: an L-rate sale is a domestic VAT transaction.
         if (invoice.Type.IsExport())
         {
             foreach (var line in invoice.Lines)
             {
-                if (line.TaxGroup != TaxGroup.E && line.TaxGroup != TaxGroup.L && line.TaxGroup != TaxGroup.N)
+                if (line.TaxGroup != TaxGroup.E && line.TaxGroup != TaxGroup.N)
                     errors.Add($"Ligne {line.LineNumber}: facture d'exportation → groupe E requis (actuellement {line.TaxGroup})");
             }
         }

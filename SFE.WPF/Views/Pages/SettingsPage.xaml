@@ -295,6 +295,116 @@
             </Setter>
         </Style>
 
+        <!--  ─────────────────────────────────────────────────────
+              🆕 HEALTH BADGE STYLES — driven by DeviceHealthBadgeKind
+              ─────────────────────────────────────────────────────  -->
+
+        <!--  Outer card: gradient + border switch on badge kind  -->
+        <Style x:Key="HealthCard" TargetType="Border">
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="BorderThickness" Value="1" />
+            <!-- neutral default -->
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Offset="0" Color="#F8FAFC" />
+                        <GradientStop Offset="1" Color="#F1F5F9" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="ok">
+                    <Setter Property="BorderBrush" Value="#86EFAC" />
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Offset="0" Color="#ECFDF5" />
+                                <GradientStop Offset="1" Color="#D1FAE5" />
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="warn">
+                    <Setter Property="BorderBrush" Value="#FDE68A" />
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Offset="0" Color="#FFFBEB" />
+                                <GradientStop Offset="1" Color="#FEF3C7" />
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="error">
+                    <Setter Property="BorderBrush" Value="#FECACA" />
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Offset="0" Color="#FEF2F2" />
+                                <GradientStop Offset="1" Color="#FEE2E2" />
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  Round icon container next to the label  -->
+        <Style x:Key="HealthIconBubble" TargetType="Border">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Background" Value="#E2E8F0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="ok">
+                    <Setter Property="Background" Value="#D1FAE5" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="warn">
+                    <Setter Property="Background" Value="#FEF3C7" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="error">
+                    <Setter Property="Background" Value="#FEE2E2" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  Big label text (e.g. "✓ Opérationnel")  -->
+        <Style x:Key="HealthLabelText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="#475569" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="ok">
+                    <Setter Property="Foreground" Value="#059669" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="warn">
+                    <Setter Property="Foreground" Value="#92400E" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="error">
+                    <Setter Property="Foreground" Value="#DC2626" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  Warning chip in the warnings list  -->
+        <Style x:Key="HealthWarningChip" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#FFFBEB" />
+            <Setter Property="BorderBrush" Value="#FDE68A" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.DeviceHealthBadgeKind, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="error">
+                    <Setter Property="Background" Value="#FEF2F2" />
+                    <Setter Property="BorderBrush" Value="#FECACA" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
     </UserControl.Resources>
 
     <!-- ═══════════════════════════════════════════════════════════════
@@ -303,15 +413,12 @@
     <Grid Background="{StaticResource BackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <!-- Sticky header / nav / save -->
             <RowDefinition Height="*" />
-            <!-- Scrollable content -->
             <RowDefinition Height="Auto" />
-            <!-- Sticky bottom status bar -->
         </Grid.RowDefinitions>
 
         <!--  ═══════════════════════════════════════════════════
-              STICKY TOP BAR — title + jump nav + SAVE button
+              STICKY TOP BAR
               ═══════════════════════════════════════════════════  -->
         <Border Grid.Row="0" Padding="32,16" Background="White"
                 BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
@@ -326,7 +433,6 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Width="40" Height="40" Background="{StaticResource HeaderGradient}"
                             CornerRadius="11">
@@ -344,7 +450,6 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Quick jump nav (centered) -->
                 <ScrollViewer Grid.Column="1" Margin="20,0" VerticalAlignment="Center"
                               HorizontalScrollBarVisibility="Hidden"
                               VerticalScrollBarVisibility="Disabled">
@@ -387,7 +492,6 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Always-visible Save button -->
                 <Button Grid.Column="2" Command="{Binding SaveSettingsCommand}"
                         Style="{StaticResource BtnPrimary}" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
@@ -437,7 +541,6 @@
 
                         <Rectangle Height="1" Margin="0,0,0,22" Fill="{StaticResource SeparatorGradient}" />
 
-                        <!-- LOGO -->
                         <Border Margin="0,0,0,22" Padding="22"
                                 BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14">
                             <Border.Background>
@@ -512,7 +615,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- Company fields -->
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -575,7 +677,7 @@
                 </Border>
 
                 <!-- ════════════════════════════════════════════
-                     SECTION 2 — DISPOSITIF FISCAL (READ-ONLY MIRROR + TEST)
+                     SECTION 2 — DISPOSITIF FISCAL
                      ════════════════════════════════════════════ -->
                 <Border x:Name="SectionDevice" Style="{StaticResource PremiumCard}">
                     <StackPanel>
@@ -603,7 +705,6 @@
 
                         <Rectangle Height="1" Margin="0,10,0,20" Fill="{StaticResource SeparatorGradient}" />
 
-                        <!-- ═══ READ-ONLY POS device summary ═══ -->
                         <Border Margin="0,0,0,18" Padding="20" CornerRadius="14"
                                 BorderBrush="#BFDBFE" BorderThickness="1">
                             <Border.Background>
@@ -650,7 +751,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- Info banner -->
                         <Border Margin="0,0,0,18" Padding="14,12" CornerRadius="10"
                                 Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
@@ -665,7 +765,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Test connection button -->
                         <Button HorizontalAlignment="Left"
                                 Command="{Binding TestConnectionCommand}"
                                 Style="{StaticResource BtnSecondary}">
@@ -678,7 +777,6 @@
                             </StackPanel>
                         </Button>
 
-                        <!-- Testing indicator -->
                         <Border Margin="0,16,0,0" Padding="16,14" CornerRadius="12"
                                 Visibility="{Binding IsTestingConnection, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
@@ -696,7 +794,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Test result -->
                         <Border Margin="0,16,0,0" Padding="22" CornerRadius="14"
                                 Visibility="{Binding HasTestResult, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Style>
@@ -895,7 +992,6 @@
                             </Button>
                         </Grid>
 
-                        <!-- Responding device badge -->
                         <Border Margin="0,4,0,0" Padding="10,6" HorizontalAlignment="Right"
                                 CornerRadius="8" BorderThickness="1"
                                 Visibility="{Binding HasDeviceInfo, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -946,7 +1042,6 @@
 
                         <Rectangle Height="1" Margin="0,14,0,22" Fill="{StaticResource SeparatorGradient}" />
 
-                        <!-- Loading -->
                         <Border Margin="0,0,0,16" Padding="16,14" CornerRadius="12"
                                 Visibility="{Binding IsDeviceInfoLoading, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border.Background>
@@ -964,7 +1059,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Error -->
                         <Border Margin="0,0,0,16" Padding="16,14" CornerRadius="12"
                                 BorderBrush="#FECACA" BorderThickness="1">
                             <Border.Style>
@@ -996,7 +1090,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Success content -->
+                        <!-- ════ Success content ════ -->
                         <StackPanel>
                             <StackPanel.Style>
                                 <Style TargetType="StackPanel">
@@ -1012,6 +1106,116 @@
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
+
+                            <!-- ═══════════════════════════════════════════════════
+                                 🆕 HEALTH VERDICT — synthetic at-a-glance status
+                                 ═══════════════════════════════════════════════════ -->
+                            <Border Margin="0,0,0,18" Style="{StaticResource HealthCard}"
+                                    Visibility="{Binding HasHealthReport, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <!-- Header row: bubble + label + sync age -->
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Style="{StaticResource HealthIconBubble}">
+                                            <Grid>
+                                                <md:PackIcon Width="22" Height="22"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                             Kind="HelpCircleOutline" Foreground="#64748B">
+                                                    <md:PackIcon.Style>
+                                                        <Style TargetType="md:PackIcon">
+                                                            <Setter Property="Kind" Value="HelpCircleOutline" />
+                                                            <Setter Property="Foreground" Value="#64748B" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="ok">
+                                                                    <Setter Property="Kind" Value="HeartPulse" />
+                                                                    <Setter Property="Foreground" Value="#059669" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="warn">
+                                                                    <Setter Property="Kind" Value="AlertOutline" />
+                                                                    <Setter Property="Foreground" Value="#D97706" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DeviceHealthBadgeKind}" Value="error">
+                                                                    <Setter Property="Kind" Value="AlertOctagon" />
+                                                                    <Setter Property="Foreground" Value="#DC2626" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </md:PackIcon.Style>
+                                                </md:PackIcon>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DeviceHealthLabel}"
+                                                       Style="{StaticResource HealthLabelText}" />
+                                            <TextBlock Margin="0,3,0,0" FontSize="10" FontWeight="Bold"
+                                                       Foreground="#94A3B8" Text="ÉTAT DE SANTÉ DU DISPOSITIF" />
+                                        </StackPanel>
+
+                                        <!-- Sync-age pill on the right -->
+                                        <Border Grid.Column="3" Padding="10,6" VerticalAlignment="Center"
+                                                Background="#FFFFFF" BorderBrush="#E2E8F0"
+                                                BorderThickness="1" CornerRadius="10" Opacity="0.85">
+                                            <StackPanel Orientation="Horizontal">
+                                                <md:PackIcon Width="13" Height="13" Margin="0,0,6,0"
+                                                             VerticalAlignment="Center" Foreground="#64748B"
+                                                             Kind="ClockOutline" />
+                                                <TextBlock VerticalAlignment="Center" FontSize="11"
+                                                           Foreground="#475569" FontWeight="SemiBold">
+                                                    <Run Text="Sync : " />
+                                                    <Run Text="{Binding DeviceHealthSyncAge, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- Summary line -->
+                                    <TextBlock Margin="0,0,0,4" FontFamily="{StaticResource AppFont}"
+                                               FontSize="13" Foreground="#1E293B"
+                                               Text="{Binding DeviceHealthSummary}" TextWrapping="Wrap" />
+
+                                    <!-- Warnings list (only when there are warnings) -->
+                                    <StackPanel Margin="0,12,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DeviceHealthWarnings.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <TextBlock Margin="0,0,0,8" FontSize="10" FontWeight="Bold"
+                                                   Foreground="#94A3B8" Text="AVERTISSEMENTS" />
+
+                                        <ItemsControl ItemsSource="{Binding DeviceHealthWarnings}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource HealthWarningChip}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <md:PackIcon Width="14" Height="14" Margin="0,2,8,0"
+                                                                         VerticalAlignment="Top"
+                                                                         Foreground="#92400E"
+                                                                         Kind="AlertCircleOutline" />
+                                                            <TextBlock VerticalAlignment="Center" FontSize="12"
+                                                                       Foreground="#7C2D12"
+                                                                       Text="{Binding}" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Identity & Connection -->
                             <Border Margin="0,0,0,18" Style="{StaticResource InnerPanel}">
@@ -1801,14 +2005,13 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Tail spacer so last section doesn't hug the bottom bar -->
                 <Border Height="20" />
 
             </StackPanel>
         </ScrollViewer>
 
         <!--  ═══════════════════════════════════════════════════
-              STICKY BOTTOM STATUS BAR — feedback only
+              STICKY BOTTOM STATUS BAR
               ═══════════════════════════════════════════════════  -->
         <Border Grid.Row="2" Padding="32,12" Background="White"
                 BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
@@ -1826,7 +2029,6 @@
                 </Style>
             </Border.Style>
             <Grid>
-                <!-- Success -->
                 <Border Padding="14,10" VerticalAlignment="Center" CornerRadius="10"
                         HorizontalAlignment="Stretch"
                         Visibility="{Binding ShowSaveSuccess, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -1843,7 +2045,6 @@
                                    Foreground="#059669" Text="{Binding SaveStatus}" />
                     </StackPanel>
                 </Border>
-                <!-- Error -->
                 <Border Padding="14,10" VerticalAlignment="Center" CornerRadius="10"
                         HorizontalAlignment="Stretch"
                         Visibility="{Binding ShowSaveError, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -1864,7 +2065,7 @@
         </Border>
 
         <!--  ═══════════════════════════════════════════════════
-              FLOATING SAVE FAB (bottom-right) — backup affordance
+              FLOATING SAVE FAB
               ═══════════════════════════════════════════════════  -->
         <Button Grid.Row="1" Width="56" Height="56" Margin="0,0,32,28"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"

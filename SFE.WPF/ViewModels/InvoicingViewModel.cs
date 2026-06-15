@@ -567,10 +567,9 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         if (!TaxCalculator.IsItemTypeValidForGroup(ArticleItemType, ArticleTaxGroup))
         {
-            bool isLOrN = ArticleTaxGroup == TaxGroup.L || ArticleTaxGroup == TaxGroup.N;
-            StatusMessage = isLOrN
-                ? "Les groupes L et N exigent le type d'article TAX (Taxes et redevances)."
-                : "Les types BIE et SER ne sont pas autorisés dans les groupes L et N.";
+            StatusMessage = ArticleTaxGroup == TaxGroup.N
+                ? "Le groupe N (Taxes et redevances) exige le type d'article TAX."
+                : "Le type d'article TAX est réservé au groupe N (Taxes et redevances).";
             ShowError = true;
             return;
         }

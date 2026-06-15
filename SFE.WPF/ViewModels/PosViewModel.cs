@@ -589,10 +589,9 @@ public partial class PosViewModel : BaseViewModel,
 
         if (!TaxCalculator.IsItemTypeValidForGroup(product.ItemType, product.TaxGroup))
         {
-            bool isLOrN = product.TaxGroup == TaxGroup.L || product.TaxGroup == TaxGroup.N;
-            StatusMessage = isLOrN
-                ? $"« {product.Name} » : les groupes L/N exigent le type TAX."
-                : $"« {product.Name} » : BIE/SER interdit dans les groupes L/N.";
+            StatusMessage = product.TaxGroup == TaxGroup.N
+                ? $"« {product.Name} » : le groupe N exige le type TAX (Taxes et redevances)."
+                : $"« {product.Name} » : le type TAX est réservé au groupe N.";
             ShowError = true;
             return;
         }

@@ -21,10 +21,15 @@ namespace SFE.WPF.Services;
 ///   5. Finalize / Cancel always go to the same device that did Submit.
 ///   6. GetDiagnostics() exposes everything needed to debug fallback issues.
 ///   7. If DeviceType=MCF and DisableFallback=true → no fallback is ever built.
-///   8. 🆕 Invalidate() is thread-safe (acquires _lock).
-///   9. 🆕 AcquireExclusiveAccessAsync() lets a caller own the COM port
+///   8. Invalidate() is thread-safe (acquires _lock).
+///   9. AcquireExclusiveAccessAsync() lets a caller own the COM port
 ///      exclusively (e.g. for "Test connection") and prevents the resolver
 ///      from rebuilding while suspended.
+///  10. 🆕 Exposes PrimaryDevice / FallbackDevice / CurrentDevice so callers
+///      (e.g. SettingsViewModel) can reach the underlying MCF client for
+///      diagnostics like GetHealthReportAsync — without reflection.
+///  11. 🆕 Exposes GetHealthReportAsync as a convenience that locates the
+///      MCF client in either slot and returns its synthetic verdict.
 /// </summary>
 public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 {
@@ -50,14 +55,14 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     private readonly Dictionary<string, IFiscalDeviceService> _invoiceDeviceMap = new();
     private readonly object _mapLock = new();
 
-    // 🆕 Exclusive-access lease counter. While > 0, EnsureDevicesAsync refuses
+    // Exclusive-access lease counter. While > 0, EnsureDevicesAsync refuses
     // to (re)build devices so a "Test connection" command can own the port.
     private int _suspendCount;
 
     private static readonly TimeSpan PrimaryRetryInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan FallbackRebuildInterval = TimeSpan.FromSeconds(30);
 
-    // 🆕 Give USB-serial drivers a beat to release the handle after Close().
+    // Give USB-serial drivers a beat to release the handle after Close().
     private static readonly TimeSpan PortReleaseDelay = TimeSpan.FromMilliseconds(300);
 
     public string ActiveDeviceLabel
@@ -80,6 +85,27 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     public string? FallbackUnavailableReason => _fallbackUnavailableReason;
     public bool IsSuspended => Volatile.Read(ref _suspendCount) > 0;
 
+    // ──────────────────────────────────────────────────────────────
+    // 🆕 PUBLIC ACCESSORS — used by ViewModels for direct inspection
+    // (e.g. unwrapping to McfSerialClient.GetHealthReportAsync).
+    //
+    // These are read-only snapshots; callers MUST NOT dispose them.
+    // ──────────────────────────────────────────────────────────────
+
+    /// <summary>Underlying primary device, or null if not built yet.</summary>
+    public IFiscalDeviceService? PrimaryDevice => _primaryDevice;
+
+    /// <summary>Underlying fallback device, or null if unavailable.</summary>
+    public IFiscalDeviceService? FallbackDevice => _fallbackDevice;
+
+    /// <summary>
+    /// The device that the next operation would target right now.
+    /// Returns the fallback if primary is currently flagged as failed and
+    /// a fallback exists, otherwise returns the primary.
+    /// </summary>
+    public IFiscalDeviceService? CurrentDevice =>
+        (_primaryFailed && _fallbackDevice != null) ? _fallbackDevice : _primaryDevice;
+
     public FiscalDeviceResolver(SettingsService settingsService, ITimeProvider time)
     {
         _settingsService = settingsService;
@@ -92,7 +118,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
     private async Task EnsureDevicesAsync()
     {
-        // 🆕 If a Test command is currently leasing the port, don't rebuild.
+        // If a Test command is currently leasing the port, don't rebuild.
         if (Volatile.Read(ref _suspendCount) > 0)
         {
             throw new InvalidOperationException(
@@ -263,7 +289,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     }
 
     /// <summary>
-    /// 🆕 Thread-safe invalidation. Acquires the resolver's lock so we never
+    /// Thread-safe invalidation. Acquires the resolver's lock so we never
     /// dispose a device that's mid-call.
     /// </summary>
     public void Invalidate()
@@ -287,7 +313,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
     }
 
     // ══════════════════════════════════════════════════════════════
-    // 🆕 EXCLUSIVE-ACCESS LEASE
+    // EXCLUSIVE-ACCESS LEASE
     // ══════════════════════════════════════════════════════════════
 
     /// <summary>
@@ -328,7 +354,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         var newCount = Interlocked.Decrement(ref _suspendCount);
         if (newCount < 0)
         {
-            // Defensive: never let the counter go negative.
             Interlocked.Exchange(ref _suspendCount, 0);
             newCount = 0;
         }
@@ -344,6 +369,56 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
             var r = Interlocked.Exchange(ref _r, null);
             r?.ReleaseExclusiveAccess();
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 🆕 HEALTH REPORT — convenience pass-through
+    // ══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Returns the synthetic health verdict from the underlying MCF client,
+    /// trying the currently-active device first and falling back to the other
+    /// slot if needed. Returns <c>null</c> when no MCF is wired up (pure
+    /// e-MCF deployment) or the resolver is suspended for a "Test connection"
+    /// command.
+    /// </summary>
+    public async Task<McfHealthReport?> GetHealthReportAsync(
+        McfHealthThresholds? thresholds = null,
+        CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            try { await EnsureDevicesAsync(); }
+            catch (InvalidOperationException) when (IsSuspended)
+            {
+                return new McfHealthReport
+                {
+                    Status = McfHealth.Unknown,
+                    CommunicationFailed = true,
+                    Summary = "Dispositif réservé par un test de connexion."
+                };
+            }
+
+            var mcf = FindMcfClient();
+            if (mcf == null) return null;
+
+            return await mcf.GetHealthReportAsync(thresholds);
+        }
+        finally { _lock.Release(); }
+    }
+
+    /// <summary>
+    /// Looks up an <see cref="McfSerialClient"/> in the currently-active slot
+    /// first, then falls back to the other slot. Pure e-MCF deployments
+    /// return null.
+    /// </summary>
+    private McfSerialClient? FindMcfClient()
+    {
+        if (CurrentDevice is McfSerialClient curr) return curr;
+        if (_primaryDevice is McfSerialClient pri) return pri;
+        if (_fallbackDevice is McfSerialClient fb) return fb;
+        return null;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -366,7 +441,7 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         public string[] AvailableSerialPorts { get; set; } = Array.Empty<string>();
         public string? ConfiguredPortName { get; set; }
         public bool DisableFallback { get; set; }
-        public bool IsSuspended { get; set; }   // 🆕
+        public bool IsSuspended { get; set; }
     }
 
     public async Task<ResolverDiagnostics> GetDiagnosticsAsync()
@@ -461,7 +536,6 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
             try { await EnsureDevicesAsync(); }
             catch (InvalidOperationException ex) when (IsSuspended)
             {
-                // Resolver is leased out for a Test command — fail soft.
                 Debug.WriteLine($"[FiscalResolver] {operationName} skipped: {ex.Message}");
                 return buildErrorResult(ex);
             }
