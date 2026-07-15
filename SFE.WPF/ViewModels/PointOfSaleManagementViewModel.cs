@@ -118,6 +118,11 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [ObservableProperty] private string _editEmcfToken = "";
     [ObservableProperty] private string _editEmcfNim = "";
 
+    // ── Edit form: Sunmi terminal (LAN) ──
+    [ObservableProperty] private bool _editSunmiEnabled;
+    [ObservableProperty] private string _editSunmiTerminalUrl = "";
+    [ObservableProperty] private string _editSunmiTerminalId = "";
+
     [ObservableProperty] private bool _editDisableFallback;
 
     private bool _editIsEmcfOnly = true;
@@ -212,7 +217,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     public int[] PaperWidths { get; } = { 80, 58 };
     public int[] PrintCopiesOptions { get; } = { 1, 2, 3 };
     public int[] CashDrawerPins { get; } = { 0, 1 };
-    public int[] CodePages { get; } = { 858, 850, 437, 1252 };
+    public int[] CodePages { get; } = { 858, 850, 437, 1252, 65001 };
     public ObservableCollection<string> DetectedPrinters { get; } = new();
 
     // ════════════════════════════════════════════════════════════
@@ -254,6 +259,10 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         EditMcfBaudRate = 115200;
         EditDisableFallback = false;
+
+        EditSunmiEnabled = false;
+        EditSunmiTerminalUrl = "";
+        EditSunmiTerminalId = "";
 
         EditPrinterName = "";
         EditPaperWidth = 80;
@@ -299,6 +308,10 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         EditMcfBaudRate = pos.McfBaudRate > 0 ? pos.McfBaudRate : 115200;
         EditDisableFallback = pos.DisableFallback;
+
+        EditSunmiEnabled = pos.SunmiEnabled;
+        EditSunmiTerminalUrl = pos.SunmiTerminalUrl ?? "";
+        EditSunmiTerminalId = pos.SunmiTerminalId ?? "";
 
         EditPrinterName = pos.ThermalPrinterName ?? "";
         EditPaperWidth = pos.PaperWidthMm > 0 ? pos.PaperWidthMm : 80;
@@ -364,6 +377,10 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
                 McfBaudRate = EditMcfBaudRate,
                 DisableFallback = disableFallback,
 
+                SunmiEnabled = EditSunmiEnabled,
+                SunmiTerminalUrl = EditSunmiTerminalUrl?.Trim() ?? "",
+                SunmiTerminalId = EditSunmiTerminalId?.Trim() ?? "",
+
                 ThermalPrinterName = EditPrinterName?.Trim() ?? "",
                 PaperWidthMm = EditPaperWidth,
                 AutoPrintReceipt = EditAutoPrint,
@@ -398,6 +415,10 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             pos.McfPortName = NullIfEmpty(EditMcfPortName);
             pos.McfBaudRate = EditMcfBaudRate;
             pos.DisableFallback = disableFallback;
+
+            pos.SunmiEnabled = EditSunmiEnabled;
+            pos.SunmiTerminalUrl = EditSunmiTerminalUrl?.Trim() ?? "";
+            pos.SunmiTerminalId = EditSunmiTerminalId?.Trim() ?? "";
 
             pos.ThermalPrinterName = EditPrinterName?.Trim() ?? "";
             pos.PaperWidthMm = EditPaperWidth;

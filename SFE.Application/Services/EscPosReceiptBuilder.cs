@@ -41,20 +41,13 @@ public static class EscPosReceiptBuilder
     private static string Qty(decimal v) => v.ToString("N3", MONEY);
     private static string Rate(decimal v) => v.ToString("0.00", MONEY);
 
-    // =======================================================
-    //  RECEIPT CONTEXT
-    // =======================================================
     private class ReceiptContext
     {
         public int Width { get; set; } = 48;
         public int CodePage { get; set; } = 858;
         public string FooterText { get; set; } = "Merci pour votre achat !";
         public bool PrintLogo { get; set; }
-
-        /// <summary>Local wall-clock time for the "Imprime le ..." line.</summary>
         public DateTimeOffset PrintedAt { get; set; }
-
-        /// <summary>App timezone used to render invoice timestamps.</summary>
         public TimeZoneInfo Zone { get; set; } = TimeZoneInfo.Utc;
     }
 
@@ -65,17 +58,27 @@ public static class EscPosReceiptBuilder
     /// <summary>
     /// Builds the full ESC/POS byte stream for a receipt.
     /// </summary>
+    /// <param name="asProforma">
+    /// If <c>true</c>, forces proforma rendering regardless of <see cref="Invoice.Type"/>.
+    /// Skips the fiscal (CodeDEFDGI/NIM/QR) block and prints the "document non fiscal"
+    /// banner. Safe to call before normalization — no fiscal fields required.
+    /// </param>
     public static byte[] Build(
         Invoice invoice,
         Company company,
         PointOfSale? pos,
         ITimeProvider time,
         decimal exchangeRate = 0m,
-        bool isDuplicate = false)
+        bool isDuplicate = false,
+        bool asProforma = false,
+        int? overridePaperWidthMm = null)
     {
         if (time is null) throw new ArgumentNullException(nameof(time));
 
-        int paperWidth = pos?.PaperWidthMm ?? 80;
+        // Proforma if explicitly requested OR the invoice type says so.
+        bool renderAsProforma = asProforma || invoice.Type == InvoiceType.PRO;
+
+        int paperWidth = overridePaperWidthMm ?? pos?.PaperWidthMm ?? 80;
         int charsPerLine = paperWidth >= 80 ? 48 : 32;
         int codePage = pos?.PrinterCodePage ?? 858;
         string footer = pos?.ReceiptFooterText ?? "Merci pour votre achat !";
@@ -115,7 +118,7 @@ public static class EscPosReceiptBuilder
         }
 
         WriteCompanyHeader(ms, company, pos, ctx);
-        WriteInvoiceTypeBanner(ms, invoice, isDuplicate, ctx);
+        WriteInvoiceTypeBanner(ms, invoice, isDuplicate, renderAsProforma, ctx);
         WriteInvoiceMeta(ms, invoice, company, ctx);
         WriteClientSection(ms, invoice, ctx);
         WriteDashLine(ms, ctx);
@@ -164,12 +167,17 @@ public static class EscPosReceiptBuilder
         }
 
         // ======= (s) PAYMENT MODES =======
-        WriteDashLine(ms, ctx);
-        Write(ms, BOLD_ON);
-        WriteText(ms, "MODE(S) DE PAIEMENT", ctx);
-        Write(ms, BOLD_OFF);
-        foreach (var pay in invoice.Payments)
-            WriteRow(ms, GetPaymentLabel(pay.PaymentType), Fmt(pay.Amount), ctx);
+        // For a preview proforma, invoice.Payments may be empty — that's fine,
+        // we just skip the section header entirely.
+        if (invoice.Payments != null && invoice.Payments.Count > 0)
+        {
+            WriteDashLine(ms, ctx);
+            Write(ms, BOLD_ON);
+            WriteText(ms, "MODE(S) DE PAIEMENT", ctx);
+            Write(ms, BOLD_OFF);
+            foreach (var pay in invoice.Payments)
+                WriteRow(ms, GetPaymentLabel(pay.PaymentType), Fmt(pay.Amount), ctx);
+        }
 
         // ======= (u)(v)(w) DATE, ISF, OPERATOR =======
         WriteDoubleLine(ms, ctx);
@@ -178,7 +186,7 @@ public static class EscPosReceiptBuilder
         WriteRow(ms, "Operateur", invoice.OperatorName, ctx);
 
         // ======= SECURITY - never for proforma =======
-        if (invoice.Type != InvoiceType.PRO && !string.IsNullOrEmpty(invoice.CodeDEFDGI))
+        if (!renderAsProforma && !string.IsNullOrEmpty(invoice.CodeDEFDGI))
         {
             WriteDoubleLine(ms, ctx);
             Write(ms, ALIGN_CENTER);
@@ -209,12 +217,14 @@ public static class EscPosReceiptBuilder
                 Write(ms, LF);
             }
         }
-        else if (invoice.Type == InvoiceType.PRO)
+        else if (renderAsProforma)
         {
             WriteDoubleLine(ms, ctx);
             Write(ms, ALIGN_CENTER);
+            Write(ms, BOLD_ON);
             WriteText(ms, "Cette proforma ne tient pas lieu", ctx);
             WriteText(ms, "de facture fiscale.", ctx);
+            Write(ms, BOLD_OFF);
             if (invoice.ProformaValidUntil.HasValue)
                 WriteText(ms,
                     $"Valable jusqu'au {invoice.ProformaValidUntil:dd/MM/yyyy}", ctx);
@@ -237,7 +247,7 @@ public static class EscPosReceiptBuilder
     }
 
     // =======================================================
-    //  DATE FORMATTING - UTC -> app local
+    //  DATE FORMATTING
     // =======================================================
 
     private static string FormatUtcAsLocal(DateTimeOffset utc, ReceiptContext ctx)
@@ -261,23 +271,19 @@ public static class EscPosReceiptBuilder
     {
         Write(ms, ALIGN_CENTER);
 
-        // -- Company name (big + bold) --
         Write(ms, BOLD_ON);
         Write(ms, DOUBLE_ON);
         WriteText(ms, company.Name, ctx);
         Write(ms, SIZE_NORMAL);
         Write(ms, BOLD_OFF);
 
-        // -- NIF --
         Write(ms, BOLD_ON);
         WriteText(ms, $"NIF: {company.NIF}", ctx);
         Write(ms, BOLD_OFF);
 
-        // -- RCCM (right under NIF, like the sample) --
         if (!string.IsNullOrWhiteSpace(company.RCCM))
             WriteText(ms, $"RCCM: {company.RCCM}", ctx);
 
-        // -- POS block : label + name + address --
         if (pos != null)
         {
             Write(ms, BOLD_ON);
@@ -286,7 +292,6 @@ public static class EscPosReceiptBuilder
 
             if (!string.IsNullOrWhiteSpace(pos.Name))
                 WriteText(ms, pos.Name, ctx);
-
             if (!string.IsNullOrWhiteSpace(pos.Address))
                 WriteText(ms, pos.Address, ctx);
             if (!string.IsNullOrWhiteSpace(pos.City))
@@ -300,23 +305,32 @@ public static class EscPosReceiptBuilder
                 WriteText(ms, company.City, ctx);
         }
 
-        // -- Contact info --
         if (!string.IsNullOrWhiteSpace(company.Email))
             WriteText(ms, company.Email, ctx);
         if (!string.IsNullOrWhiteSpace(company.Phone))
             WriteText(ms, company.Phone, ctx);
 
-        // -- ISF --
         WriteText(ms, $"ISF: {company.ISF}", ctx);
     }
 
     private static void WriteInvoiceTypeBanner(
-        MemoryStream ms, Invoice invoice, bool isDuplicate, ReceiptContext ctx)
+        MemoryStream ms, Invoice invoice, bool isDuplicate,
+        bool renderAsProforma, ReceiptContext ctx)
     {
         Write(ms, ALIGN_CENTER);
         WriteDoubleLine(ms, ctx);
         Write(ms, BOLD_ON);
         Write(ms, DOUBLE_H_ON);
+
+        if (renderAsProforma)
+        {
+            WriteText(ms, "FACTURE PROFORMA", ctx);
+            Write(ms, SIZE_NORMAL);
+            WriteText(ms, "(Document non fiscal)", ctx);
+            Write(ms, BOLD_OFF);
+            WriteDoubleLine(ms, ctx);
+            return;
+        }
 
         string title = invoice.Type switch
         {
@@ -328,18 +342,6 @@ public static class EscPosReceiptBuilder
             InvoiceType.EA => "FACTURE D'AVOIR",
             _ => "FACTURE"
         };
-
-        if (invoice.Type == InvoiceType.PRO)
-        {
-            Write(ms, BOLD_ON);
-            Write(ms, DOUBLE_H_ON);
-            WriteText(ms, "FACTURE PROFORMA", ctx);
-            Write(ms, SIZE_NORMAL);
-            WriteText(ms, "(Document non fiscal)", ctx);
-            Write(ms, BOLD_OFF);
-            WriteDoubleLine(ms, ctx);
-            return;
-        }
 
         WriteText(ms, title, ctx);
         Write(ms, SIZE_NORMAL);
@@ -434,14 +436,10 @@ public static class EscPosReceiptBuilder
 
         string totalLabel = invoice.PriceMode == PriceMode.TTC ? "TTC" : "HT";
 
-        // ----- Column anchors (right edges) shared by header AND data -----
-        // Reserve a fixed slot for the total column at the far right.
-        // 12 chars fits up to "9,999,999.99"; drop to 10 if you prefer tighter.
         int totalColWidth = ctx.Width >= 48 ? 12 : 10;
-        int totalEnd = ctx.Width;                 // where the total ENDS
-        int qtyEnd = totalEnd - totalColWidth;  // where "Qte x P.U." ENDS
+        int totalEnd = ctx.Width;
+        int qtyEnd = totalEnd - totalColWidth;
 
-        // ----- Header ------------------------------------------------------
         var hsb = new StringBuilder("#Nom");
         int padA = qtyEnd - "Qte x P.U.".Length - hsb.Length;
         if (padA < 1) padA = 1;
@@ -454,7 +452,6 @@ public static class EscPosReceiptBuilder
         Write(ms, BOLD_OFF);
         WriteDashLine(ms, ctx);
 
-        // ----- Rows --------------------------------------------------------
         foreach (var ln in invoice.Lines.OrderBy(l => l.LineNumber))
         {
             string grpLabel = GroupLabel(ln.TaxGroup, ln.TaxGroupAType);
@@ -464,30 +461,23 @@ public static class EscPosReceiptBuilder
             decimal totalAmount = invoice.PriceMode == PriceMode.TTC
                                     ? ln.AmountTTC : ln.AmountHT;
 
-            
             string qtyPart = $"{Qty(ln.Quantity)} x {FmtCompact(unitPrice)}";
             string totalPart = FmtCompact(totalAmount);
 
-            // How long can the name be while still leaving room for qty on same line?
             int maxNameForSingleLine = qtyEnd - qtyPart.Length - 1;
 
             if (namePart.Length <= maxNameForSingleLine)
             {
-                // One-liner: name .... qty x pu .... total
                 WriteThreeCol(ms, namePart, qtyPart, totalPart,
                               qtyEnd, totalEnd, ctx);
             }
             else
             {
-                // Long name → its own line (wrapped by WriteText if huge)
                 WriteText(ms, namePart, ctx);
-
-                // Then the qty + total together
                 WriteThreeCol(ms, "", qtyPart, totalPart,
                               qtyEnd, totalEnd, ctx);
             }
 
-            // Sub-rows: align to the TOTAL column (right edge)
             if (ln.DiscountType != DiscountType.None && ln.DiscountAmount > 0)
             {
                 string discDesc = ln.DiscountType == DiscountType.Percentage
@@ -503,13 +493,6 @@ public static class EscPosReceiptBuilder
         }
     }
 
-    /// <summary>
-    /// Writes a 3-column line where:
-    ///   - <paramref name="left"/>   is flushed to column 1,
-    ///   - <paramref name="middle"/> ENDS exactly at <paramref name="middleEndCol"/>,
-    ///   - <paramref name="right"/>  ENDS exactly at <paramref name="rightEndCol"/>.
-    /// If left collides with middle, middle is pushed right (guaranteed ≥1 space gap).
-    /// </summary>
     private static void WriteThreeCol(
         MemoryStream ms,
         string left, string middle, string right,
@@ -520,12 +503,10 @@ public static class EscPosReceiptBuilder
         middle ??= string.Empty;
         right ??= string.Empty;
 
-        // Middle start = its end - length, but never overlap left
         int middleStart = middleEndCol - middle.Length;
         int minMiddleStart = left.Length == 0 ? 0 : left.Length + 1;
         if (middleStart < minMiddleStart) middleStart = minMiddleStart;
 
-        // Right start = its end - length, but never overlap middle
         int rightStart = rightEndCol - right.Length;
         int minRightStart = middleStart + middle.Length + 1;
         if (rightStart < minRightStart) rightStart = minRightStart;
@@ -542,11 +523,6 @@ public static class EscPosReceiptBuilder
         WriteText(ms, line, ctx);
     }
 
-    /// <summary>
-    /// Writes a row where <paramref name="value"/> ends at column
-    /// <paramref name="valueEndCol"/> (1-based from line start).
-    /// The label is truncated if it would collide with the value.
-    /// </summary>
     private static void WriteAlignedRow(
         MemoryStream ms, string label, string value, int valueEndCol, ReceiptContext ctx)
     {
@@ -655,14 +631,15 @@ public static class EscPosReceiptBuilder
     }
 
     // =======================================================
-    //  QR CODE - ESC/POS GS ( k
+    //  QR CODE
     // =======================================================
-    private static void WriteQrCode(MemoryStream ms, string content)
+    private static void WriteQrCode(MemoryStream ms, string content, int paperWidthMm = 80)
     {
         byte[] data = Encoding.UTF8.GetBytes(content);
+        byte module = paperWidthMm >= 80 ? (byte)0x06 : (byte)0x04; // smaller for 58 mm
 
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00 });
-        ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06 });
+        ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, module });
         ms.Write(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31 });
 
         int storeLen = data.Length + 3;
@@ -675,7 +652,7 @@ public static class EscPosReceiptBuilder
     }
 
     // =======================================================
-    //  BITMAP LOGO - Windows only
+    //  BITMAP LOGO
     // =======================================================
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static void WriteBitmapLogo(MemoryStream ms, byte[] logoData)
@@ -728,10 +705,7 @@ public static class EscPosReceiptBuilder
             ms.Write(new byte[] { 0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH });
             ms.Write(rasterData);
         }
-        catch
-        {
-            // Logo print failed - silently skip
-        }
+        catch { }
     }
 
     // =======================================================
@@ -820,9 +794,6 @@ public static class EscPosReceiptBuilder
     private static decimal GetEffectiveUnitPrice(InvoiceLine ln, PriceMode mode)
         => mode == PriceMode.TTC ? ln.UnitPriceTTC : ln.UnitPriceHT;
 
-    // =======================================================
-    //  GROUP LABEL — distinguishes A / A-HC / B / C / D / E / L / N
-    // =======================================================
     private static string GroupLabel(TaxGroup g, TaxGroupAType? aType)
     {
         if (g == TaxGroup.A && aType == TaxGroupAType.HorsChamp) return "A-HC";

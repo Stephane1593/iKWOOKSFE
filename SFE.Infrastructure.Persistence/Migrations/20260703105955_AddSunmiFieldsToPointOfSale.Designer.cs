@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SFE.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using SFE.Infrastructure.Persistence;
 namespace SFE.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260703105955_AddSunmiFieldsToPointOfSale")]
+    partial class AddSunmiFieldsToPointOfSale
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -1035,9 +1038,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(25)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("MobileOperator")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("PaymentType")
                         .HasColumnType("INTEGER");
 
@@ -1134,54 +1134,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.HasIndex("Timestamp");
 
                     b.ToTable("LoyaltyTransactions", (string)null);
-                });
-
-            modelBuilder.Entity("SFE.Domain.Entities.PaymentTransaction", b =>
-                {
-                    b.Property<string>("IdempotencyKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Attempts")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Method")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OrderId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProviderRef")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("UpdatedUtc")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("IdempotencyKey");
-
-                    b.HasIndex("OrderId");
-
-                    b.ToTable("PaymentTransactions", (string)null);
                 });
 
             modelBuilder.Entity("SFE.Domain.Entities.PointOfSale", b =>

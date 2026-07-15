@@ -15,6 +15,9 @@ using SFE.Domain.Enums;
 using SFE.WPF.Messages;
 using SFE.WPF.Services;
 using SFE.WPF.Helpers;
+using Microsoft.Extensions.DependencyInjection;
+using SFE.WPF.Views.Pages;
+using SFE.Application.Payments;
 
 namespace SFE.WPF.ViewModels;
 
@@ -32,8 +35,10 @@ public partial class PosViewModel : BaseViewModel,
     private readonly IFiscalDeviceService _fiscalDevice;
     private readonly CustomerDisplayService _customerDisplay;
     private readonly IAuthService _auth;
-    private readonly ITimeProvider _time;                         // 🆕
+    private readonly ITimeProvider _time;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly DispatcherTimer _clockTimer;
+    private readonly InMemoryPendingOrderStore _pendingOrderStore;
     private bool _isFirstActivation = true;
 
     private Company? _currentCompany;
@@ -95,6 +100,19 @@ public partial class PosViewModel : BaseViewModel,
     [ObservableProperty] private decimal _remaining;
     [ObservableProperty] private string _paymentAmount = "";
     [ObservableProperty] private bool _showSplitPayment;
+
+    // ══════ CHECKOUT WIZARD ══════
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReviewStep))]
+    [NotifyPropertyChangedFor(nameof(IsPaymentStep))]
+    [NotifyPropertyChangedFor(nameof(ShowReviewStep))]
+    [NotifyPropertyChangedFor(nameof(ShowPaymentStep))]
+    private CheckoutStep _currentStep = CheckoutStep.Review;
+
+    public bool IsReviewStep => CurrentStep == CheckoutStep.Review;
+    public bool IsPaymentStep => CurrentStep == CheckoutStep.Payment;
+    public bool ShowReviewStep => !IsNormalized && CurrentStep == CheckoutStep.Review;
+    public bool ShowPaymentStep => !IsNormalized && CurrentStep == CheckoutStep.Payment;
 
     // ══════ CONFIG ══════
     [ObservableProperty] private PriceMode _priceMode = PriceMode.TTC;
@@ -206,6 +224,8 @@ public partial class PosViewModel : BaseViewModel,
     public PaymentType[] PaymentTypes { get; } = Enum.GetValues<PaymentType>();
     public InvoiceType[] InvoiceTypes { get; } = Enum.GetValues<InvoiceType>();
 
+    public enum CheckoutStep { Review = 0, Payment = 1 }
+
     // ══════ HELD ══════
     public ObservableCollection<HeldTransactionViewModel> HeldTransactions { get; } = new();
     [ObservableProperty] private int _heldCount;
@@ -222,6 +242,9 @@ public partial class PosViewModel : BaseViewModel,
     [DllImport("winspool.drv", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool GetDefaultPrinter(StringBuilder pszBuffer, ref int pcchBuffer);
 
+
+
+
     // ══════════════════════════════════════════════════════════
     //  CONSTRUCTEUR — 🆕 ITimeProvider injected
     // ══════════════════════════════════════════════════════════
@@ -231,6 +254,7 @@ public partial class PosViewModel : BaseViewModel,
         IUnitOfWork unitOfWork, CustomerDisplayService customerDisplay,
         ClientService clientService, IFiscalDeviceService fiscalDevice,
         IAuthService auth,
+        IServiceScopeFactory serviceScopeFactory, InMemoryPendingOrderStore inMemoryPendingOrderStore,
         ITimeProvider time)                                               // 🆕
     {
         _invoiceService = invoiceService;
@@ -239,7 +263,12 @@ public partial class PosViewModel : BaseViewModel,
         _customerDisplay = customerDisplay;
         _clientService = clientService;
         _fiscalDevice = fiscalDevice;
+        _scopeFactory = serviceScopeFactory;
+        _pendingOrderStore = inMemoryPendingOrderStore;
+
+
         _auth = auth;
+ 
         _time = time ?? throw new ArgumentNullException(nameof(time));    // 🆕
         PageTitle = "Caisse";
 
@@ -261,6 +290,16 @@ public partial class PosViewModel : BaseViewModel,
     {
         ExchangeRate = message.Value.UsdRate;
         UpdateAlternateCurrency();
+    }
+
+    partial void OnCartItemCountChanged(int value) => OnPropertyChanged(nameof(CanPrintProforma));
+    partial void OnHasThermalPrinterChanged(bool value) => OnPropertyChanged(nameof(CanPrintProforma));
+
+    partial void OnIsNormalizedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowReviewStep));
+        OnPropertyChanged(nameof(ShowPaymentStep));
+        OnPropertyChanged(nameof(CanPrintProforma));
     }
 
     /// <summary>
@@ -706,6 +745,7 @@ public partial class PosViewModel : BaseViewModel,
         if (IsNormalized) return;
         CartItems.Clear(); SelectedCartItem = null;
         ShowDiscountPanel = false;
+        CurrentStep = CheckoutStep.Review;
         RecalculateTotals(); ClearStatus();
     }
 
@@ -1276,62 +1316,97 @@ public partial class PosViewModel : BaseViewModel,
         if (IsNormalized || CartItems.Count == 0) return;
         if (SelectedPointOfSale == null)
         { StatusMessage = "Veuillez sélectionner un point de vente."; ShowError = true; return; }
+
+        if (IsSunmiChannel && SunmiHandoff == SunmiHandoff.None)
+        { StatusMessage = "Terminal Sunmi : choisissez « Afficher QR » ou « Terminal LAN »."; ShowError = true; return; }
+        if (IsLocalPos && SelectedPaymentType == PaymentType.MobileMoney && string.IsNullOrWhiteSpace(SelectedMobileOperator))
+        { StatusMessage = "Sélectionnez l'opérateur Mobile Money (M-Pesa, Airtel, Orange…)."; ShowError = true; return; }
+
         ClearStatus(); IsBusy = true; StatusMessage = "Normalisation en cours...";
+
+        // ── Compute paidAmount / advanceAmount (unchanged) ──────────────────
+        decimal paidAmount;
+        decimal advanceAmount = 0m;
+
+        if (IsAdvanceInvoice)
+        {
+            if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
+            { StatusMessage = "Veuillez saisir le montant de l'acompte reçu."; ShowError = true; IsBusy = false; return; }
+            if (advanceAmount > TotalTTC + 0.01m)
+            { StatusMessage = $"L'acompte ({advanceAmount:N2}) ne peut pas dépasser le total commandé ({TotalTTC:N2})."; ShowError = true; IsBusy = false; return; }
+
+            PaymentItems.Clear();
+            PaymentItems.Add(new PaymentDisplayItem
+            { PaymentType = SelectedPaymentType, Amount = advanceAmount, Label = GetPaymentLabel(SelectedPaymentType) });
+            RecalculatePayments();
+            paidAmount = advanceAmount;
+        }
+        else
+        {
+            paidAmount = TotalTTC;
+            if (PaymentItems.Count > 0)
+            {
+                if (Remaining > 0.01m)
+                { PaymentItems.Add(new PaymentDisplayItem { PaymentType = PaymentType.Especes, Amount = Remaining, Label = "Espèces" }); RecalculatePayments(); }
+                paidAmount = TotalPaid;
+            }
+            else if (DecimalParsingHelper.TryParseFlexible(ReceivedAmount, out var received) && received >= TotalTTC) paidAmount = received;
+            else if (string.IsNullOrWhiteSpace(ReceivedAmount)) paidAmount = TotalTTC;
+            else { StatusMessage = "Le montant reçu est insuffisant."; ShowError = true; IsBusy = false; return; }
+        }
+
+        var invoice = BuildInvoice(paidAmount, advanceAmount);
+
+        // ── PUBLISH the order to /orders ONLY when the Sunmi should see it ──
+        // (LocalPos = cash/manual card/etc. → no reason to expose it to the terminal.)
+        bool orderPublished = false;
+        if (IsSunmiChannel)
+        {
+            _pendingOrderStore.Set(
+                new OrderDto(
+                    OrderId: invoice.InvoiceNumber,
+                    Label: $"{invoice.Type} {invoice.InvoiceNumber}",
+                    Amount: invoice.TotalTTC,
+                    Currency: invoice.CurrencyCode ?? "CDF"),
+                invoice);              // ← THE FIX: publish the draft too
+            orderPublished = true;
+        }
+
         try
         {
-            decimal paidAmount;
-            decimal advanceAmount = 0m;
-
-            if (IsAdvanceInvoice)
+            // 1. ENCAISSEMENT
+            var payment = await ExecutePaymentAsync(invoice);
+            if (!payment.Success)
             {
-                if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
-                {
-                    StatusMessage = "Veuillez saisir le montant de l'acompte reçu.";
-                    ShowError = true;
-                    IsBusy = false;
-                    return;
-                }
-                if (advanceAmount > TotalTTC + 0.01m)
-                {
-                    StatusMessage = $"L'acompte ({advanceAmount:N2}) ne peut pas dépasser le total commandé ({TotalTTC:N2}).";
-                    ShowError = true;
-                    IsBusy = false;
-                    return;
-                }
-
-                PaymentItems.Clear();
-                PaymentItems.Add(new PaymentDisplayItem
-                {
-                    PaymentType = SelectedPaymentType,
-                    Amount = advanceAmount,
-                    Label = GetPaymentLabel(SelectedPaymentType)
-                });
-                RecalculatePayments();
-                paidAmount = advanceAmount;
-            }
-            else
-            {
-                paidAmount = TotalTTC;
-                if (PaymentItems.Count > 0)
-                {
-                    if (Remaining > 0.01m)
-                    {
-                        PaymentItems.Add(new PaymentDisplayItem { PaymentType = PaymentType.Especes, Amount = Remaining, Label = "Espèces" });
-                        RecalculatePayments();
-                    }
-                    paidAmount = TotalPaid;
-                }
-                else if (DecimalParsingHelper.TryParseFlexible(ReceivedAmount, out var received) && received >= TotalTTC) paidAmount = received;
-                else if (string.IsNullOrWhiteSpace(ReceivedAmount)) paidAmount = TotalTTC;
-                else { StatusMessage = "Le montant reçu est insuffisant."; ShowError = true; IsBusy = false; return; }
+                StatusMessage = payment.ErrorMessage;
+                ShowError = true;
+                return;                       // finally clears the store
             }
 
-            var invoice = BuildInvoice(paidAmount, advanceAmount);
+            // 2. FISCALISATION
             var result = await _invoiceService.NormalizeInvoiceAsync(invoice);
+
+            // 3. Payment approved but fiscalisation KO
+            //    World B: the till doesn't hold a card-void primitive. Card is already
+            //    debited by the terminal. We surface a critical, actionable message.
+            //    A real Void will land when IPaymentProvider gains a ReverseAsync().
+            if (!result.Success && payment.ChargeApproved)
+            {
+                StatusMessage =
+                    $"⚠ CRITIQUE : encaissement approuvé mais fiscalisation échouée. " +
+                    $"Réf : {invoice.InvoiceNumber}. " +
+                    $"Annulez manuellement sur le terminal Sunmi et conservez la référence. " +
+                    $"Détail : {result.ErrorMessage}";
+                ShowError = true;
+                return;                       // finally clears the store
+            }
 
             if (result.Success)
             {
-                IsNormalized = true; CodeDEFDGI = result.CodeDEFDGI; QrCodeContent = result.QRCodeContent;
+                IsNormalized = true;
+                CodeDEFDGI = result.CodeDEFDGI;
+                QrCodeContent = result.QRCodeContent;
+
                 var saved = await _unitOfWork.Invoices.GetWithDetailsAsync(result.InvoiceId);
                 if (saved != null)
                 {
@@ -1341,23 +1416,39 @@ public partial class PosViewModel : BaseViewModel,
                     { await Task.Delay(500); await PrintThermalReceiptAsync(saved, isDuplicate: true); }
                     _customerDisplay.ShowNormalized(saved.TotalTTC, result.CodeDEFDGI, result.QRCodeContent);
                 }
+
                 if (SelectedPaymentType == PaymentType.Especes && SelectedPointOfSale?.EnableCashDrawer == true && HasThermalPrinter)
                     OpenCashDrawer();
+
                 ShowReceiptOverlay = true;
-                StatusMessage = $"✓ Vente normalisée — {result.CodeDEFDGI}"; ShowSuccess = true;
+                StatusMessage = $"✓ Vente normalisée — {result.CodeDEFDGI}";
+                ShowSuccess = true;
                 await RefreshDailyStatsAsync();
             }
-            else { StatusMessage = result.ErrorMessage ?? "Erreur inconnue."; ShowError = true; }
+            else
+            {
+                StatusMessage = result.ErrorMessage ?? "Erreur inconnue.";
+                ShowError = true;
+            }
         }
-        catch (Exception ex) { StatusMessage = $"Erreur : {ex.Message}"; ShowError = true; }
-        finally { IsBusy = false; }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur : {ex.Message}";
+            ShowError = true;
+        }
+        finally
+        {
+            // Guarantee /orders never keeps a stale order visible after this sale ends.
+            if (orderPublished) _pendingOrderStore.Clear();
+            IsBusy = false;
+        }
     }
 
     // ══════════════════════════════════════════════════════════
     //  THERMAL PRINTING
     // ══════════════════════════════════════════════════════════
 
-    private async Task PrintThermalReceiptAsync(Invoice invoice, bool isDuplicate = false)
+    private async Task PrintThermalReceiptAsync(Invoice invoice, bool isDuplicate = false, bool asProforma = false)
     {
         // 🆕 On capture l'instant d'impression AVANT le Task.Run afin :
         //    - d'éviter tout décalage si la file d'impression est lente
@@ -1376,7 +1467,13 @@ public partial class PosViewModel : BaseViewModel,
                     SelectedPointOfSale,
                     _time,
                     _currentExchangeRate,
-                    isDuplicate);
+                    isDuplicate,asProforma);
+
+                string jobLabel =
+                       asProforma ? $"Proforma {invoice.InvoiceNumber}" :
+                       isDuplicate ? $"Duplicata {invoice.InvoiceNumber}" :
+                       $"Facture {invoice.InvoiceNumber}";
+
                 RawPrinterHelper.SendBytesToPrinter(ThermalPrinterName, receiptBytes, $"Facture {invoice.InvoiceNumber}");
             }
             catch (Exception ex)
@@ -1478,6 +1575,7 @@ public partial class PosViewModel : BaseViewModel,
     [RelayCommand]
     private async Task NewSale()
     {
+        _pendingOrderStore.Clear();
         CartItems.Clear(); SelectedCartItem = null; ShowDiscountPanel = false;
         ReceivedAmount = ""; PaymentAmount = ""; PaymentItems.Clear();
         TotalPaid = 0; Remaining = 0; ChangeAmount = 0; ShowChange = false;
@@ -1499,7 +1597,10 @@ public partial class PosViewModel : BaseViewModel,
         RecalculateTotals(); ClearStatus(); CloseAllOverlays();
         InvoiceType = InvoiceType.FV; await GenerateNewNumber();
         ShowFavoritesOnly = true; SelectedCategory = null;
+        CurrentStep = CheckoutStep.Review;
+        PaymentChannel = PaymentChannel.LocalPos; SunmiHandoff = SunmiHandoff.None; SelectedMobileOperator = null;
         await LoadDisplayProductsAsync(); _customerDisplay.SetIdle();
+
     }
 
     private void ClearStatus() { StatusMessage = ""; ShowSuccess = false; ShowError = false; }
@@ -1608,6 +1709,9 @@ public partial class PosViewModel : BaseViewModel,
         invoice.TotalTTC = TotalTTC;
         invoice.TotalSpecificTax = TotalSpecificTax;
 
+        // ── PAIEMENTS ──
+        // 🆕 On tague l'opérateur Mobile Money (M-Pesa / Airtel / Orange).
+        // Le PaymentType reste MobileMoney → une seule ligne fiscale / Z-report.
         if (PaymentItems.Count > 0)
         {
             foreach (var pay in PaymentItems)
@@ -1616,7 +1720,10 @@ public partial class PosViewModel : BaseViewModel,
                     PaymentType = pay.PaymentType,
                     Amount = pay.Amount,
                     CurrencyCode = SelectedCurrency.ToString(),
-                    CurrencyRate = ExchangeRate
+                    CurrencyRate = ExchangeRate,
+                    MobileOperator = pay.PaymentType == PaymentType.MobileMoney
+                        ? SelectedMobileOperator
+                        : null
                 });
         }
         else
@@ -1626,7 +1733,10 @@ public partial class PosViewModel : BaseViewModel,
                 PaymentType = SelectedPaymentType,
                 Amount = paidAmount,
                 CurrencyCode = SelectedCurrency.ToString(),
-                CurrencyRate = ExchangeRate
+                CurrencyRate = ExchangeRate,
+                MobileOperator = SelectedPaymentType == PaymentType.MobileMoney
+                    ? SelectedMobileOperator
+                    : null
             });
         }
 
@@ -1701,6 +1811,7 @@ public partial class PosViewModel : BaseViewModel,
         HeldTransactions.Add(held); HeldCount = HeldTransactions.Count;
         CartItems.Clear(); SelectedCartItem = null; ShowDiscountPanel = false;
         ReceivedAmount = ""; ChangeAmount = 0; ShowChange = false;
+        CurrentStep = CheckoutStep.Review;
         PaymentItems.Clear(); RecalculatePayments(); RecalculateTotals();
         _ = GenerateNewNumber();
         StatusMessage = $"⏸ Panier en attente — {held.ItemCount} article(s)"; ShowSuccess = true; HoldReason = "";
@@ -1775,9 +1886,46 @@ public partial class PosViewModel : BaseViewModel,
     [RelayCommand]
     private void CancelHold() { ShowHoldDialog = false; HoldReason = ""; }
 
+    [RelayCommand]
+    private void ShowOfflineQr(string orderId)
+    {
+        var vm = new OfflineQrViewModel(_scopeFactory, orderId);
+        var win = new OfflineQrWindow(vm) { Owner = System.Windows.Application.Current.MainWindow };
+        win.ShowDialog();
+    }
+
+    [RelayCommand]
+    private void GoToPaymentStep()
+    {
+        if (IsNormalized) return;
+        if (CartItems.Count == 0)
+        {
+            StatusMessage = "Ajoutez au moins un article avant de passer au paiement.";
+            ShowError = true;
+            return;
+        }
+        ClearStatus();
+        CurrentStep = CheckoutStep.Payment;
+    }
+
+    [RelayCommand]
+    private void GoToReviewStep() => CurrentStep = CheckoutStep.Review;
+
+    [RelayCommand] private void SelectLocalPos() => PaymentChannel = PaymentChannel.LocalPos;
+    [RelayCommand] private void SelectSunmi() => PaymentChannel = PaymentChannel.SunmiTerminal;
+
+    public int SunmiHandoffIndex
+    {
+        get => SunmiHandoff == SunmiHandoff.LanDevice ? 1
+             : SunmiHandoff == SunmiHandoff.ShowQr ? 0 : -1;
+        set => SunmiHandoff = value == 1 ? SunmiHandoff.LanDevice : SunmiHandoff.ShowQr;
+    }
+
     // ══════════════════════════════════════════════════════════
     //  HELPERS
     // ══════════════════════════════════════════════════════════
+
+
 
     private static string GetPaymentLabel(PaymentType type) => type switch
     {

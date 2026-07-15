@@ -170,7 +170,6 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _licensePlan = "Free";
     [ObservableProperty] private string _licenseMessage = "";
 
-
     // ══════════════════════════════════════════════════════════════
     // CONSTRUCTEUR
     // ══════════════════════════════════════════════════════════════

@@ -43,19 +43,19 @@ public partial class PosPage : UserControl
 
     private void AnimateTotal()
     {
-        var scale = TotalScale;
-        if (scale == null) return;
+        //var scale = TotalScale;
+        //if (scale == null) return;
 
-        var anim = new DoubleAnimation
-        {
-            From = 1,
-            To = 1.05,
-            Duration = TimeSpan.FromMilliseconds(100),
-            AutoReverse = true
-        };
+        //var anim = new DoubleAnimation
+        //{
+        //    From = 1,
+        //    To = 1.05,
+        //    Duration = TimeSpan.FromMilliseconds(100),
+        //    AutoReverse = true
+        //};
 
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+        //scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        //scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     private void PosPage_KeyDown(object sender, KeyEventArgs e)

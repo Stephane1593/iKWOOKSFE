@@ -92,7 +92,11 @@ public class SettingsService
             DisableFallback = activePos?.DisableFallback ?? false,   // 🆕
 
             TotalPosCount = posList.Count,
-            ActivePosCount = posList.Count(p => p.IsActive)
+            ActivePosCount = posList.Count(p => p.IsActive),
+
+            SunmiEnabled = activePos?.SunmiEnabled ?? false,
+            SunmiTerminalUrl = activePos?.SunmiTerminalUrl ?? "",
+            SunmiTerminalId = activePos?.SunmiTerminalId ?? "",
         };
     }
 
@@ -157,7 +161,10 @@ public class SettingsService
                     pos.EmcfNIM = data.EmcfNIM;
                     pos.McfPortName = data.McfPortName;
                     pos.McfBaudRate = data.McfBaudRate;
-                    pos.DisableFallback = data.DisableFallback;   // 🆕
+                    pos.DisableFallback = data.DisableFallback;
+                    pos.SunmiEnabled = data.SunmiEnabled;
+                    pos.SunmiTerminalUrl = data.SunmiTerminalUrl;
+                    pos.SunmiTerminalId = data.SunmiTerminalId;
 
                     await _unitOfWork.PointsOfSale.UpdateAsync(pos);
                 }
@@ -222,4 +229,8 @@ public class SettingsData
     // Stats
     public int TotalPosCount { get; set; }
     public int ActivePosCount { get; set; }
+
+    public bool SunmiEnabled { get; set; }
+    public string SunmiTerminalUrl { get; set; } = string.Empty;
+    public string SunmiTerminalId { get; set; } = string.Empty;
 }

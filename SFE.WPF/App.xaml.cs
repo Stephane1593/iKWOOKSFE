@@ -13,6 +13,8 @@ using SFE.WPF.Views.Pages;
 using QuestPDF.Infrastructure;
 using System.Text;
 using SFE.Domain.Abstractions;
+using SFE.Infrastructure.Persistence.Repositories;
+using SFE.Api;
 
 namespace SFE.WPF;
 
@@ -20,12 +22,27 @@ public partial class App : System.Windows.Application
 {
     public static IServiceProvider ServiceProvider { get; private set; } = null!;
 
+    private SfeApiHost? _api;
+    private PaymentReconciliationService? _reconciler;
+    private CancellationTokenSource? _reconcilerCts;
+
     private async void Application_Startup(object sender, StartupEventArgs e)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         var services = new ServiceCollection();
         ConfigureServices(services);
         ServiceProvider = services.BuildServiceProvider();
+
+        // ── Start the local HTTP + mDNS host ──
+        _api = new SfeApiHost(ServiceProvider);
+        await _api.StartAsync();
+
+        // ── Start the payment reconciler (BackgroundService, started manually
+        //    because WPF isn't running under an IHost) ──
+        _reconciler = ServiceProvider.GetRequiredService<PaymentReconciliationService>();
+        _reconcilerCts = new CancellationTokenSource();
+        await _reconciler.StartAsync(_reconcilerCts.Token);
+
         QuestPDF.Settings.License = LicenseType.Community;
 
         var context = ServiceProvider.GetRequiredService<AppDbContext>();
@@ -217,6 +234,19 @@ public partial class App : System.Windows.Application
 
             authService.Logout();
         }
+
+    }
+
+    protected override async void OnExit(ExitEventArgs e)
+    {
+        if (_reconciler is not null)
+        {
+            _reconcilerCts?.Cancel();
+            try { await _reconciler.StopAsync(CancellationToken.None); } catch { /* shutting down */ }
+            _reconcilerCts?.Dispose();
+        }
+        if (_api is not null) await _api.StopAsync();
+        base.OnExit(e);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -287,6 +317,7 @@ public partial class App : System.Windows.Application
 
         var walInterceptor = new SqliteWalInterceptor();
 
+        services.AddLogging(); // safe to call even if you never wire a provider
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlite($"Data Source={dbPath};Cache=Shared")
                    .AddInterceptors(walInterceptor),
@@ -295,6 +326,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<ITimeProvider, SystemTimeProvider>();
         // ═══ Repositories & Unit of Work ═══
         services.AddTransient<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 
         // ═══ AUTH (Singleton — holds current user state) ═══
         services.AddSingleton<IAuthService, AuthService>();
@@ -323,6 +355,33 @@ public partial class App : System.Windows.Application
         services.AddSingleton<FiscalDeviceResolver>();
         services.AddSingleton<IFiscalDeviceService>(sp =>
             sp.GetRequiredService<FiscalDeviceResolver>());
+
+
+
+        // --- payment skeleton ---
+        // Program.cs / App.xaml.cs — DI composition
+        services.AddSingleton<MockPaymentProvider>(_ => new MockPaymentProvider
+        {
+            Mode = MockPaymentProvider.Behaviour.ExternallyDriven
+        });
+        services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<MockPaymentProvider>());
+        services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
+        services.AddScoped<PaymentService>();
+        services.AddScoped<IPendingOrderProvider, InvoicePendingOrderProvider>();
+        services.AddSingleton<InMemoryPendingOrderStore>();
+        // Reconciler config + registration. It's a BackgroundService, so we register
+        // it as a singleton and start/stop it by hand in Application_Startup / OnExit
+        // (WPF has no IHost, so AddHostedService would be a no-op).
+        services.Configure<PaymentReconciliationOptions>(o =>
+        {
+            o.PollInterval = TimeSpan.FromSeconds(2);
+            o.StuckAfter = TimeSpan.FromSeconds(2);
+            o.MaxAttempts = 30;
+        });
+        services.AddSingleton<PaymentReconciliationService>();
+
+
+        services.AddScoped<OfflineQrResolver>();   // scoped: it uses IInvoiceRepository (DbContext)
 
         // ═══ ViewModels ═══
         services.AddTransient<MainViewModel>();

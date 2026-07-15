@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\SFE.Api\SFE.Api.csproj" />
     <ProjectReference Include="..\SFE.Domain\SFE.Domain.csproj" />
     <ProjectReference Include="..\SFE.Application\SFE.Application.csproj" />
     <ProjectReference Include="..\SFE.Infrastructure.Persistence\SFE.Infrastructure.Persistence.csproj" />

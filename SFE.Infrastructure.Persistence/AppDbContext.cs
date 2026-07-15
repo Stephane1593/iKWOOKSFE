@@ -34,6 +34,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<ArticleReportLine> ArticleReportLines { get; set; } = null!;
     public DbSet<AuditLogEntry> AuditLogEntries { get; set; } = null!;
 
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+
     private readonly string _dbPath;
     private readonly ITimeProvider _time;
     private readonly ITenantProvider _tenant;

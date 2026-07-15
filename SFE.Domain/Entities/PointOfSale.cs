@@ -135,4 +135,8 @@ public class PointOfSale
 
     public List<PosStock> PosStocks { get; set; } = new();
     public List<StockMovement> StockMovements { get; set; } = new();
+
+    public bool SunmiEnabled { get; set; }
+    public string? SunmiTerminalUrl { get; set; }   // e.g. http://192.168.1.50:8080
+    public string? SunmiTerminalId { get; set; }
 }

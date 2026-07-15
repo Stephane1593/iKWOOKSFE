@@ -34,6 +34,7 @@
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <converters:IsNotNullToVisibilityConverter x:Key="IsNotNullToVisibilityConverter" />
             <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
+            <converters:PaymentTypeLabelConverter x:Key="PaymentTypeLabelConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
