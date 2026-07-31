@@ -2382,7 +2382,13 @@
                                           ItemsSource="{Binding SpecificTaxTypes}"
                                           SelectedItem="{Binding ArticleSpecificTaxType}"
                                           Style="{StaticResource InvComboBox}"
-                                          ToolTip="Type de taxe spécifique : Aucune, Montant fixe par unité ou Pourcentage" />
+                                          ToolTip="Type de taxe spécifique : Aucune, Montant fixe par unité ou Pourcentage">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
 
                                 <TextBox Grid.Column="2"
                                          Margin="0,0,10,0"
@@ -2411,7 +2417,13 @@
                                           SelectedItem="{Binding ArticleTaxApplicationMode}"
                                           Style="{StaticResource InvComboBox}"
                                           ToolTip="Mode d'application : Par article (chaque ligne) ou Sur le total (regroupé)"
-                                          Visibility="{Binding ShowArticleSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                          Visibility="{Binding ShowArticleSpecificTaxFields, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </Grid>
                         </Border>
 
@@ -2504,7 +2516,13 @@
                                           ItemsSource="{Binding DiscountTypes}"
                                           SelectedItem="{Binding ArticleDiscountType}"
                                           Style="{StaticResource InvComboBox}"
-                                          ToolTip="Type de remise : Aucune, Pourcentage ou Montant fixe" />
+                                          ToolTip="Type de remise : Aucune, Pourcentage ou Montant fixe">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
 
                                 <TextBox Grid.Column="2"
                                          Margin="0,0,10,0"

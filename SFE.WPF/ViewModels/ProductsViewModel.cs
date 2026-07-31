@@ -95,6 +95,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     public TaxGroup[] TaxGroups { get; } = Enum.GetValues<TaxGroup>();
     public SpecificTaxType[] SpecificTaxTypes { get; } = Enum.GetValues<SpecificTaxType>();
     public TaxSpecificMode[] TaxSpecificModes { get; } = Enum.GetValues<TaxSpecificMode>();
+
     public DiscountType[] DiscountTypes { get; } = Enum.GetValues<DiscountType>();
     public string[] CommonUnits { get; } =
     {

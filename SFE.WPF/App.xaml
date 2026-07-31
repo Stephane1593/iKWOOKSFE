@@ -35,6 +35,7 @@
             <converters:IsNotNullToVisibilityConverter x:Key="IsNotNullToVisibilityConverter" />
             <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
             <converters:PaymentTypeLabelConverter x:Key="PaymentTypeLabelConverter" />
+            <converters:EnumToFrenchLabelConverter x:Key="EnumToFrenchLabelConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

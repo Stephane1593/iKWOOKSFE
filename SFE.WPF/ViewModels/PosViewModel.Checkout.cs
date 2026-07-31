@@ -200,7 +200,16 @@ public partial class PosViewModel
         if (provider is null)
             return PaymentExecution.Fail("Paiement carte indisponible : provider non enregistré.");
 
-        string idempotencyKey = InvoiceNumber;
+        string idempotencyKey = invoice.InvoiceNumber;
+
+        // Make the invoice visible to OfflineQrResolver/Sunmi.
+        _pendingOrderStore.Set(
+            new OrderDto(
+                OrderId: idempotencyKey,
+                Label: $"FACTURE {invoice.InvoiceNumber}",
+                Amount: invoice.TotalTTC,
+                Currency: invoice.CurrencyCode ?? "CDF"),
+            invoice);
 
         OfflineQrViewModel? qrVm = null;
         Views.Pages.OfflineQrWindow? qrWindow = null;
@@ -213,9 +222,8 @@ public partial class PosViewModel
             {
                 Owner = System.Windows.Application.Current?.MainWindow
             };
-            qrVm.CloseRequested += (_, _) => qrWindow.Close();
+
             qrWindow.Closed += (_, _) => closedByUser = true;
-            _ = qrVm.LoadAsync();
             qrWindow.Show();
         }
 
@@ -226,26 +234,39 @@ public partial class PosViewModel
                 : "Ordre envoyé au terminal Sunmi — suivez les instructions sur l'écran du terminal…";
 
             var deadline = _time.UtcNow.AddSeconds(120);
+
             while (_time.UtcNow < deadline)
             {
                 if (closedByUser)
                     return PaymentExecution.Fail("Fenêtre QR fermée avant l'encaissement.");
 
                 var res = await provider.QueryAsync(idempotencyKey, CancellationToken.None);
+
                 switch (res.Status)
                 {
-                    case PaymentTransactionStatus.Approved: return PaymentExecution.Ok(chargeApproved: true);
-                    case PaymentTransactionStatus.Declined: return PaymentExecution.Fail($"Paiement refusé : {res.Reason}");
-                    case PaymentTransactionStatus.TimedOut: return PaymentExecution.Fail("Délai d'encaissement dépassé sur le terminal.");
+                    case PaymentTransactionStatus.Approved:
+                        return PaymentExecution.Ok(chargeApproved: true);
+
+                    case PaymentTransactionStatus.Declined:
+                        return PaymentExecution.Fail($"Paiement refusé : {res.Reason}");
+
+                    case PaymentTransactionStatus.TimedOut:
+                        return PaymentExecution.Fail("Délai d'encaissement dépassé sur le terminal.");
+
                 }
+
                 await Task.Delay(1500);
             }
+
             return PaymentExecution.Fail("Aucune réponse du terminal Sunmi (délai dépassé).");
         }
         finally
         {
+            if (qrWindow is not null && !closedByUser)
+                qrWindow.Close();
+
             qrVm?.Dispose();
-            if (qrWindow is not null && !closedByUser) qrWindow.Close();
+
             _pendingOrderStore.Clear();
         }
     }

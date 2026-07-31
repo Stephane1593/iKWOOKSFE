@@ -364,37 +364,36 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
 
         _app.MapGet("/orders/{orderId}/qr", async (string orderId, CancellationToken ct) =>
         {
+            orderId = Uri.UnescapeDataString(orderId);
+
             using var scope = appServices.CreateScope();
-            var qr = scope.ServiceProvider.GetRequiredService<OfflineQrService>();
-            var repo = scope.ServiceProvider.GetRequiredService<IInvoiceRepository>();
-            var pending = scope.ServiceProvider.GetRequiredService<IPendingOrderProvider>();
+            var resolver = scope.ServiceProvider.GetRequiredService<OfflineQrResolver>();
 
-            var invoice = await repo.GetByInvoiceNumberAsync(orderId);
-            if (invoice is null) return Results.NotFound(new { error = "order_not_found" });
+            var result = await resolver.ResolveAsync(orderId, ct);
 
-            var orders = await pending.GetPendingAsync(ct);
-            var order = orders.FirstOrDefault(o => o.OrderId == orderId);
-            if (order is null)
-                return Results.Conflict(new { error = "nothing_due", orderId });
-
-            var isFiscal = !invoice.IsProforma
-                           && invoice.NormalizedAt is not null
-                           && !string.IsNullOrWhiteSpace(invoice.CodeDEFDGI);
-
-            var payload = qr.BuildFor(
-                orderId: order.OrderId,
-                amount: order.Amount,
-                currency: order.Currency,
-                kind: isFiscal ? OfflineDocKind.Fiscal : OfflineDocKind.Provisional,
-                fiscalCode: invoice.CodeDEFDGI,
-                fiscalQr: invoice.QRCodeContent);
-
-            return Results.Ok(new
+            return result.Outcome switch
             {
-                token = qr.Encode(payload),
-                kind = payload.Kind.ToString(),
-                order
-            });
+                OfflineQrOutcome.Ok => Results.Ok(new
+                {
+                    token = result.Token,
+                    kind = result.Kind.ToString(),
+                    order = result.Order
+                }),
+
+                OfflineQrOutcome.NotFound => Results.NotFound(new
+                {
+                    error = "order_not_found",
+                    orderId
+                }),
+
+                OfflineQrOutcome.NothingDue => Results.Conflict(new
+                {
+                    error = "nothing_due",
+                    orderId
+                }),
+
+                _ => Results.Problem("Unable to generate QR.")
+            };
         });
 
         await _app.StartAsync();

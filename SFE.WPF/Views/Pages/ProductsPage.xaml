@@ -548,11 +548,11 @@
 
                             <!--  TAX GROUP (color-coded badge)  -->
                             <DataGridTemplateColumn Width="56"
-                        Header="Grp"
-                        SortMemberPath="TaxGroup">
+                                                    Header="Grp"
+                                                    SortMemberPath="TaxGroup">
                                 <DataGridTemplateColumn.HeaderStyle>
                                     <Style BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
-               TargetType="DataGridColumnHeader">
+                                           TargetType="DataGridColumnHeader">
                                         <Setter Property="HorizontalContentAlignment" Value="Center" />
                                         <Setter Property="Background" Value="#F8FAFC" />
                                         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
@@ -566,48 +566,57 @@
                                 </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border MinWidth="28"
-                    Height="28"
-                    Padding="4,0"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    CornerRadius="6">
+                                        <Border Height="28"
+                                                MinWidth="28"
+                                                Padding="4,0"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                CornerRadius="6">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <!-- Default (B, E, F, G, H, I, J, K, L, M, N, O, P…) -->
+                                                    <!--  Default (B, E, F, G, H, I, J, K, L, M, N, O, P…)  -->
                                                     <Setter Property="Background">
                                                         <Setter.Value>
-                                                            <SolidColorBrush Opacity="0.08" Color="#6366F1" />
+                                                            <SolidColorBrush Opacity="0.08"
+                                                                             Color="#6366F1" />
                                                         </Setter.Value>
                                                     </Setter>
                                                     <Style.Triggers>
-                                                        <!-- A (Exonéré) -->
-                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A">
+                                                        <!--  A (Exonéré)  -->
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                     Value="A">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Opacity="0.10" Color="#10B981" />
+                                                                    <SolidColorBrush Opacity="0.10"
+                                                                                     Color="#10B981" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
-                                                        <!-- A-HC (Hors champ) — same green, slightly stronger -->
-                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A-HC">
+                                                        <!--  A-HC (Hors champ) — same green, slightly stronger  -->
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                     Value="A-HC">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Opacity="0.14" Color="#10B981" />
+                                                                    <SolidColorBrush Opacity="0.14"
+                                                                                     Color="#10B981" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="C">
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                     Value="C">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Opacity="0.10" Color="#F59E0B" />
+                                                                    <SolidColorBrush Opacity="0.10"
+                                                                                     Color="#F59E0B" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="D">
+                                                        <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                     Value="D">
                                                             <Setter Property="Background">
                                                                 <Setter.Value>
-                                                                    <SolidColorBrush Opacity="0.10" Color="#3B82F6" />
+                                                                    <SolidColorBrush Opacity="0.10"
+                                                                                     Color="#3B82F6" />
                                                                 </Setter.Value>
                                                             </Setter>
                                                         </DataTrigger>
@@ -615,29 +624,33 @@
                                                 </Style>
                                             </Border.Style>
                                             <TextBlock HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           FontFamily="{StaticResource AppFont}"
-                           FontWeight="Bold"
-                           Text="{Binding TaxGroupDisplay}"
-                           ToolTip="{Binding TaxGroup}">
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontWeight="Bold"
+                                                       Text="{Binding TaxGroupDisplay}"
+                                                       ToolTip="{Binding TaxGroup}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <!-- Default size + color -->
+                                                        <!--  Default size + color  -->
                                                         <Setter Property="FontSize" Value="12" />
                                                         <Setter Property="Foreground" Value="#6366F1" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A">
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                         Value="A">
                                                                 <Setter Property="Foreground" Value="#10B981" />
                                                             </DataTrigger>
-                                                            <!-- A-HC: shrink font a touch to fit 4 chars cleanly -->
-                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="A-HC">
+                                                            <!--  A-HC: shrink font a touch to fit 4 chars cleanly  -->
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                         Value="A-HC">
                                                                 <Setter Property="Foreground" Value="#059669" />
                                                                 <Setter Property="FontSize" Value="10" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="C">
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                         Value="C">
                                                                 <Setter Property="Foreground" Value="#D97706" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}" Value="D">
+                                                            <DataTrigger Binding="{Binding TaxGroupDisplay}"
+                                                                         Value="D">
                                                                 <Setter Property="Foreground" Value="#3B82F6" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -1211,7 +1224,13 @@
                                 <ComboBox MinHeight="42"
                                           ItemsSource="{Binding ItemTypes}"
                                           SelectedItem="{Binding EditItemType}"
-                                          Style="{StaticResource ModernComboBoxStyle}" />
+                                          Style="{StaticResource ModernComboBoxStyle}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="1"
                                         Margin="8,0,0,0">
@@ -1220,7 +1239,13 @@
                                 <ComboBox MinHeight="42"
                                           ItemsSource="{Binding TaxGroups}"
                                           SelectedItem="{Binding EditTaxGroup}"
-                                          Style="{StaticResource ModernComboBoxStyle}" />
+                                          Style="{StaticResource ModernComboBoxStyle}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </StackPanel>
                         </Grid>
                         <!--  ── Variant for group A (Exonéré vs Hors champ) ──  -->
@@ -1315,7 +1340,13 @@
                             <ComboBox MinHeight="42"
                                       ItemsSource="{Binding SpecificTaxTypes}"
                                       SelectedItem="{Binding EditSpecificTaxType}"
-                                      Style="{StaticResource ModernComboBoxStyle}" />
+                                      Style="{StaticResource ModernComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
 
                         <!--  Value + Mode (when type ≠ None)  -->
@@ -1367,7 +1398,13 @@
                                 <ComboBox MinHeight="42"
                                           ItemsSource="{Binding TaxSpecificModes}"
                                           SelectedItem="{Binding EditTaxSpecificMode}"
-                                          Style="{StaticResource ModernComboBoxStyle}" />
+                                          Style="{StaticResource ModernComboBoxStyle}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumToFrenchLabelConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </StackPanel>
                         </Grid>
 

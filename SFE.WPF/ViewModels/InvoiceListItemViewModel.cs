@@ -129,6 +129,12 @@ public partial class InvoiceListItemViewModel : ObservableObject
         var firstPrintLocal = invoice.FirstPrintedAt is { } f ? timeProvider.ToLocal(f) : (DateTimeOffset?)null;
         var lastPrintLocal = invoice.LastPrintedAt is { } l ? timeProvider.ToLocal(l) : (DateTimeOffset?)null;
 
+        // 🆕 Credit notes (avoir) display as negative amounts
+        bool isCreditNote = invoice.Type == InvoiceType.FA || invoice.Type == InvoiceType.EA;
+        decimal signedHT = isCreditNote ? -invoice.TotalHT : invoice.TotalHT;
+        decimal signedTVA = isCreditNote ? -invoice.TotalTVA : invoice.TotalTVA;
+        decimal signedTTC = isCreditNote ? -invoice.TotalTTC : invoice.TotalTTC;
+
         return new InvoiceListItemViewModel
         {
             InvoiceId = invoice.Id,
@@ -149,10 +155,10 @@ public partial class InvoiceListItemViewModel : ObservableObject
             DateDisplay = createdLocal.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
             TimeDisplay = createdLocal.ToString("HH:mm", CultureInfo.InvariantCulture),
 
-            TotalHT = invoice.TotalHT,
-            TotalTVA = invoice.TotalTVA,
-            TotalTTC = invoice.TotalTTC,
-            TotalDisplay = $"{invoice.TotalTTC:N0} CDF",
+            TotalHT = signedHT,
+            TotalTVA = signedTVA,
+            TotalTTC = signedTTC,
+            TotalDisplay = $"{signedTTC:N0} CDF",
 
             CodeDEFDGI = codeDef,
             CodeDEFShort = string.IsNullOrEmpty(codeDef)

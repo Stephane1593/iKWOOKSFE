@@ -381,8 +381,19 @@ public partial class App : System.Windows.Application
         services.AddSingleton<PaymentReconciliationService>();
 
 
-        services.AddScoped<OfflineQrResolver>();   // scoped: it uses IInvoiceRepository (DbContext)
+        
+        services.AddSingleton(sp =>
+        {
+            // TODO: replace this with a secret saved in SettingsService or pairing config.
+            // Both the caisse and Sunmi must use the same secret to verify QR signatures.
+            var secretText = "ikwookQrcodebaby";
+            var secret = Encoding.UTF8.GetBytes(secretText);
 
+            return new OfflineQrService(
+                pairingSecret: secret,
+                caisseId: Environment.MachineName);
+        });
+        services.AddScoped<OfflineQrResolver>();   // scoped: it uses IInvoiceRepository (DbContext)
         // ═══ ViewModels ═══
         services.AddTransient<MainViewModel>();
         services.AddTransient<DashboardViewModel>();
@@ -392,7 +403,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<ClientsViewModel>();
         services.AddTransient<StockViewModel>();
         services.AddTransient<StockTransferViewModel>();
-        services.AddTransient<SettingsViewModel>();
+        services.AddSingleton<SettingsViewModel>();
         services.AddTransient<SalesHistoryViewModel>();
         services.AddTransient<PointOfSaleManagementViewModel>();
         services.AddTransient<ReportViewModel>();

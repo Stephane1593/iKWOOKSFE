@@ -60,6 +60,10 @@ public class InvoicePdfDocument : IDocument
     private const string ColWatermarkRed = "#14C62828";
     private const string ColWatermarkGrey = "#14546E7A";
 
+    // ════════════════════════════════════════════════════════════
+    //  SIGN HELPER — credit notes (FA/EA) display negative amounts
+    // ════════════════════════════════════════════════════════════
+    private static decimal Signed(decimal v, bool negate) => negate ? -v : v;
     public InvoicePdfDocument(
         Invoice invoice,
         ITimeProvider time,
@@ -378,7 +382,7 @@ public class InvoicePdfDocument : IDocument
             {
                 bool isLast = pageIdx == chunks.Count - 1;
                 col.Item().Element(c => RenderItemsTable(c, chunks[pageIdx], hasDiscount, hasTS,
-                                                         pageIdx + 1, chunks.Count));
+                                                         pageIdx + 1, chunks.Count, _inv.IsCreditNote));
 
                 if (!isLast)
                 {
@@ -416,7 +420,7 @@ public class InvoicePdfDocument : IDocument
         IContainer container,
         IReadOnlyList<InvoiceLine> lines,
         bool hasDiscount, bool hasTS,
-        int pageNum, int pageCount)
+        int pageNum, int pageCount, bool negate)
     {
         container.Column(c =>
         {
@@ -488,10 +492,10 @@ public class InvoicePdfDocument : IDocument
                     if (hasDiscount)
                         Cb(ln.DiscountAmount > 0 ? FormatDiscount(ln) : "", right: true);
                     if (hasTS)
-                        Cb(ln.TaxSpecificAmount > 0 ? M(ln.TaxSpecificAmount) : "", right: true);
-                    Cb(M(ln.AmountHT), right: true);
-                    Cb(M(ln.AmountTVA), right: true);
-                    Cb(M(ln.AmountTTC), right: true, bold: true);
+                        Cb(ln.TaxSpecificAmount > 0 ? M(Signed(ln.TaxSpecificAmount, negate)) : "", right: true);
+                    Cb(M(Signed(ln.AmountHT, negate)), right: true);
+                    Cb(M(Signed(ln.AmountTVA, negate)), right: true);
+                    Cb(M(Signed(ln.AmountTTC, negate)), right: true, bold: true);
                 }
             });
         });
@@ -510,6 +514,7 @@ public class InvoicePdfDocument : IDocument
     private void ComposeFiscalSummary(IContainer container)
     {
         var lines = _inv.Lines?.ToList() ?? new();
+        bool neg = _inv.IsCreditNote;
 
         var groups = lines
             .GroupBy(l => l.TaxGroup)
@@ -517,10 +522,10 @@ public class InvoicePdfDocument : IDocument
             .Select(g => new {
                 Group = g.Key,
                 Rate = g.First().TaxRate,
-                HT = g.Sum(l => l.AmountHT - l.TaxSpecificAmount),
-                TS = g.Sum(l => l.TaxSpecificAmount),
-                TVA = g.Sum(l => l.AmountTVA),
-                TTC = g.Sum(l => l.AmountTTC)
+                HT = Signed(g.Sum(l => l.AmountHT - l.TaxSpecificAmount), neg),
+                TS = Signed(g.Sum(l => l.TaxSpecificAmount), neg),
+                TVA = Signed(g.Sum(l => l.AmountTVA), neg),
+                TTC = Signed(g.Sum(l => l.AmountTTC), neg)
             })
             .ToList();
 
@@ -584,26 +589,26 @@ public class InvoicePdfDocument : IDocument
 
             row.RelativeItem(2).Column(col =>
             {
-                Total(col, "Total HT (avant remise)", _inv.TotalHTBeforeDiscount, false);
+                Total(col, "Total HT (avant remise)", Signed(_inv.TotalHTBeforeDiscount, neg), false);
                 if (_inv.TotalDiscount > 0)
-                    Total(col, "Remise globale", -_inv.TotalDiscount, false, ColRed);
-                Total(col, "Total H.T. net", _inv.TotalHT, false);
+                    Total(col, "Remise globale", -Signed(_inv.TotalDiscount, neg), false, ColRed);
+                Total(col, "Total H.T. net", Signed(_inv.TotalHT, neg), false);
                 if (_inv.TotalSpecificTax > 0)
-                    Total(col, "Total Taxes Spécifiques", _inv.TotalSpecificTax, false);
-                Total(col, "Total T.V.A.", _inv.TotalTVA, false);
+                    Total(col, "Total Taxes Spécifiques", Signed(_inv.TotalSpecificTax, neg), false);
+                Total(col, "Total T.V.A.", Signed(_inv.TotalTVA, neg), false);
 
                 col.Item().PaddingTop(4).Background(ColPrimary).Padding(7).Row(r =>
                 {
                     r.RelativeItem().Text("TOTAL TTC (CDF)")
                      .FontSize(11).Bold().FontColor(Colors.White);
                     r.ConstantItem(110).AlignRight()
-                     .Text(M(_inv.TotalTTC))
+                     .Text(M(Signed(_inv.TotalTTC, neg)))
                      .FontSize(13).Bold().FontColor(Colors.White);
                 });
 
                 if (_xRate > 0)
                 {
-                    var usd = Math.Round(_inv.TotalTTC / _xRate, 2);
+                    var usd = Math.Round(Signed(_inv.TotalTTC, neg) / _xRate, 2);
                     col.Item().PaddingTop(3).Row(r =>
                     {
                         r.RelativeItem().Text($"Taux de change (BCC)").FontSize(7);
@@ -702,9 +707,12 @@ public class InvoicePdfDocument : IDocument
             .Text(t =>
             {
                 t.DefaultTextStyle(s => s.FontSize(8).Italic());
-                t.Span("Arrêté la présente facture à la somme de ");
+                t.Span(_inv.IsCreditNote
+                    ? "Arrêté le présent avoir à la somme de "
+                    : "Arrêté la présente facture à la somme de ");
                 t.Span(NumberToFrenchWords.Convert(_inv.TotalTTC, "")).Bold();
-                t.Span(" francs congolais toutes taxes comprises.");
+                t.Span(" francs congolais toutes taxes comprises"
+                    + (_inv.IsCreditNote ? ", à déduire." : "."));
             });
     }
 

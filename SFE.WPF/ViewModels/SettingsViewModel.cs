@@ -186,6 +186,22 @@ public partial class SettingsViewModel : BaseViewModel
         _time = time;
         PageTitle = "Paramètres";
 
+        WeakReferenceMessenger.Default.Register<ActivePosDeviceConfigChangedMessage>(this, async (r, m) =>
+        {
+            Debug.WriteLine($"[Settings] Received change for PosId={m.PosId}, current _activePosId={_activePosId}");
+            try
+            {
+                if (m.PosId == _activePosId)
+                    await RefreshActivePosDeviceConfig();
+                else
+                    Debug.WriteLine("[Settings] Skipped refresh — PosId mismatch.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Settings] Failed to refresh active POS device config: {ex.Message}");
+            }
+        });
+
         RefreshComPorts();
         _ = LoadSettingsAsync();
     }
@@ -404,6 +420,16 @@ public partial class SettingsViewModel : BaseViewModel
         await LoadSettingsAsync();
     }
 
+    [RelayCommand]
+    private async Task ForceRefreshDeviceConfig()
+    {
+        if (_fiscalDevice is FiscalDeviceResolver resolver)
+            resolver.Invalidate();
+
+        await LoadSettingsAsync();
+        await LoadDeviceInfo();
+    }
+
     // ══════════════════════════════════════════════════════════════
     // SAVE SETTINGS
     // ══════════════════════════════════════════════════════════════
@@ -458,6 +484,13 @@ public partial class SettingsViewModel : BaseViewModel
 
             var existing = await _settingsService.LoadSettingsAsync();
 
+            if (existing == null)
+            {
+                SaveStatus = "Impossible de charger les paramètres existants.";
+                ShowSaveError = true;
+                return;
+            }
+
             var data = new SettingsData
             {
                 CompanyId = _companyId,
@@ -484,6 +517,8 @@ public partial class SettingsViewModel : BaseViewModel
                 LoyaltyMinRedeemPoints = minPts,
                 DeploymentMode = DeploymentMode.Standalone,
                 ActivePosId = _activePosId,
+
+                // Preserve device config as-is from the latest DB state — never derived from stale VM fields
                 DeviceType = existing.DeviceType,
                 EmcfApiUrl = existing.EmcfApiUrl,
                 EmcfToken = existing.EmcfToken,
@@ -618,6 +653,11 @@ public partial class SettingsViewModel : BaseViewModel
 
         try
         {
+            // 🆕 Force resolver to re-check current DeviceType from DB/settings
+            // before resolving the fiscal device implementation to use.
+            if (_fiscalDevice is FiscalDeviceResolver resolver)
+                resolver.Invalidate();
+
             var infoTask = _fiscalDevice.GetDetailedInfoAsync();
 
             var completed = await Task.WhenAny(infoTask, Task.Delay(Timeout.Infinite, ct));
@@ -764,6 +804,8 @@ public partial class SettingsViewModel : BaseViewModel
             LoadDeviceInfoCommand.NotifyCanExecuteChanged();
         }
     }
+
+
 
     // ══════════════════════════════════════════════════════════════
     // HEALTH REPORT — populates the synthetic verdict (MCF only).

@@ -1,25 +1,30 @@
-﻿namespace SFE.Application.Payments;
+﻿using SFE.Application.Services;
+
+namespace SFE.Application.Payments;
 
 public enum OfflineDocKind
 {
     /// <summary>Already normalized: Sunmi may print a full fiscal receipt offline.</summary>
     Fiscal = 0,
-    /// <summary>Proforma / not yet fiscal: Sunmi prints a PROVISIONAL ack only.</summary>
+
+    /// <summary>Proforma / not yet fiscal: Sunmi prints a provisional receipt.</summary>
     Provisional = 1
 }
 
 /// <summary>
 /// Encoded into the offline QR as "payload.signature".
-/// Kept deliberately compact — every field costs QR modules.
+/// This now carries the same ReceiptDocument JSON structure used by
+/// /receipts/json/proforma/{id} and /receipts/json/fiscal/{id}.
 /// </summary>
 public record OrderQrPayload(
     int Version,
-    string IdempotencyKey,   // minted by SFE — anti-double-charge anchor
-    string OrderId,          // == InvoiceNumber
+    string IdempotencyKey,
+    string OrderId,
     decimal Amount,
     string Currency,
     string CaisseId,
     long IssuedUnix,
     OfflineDocKind Kind,
-    string? FiscalCode,      // Invoice.CodeDEFDGI  — only when Kind == Fiscal
-    string? FiscalQr);       // Invoice.QRCodeContent — only when Kind == Fiscal
+    ReceiptDocument[] Documents,
+    string? FiscalCode,
+    string? FiscalQr);

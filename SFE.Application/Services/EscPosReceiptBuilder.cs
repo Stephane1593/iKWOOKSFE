@@ -41,6 +41,8 @@ public static class EscPosReceiptBuilder
     private static string Qty(decimal v) => v.ToString("N3", MONEY);
     private static string Rate(decimal v) => v.ToString("0.00", MONEY);
 
+    private static decimal Signed(decimal v, bool negate) => negate ? -v : v;
+
     private class ReceiptContext
     {
         public int Width { get; set; } = 48;
@@ -131,12 +133,12 @@ public static class EscPosReceiptBuilder
             WriteDoubleLine(ms, ctx);
             WriteRow(ms, "TAXE SPECIFIQUE", Fmt(invoice.TotalSpecificTax), ctx);
         }
-
+        bool neg = invoice.IsCreditNote;
         // ======= (p) TOTAL TTC =======
         WriteDoubleLine(ms, ctx);
         Write(ms, BOLD_ON);
         Write(ms, DOUBLE_H_ON);
-        WriteRow(ms, "TOTAL TTC", $"{Fmt(invoice.TotalTTC)} CDF", ctx);
+        WriteRow(ms, "TOTAL TTC", $"{Fmt(Signed(invoice.TotalTTC, neg))} CDF", ctx);
         Write(ms, SIZE_NORMAL);
         Write(ms, BOLD_OFF);
 
@@ -154,7 +156,7 @@ public static class EscPosReceiptBuilder
             WriteDashLine(ms, ctx);
             decimal usd = Math.Round(invoice.TotalTTC / exchangeRate, 2);
             WriteRow(ms, "Taux de change", $"1 USD = {Fmt(exchangeRate)} CDF", ctx);
-            WriteRow(ms, "Montant USD", $"{Fmt(usd)} USD", ctx);
+            WriteRow(ms, "Montant USD", $"{Fmt(Signed(usd,neg))} USD", ctx);
         }
         else if (!string.IsNullOrEmpty(invoice.CurrencyCode) &&
                  invoice.CurrencyCode != "CDF" && invoice.CurrencyRate > 0)
@@ -439,6 +441,7 @@ public static class EscPosReceiptBuilder
         int totalColWidth = ctx.Width >= 48 ? 12 : 10;
         int totalEnd = ctx.Width;
         int qtyEnd = totalEnd - totalColWidth;
+        bool neg = invoice.IsCreditNote;
 
         var hsb = new StringBuilder("#Nom");
         int padA = qtyEnd - "Qte x P.U.".Length - hsb.Length;
@@ -462,7 +465,7 @@ public static class EscPosReceiptBuilder
                                     ? ln.AmountTTC : ln.AmountHT;
 
             string qtyPart = $"{Qty(ln.Quantity)} x {FmtCompact(unitPrice)}";
-            string totalPart = FmtCompact(totalAmount);
+            string totalPart = FmtCompact(Signed(totalAmount, neg));
 
             int maxNameForSingleLine = qtyEnd - qtyPart.Length - 1;
 
@@ -488,7 +491,7 @@ public static class EscPosReceiptBuilder
             }
 
             if (ln.TaxSpecificAmount > 0)
-                WriteAlignedRow(ms, "   T.S.", Fmt(ln.TaxSpecificAmount),
+                WriteAlignedRow(ms, "   T.S.", Fmt(Signed(ln.TaxSpecificAmount, neg)),
                                 totalEnd, ctx);
         }
     }
@@ -547,6 +550,7 @@ public static class EscPosReceiptBuilder
     private static void WriteTaxBreakdown(
         MemoryStream ms, Invoice invoice, ReceiptContext ctx)
     {
+        bool neg = invoice.IsCreditNote;
         WriteDoubleLine(ms, ctx);
         Write(ms, BOLD_ON);
         WriteText(ms, " DETAIL FISCAL PAR GROUPE", ctx);
@@ -571,8 +575,8 @@ public static class EscPosReceiptBuilder
         }
 
         WriteDashLine(ms, ctx);
-        WriteRow(ms, "Total HT", Fmt(invoice.TotalHT), ctx);
-        WriteRow(ms, "Total TVA", Fmt(invoice.TotalTVA), ctx);
+        WriteRow(ms, "Total HT", Fmt(Signed(invoice.TotalHT, neg)), ctx);
+        WriteRow(ms, "Total TVA", Fmt(Signed(invoice.TotalTVA, neg)), ctx);
     }
 
     private static void WriteAdvanceBlock(MemoryStream ms, Invoice inv, ReceiptContext ctx)

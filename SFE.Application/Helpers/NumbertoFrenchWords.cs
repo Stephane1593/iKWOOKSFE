@@ -3,21 +3,21 @@
 /// <summary>
 /// Converts a decimal amount to French words for DGI-compliant invoices.
 /// Handles values up to 999 999 999 999 (trillions of CDF).
-/// Follows Belgian/Congolese French rules (septante/nonante NOT used — standard French).
+/// Follows Belgian/Congolese French rules (septante/nonante used instead of soixante-dix/quatre-vingt-dix).
 /// </summary>
 public static class NumberToFrenchWords
 {
     private static readonly string[] Units =
     {
-        "", "un", "deux", "trois", "quatre", "cinq", "six", "sept",
-        "huit", "neuf", "dix", "onze", "douze", "treize", "quatorze",
-        "quinze", "seize", "dix-sept", "dix-huit", "dix-neuf"
+        "", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf",
+        "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize",
+        "dix-sept", "dix-huit", "dix-neuf"
     };
 
     private static readonly string[] Tens =
     {
         "", "dix", "vingt", "trente", "quarante", "cinquante",
-        "soixante", "soixante", "quatre-vingt", "quatre-vingt"
+        "soixante", "septante", "quatre-vingt", "nonante"
     };
 
     /// <summary>
@@ -169,7 +169,7 @@ public static class NumberToFrenchWords
 
     /// <summary>
     /// Converts a number 1–99 to French words.
-    /// Handles French special cases: 70–79, 80–99.
+    /// Belgian/Congolese French rules: septante (70), quatre-vingt (80), nonante (90).
     /// </summary>
     private static string ConvertBelow100(long n)
     {
@@ -179,18 +179,16 @@ public static class NumberToFrenchWords
         int tensDigit = (int)(n / 10);
         int unitDigit = (int)(n % 10);
 
-        // Special French rules
+        // Belgian/Congolese French rules
         switch (tensDigit)
         {
-            case 7: // 70–79 = soixante-dix, soixante-et-onze, ... soixante-dix-neuf
+            case 7: // 70–79 = septante, septante-et-un, ... septante-neuf
                 {
-                    int subNumber = 60 + (int)(n - 60); // remap to 60 + (10..19)
-                    if (n == 70)
-                        return "soixante-dix";
-                    if (n == 71)
-                        return "soixante-et-onze";
-                    // 72–79: soixante-douze ... soixante-dix-neuf
-                    return "soixante-" + Units[(int)(n - 60)];
+                    if (unitDigit == 0)
+                        return "septante";
+                    if (unitDigit == 1)
+                        return "septante-et-un";
+                    return "septante-" + Units[unitDigit];
                 }
 
             case 8: // 80–89 = quatre-vingts, quatre-vingt-un, ...
@@ -200,13 +198,13 @@ public static class NumberToFrenchWords
                     return "quatre-vingt-" + Units[unitDigit];
                 }
 
-            case 9: // 90–99 = quatre-vingt-dix, quatre-vingt-onze, ...
+            case 9: // 90–99 = nonante, nonante-et-un, ... nonante-neuf
                 {
-                    if (n == 90)
-                        return "quatre-vingt-dix";
-                    if (n == 91)
-                        return "quatre-vingt-onze";
-                    return "quatre-vingt-" + Units[(int)(n - 80)];
+                    if (unitDigit == 0)
+                        return "nonante";
+                    if (unitDigit == 1)
+                        return "nonante-et-un";
+                    return "nonante-" + Units[unitDigit];
                 }
 
             default: // 20–69 (standard)

@@ -408,9 +408,14 @@ public partial class SalesHistoryViewModel : BaseViewModel
                 _ => new SolidColorBrush(MediaColor.FromArgb(0x1A, 0xC6, 0x28, 0x28))
             };
 
-            DetailTotalHT = invoice.TotalHT.ToString("N0") + " CDF";
-            DetailTotalTVA = invoice.TotalTVA.ToString("N0") + " CDF";
-            DetailTotalTTC = invoice.TotalTTC.ToString("N0") + " CDF";
+            bool isCreditNote = invoice.Type == InvoiceType.FA || invoice.Type == InvoiceType.EA;
+            decimal signedHT = isCreditNote ? -invoice.TotalHT : invoice.TotalHT;
+            decimal signedTVA = isCreditNote ? -invoice.TotalTVA : invoice.TotalTVA;
+            decimal signedTTC = isCreditNote ? -invoice.TotalTTC : invoice.TotalTTC;
+
+            DetailTotalHT = signedHT.ToString("N0") + " CDF";
+            DetailTotalTVA = signedTVA.ToString("N0") + " CDF";
+            DetailTotalTTC = signedTTC.ToString("N0") + " CDF";
 
             DetailLines.Clear();
             if (invoice.Lines != null)

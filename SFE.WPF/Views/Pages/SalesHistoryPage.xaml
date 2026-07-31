@@ -828,6 +828,25 @@
                                            Text="Réinitialiser" />
                             </StackPanel>
                         </Button>
+                        <Button Margin="0,0,8,0"
+                                Command="{Binding DataContext.NavigateToPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="ReportHistory"
+                                Cursor="Hand"
+                                Style="{StaticResource GhostBtn}"
+                                ToolTip="Ouvrir l'historique des rapports">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Width="14"
+                                                         Height="14"
+                                                         Margin="0,0,6,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{StaticResource TextMutedBrush}"
+                                                         Kind="FileChartOutline" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="12"
+                                           Text="Rapports" />
+                            </StackPanel>
+                        </Button>
                         <Button Command="{Binding SearchCommand}"
                                 Style="{StaticResource PrimaryBtn}">
                             <StackPanel Orientation="Horizontal">
@@ -2436,6 +2455,7 @@
 
                             <StackPanel Grid.Column="1"
                                         Orientation="Horizontal">
+
                                 <Button Margin="0,0,6,0"
                                         Command="{Binding PrintInvoiceCommand}"
                                         Style="{StaticResource PrimaryBtn}">

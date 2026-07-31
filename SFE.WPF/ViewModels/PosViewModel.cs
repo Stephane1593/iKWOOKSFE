@@ -18,6 +18,7 @@ using SFE.WPF.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using SFE.WPF.Views.Pages;
 using SFE.Application.Payments;
+using System.Windows.Input;
 
 namespace SFE.WPF.ViewModels;
 
@@ -241,7 +242,6 @@ public partial class PosViewModel : BaseViewModel,
 
     [DllImport("winspool.drv", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool GetDefaultPrinter(StringBuilder pszBuffer, ref int pcchBuffer);
-
 
 
 

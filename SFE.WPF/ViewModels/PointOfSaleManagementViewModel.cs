@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Abstractions;
@@ -67,6 +68,12 @@ public partial class ComPortInfo : ObservableObject
 }
 
 public enum ComPortStatus { Available, InUse, NotFound, Probing }
+
+public class ActivePosDeviceConfigChangedMessage
+{
+    public int PosId { get; }
+    public ActivePosDeviceConfigChangedMessage(int posId) => PosId = posId;
+}
 
 // ════════════════════════════════════════════════════════════════
 //  POS MANAGEMENT VIEWMODEL
@@ -354,6 +361,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         var disableFallback = (deviceType == DeviceType.Mcf) && EditDisableFallback;
 
         PosSaveResult result;
+        int savedPosId; // 🆕 declared outside, will hold the id regardless of branch
 
         if (_editId == 0)
         {
@@ -393,6 +401,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
                 ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !"
             };
             result = await _posService.CreateAsync(pos);
+            savedPosId = pos.Id; // ✅ still in scope here
         }
         else
         {
@@ -432,15 +441,19 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             pos.ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !";
 
             result = await _posService.UpdateAsync(pos);
+            savedPosId = pos.Id; // ✅ still in scope here
         }
 
         if (result.Success)
         {
             try { _resolver?.Invalidate(); } catch { /* non-fatal */ }
 
+            WeakReferenceMessenger.Default.Send(new ActivePosDeviceConfigChangedMessage(savedPosId)); // ✅ use the captured id
+
             IsEditing = false;
             await LoadAsync();
             _ = ShowSuccessAsync(_editId == 0 ? "✅ POS créé avec succès." : "✅ POS mis à jour.");
+
         }
         else
         {

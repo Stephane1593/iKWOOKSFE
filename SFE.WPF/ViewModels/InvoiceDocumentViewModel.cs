@@ -92,6 +92,8 @@ public partial class InvoiceDocumentViewModel : ObservableObject
     // Add inside InvoiceDocumentViewModel class
     public int PrintNumber { get; set; } = 1;
 
+    private static bool IsCreditNote(InvoiceType type) => type == InvoiceType.FA || type == InvoiceType.EA;
+
     // ═══════════════════════════════════════════════════════
     //  FACTORY
     // ═══════════════════════════════════════════════════════
@@ -129,11 +131,11 @@ public partial class InvoiceDocumentViewModel : ObservableObject
             ClientContact = invoice.ClientPhone ?? "—",
             ClientAddress = invoice.ClientAddress ?? "—",
 
-            // Totals
-            TotalHT = invoice.TotalHT,
-            TotalTVA = invoice.TotalTVA,
-            TotalTTC = invoice.TotalTTC,
-            TotalSpecificTax = invoice.TotalSpecificTax,
+            // Totals — displayed as negative for Avoir (FA/EA), DB stays untouched
+            TotalHT = ApplySign(invoice.TotalHT, invoice.Type),
+            TotalTVA = ApplySign(invoice.TotalTVA, invoice.Type),
+            TotalTTC = ApplySign(invoice.TotalTTC, invoice.Type),
+            TotalSpecificTax = ApplySign(invoice.TotalSpecificTax, invoice.Type),
             LineCount = invoice.Lines.Count,
 
             // Normalization
@@ -174,7 +176,7 @@ public partial class InvoiceDocumentViewModel : ObservableObject
         {
             vm.ExchangeRate = exchangeRate;
             vm.ExchangeRateDisplay = exchangeRate.ToString("N4");
-            vm.TotalTTCUsd = Math.Round(invoice.TotalTTC / exchangeRate, 2);
+            vm.TotalTTCUsd = Math.Round(vm.TotalTTC / exchangeRate, 2);
             vm.TotalTTCUsdDisplay = vm.TotalTTCUsd.ToString("N2");
             vm.HasExchangeRate = true;
         }
@@ -183,7 +185,10 @@ public partial class InvoiceDocumentViewModel : ObservableObject
         vm.QrCodeImage = QrCodeHelper.Generate(invoice.QRCodeContent);
 
         // Amount in words
-        vm.AmountInWords = $"Arrêté la présente facture à la somme de {NumberToFrenchWords.Convert(invoice.TotalTTC)}";
+        var amountWords = NumberToFrenchWords.Convert(Math.Abs(vm.TotalTTC));
+        vm.AmountInWords = IsCreditNote(invoice.Type)
+            ? $"Arrêté le présent avoir à la somme de {amountWords} (montant à déduire)"
+            : $"Arrêté la présente facture à la somme de {amountWords}";
 
         // Lines
         int num = 1;
@@ -198,7 +203,7 @@ public partial class InvoiceDocumentViewModel : ObservableObject
                 UnitPriceHT = line.UnitPriceHT,
                 TaxSpecific = line.SpecificTaxRate > 0 ? $"{line.SpecificTaxRate}%" : "",
                 Quantity = line.Quantity,
-                TotalHT = line.AmountHT
+                TotalHT = ApplySign(line.AmountHT, invoice.Type)
             });
         }
 
@@ -402,6 +407,9 @@ public partial class InvoiceDocumentViewModel : ObservableObject
         bmp.Freeze();
         return bmp;
     }
+
+    private static decimal ApplySign(decimal amount, InvoiceType type) =>
+    IsCreditNote(type) ? -amount : amount;
 }
 
 // ═══════════════════════════════════════════════════════

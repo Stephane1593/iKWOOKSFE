@@ -5,6 +5,7 @@ using SFE.Application.Interfaces;
 using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Infrastructure.Persistence.Repositories;
+using System.Diagnostics;
 
 namespace SFE.Infrastructure.Persistence;
 
@@ -38,10 +39,16 @@ public class UnitOfWork : IUnitOfWork
     public IStockMovementRepository StockMovements { get; }
     public IStockTransferRepository StockTransfers { get; }
 
+    private static int _instanceCounter;
+    public int InstanceId { get; }
+
     public UnitOfWork(AppDbContext context, ITimeProvider time)
     {
         _context = context;
         _time = time;
+
+        InstanceId = Interlocked.Increment(ref _instanceCounter);
+        Debug.WriteLine($"[UoW #{InstanceId}] Created — ctx hash={context.GetHashCode()}");
 
         // Stock repos — no timestamping today, but pass _time if they ever need it
         PosStocks = new PosStockRepository(context);

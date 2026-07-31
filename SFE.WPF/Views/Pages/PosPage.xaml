@@ -929,8 +929,10 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"
-                              MinWidth="440" />
-            <ColumnDefinition Width="460" />
+                              MinWidth="560" />
+            <ColumnDefinition Width="620"
+                              MinWidth="620"
+                              MaxWidth="680" />
         </Grid.ColumnDefinitions>
 
         <!--  ══════════════════════════════════════════════════════  -->
@@ -1495,8 +1497,38 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="1.8*" />
+
+                        <!-- Middle cart row -->
+                        <RowDefinition>
+                            <RowDefinition.Style>
+                                <Style TargetType="RowDefinition">
+                                    <Setter Property="Height" Value="*" />
+
+                                    <Style.Triggers>
+                                        <!-- When payment step is shown, hide middle row -->
+                                        <DataTrigger Binding="{Binding ShowPaymentStep}" Value="True">
+                                            <Setter Property="Height" Value="0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </RowDefinition.Style>
+                        </RowDefinition>
+
+                        <!-- Footer / wizard row -->
+                        <RowDefinition>
+                            <RowDefinition.Style>
+                                <Style TargetType="RowDefinition">
+                                    <Setter Property="Height" Value="1.8*" />
+
+                                    <Style.Triggers>
+                                        <!-- When payment step is shown, give footer all available space -->
+                                        <DataTrigger Binding="{Binding ShowPaymentStep}" Value="True">
+                                            <Setter Property="Height" Value="*" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </RowDefinition.Style>
+                        </RowDefinition>
                     </Grid.RowDefinitions>
 
                     <!--  ────── ROW 0: CART HEADER ──────  -->
@@ -1769,8 +1801,9 @@
                              Background="Transparent"
                              BorderThickness="0"
                              ItemsSource="{Binding CartItems}"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"                            
                              SelectedItem="{Binding SelectedCartItem}">
+                        
                         <ListBox.Template>
                             <ControlTemplate TargetType="ListBox">
                                 <Border Padding="{TemplateBinding Padding}"
@@ -2042,6 +2075,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <Button Grid.Column="0"
+                                                MinHeight="35"
                                                 Background="Transparent"
                                                 BorderThickness="0"
                                                 Command="{Binding GoToReviewStepCommand}"
@@ -2049,15 +2083,15 @@
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="P"
-                                                            MinHeight="44"
+                                                            MinHeight="35"
                                                             Padding="10,0"
                                                             Background="Transparent"
-                                                            CornerRadius="9">
+                                                            CornerRadius="10">
                                                         <TextBlock x:Name="T"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"
                                                                    FontFamily="{StaticResource AppFont}"
-                                                                   FontSize="13"
+                                                                   FontSize="14"
                                                                    FontWeight="SemiBold"
                                                                    Foreground="#6B7280"
                                                                    Text="1 · Récapitulatif"
@@ -2075,16 +2109,17 @@
                                         </Button>
                                         <Button Grid.Column="1"
                                                 Background="Transparent"
+                                                MinHeight="35"
                                                 BorderThickness="0"
                                                 Command="{Binding GoToPaymentStepCommand}"
                                                 Cursor="Hand">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="P"
-                                                            MinHeight="44"
+                                                            MinHeight="35"
                                                             Padding="10,0"
                                                             Background="Transparent"
-                                                            CornerRadius="9">
+                                                            CornerRadius="10">
                                                         <TextBlock x:Name="T"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"
@@ -2422,11 +2457,12 @@
                                         <Button BorderThickness="0"
                                                 Command="{Binding SelectPaymentChannelCommand}"
                                                 CommandParameter="{x:Static enums:PaymentChannel.LocalPos}"
+                                                MinHeight="50"
                                                 Cursor="Hand">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="B"
-                                                            MinHeight="52"
+                                                            MinHeight="50"
                                                             Padding="14,10"
                                                             Background="{StaticResource BackgroundBrush}"
                                                             BorderBrush="Transparent"
@@ -2458,11 +2494,12 @@
                                                 BorderThickness="0"
                                                 Command="{Binding SelectPaymentChannelCommand}"
                                                 CommandParameter="{x:Static enums:PaymentChannel.SunmiTerminal}"
+                                                MinHeight="50"
                                                 Cursor="Hand">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="B"
-                                                            MinHeight="52"
+                                                            MinHeight="50"
                                                             Padding="14,10"
                                                             Background="{StaticResource BackgroundBrush}"
                                                             BorderBrush="Transparent"
@@ -2506,11 +2543,12 @@
                                             <Button BorderThickness="0"
                                                     Command="{Binding SelectSunmiHandoffCommand}"
                                                     CommandParameter="{x:Static enums:SunmiHandoff.ShowQr}"
+                                                    MinHeight="50"
                                                     Cursor="Hand">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="B"
-                                                                MinHeight="46"
+                                                                MinHeight="50"
                                                                 Padding="14,10"
                                                                 Background="{StaticResource BackgroundBrush}"
                                                                 BorderBrush="Transparent"
@@ -2535,11 +2573,12 @@
                                                     BorderThickness="0"
                                                     Command="{Binding SelectSunmiHandoffCommand}"
                                                     CommandParameter="{x:Static enums:SunmiHandoff.LanDevice}"
+                                                    MinHeight="50"
                                                     Cursor="Hand">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="B"
-                                                                MinHeight="46"
+                                                                MinHeight="50"
                                                                 Padding="14,10"
                                                                 Background="{StaticResource BackgroundBrush}"
                                                                 BorderBrush="Transparent"
@@ -2799,38 +2838,6 @@
                                             </Button>
                                         </Grid>
 
-                                        <WrapPanel Margin="0,0,0,12">
-                                            <Button Margin="0,0,8,8"
-                                                    Command="{Binding SetRoundedAmountCommand}"
-                                                    CommandParameter="1000"
-                                                    Content="1 000"
-                                                    Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 1 000,00 CDF" />
-                                            <Button Margin="0,0,8,8"
-                                                    Command="{Binding SetRoundedAmountCommand}"
-                                                    CommandParameter="5000"
-                                                    Content="5 000"
-                                                    Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 5 000,00 CDF" />
-                                            <Button Margin="0,0,8,8"
-                                                    Command="{Binding SetRoundedAmountCommand}"
-                                                    CommandParameter="10000"
-                                                    Content="10 000"
-                                                    Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 10 000,00 CDF" />
-                                            <Button Margin="0,0,8,8"
-                                                    Command="{Binding SetRoundedAmountCommand}"
-                                                    CommandParameter="20000"
-                                                    Content="20 000"
-                                                    Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 20 000,00 CDF" />
-                                            <Button Margin="0,0,0,8"
-                                                    Command="{Binding SetRoundedAmountCommand}"
-                                                    CommandParameter="50000"
-                                                    Content="50 000"
-                                                    Style="{StaticResource PosChipBtn}"
-                                                    ToolTip="Définir le montant reçu à 50 000,00 CDF" />
-                                        </WrapPanel>
                                     </StackPanel>
 
                                     <!--  Change  -->

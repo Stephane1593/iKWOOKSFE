@@ -45,9 +45,19 @@ public sealed class MockPaymentProvider : IPaymentProvider
     // Called by the till (or Sunmi HTTP hop) to advance the state machine.
     // ─────────────────────────────────────────────────────────────────
 
-    public void ReportResult(string key, PaymentTransactionStatus status, string? providerRef = null, string? reason = null)
+    public void ReportResult(
+        string key,
+        PaymentTransactionStatus status,
+        string? providerRef = null,
+        string? reason = null)
     {
-        _reported[key] = new ProviderResult(status, providerRef ?? $"MOCK-{key[..Math.Min(6, key.Length)]}", reason);
+        _firstSeen.TryRemove(key, out _);
+
+        _reported[key] = new ProviderResult(
+            status,
+            providerRef ?? $"MOCK-{key[..Math.Min(6, key.Length)]}",
+            reason
+        );
     }
 
     public void Reset(string key)
@@ -81,45 +91,78 @@ public sealed class MockPaymentProvider : IPaymentProvider
         };
     }
 
-    public Task<ProviderResult> QueryAsync(string key, CancellationToken ct)
+public Task<ProviderResult> QueryAsync(string key, CancellationToken ct)
+{
+    // 1) Terminal state reported externally? Consume it once.
+    if (_reported.TryRemove(key, out var reported))
     {
-        // 1) Terminal state reported externally? Return it and drop the key.
-        if (_reported.TryGetValue(key, out var reported))
-        {
-            // Optionally: only remove once the DB row is terminal, or keep it for a short TTL.
-            return Task.FromResult(reported);
-        }
-
-        // 2) Externally-driven mode → stay Processing forever. Only ReportResult
-        //    (from the /result endpoint or the dev buttons) can end this.
-        if (Mode == Behaviour.ExternallyDriven)
-        {
-            _firstSeen.GetOrAdd(key, _ => DateTimeOffset.UtcNow);
-            return Task.FromResult(new ProviderResult(PaymentTransactionStatus.Processing, null, null));
-        }
-
-        // 3) Legacy auto-modes (for headless tests). Same shape as before.
-        var first = _firstSeen.GetOrAdd(key, _ => DateTimeOffset.UtcNow);
-        var elapsed = DateTimeOffset.UtcNow - first;
-        if (elapsed < SimulatedPayDelay)
-            return Task.FromResult(new ProviderResult(PaymentTransactionStatus.Processing, null, null));
-
-        var providerRef = $"MOCK-{key[..Math.Min(6, key.Length)]}";
-        var result = Mode switch
-        {
-            Behaviour.Approve => new ProviderResult(PaymentTransactionStatus.Approved, providerRef, null),
-            Behaviour.Decline => new ProviderResult(PaymentTransactionStatus.Declined, null, "Insufficient funds (mock)"),
-            Behaviour.Timeout => new ProviderResult(PaymentTransactionStatus.TimedOut, null, null),
-            Behaviour.Silent => new ProviderResult(PaymentTransactionStatus.Processing, null, null),
-            _ => new ProviderResult(PaymentTransactionStatus.Processing, null, null),
-        };
-
-        if (result.Status is PaymentTransactionStatus.Approved
-                          or PaymentTransactionStatus.Declined
-                          or PaymentTransactionStatus.TimedOut)
-        {
-            _firstSeen.TryRemove(key, out _);
-        }
-        return Task.FromResult(result);
+        _firstSeen.TryRemove(key, out _);
+        return Task.FromResult(reported);
     }
+
+    // 2) Externally-driven mode → stay Processing forever.
+    // Only ReportResult can end this.
+    if (Mode == Behaviour.ExternallyDriven)
+    {
+        _firstSeen.GetOrAdd(key, _ => DateTimeOffset.UtcNow);
+        return Task.FromResult(
+            new ProviderResult(PaymentTransactionStatus.Processing, null, null)
+        );
+    }
+
+    // 3) Legacy auto-modes.
+    var first = _firstSeen.GetOrAdd(key, _ => DateTimeOffset.UtcNow);
+    var elapsed = DateTimeOffset.UtcNow - first;
+
+    if (elapsed < SimulatedPayDelay)
+    {
+        return Task.FromResult(
+            new ProviderResult(PaymentTransactionStatus.Processing, null, null)
+        );
+    }
+
+    var providerRef = $"MOCK-{key[..Math.Min(6, key.Length)]}";
+
+    var result = Mode switch
+    {
+        Behaviour.Approve => new ProviderResult(
+            PaymentTransactionStatus.Approved,
+            providerRef,
+            null
+        ),
+
+        Behaviour.Decline => new ProviderResult(
+            PaymentTransactionStatus.Declined,
+            null,
+            "Insufficient funds (mock)"
+        ),
+
+        Behaviour.Timeout => new ProviderResult(
+            PaymentTransactionStatus.TimedOut,
+            null,
+            null
+        ),
+
+        Behaviour.Silent => new ProviderResult(
+            PaymentTransactionStatus.Processing,
+            null,
+            null
+        ),
+
+        _ => new ProviderResult(
+            PaymentTransactionStatus.Processing,
+            null,
+            null
+        ),
+    };
+
+    if (result.Status is PaymentTransactionStatus.Approved
+        or PaymentTransactionStatus.Declined
+        or PaymentTransactionStatus.TimedOut)
+    {
+        _firstSeen.TryRemove(key, out _);
+    }
+
+    return Task.FromResult(result);
+}
 }
