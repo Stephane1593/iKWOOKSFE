@@ -482,6 +482,11 @@ public class InvoicePdfDocument : IDocument
                     decimal unitPrice = _inv.PriceMode == PriceMode.TTC
                         ? ln.UnitPriceTTC : ln.UnitPriceHT;
 
+                    // For tax group N, HT and TVA are not applicable — display as 0.00
+                    bool isGroupN = ln.TaxGroup == TaxGroup.N;
+                    decimal displayHT = isGroupN ? 0m : ln.AmountHT;
+                    decimal displayTVA = isGroupN ? 0m : ln.AmountTVA;
+
                     Cb(ln.LineNumber.ToString());
                     Cb(ln.Code ?? "");
                     Cb(ln.Name ?? "");
@@ -492,9 +497,13 @@ public class InvoicePdfDocument : IDocument
                     if (hasDiscount)
                         Cb(ln.DiscountAmount > 0 ? FormatDiscount(ln) : "", right: true);
                     if (hasTS)
-                        Cb(ln.TaxSpecificAmount > 0 ? M(Signed(ln.TaxSpecificAmount, negate)) : "", right: true);
-                    Cb(M(Signed(ln.AmountHT, negate)), right: true);
-                    Cb(M(Signed(ln.AmountTVA, negate)), right: true);
+                        Cb(ln.TaxSpecificAmount > 0
+                            ? (ln.SpecificTaxType == SpecificTaxType.Percentage
+                                ? $"{M(Signed(ln.TaxSpecificAmount, negate))} ({ln.SpecificTaxValue:0.##}%)"
+                                : M(Signed(ln.TaxSpecificAmount, negate)))
+                            : "", right: true);
+                    Cb(M(Signed(displayHT, negate)), right: true);
+                    Cb(M(Signed(displayTVA, negate)), right: true);
                     Cb(M(Signed(ln.AmountTTC, negate)), right: true, bold: true);
                 }
             });

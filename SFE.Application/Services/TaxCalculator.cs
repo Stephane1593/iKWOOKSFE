@@ -138,6 +138,11 @@ public static class TaxCalculator
                 ? input.UnitPriceTTC
                 : input.UnitPriceHT;
             decimal amount = R2(unitPrice * input.Quantity);
+
+            result.GrossAmount = amount;          // 🆕
+            result.GrossAmountHT = R2(input.UnitPriceHT * input.Quantity);   // 🆕
+            result.GrossAmountTTC = R2(input.UnitPriceTTC * input.Quantity);   // 🆕
+
             result.AmountHTBeforeDiscount = 0m;
             result.DiscountAmount = 0m;
             result.AmountHT = 0m;
@@ -153,6 +158,11 @@ public static class TaxCalculator
         // ── grossAmount = R2(PU × Qty) ──
         decimal unitPriceUsed = isTTC ? input.UnitPriceTTC : input.UnitPriceHT;
         decimal grossAmount = R2(unitPriceUsed * input.Quantity);
+
+        // 🆕 Exposition du brut strict
+        result.GrossAmount = grossAmount;
+        result.GrossAmountHT = R2(input.UnitPriceHT * input.Quantity);
+        result.GrossAmountTTC = R2(input.UnitPriceTTC * input.Quantity);
 
         // AmountHTBeforeDiscount : HT of goods only (no TS, no discount)
         result.AmountHTBeforeDiscount = isTTC && rate > 0m
@@ -490,6 +500,11 @@ public class LineCalculationInput
 
 public class LineCalculationResult
 {
+    // 🆕 Brut strict : Qty × PU, sans remise / TS / TVA
+    public decimal GrossAmount { get; set; }        // dans le mode saisi (HT ou TTC)
+    public decimal GrossAmountHT { get; set; }      // Qty × PU_HT
+    public decimal GrossAmountTTC { get; set; }     // Qty × PU_TTC
+
     public decimal AmountHTBeforeDiscount { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal AmountHT { get; set; }

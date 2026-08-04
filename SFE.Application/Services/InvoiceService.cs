@@ -473,6 +473,10 @@ public class InvoiceService
 
             var calc = TaxCalculator.CalculateLineFull(input);
 
+            line.GrossAmount = calc.GrossAmount;
+            line.GrossAmountHT = calc.GrossAmountHT;
+            line.GrossAmountTTC = calc.GrossAmountTTC;
+
             line.AmountHTBeforeDiscount = calc.AmountHTBeforeDiscount;
             line.DiscountAmount = calc.DiscountAmount;
             line.AmountHT = calc.AmountHT;
@@ -738,9 +742,39 @@ public class InvoiceService
                 break;
         }
 
-        if (invoice.Lines.Any(l => l.TaxGroup == TaxGroup.D)
-            && string.IsNullOrWhiteSpace(invoice.CommentA))
-            return new("La référence du document de dérogation DGI (Ligne A) est obligatoire pour le groupe D.");
+        // ── Contraintes AO (Ambassades / Organisations internationales) ──
+        if (invoice.ClientType == ClientType.AO)
+        {
+            var nonDLines = invoice.Lines
+                .Where(l => l.TaxGroup != TaxGroup.D && l.TaxGroup != TaxGroup.N)
+                .ToList();
+
+            if (nonDLines.Any())
+                return new($"Client AO : tous les articles doivent être dans le groupe D (Dérogation). " +
+                           $"L'article « {nonDLines.First().Name} » est dans le groupe {nonDLines.First().TaxGroup}.");
+
+            if (!invoice.Lines.Any(l => l.TaxGroup == TaxGroup.D))
+                return new("Client AO : la facture doit contenir au moins un article du groupe D (Dérogation).");
+
+            if (invoice.PriceMode != PriceMode.HT)
+                return new("Client AO : la facture doit être établie en régime H.T. (hors taxes).");
+        }
+
+        // ── Groupe D (Dérogation) réservé aux clients AO ──
+        if (invoice.Lines.Any(l => l.TaxGroup == TaxGroup.D))
+        {
+            if (invoice.ClientType != ClientType.AO)
+            {
+                var dLine = invoice.Lines.First(l => l.TaxGroup == TaxGroup.D);
+                return new($"Le groupe D (Dérogation) est réservé aux clients AO " +
+                           $"(Ambassades / Organisations internationales). " +
+                           $"L'article « {dLine.Name} » ne peut pas être facturé en groupe D " +
+                           $"pour un client de type {invoice.ClientType}.");
+            }
+
+            if (string.IsNullOrWhiteSpace(invoice.CommentA))
+                return new("La référence du document de dérogation DGI (Ligne A) est obligatoire pour le groupe D.");
+        }
 
         if (invoice.Type.IsExport())
         {

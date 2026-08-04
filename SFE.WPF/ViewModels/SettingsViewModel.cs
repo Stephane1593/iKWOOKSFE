@@ -48,7 +48,19 @@ public partial class SettingsViewModel : BaseViewModel
     private byte[]? _companyLogoBytes;
 
     // ══════════ DISPOSITIF FISCAL ══════════
-    [ObservableProperty] private bool _isEmcfSelected = true;
+    [ObservableProperty] private DeviceType _activeDeviceType = DeviceType.EMcf;
+
+    public bool IsEmcfSelected => ActiveDeviceType == DeviceType.EMcf;
+    public bool IsMcfSelected => ActiveDeviceType == DeviceType.Mcf;
+    public bool IsHybridSelected => ActiveDeviceType == DeviceType.Hybrid;
+
+    partial void OnActiveDeviceTypeChanged(DeviceType value)
+    {
+        OnPropertyChanged(nameof(IsEmcfSelected));
+        OnPropertyChanged(nameof(IsMcfSelected));
+        OnPropertyChanged(nameof(IsHybridSelected));
+    }
+
     [ObservableProperty] private string _emcfApiUrl = "";
     [ObservableProperty] private string _emcfToken = "";
     [ObservableProperty] private string _emcfNIM = "";
@@ -191,10 +203,14 @@ public partial class SettingsViewModel : BaseViewModel
             Debug.WriteLine($"[Settings] Received change for PosId={m.PosId}, current _activePosId={_activePosId}");
             try
             {
-                if (m.PosId == _activePosId)
-                    await RefreshActivePosDeviceConfig();
-                else
-                    Debug.WriteLine("[Settings] Skipped refresh — PosId mismatch.");
+                // Invalidate the resolver so the next fiscal call picks up new DeviceType/port/URL.
+                if (_fiscalDevice is FiscalDeviceResolver resolver)
+                    resolver.Invalidate();
+
+                // Always reload. Do NOT gate on m.PosId == _activePosId — the active POS
+                // itself may have just changed. LoadSettingsAsync re-reads ActivePosId
+                // from the DB and ApplyActivePosDeviceConfig refreshes the UI.
+                await LoadSettingsAsync();
             }
             catch (Exception ex)
             {
@@ -388,7 +404,7 @@ public partial class SettingsViewModel : BaseViewModel
 
     private void ApplyActivePosDeviceConfig(SettingsData data)
     {
-        IsEmcfSelected = data.DeviceType == DeviceType.EMcf;
+        ActiveDeviceType = data.DeviceType;
         EmcfApiUrl = data.EmcfApiUrl;
         EmcfToken = data.EmcfToken;
         EmcfNIM = data.EmcfNIM;

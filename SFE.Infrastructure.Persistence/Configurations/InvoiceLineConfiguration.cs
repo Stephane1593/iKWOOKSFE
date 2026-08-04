@@ -25,6 +25,10 @@ public class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
         builder.Property(l => l.UnitPriceHT).HasPrecision(18, 4);
         builder.Property(l => l.UnitPriceTTC).HasPrecision(18, 4);
         builder.Property(l => l.UnitPrice).HasPrecision(18, 4);          // legacy
+        builder.Property(l => l.GrossAmount).HasPrecision(18, 4);
+        builder.Property(l => l.GrossAmountHT).HasPrecision(18, 4);
+        builder.Property(l => l.GrossAmountTTC).HasPrecision(18, 4);
+
 
         // ── Quantité — 3 décimales (spec DGI §1.5.1) ──
         builder.Property(l => l.Quantity).HasPrecision(18, 3);

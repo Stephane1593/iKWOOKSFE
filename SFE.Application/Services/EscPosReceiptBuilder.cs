@@ -462,7 +462,7 @@ public static class EscPosReceiptBuilder
 
             decimal unitPrice = GetEffectiveUnitPrice(ln, invoice.PriceMode);
             decimal totalAmount = invoice.PriceMode == PriceMode.TTC
-                                    ? ln.AmountTTC : ln.AmountHT;
+                                    ? ln.GrossAmountTTC : ln.GrossAmountHT;
 
             string qtyPart = $"{Qty(ln.Quantity)} x {FmtCompact(unitPrice)}";
             string totalPart = FmtCompact(Signed(totalAmount, neg));
@@ -491,8 +491,13 @@ public static class EscPosReceiptBuilder
             }
 
             if (ln.TaxSpecificAmount > 0)
-                WriteAlignedRow(ms, "   T.S.", Fmt(Signed(ln.TaxSpecificAmount, neg)),
+            {
+                string tsDesc = ln.SpecificTaxType == SpecificTaxType.Percentage
+                    ? $"   T.S. ({Rate(ln.SpecificTaxValue)}%)"
+                    : "   T.S.";
+                WriteAlignedRow(ms, tsDesc, Fmt(Signed(ln.TaxSpecificAmount, neg)),
                                 totalEnd, ctx);
+            }
         }
     }
 
