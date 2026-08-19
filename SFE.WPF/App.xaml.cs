@@ -350,6 +350,8 @@ public partial class App : System.Windows.Application
         services.AddSingleton<TenantContext>();
         services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
         services.AddSingleton<ITenantProvider>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddSingleton<IExcelInvoiceParser, ExcelInvoiceParser>();
+        services.AddSingleton<IBulkInvoiceService, BulkInvoiceService>();
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();
@@ -414,6 +416,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<ReportAPageViewModel>();
         services.AddTransient<UsersViewModel>();
         services.AddTransient<CategoriesViewModel>();
+        services.AddTransient<BulkInvoicingViewModel>();
 
         // ── Audit ──
         services.AddSingleton<IAuditWriter, AuditWriter>();
@@ -427,6 +430,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<ReportView>();
         services.AddTransient<InvoiceDocumentView>();
         services.AddTransient<PosManagementPage>();
+        services.AddTransient<Views.Pages.BulkInvoicingPage>();
     }
 
     private static async Task InitializeDatabaseAsync()

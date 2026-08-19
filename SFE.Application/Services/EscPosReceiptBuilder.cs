@@ -620,10 +620,10 @@ public static class EscPosReceiptBuilder
     {
         var comments = new (string id, string val)[]
         {
-            ("A", invoice.CommentA), ("B", invoice.CommentB),
-            ("C", invoice.CommentC), ("D", invoice.CommentD),
-            ("E", invoice.CommentE), ("F", invoice.CommentF),
-            ("G", invoice.CommentG), ("H", invoice.CommentH)
+        ("A", invoice.CommentA), ("B", invoice.CommentB),
+        ("C", invoice.CommentC), ("D", invoice.CommentD),
+        ("E", invoice.CommentE), ("F", invoice.CommentF),
+        ("G", invoice.CommentG), ("H", invoice.CommentH)
         };
 
         bool hasAny = comments.Any(c => !string.IsNullOrWhiteSpace(c.val));
@@ -635,7 +635,10 @@ public static class EscPosReceiptBuilder
         foreach (var (id, val) in comments)
         {
             if (!string.IsNullOrWhiteSpace(val))
-                WriteText(ms, $" Ligne {id}: {val}", ctx);
+            {
+                var label = id == "A" ? "Certificat" : $"Ligne {id}";
+                WriteText(ms, $" {label}: {val}", ctx);
+            }
         }
     }
 

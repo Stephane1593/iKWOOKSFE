@@ -700,6 +700,17 @@ public class InvoiceService
             }
         }
 
+        // ── Groupe M (TVA spécifique) doit être accompagné d'au moins un article du groupe N ──
+        if (invoice.Lines.Any(l => l.TaxGroup == TaxGroup.M))
+        {
+            if (!invoice.Lines.Any(l => l.TaxGroup == TaxGroup.N))
+            {
+                var mLine = invoice.Lines.First(l => l.TaxGroup == TaxGroup.M);
+                return new($"L'article « {mLine.Name} » est dans le groupe M (TVA spécifique) : " +
+                           $"la facture doit contenir au moins un article du groupe N (TVA spécifique).");
+            }
+        }
+
         var onTotalGroups = invoice.Lines
             .Where(l => l.SpecificTaxType != SpecificTaxType.None
                         && l.TaxApplicationMode == TaxApplicationMode.OnTotal

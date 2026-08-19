@@ -16,7 +16,7 @@ public partial class MainViewModel : BaseViewModel
 {
     private readonly IAuthService _authService;
     private readonly CashSessionState _sessionState;
-    private readonly ITimeProvider _timeProvider;   // 🆕
+    private readonly ITimeProvider _timeProvider;
 
     [ObservableProperty] private object? _currentPage;
     [ObservableProperty] private string _currentPageKey = "";
@@ -58,6 +58,13 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessDashboard => _authService.HasPermission("dashboard");
     public bool CanAccessPos => _authService.HasPermission("pos") && _sessionState.IsSessionOpen;
     public bool CanAccessInvoicing => _authService.HasPermission("invoicing") && _sessionState.IsSessionOpen;
+
+    // 🆕 Facturation en masse — utilise la même permission que "invoicing"
+    //     et requiert une session ouverte (comme la facturation normale).
+    public bool CanAccessBulkInvoicing => _authService.HasPermission("invoicing")
+                                       && _sessionState.IsSessionOpen
+                                       && !_sessionState.IsSetupMode;
+
     public bool CanAccessClients => _authService.HasPermission("clients");
     public bool CanAccessSalesHistory => _authService.HasPermission("salesHistory");
     public bool CanAccessProducts => _authService.HasPermission("products");
@@ -102,11 +109,11 @@ public partial class MainViewModel : BaseViewModel
     public MainViewModel(
         IAuthService authService,
         CashSessionState sessionState,
-        ITimeProvider timeProvider)          // 🆕
+        ITimeProvider timeProvider)
     {
         _authService = authService;
         _sessionState = sessionState;
-        _timeProvider = timeProvider;        // 🆕
+        _timeProvider = timeProvider;
         PageTitle = "iKWOOK SFE";
 
         IsSetupMode = sessionState.IsSetupMode;
@@ -227,6 +234,18 @@ public partial class MainViewModel : BaseViewModel
     {
         if (string.IsNullOrEmpty(pageKey)) return;
 
+        // 🆕 Garde-fou : bloquer la facturation en masse si session fermée / setup
+        if (pageKey == "BulkInvoicing" && !CanAccessBulkInvoicing)
+        {
+            System.Windows.MessageBox.Show(
+                "La facturation en masse nécessite une session de caisse ouverte " +
+                "et la permission « invoicing ».",
+                "Accès refusé",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
         if (!_pages.ContainsKey(pageKey))
         {
             _pages[pageKey] = pageKey switch
@@ -234,6 +253,7 @@ public partial class MainViewModel : BaseViewModel
                 "Dashboard" => CreatePage<DashboardPage, DashboardViewModel>(),
                 "Cash" => CreatePage<PosPage, PosViewModel>(),
                 "Invoicing" => CreatePage<InvoicingPage, InvoicingViewModel>(),
+                "BulkInvoicing" => CreateBulkInvoicingPage(),  // 🆕
                 "Articles" => CreatePage<ProductsPage, ProductsViewModel>(),
                 "Categories" => CreatePage<CategoriesPage, CategoriesViewModel>(),
                 "Clients" => CreateClientsPage(),
@@ -250,7 +270,7 @@ public partial class MainViewModel : BaseViewModel
 
                 "AuditLog" => CreatePage<AuditLogPage, AuditLogViewModel>(),
                 "UserManual" => new PlaceholderPage("Manuel d'utilisation",
-                                    "Le manuel d'utilisation au format PDF sera intégré ici."),
+                                        "Le manuel d'utilisation au format PDF sera intégré ici."),
                 _ => new PlaceholderPage("Page inconnue", "")
             };
         }
@@ -379,6 +399,12 @@ public partial class MainViewModel : BaseViewModel
         return new ReportZPage { DataContext = vm };
     }
 
+    private static BulkInvoicingPage CreateBulkInvoicingPage()
+    {
+        var vm = App.ServiceProvider.GetRequiredService<BulkInvoicingViewModel>();
+        return new BulkInvoicingPage(vm);
+    }
+
     [RelayCommand]
     private async Task CheckDeviceStatusAsync()
     {
@@ -434,7 +460,6 @@ public partial class MainViewModel : BaseViewModel
 
             if (serverStatus.IsOverSevenDays)
             {
-                // 🆕 Utilise ITimeProvider au lieu de DateTime.Now
                 var daysSince = serverStatus.LastServerConnection.HasValue
                     ? (_timeProvider.LocalNow - serverStatus.LastServerConnection.Value).Days
                     : 7;

@@ -508,7 +508,7 @@
                                        PopupAnimation="Fade"
                                        StaysOpen="False"
                                        VerticalOffset="8">
-                                    <Border MinWidth="230"
+                                    <Border MinWidth="240"
                                             Padding="6"
                                             Background="{StaticResource PopupGradient}"
                                             BorderBrush="#E8F0F5"
@@ -516,6 +516,8 @@
                                             CornerRadius="14"
                                             Effect="{StaticResource PopupShadow}">
                                         <StackPanel>
+
+                                            <!--  ═══ Caisse ═══  -->
                                             <Button Click="CloseDropdowns"
                                                     Command="{Binding NavigateToPageCommand}"
                                                     CommandParameter="Cash"
@@ -549,6 +551,8 @@
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Button>
+
+                                            <!--  ═══ Facture ═══  -->
                                             <Button Click="CloseDropdowns"
                                                     Command="{Binding NavigateToPageCommand}"
                                                     CommandParameter="Invoicing"
@@ -582,6 +586,60 @@
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Button>
+
+                                            <!--  🆕 Séparateur  -->
+                                            <Border Height="1"
+                                                    Margin="8,4"
+                                                    Background="#E5E7EB" />
+
+                                            <!--  🆕 ═══ Facturation en masse ═══  -->
+                                            <Button Click="CloseDropdowns"
+                                                    Command="{Binding NavigateToPageCommand}"
+                                                    CommandParameter="BulkInvoicing"
+                                                    IsEnabled="{Binding CanAccessBulkInvoicing}"
+                                                    Style="{StaticResource NavSubBtn}"
+                                                    ToolTip="Importer et facturer plusieurs clients depuis un fichier Excel">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="32"
+                                                            Height="32"
+                                                            Margin="0,0,10,0"
+                                                            VerticalAlignment="Center"
+                                                            CornerRadius="8">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                <GradientStop Offset="0" Color="#F5F3FF" />
+                                                                <GradientStop Offset="1" Color="#EDE9FE" />
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                        <materialDesign:PackIcon Width="16"
+                                                                                 Height="16"
+                                                                                 HorizontalAlignment="Center"
+                                                                                 VerticalAlignment="Center"
+                                                                                 Foreground="#7C3AED"
+                                                                                 Kind="FileExcelBoxOutline" />
+                                                    </Border>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock FontWeight="Medium"
+                                                                       Text="Facturation en masse" />
+                                                            <Border Margin="8,0,0,0"
+                                                                    Padding="5,1"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="#EDE9FE"
+                                                                    CornerRadius="4">
+                                                                <TextBlock FontSize="9"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#7C3AED"
+                                                                           Text="EXCEL" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock FontSize="10"
+                                                                   Foreground="#94A3B8"
+                                                                   Text="Import multi-clients" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
+
                                         </StackPanel>
                                     </Border>
                                 </Popup>
