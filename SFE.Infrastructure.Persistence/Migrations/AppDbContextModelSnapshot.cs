@@ -1883,6 +1883,14 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<long?>("LastLoginAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ManagerBarcodeHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ManagerPinHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -1900,6 +1908,8 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ManagerBarcodeHash");
 
                     b.HasIndex("PointOfSaleId");
 

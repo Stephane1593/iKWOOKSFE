@@ -1,9 +1,9 @@
-﻿// File: SFE.WPF/ViewModels/ProductsViewModel.cs
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Events;
 using SFE.Application.Helpers;
+using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
@@ -14,6 +14,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
 {
     private readonly ProductService _productService;
     private readonly SettingsService _settingsService;
+    private readonly IAuthService _authService;
 
     // ══════════════════════════════════════════════
     //  LISTE
@@ -112,10 +113,11 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     // ══════════════════════════════════════════════
     //  CONSTRUCTOR
     // ══════════════════════════════════════════════
-    public ProductsViewModel(ProductService productService, SettingsService settingsService)
+    public ProductsViewModel(ProductService productService, SettingsService settingsService, IAuthService authService)
     {
         _productService = productService;
         _settingsService = settingsService;
+        _authService = authService;
         PageTitle = "Catalogue Produits";
 
         Subscribe(OnStockOrProductChangedAsync,
@@ -131,6 +133,8 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
 
         _ = InitializeAsync();
     }
+
+    public bool CanDeleteProducts => _authService.HasPermission("authorize.deleteProduct");
 
     private async Task OnStockOrProductChangedAsync()
     {
@@ -639,11 +643,30 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         ShowSuccess = false;
     }
 
+    // ── guarded command
     [RelayCommand]
     private async Task DeleteProduct(Product? product)
     {
         if (product == null) return;
-        await _productService.DeleteAsync(product.Id);
+
+        if (!_authService.HasPermission("authorize.deleteProduct"))
+        {
+            StatusMessage = "Vous n'avez pas l'autorisation de supprimer un produit. " +
+                            "Contactez un administrateur.";
+            ShowError = true;
+            ShowSuccess = false;
+            return;
+        }
+
+        var result = await _productService.DeleteAsync(product.Id);
+        if (!result.Success)
+        {
+            StatusMessage = result.ErrorMessage;
+            ShowError = true;
+            ShowSuccess = false;
+            return;
+        }
+
         StatusMessage = $"✓ Produit « {product.Name} » supprimé.";
         ShowSuccess = true;
         ShowError = false;

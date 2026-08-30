@@ -15,6 +15,10 @@ using System.Text;
 using SFE.Domain.Abstractions;
 using SFE.Infrastructure.Persistence.Repositories;
 using SFE.Api;
+using SFE.Licensing.Domain;
+using SFE.Licensing.Local;
+using SFE.WPF.Licensing;
+using Microsoft.Extensions.Logging;
 
 namespace SFE.WPF;
 
@@ -48,6 +52,24 @@ public partial class App : System.Windows.Application
         var context = ServiceProvider.GetRequiredService<AppDbContext>();
         await DatabaseSeeder.SeedAsync(context);
 
+        // -- License bootstrap --
+        var guard = ServiceProvider.GetRequiredService<ILicenseGuard>();
+        await guard.InitializeAsync();
+
+        if (guard.Current.Status.IsFatal())
+        {
+            var blocker = new LicenseBlockedWindow(guard);
+            blocker.ShowDialog();
+
+            // If the user installed a valid license inside the blocker, guard.Current
+            // will have flipped to non-fatal and we can proceed. Otherwise, exit.
+            if (guard.Current.Status.IsFatal())
+            {
+                Shutdown();
+                return;
+            }
+        }
+
         while (true)
         {
             var authService = ServiceProvider.GetRequiredService<IAuthService>();
@@ -72,7 +94,6 @@ public partial class App : System.Windows.Application
             {
                 case SessionAction.JoinExisting:
                     {
-                        // Same POS — shift handover
                         var session = sessionState.Current!;
                         MessageBox.Show(
                             $"Une session de caisse est déjà ouverte.\n\n" +
@@ -85,19 +106,16 @@ public partial class App : System.Windows.Application
                             MessageBoxButton.OK,
                             MessageBoxImage.Information);
 
-                        // Update the operator name on the session
                         sessionState.Current!.OperatorName = authService.CurrentUser!.FullName;
                         break;
                     }
 
                 case SessionAction.BlockedWrongPos:
                     {
-                        // User is assigned to a different POS than the open session
                         var session = sessionState.Current!;
                         var user = authService.CurrentUser!;
                         var userPosId = user.PointOfSaleId;
 
-                        // Try to get the user's POS name for the message
                         string userPosDisplay = "un autre point de vente";
                         if (userPosId.HasValue)
                         {
@@ -126,12 +144,11 @@ public partial class App : System.Windows.Application
                             MessageBoxImage.Warning);
 
                         authService.Logout();
-                        continue; // back to login
+                        continue;
                     }
 
                 case SessionAction.BlockedNoPos:
                     {
-                        // User has no POS assigned AND can't bypass — blocked
                         var session = sessionState.Current!;
 
                         MessageBox.Show(
@@ -149,7 +166,6 @@ public partial class App : System.Windows.Application
 
                 case SessionAction.BypassToSetup:
                     {
-                        // IT Tech with active session on different POS — enter setup mode
                         var session = sessionState.Current!;
 
                         var choice = MessageBox.Show(
@@ -168,14 +184,12 @@ public partial class App : System.Windows.Application
                             continue;
                         }
 
-                        // Don't touch the existing session — just layer setup mode
                         sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
                         break;
                     }
 
                 case SessionAction.ShowDialog:
                     {
-                        // No session open — normal flow
                         if (sessionState.IsSetupMode)
                             sessionState.Close();
 
@@ -218,23 +232,16 @@ public partial class App : System.Windows.Application
 
             if (mainVm.Reason == MainViewModel.CloseReason.ZClose)
             {
-                // Z-close: clear everything
                 sessionState.Close();
             }
             else if (mainVm.Reason == MainViewModel.CloseReason.Logout)
             {
-                // Regular logout
                 if (sessionState.IsSetupMode)
-                {
-                    // IT Tech was in setup mode — just exit setup, preserve session
                     sessionState.ExitSetupMode();
-                }
-                // If a normal session is open, it stays open for next user
             }
 
             authService.Logout();
         }
-
     }
 
     protected override async void OnExit(ExitEventArgs e)
@@ -255,17 +262,16 @@ public partial class App : System.Windows.Application
 
     private enum SessionAction
     {
-        ShowDialog,       // No session — show normal dialog
-        JoinExisting,     // Same POS — join session
-        BlockedWrongPos,  // Different POS — can't work
-        BlockedNoPos,     // No POS assigned, can't bypass
-        BypassToSetup     // IT Tech — setup mode
+        ShowDialog,
+        JoinExisting,
+        BlockedWrongPos,
+        BlockedNoPos,
+        BypassToSetup
     }
 
     private static SessionAction ResolveSessionAction(
         IAuthService authService, CashSessionState sessionState)
     {
-        // No session open → normal flow
         if (!sessionState.IsSessionOpen)
             return SessionAction.ShowDialog;
 
@@ -277,29 +283,20 @@ public partial class App : System.Windows.Application
         var userPosId = user.PointOfSaleId;
         bool canBypass = authService.HasPermission("bypassPosCheck");
 
-        // ── Case 1: User assigned to the SAME POS → join ──
         if (userPosId.HasValue && userPosId.Value == openPosId)
             return SessionAction.JoinExisting;
 
-        // ── Case 2: User assigned to DIFFERENT POS ──
         if (userPosId.HasValue && userPosId.Value != openPosId)
         {
-            // IT Tech with bypass → can enter setup mode
             if (canBypass)
                 return SessionAction.BypassToSetup;
-
-            // Regular user → blocked
             return SessionAction.BlockedWrongPos;
         }
 
-        // ── Case 3: User has NO POS assigned ──
         if (!userPosId.HasValue)
         {
-            // IT Tech → setup mode
             if (canBypass)
                 return SessionAction.BypassToSetup;
-
-            // Regular user without POS → blocked
             return SessionAction.BlockedNoPos;
         }
 
@@ -318,20 +315,37 @@ public partial class App : System.Windows.Application
         var walInterceptor = new SqliteWalInterceptor();
 
         services.AddLogging(); // safe to call even if you never wire a provider
-        services.AddDbContext<AppDbContext>(options =>
+
+        services.AddDbContext<AppDbContext>((sp, options) =>
             options.UseSqlite($"Data Source={dbPath};Cache=Shared")
                    .AddInterceptors(walInterceptor),
             ServiceLifetime.Transient);
 
+        services.AddDbContextFactory<AppDbContext>((sp, options) =>
+            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                   .AddInterceptors(walInterceptor));
+
         services.AddSingleton<ITimeProvider, SystemTimeProvider>();
+
+        // Cross-checks system clock against domain timestamps. Must be registered
+        // BEFORE AddSfeLicensingLocal because AntiClockTamper resolves it.
+        services.AddSingleton<IMonotonicClockAnchor, EfMonotonicClockAnchor>();
+
+        // --- Licensing ---
+        // No dev trial issuer registered here anymore. First-run without a .lic
+        // shows LicenseBlockedWindow; paste in a dev-minted .lic to proceed.
+        services.AddSfeLicensingLocal(
+            licensePublicKey: EmbeddedLicensePublicKey.GetBytes(),
+            pinnedPublicKeySha256Hex: EmbeddedLicensePublicKey.PublicKeySha256Hex);
+
         // ═══ Repositories & Unit of Work ═══
         services.AddTransient<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 
-        // ═══ AUTH (Singleton — holds current user state) ═══
+        // ═══ AUTH ═══
         services.AddSingleton<IAuthService, AuthService>();
 
-        // ═══ Session State (Singleton — holds current cash session) ═══
+        // ═══ Session State ═══
         services.AddSingleton<CashSessionState>();
 
         // ═══ Services Application ═══
@@ -352,16 +366,18 @@ public partial class App : System.Windows.Application
         services.AddSingleton<ITenantProvider>(sp => sp.GetRequiredService<TenantContext>());
         services.AddSingleton<IExcelInvoiceParser, ExcelInvoiceParser>();
         services.AddSingleton<IBulkInvoiceService, BulkInvoiceService>();
+        services.AddSingleton<ManagerGate>();
+        services.AddSingleton<IManagerAuthorizationService, ManagerAuthorizationService>();
+        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
+        services.AddSingleton<IBarcodeScannerService, KeyboardBarcodeScanner>();
+        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();
         services.AddSingleton<IFiscalDeviceService>(sp =>
             sp.GetRequiredService<FiscalDeviceResolver>());
 
-
-
         // --- payment skeleton ---
-        // Program.cs / App.xaml.cs — DI composition
         services.AddSingleton<MockPaymentProvider>(_ => new MockPaymentProvider
         {
             Mode = MockPaymentProvider.Behaviour.ExternallyDriven
@@ -371,9 +387,7 @@ public partial class App : System.Windows.Application
         services.AddScoped<PaymentService>();
         services.AddScoped<IPendingOrderProvider, InvoicePendingOrderProvider>();
         services.AddSingleton<InMemoryPendingOrderStore>();
-        // Reconciler config + registration. It's a BackgroundService, so we register
-        // it as a singleton and start/stop it by hand in Application_Startup / OnExit
-        // (WPF has no IHost, so AddHostedService would be a no-op).
+
         services.Configure<PaymentReconciliationOptions>(o =>
         {
             o.PollInterval = TimeSpan.FromSeconds(2);
@@ -382,12 +396,9 @@ public partial class App : System.Windows.Application
         });
         services.AddSingleton<PaymentReconciliationService>();
 
-
-        
         services.AddSingleton(sp =>
         {
             // TODO: replace this with a secret saved in SettingsService or pairing config.
-            // Both the caisse and Sunmi must use the same secret to verify QR signatures.
             var secretText = "ikwookQrcodebaby";
             var secret = Encoding.UTF8.GetBytes(secretText);
 
@@ -395,7 +406,8 @@ public partial class App : System.Windows.Application
                 pairingSecret: secret,
                 caisseId: Environment.MachineName);
         });
-        services.AddScoped<OfflineQrResolver>();   // scoped: it uses IInvoiceRepository (DbContext)
+        services.AddScoped<OfflineQrResolver>();
+
         // ═══ ViewModels ═══
         services.AddTransient<MainViewModel>();
         services.AddTransient<DashboardViewModel>();
@@ -422,7 +434,6 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IAuditWriter, AuditWriter>();
         services.AddSingleton<IAuditService, AuditService>();
         services.AddTransient<AuditLogViewModel>();
-        
 
         // ═══ Fenêtres & Pages ═══
         services.AddTransient<MainWindow>();

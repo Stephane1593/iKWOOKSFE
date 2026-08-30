@@ -9,6 +9,13 @@ public class User
     public string FullName { get; set; } = string.Empty;
     public int RoleId { get; set; }
     public bool IsActive { get; set; } = true;
+
+    /// <summary>SHA-256 of the manager PIN. Null = user has no PIN configured.</summary>
+    public string? ManagerPinHash { get; set; }
+
+    /// <summary>SHA-256 of the manager's authorization barcode payload. Null = no barcode issued.</summary>
+    public string? ManagerBarcodeHash { get; set; }
+    public DateTimeOffset? ManagerBarcodeIssuedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
 
     // ═══════════════════════════════════════════════

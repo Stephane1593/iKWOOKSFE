@@ -1,12 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Licensing.Domain\SFE.Licensing.Domain.csproj" />
     <ProjectReference Include="..\SFE.Api\SFE.Api.csproj" />
     <ProjectReference Include="..\SFE.Domain\SFE.Domain.csproj" />
     <ProjectReference Include="..\SFE.Application\SFE.Application.csproj" />
     <ProjectReference Include="..\SFE.Infrastructure.Persistence\SFE.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\SFE.Infrastructure.EMcf\SFE.Infrastructure.EMcf.csproj" />
     <ProjectReference Include="..\SFE.Infrastructure.Mcf\SFE.Infrastructure.Mcf.csproj" />
+    <ProjectReference Include="..\SFE.Licensing.Local\SFE.Licensing.Local.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,8 +20,9 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="QuestPDF" Version="2026.2.4" />
-    <PackageReference Include="System.Management" Version="10.0.6" />
+    <PackageReference Include="System.Management" Version="10.0.11" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.7" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -28,6 +31,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DefineConstants>$(DefineConstants);SFE_RELEASE</DefineConstants>
   </PropertyGroup>
 
 </Project>

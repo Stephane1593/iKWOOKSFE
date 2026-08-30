@@ -10,6 +10,9 @@ public class UserService
 {
     private readonly IUnitOfWork _uow;
     private readonly IAuditService _audit;
+    private readonly ILicenseService _license;
+    private static readonly char[] BarcodeAlphabet =
+    "ABCDEFGHJKMNPQRSTUVWXYZ23456789".ToCharArray();
 
     // ═══════ CONSTANTES DE PROTECTION ═══════
     public const string SuperAdminUsername = "superadmin";
@@ -24,28 +27,44 @@ public class UserService
         new(StringComparer.OrdinalIgnoreCase) { InspecteurDGIRoleName };
 
     public static readonly List<(string Key, string Label)> AllPermissions = new()
-    {
-        ("dashboard",      "Tableau de bord"),
-        ("pos",            "Point de vente (caisse)"),
-        ("invoicing",      "Facturation"),
-        ("clients",        "Clients"),
-        ("salesHistory",   "Historique des ventes"),
-        ("products",       "Produits"),
-        ("stock",          "Stock"),
-        ("transfers",      "Transferts stock"),
-        ("loyalty",        "Programme fidélité"),
-        ("reports",        "Rapports (X, A, historique)"),
-        ("closeZ",         "Clôture Z (fin de session)"),
-        ("settings",       "Paramètres"),
-        ("users",          "Gestion utilisateurs"),
-        ("audit",          "Journal d'audit"),
-        ("bypassPosCheck", "Accès sans POS")
-    };
+{
+    // ─── Accès aux modules ───
+    ("dashboard",      "Tableau de bord"),
+    ("pos",            "Point de vente (caisse)"),
+    ("invoicing",      "Facturation"),
+    ("clients",        "Clients"),
+    ("salesHistory",   "Historique des ventes"),
+    ("products",       "Produits"),
+    ("stock",          "Stock"),
+    ("transfers",      "Transferts stock"),
+    ("loyalty",        "Programme fidélité"),
+    ("reports",        "Rapports (X, A, historique)"),
+    ("closeZ",         "Clôture Z (fin de session)"),
+    ("settings",       "Paramètres"),
+    ("users",          "Gestion utilisateurs"),
+    ("audit",          "Journal d'audit"),
+    ("bypassPosCheck", "Accès sans POS"),
 
-    public UserService(IUnitOfWork unitOfWork, IAuditService audit)
+    // ─── Autorisations manager (override caisse) ───
+    ("authorize.removeCartLine",       "Autoriser : retirer une ligne du panier"),
+    ("authorize.clearCart",            "Autoriser : vider le panier"),
+    ("authorize.largeDiscount",        "Autoriser : remise supérieure au seuil"),
+    ("authorize.overridePrice",        "Autoriser : modification de prix"),
+    ("authorize.cancelInvoice",        "Autoriser : annulation de facture"),
+    ("authorize.issueCreditNote",      "Autoriser : émission d'un avoir"),
+    ("authorize.reopenSession",        "Autoriser : réouverture de session"),
+    ("authorize.noSaleDrawer",         "Autoriser : ouverture tiroir sans vente"),
+    ("authorize.negativeStockSale",    "Autoriser : vente en stock négatif"),
+    ("authorize.deleteProduct",        "Autoriser : suppression de produit"),
+    ("authorize.changeExchangeRate",   "Autoriser : modification taux de change"),
+    ("authorize.reprintFiscalReceipt", "Autoriser : réimpression fiscale"),
+};
+
+    public UserService(IUnitOfWork unitOfWork, IAuditService audit, ILicenseService license)
     {
         _uow = unitOfWork;
         _audit = audit;
+        _license = license;
     }
 
     // ═══════ QUERIES ═══════
@@ -163,6 +182,18 @@ public class UserService
         if (authError != null)
             return ServiceResult.Fail(authError);
 
+        // -- LIMITE DE LICENCE : nombre d'utilisateurs --
+        var maxUsers = _license.MaxUsers;
+        if (maxUsers > 0)
+        {
+            var allUsers = await _uow.Users.GetAllAsync();
+            var seatCount = allUsers.Count(u => !IsSuperAdminUser(u));
+            if (seatCount >= maxUsers)
+                return ServiceResult.Fail(
+                    $"Limite de licence atteinte : votre licence autorise {maxUsers} utilisateur(s). " +
+                    "Supprimez un utilisateur existant ou mettez votre licence à niveau.");
+        }
+
         user.Username = user.Username.Trim().ToLower();
         user.FullName = user.FullName.Trim();
         user.PasswordHash = AuthService.HashPassword(plainPassword);
@@ -253,10 +284,21 @@ public class UserService
         if (!string.IsNullOrWhiteSpace(newPlainPassword))
             changes.Add("Mot de passe modifié");
 
+        // 🆕 Auto-revoke any manager card if role changes or user is being deactivated.
+        bool autoRevokeCard =
+            existing.ManagerBarcodeHash != null &&
+            (existing.RoleId != user.RoleId || (existing.IsActive && !user.IsActive));
+
+        if (autoRevokeCard)
+            changes.Add("Carte manager révoquée (contexte modifié)");
+
         existing.FullName = user.FullName.Trim();
         existing.RoleId = user.RoleId;
         existing.IsActive = user.IsActive;
         existing.PointOfSaleId = user.PointOfSaleId;
+
+        if (autoRevokeCard)
+            existing.ManagerBarcodeHash = null;
 
         if (!string.IsNullOrWhiteSpace(newPlainPassword))
         {
@@ -347,6 +389,10 @@ public class UserService
         }
 
         user.IsActive = !user.IsActive;
+        // 🆕 If we just deactivated the user, revoke the manager card too.
+        if (!user.IsActive && user.ManagerBarcodeHash != null)
+            user.ManagerBarcodeHash = null;
+
         await _uow.Users.UpdateAsync(user);
         await _uow.SaveChangesAsync();
 
@@ -516,6 +562,125 @@ public class UserService
         return ServiceResult.Ok();
     }
 
+    // ═══════ MANAGER BARCODE (override card) ═══════
+
+    /// <summary>
+    /// Generates a fresh manager barcode for <paramref name="targetUserId"/>.
+    /// Returns the plain payload ONCE for printing — it is not stored, only its SHA-256 hash is.
+    /// Any previously issued card for that user is invalidated.
+    /// </summary>
+    public async Task<(ServiceResult Result, string? PlainCode)>
+        GenerateManagerBarcodeAsync(int targetUserId, int currentUserId)
+    {
+        // Only SuperAdmin can issue cards.
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return (ServiceResult.Fail("Seul le SuperAdmin peut générer une carte manager."), null);
+
+        var target = await _uow.Users.GetByIdAsync(targetUserId);
+        if (target == null)
+            return (ServiceResult.Fail("Utilisateur introuvable."), null);
+        if (!target.IsActive)
+            return (ServiceResult.Fail("Impossible d'émettre une carte pour un compte inactif."), null);
+        if (IsSuperAdminUser(target))
+            return (ServiceResult.Fail("Le SuperAdmin n'utilise pas de carte manager."), null);
+
+        var targetRole = await _uow.GetRepository<Role>().GetByIdAsync(target.RoleId);
+        if (!IsManagerEligibleRole(targetRole))
+            return (ServiceResult.Fail(
+                $"Le rôle « {targetRole?.Name} » n'autorise pas l'émission d'une carte manager."), null);
+
+        // MGR-XXXX-XXXX (8 chars from a 31-symbol alphabet ≈ 39 bits entropy).
+        // Retry on the astronomically rare hash collision.
+        string plain, hash;
+        int attempt = 0;
+        while (true)
+        {
+            var bytes = new byte[8];
+            System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+            var sb = new System.Text.StringBuilder("MGR-");
+            for (int i = 0; i < 8; i++)
+            {
+                if (i == 4) sb.Append('-');
+                sb.Append(BarcodeAlphabet[bytes[i] % BarcodeAlphabet.Length]);
+            }
+            plain = sb.ToString();
+            hash = Sha256Hex(plain);
+
+            var clash = await _uow.Users.FindAsync(u => u.ManagerBarcodeHash == hash);
+            if (!clash.Any()) break;
+            if (++attempt > 5)
+                return (ServiceResult.Fail("Impossible de générer un code unique. Réessayez."), null);
+        }
+
+        target.ManagerBarcodeHash = hash;
+        await _uow.Users.UpdateAsync(target);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.UserUpdated, target.Id.ToString());
+        await _uow.FlushEventsAsync();
+
+        await _audit.LogAsync(
+            AuditAction.ManagerCardIssued,      // or AuditAction.UserUpdated if you didn't add the enum
+            AuditModule.Users,
+            $"Carte manager émise pour « {target.Username} » ({target.FullName}) · Rôle « {targetRole?.Name} »",
+            entityType: "User",
+            entityId: target.Id.ToString());
+
+        return (ServiceResult.Ok(), plain);
+    }
+
+    /// <summary>
+    /// Revokes the manager barcode for a user. Idempotent — safe to call even if no card exists.
+    /// </summary>
+    public async Task<ServiceResult> RevokeManagerBarcodeAsync(int targetUserId, int currentUserId)
+    {
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return ServiceResult.Fail("Seul le SuperAdmin peut révoquer une carte manager.");
+
+        var target = await _uow.Users.GetByIdAsync(targetUserId);
+        if (target == null)
+            return ServiceResult.Fail("Utilisateur introuvable.");
+
+        if (target.ManagerBarcodeHash == null)
+            return ServiceResult.Ok();  // already revoked — no-op
+
+        target.ManagerBarcodeHash = null;
+        await _uow.Users.UpdateAsync(target);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.UserUpdated, target.Id.ToString());
+        await _uow.FlushEventsAsync();
+
+        await _audit.LogAsync(
+            AuditAction.ManagerCardRevoked,     // fallback: AuditAction.UserUpdated
+            AuditModule.Users,
+            $"Carte manager révoquée pour « {target.Username} » ({target.FullName})",
+            entityType: "User",
+            entityId: target.Id.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    /// <summary>
+    /// Resolves a scanned/typed manager barcode payload to the owning user.
+    /// O(1) indexed lookup on ManagerBarcodeHash. Returns null if no active user matches.
+    /// </summary>
+    public async Task<User?> ResolveManagerBarcodeAsync(string scannedCode)
+    {
+        if (string.IsNullOrWhiteSpace(scannedCode)) return null;
+
+        var normalized = scannedCode.Trim().ToUpperInvariant();
+        var hash = Sha256Hex(normalized);
+
+        var matches = await _uow.Users.FindAsync(u =>
+            u.IsActive && u.ManagerBarcodeHash == hash);
+
+        // Expected: 0 or 1. If somehow more, take the first.
+        return matches.FirstOrDefault();
+    }
+
     // ═══════ HELPERS ═══════
 
     public static Dictionary<string, bool> ParsePermissions(string json)
@@ -529,6 +694,34 @@ public class UserService
         try { return JsonSerializer.Deserialize<int[]>(json ?? "[]") ?? []; }
         catch { return []; }
     }
+
+    // ═══════ MANAGER BARCODE HELPERS ═══════
+
+    /// <summary>SHA-256 hex (lowercase). Same format as ManagerBarcodeHash column.</summary>
+    private static string Sha256Hex(string input)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+        var sb = new System.Text.StringBuilder(bytes.Length * 2);
+        foreach (var b in bytes) sb.Append(b.ToString("x2"));
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Roles that may carry an override barcode. Excludes SuperAdmin (never gets a card),
+    /// IT Tech, and Inspecteur DGI (those aren't "cashier managers").
+    /// </summary>
+    public static bool IsManagerEligibleRole(Role? r)
+    {
+        if (r == null) return false;
+        if (IsSuperAdminRole(r) || IsITTechRole(r) || IsInspecteurDGIRole(r)) return false;
+
+        var n = r.Name?.Trim().ToLowerInvariant() ?? "";
+        return n is "admin" or "administrateur"
+                 or "gestionnaire" or "manager"
+                 or "responsable" or "chef de caisse";
+    }
+
 }
 
 // ═══════ SERVICE RESULT ═══════

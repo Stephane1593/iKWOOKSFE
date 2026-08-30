@@ -11,12 +11,14 @@ public class ProductService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuditService _audit;
     private readonly ITimeProvider _time;
+    private readonly IAuthService _authService;
 
-    public ProductService(IUnitOfWork unitOfWork, IAuditService audit, ITimeProvider time)
+    public ProductService(IUnitOfWork unitOfWork, IAuditService audit, IAuthService authService, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
         _audit = audit;
         _time = time;
+        _authService = authService;
     }
 
     public async Task<List<Product>> GetAllActiveAsync()
@@ -118,29 +120,34 @@ public class ProductService
         return new ProductSaveResult { Success = true, ProductId = product.Id };
     }
 
-    public async Task DeleteAsync(int productId)
+    public async Task<ServiceResult> DeleteAsync(int productId)
     {
+        if (!_authService.HasPermission("authorize.deleteProduct"))
+            return ServiceResult.Fail("Vous n'avez pas l'autorisation de supprimer un produit.");
+
         var product = await _unitOfWork.Products.GetByIdAsync(productId);
-        if (product != null)
-        {
-            product.IsActive = false;
-            product.UpdatedAt = _time.UtcNow.UtcDateTime;
+        if (product == null)
+            return ServiceResult.Fail("Produit introuvable.");
 
-            await _unitOfWork.Products.UpdateAsync(product);
-            await _unitOfWork.SaveChangesAsync();
+        product.IsActive = false;
+        product.UpdatedAt = _time.UtcNow.UtcDateTime;
 
-            // ── EVENT ──
-            _unitOfWork.EnqueueEvent(AppEvent.ProductDeleted, productId.ToString());
-            await _unitOfWork.FlushEventsAsync();
+        await _unitOfWork.Products.UpdateAsync(product);
+        await _unitOfWork.SaveChangesAsync();
 
-            // ── AUDIT ── (fixed argument order)
-            await _audit.LogAsync(
-                AuditAction.ProductDeleted,
-                AuditModule.Products,
-                $"{product.Code} — {product.Name} (désactivé)",
-                entityType: "Product",
-                entityId: product.Id.ToString());
-        }
+        // ── EVENT ──
+        _unitOfWork.EnqueueEvent(AppEvent.ProductDeleted, productId.ToString());
+        await _unitOfWork.FlushEventsAsync();
+
+        // ── AUDIT ──
+        await _audit.LogAsync(
+            AuditAction.ProductDeleted,
+            AuditModule.Products,
+            $"{product.Code} — {product.Name} (désactivé)",
+            entityType: "Product",
+            entityId: product.Id.ToString());
+
+        return ServiceResult.Ok(); // or ServiceResult.Ok() depending on your API
     }
 
     public async Task<List<ProductCategory>> GetCategoriesAsync()

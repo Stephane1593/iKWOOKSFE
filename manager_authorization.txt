@@ -1,0 +1,4249 @@
+==========================================================
+ LICENSING REVIEW BUNDLE #2
+ Focus     : feature tokens + MaxUsers enforcement
+ Generated : 2026-08-30 21:18:35
+ Repo root : C:\iKwook
+ File count: 16 requested
+==========================================================
+
+
+==========================================================
+FILE: SFE.Domain/Enums/ManagerAction.cs
+SIZE: 2772 bytes
+==========================================================
+namespace SFE.Domain.Enums;
+
+/// <summary>
+/// Every action that requires manager authorization at the till or elsewhere.
+/// Each value maps 1:1 to a permission key on Role.Permissions
+/// (e.g. ManagerAction.RemoveCartLine -> "authorize.removeCartLine").
+/// </summary>
+public enum ManagerAction
+{
+    RemoveCartLine = 1,
+    ClearCart = 2,
+    ApplyLargeDiscount = 3,   // > seuil paramétrable
+    OverridePrice = 4,
+    CancelInvoice = 5,
+    IssueCreditNote = 6,
+    ReopenSession = 7,
+    NoSaleDrawer = 8,
+    NegativeStockSale = 9,
+    DeleteProduct = 10,
+    ChangeExchangeRate = 11,
+    ReprintFiscalReceipt = 12,
+}
+
+public static class ManagerActionExtensions
+{
+    /// <summary>
+    /// Permission key on Role.Permissions JSON. A role that carries this key
+    /// with value=true is allowed to authorize the action.
+    /// </summary>
+    public static string PermissionKey(this ManagerAction a) => a switch
+    {
+        ManagerAction.RemoveCartLine => "authorize.removeCartLine",
+        ManagerAction.ClearCart => "authorize.clearCart",
+        ManagerAction.ApplyLargeDiscount => "authorize.largeDiscount",
+        ManagerAction.OverridePrice => "authorize.overridePrice",
+        ManagerAction.CancelInvoice => "authorize.cancelInvoice",
+        ManagerAction.IssueCreditNote => "authorize.issueCreditNote",
+        ManagerAction.ReopenSession => "authorize.reopenSession",
+        ManagerAction.NoSaleDrawer => "authorize.noSaleDrawer",
+        ManagerAction.NegativeStockSale => "authorize.negativeStockSale",
+        ManagerAction.DeleteProduct => "authorize.deleteProduct",
+        ManagerAction.ChangeExchangeRate => "authorize.changeExchangeRate",
+        ManagerAction.ReprintFiscalReceipt => "authorize.reprintFiscalReceipt",
+        _ => "authorize.unknown"
+    };
+
+    public static string Label(this ManagerAction a) => a switch
+    {
+        ManagerAction.RemoveCartLine => "Retirer une ligne du panier",
+        ManagerAction.ClearCart => "Vider le panier",
+        ManagerAction.ApplyLargeDiscount => "Remise supérieure au seuil",
+        ManagerAction.OverridePrice => "Modification de prix",
+        ManagerAction.CancelInvoice => "Annulation de facture",
+        ManagerAction.IssueCreditNote => "Émission d'un avoir",
+        ManagerAction.ReopenSession => "Réouverture de session",
+        ManagerAction.NoSaleDrawer => "Ouverture tiroir sans vente",
+        ManagerAction.NegativeStockSale => "Vente en stock négatif",
+        ManagerAction.DeleteProduct => "Suppression de produit",
+        ManagerAction.ChangeExchangeRate => "Modification taux de change",
+        ManagerAction.ReprintFiscalReceipt => "Réimpression fiscale",
+        _ => a.ToString()
+    };
+}
+
+
+==========================================================
+FILE: SFE.Application/Interfaces/IManagerAuthorizationService.cs
+SIZE: 1963 bytes
+==========================================================
+using SFE.Domain.Enums;
+
+namespace SFE.Application.Interfaces;
+
+public interface IManagerAuthorizationService
+{
+    /// <summary>Validate a scanned/typed barcode payload.</summary>
+    Task<AuthorizationResult> VerifyBarcodeAsync(
+        string barcodePayload, ManagerAction action, AuthorizationContext ctx);
+
+    /// <summary>Validate a manager PIN (username optional — if null, tries all users with a PIN set).</summary>
+    Task<AuthorizationResult> VerifyPinAsync(
+        string? username, string pin, ManagerAction action, AuthorizationContext ctx);
+
+    /// <summary>Validate full username+password. Highest assurance.</summary>
+    Task<AuthorizationResult> VerifyCredentialsAsync(
+        string username, string password, ManagerAction action, AuthorizationContext ctx);
+
+    /// <summary>Consume a ticket. Returns true if valid & not yet consumed. Single-use.</summary>
+    bool TryConsumeTicket(Guid ticketId, ManagerAction action);
+}
+
+public sealed class AuthorizationContext
+{
+    public string? InvoiceNumber { get; init; }
+    public int? InvoiceId { get; init; }
+    public decimal Amount { get; init; }
+    public string? Reason { get; init; }
+    /// <summary>The cashier requesting authorization (usually the current logged-in user).</summary>
+    public int? RequestingUserId { get; init; }
+    public string? RequestingUserName { get; init; }
+}
+
+public sealed class AuthorizationResult
+{
+    public bool Granted { get; init; }
+    public Guid TicketId { get; init; }
+    public int? ManagerId { get; init; }
+    public string? ManagerName { get; init; }
+    public string? ErrorMessage { get; init; }
+
+    public static AuthorizationResult Ok(Guid id, int mgrId, string mgrName)
+        => new() { Granted = true, TicketId = id, ManagerId = mgrId, ManagerName = mgrName };
+
+    public static AuthorizationResult Fail(string msg)
+        => new() { Granted = false, ErrorMessage = msg };
+}
+
+
+==========================================================
+FILE: SFE.Application/Services/ManagerAuthorizationService.cs
+SIZE: 7856 bytes
+==========================================================
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
+using SFE.Domain.Entities;
+using SFE.Domain.Enums;
+
+namespace SFE.Application.Services;
+
+public sealed class ManagerAuthorizationService : IManagerAuthorizationService
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IAuditService _audit;
+    private readonly ITimeProvider _time;
+
+    private static readonly TimeSpan TicketTtl = TimeSpan.FromMinutes(2);
+
+    private readonly ConcurrentDictionary<Guid, IssuedTicket> _tickets = new();
+
+    private sealed record IssuedTicket(ManagerAction Action, int ManagerId, DateTimeOffset ExpiresAt);
+
+    public ManagerAuthorizationService(IUnitOfWork uow, IAuditService audit, ITimeProvider time)
+    {
+        _uow = uow; _audit = audit; _time = time;
+    }
+
+    // -----------------------------------------------------------------
+    //  BARCODE
+    // -----------------------------------------------------------------
+    public async Task<AuthorizationResult> VerifyBarcodeAsync(
+        string barcodePayload, ManagerAction action, AuthorizationContext ctx)
+    {
+        if (string.IsNullOrWhiteSpace(barcodePayload))
+            return await DenyAsync(action, ctx, "Code-barres vide.", mgr: null);
+
+        var hash = Hash(barcodePayload.Trim());
+        var user = await _uow.Users.FindByManagerBarcodeHashAsync(hash);
+
+        if (user == null || !user.IsActive)
+            return await DenyAsync(action, ctx, "Code-barres non reconnu.", mgr: null);
+
+        return await FinishAsync(user, action, ctx, method: "Barcode");
+    }
+
+    // -----------------------------------------------------------------
+    //  PIN
+    // -----------------------------------------------------------------
+    public async Task<AuthorizationResult> VerifyPinAsync(
+        string? username, string pin, ManagerAction action, AuthorizationContext ctx)
+    {
+        if (string.IsNullOrWhiteSpace(pin))
+            return await DenyAsync(action, ctx, "PIN vide.", mgr: null);
+
+        var hash = Hash(pin.Trim());
+
+        User? user = string.IsNullOrWhiteSpace(username)
+            ? await _uow.Users.FindByManagerPinHashAsync(hash)
+            : await _uow.Users.FindByUsernameAndPinHashAsync(username.Trim(), hash);
+
+        if (user == null || !user.IsActive)
+            return await DenyAsync(action, ctx, "PIN incorrect.", mgr: null);
+
+        return await FinishAsync(user, action, ctx, method: "PIN");
+    }
+
+    // -----------------------------------------------------------------
+    //  CREDENTIALS
+    // -----------------------------------------------------------------
+    public async Task<AuthorizationResult> VerifyCredentialsAsync(
+        string username, string password, ManagerAction action, AuthorizationContext ctx)
+    {
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            return await DenyAsync(action, ctx, "Identifiants requis.", mgr: null);
+
+        // Reuse the same hash function AuthService uses.
+        var pwdHash = AuthService.HashPassword(password);
+        var user = await _uow.Users.AuthenticateAsync(username.Trim(), pwdHash);
+
+        if (user == null || !user.IsActive)
+            return await DenyAsync(action, ctx, "Identifiants invalides.", mgr: null);
+
+        return await FinishAsync(user, action, ctx, method: "Credentials");
+    }
+
+    // -----------------------------------------------------------------
+    //  COMMON — check permission, mint ticket, audit
+    // -----------------------------------------------------------------
+    private async Task<AuthorizationResult> FinishAsync(
+        User user, ManagerAction action, AuthorizationContext ctx, string method)
+    {
+        if (!HasPermission(user, action))
+            return await DenyAsync(action, ctx,
+                $"L'utilisateur « {user.FullName} » n'a pas la permission « {action.PermissionKey()} ».",
+                mgr: user);
+
+        var id = Guid.NewGuid();
+        _tickets[id] = new IssuedTicket(action, user.Id, _time.UtcNow.Add(TicketTtl));
+        PurgeExpired();
+
+        await _audit.LogAsync(
+            AuditAction.ManagerAuthorizationGranted,
+            AuditModule.Authorization,
+            $"Autorisation « {action.Label()} » accordée par {user.FullName} " +
+            $"pour {ctx.RequestingUserName ?? "?"} — {method}. " +
+            $"Facture: {ctx.InvoiceNumber ?? "-"} — Montant: {ctx.Amount:N2}",
+            entityType: "ManagerAuthorization",
+            entityId: id.ToString(),
+            invoiceNumber: ctx.InvoiceNumber,
+            details: System.Text.Json.JsonSerializer.Serialize(new
+            {
+                action = action.ToString(),
+                method,
+                managerId = user.Id,
+                managerName = user.FullName,
+                requesting = new { id = ctx.RequestingUserId, name = ctx.RequestingUserName },
+                ctx.Amount,
+                ctx.InvoiceId,
+                ctx.InvoiceNumber,
+                ctx.Reason
+            }));
+
+        return AuthorizationResult.Ok(id, user.Id, user.FullName);
+    }
+
+    private async Task<AuthorizationResult> DenyAsync(
+        ManagerAction action, AuthorizationContext ctx, string reason, User? mgr)
+    {
+        await _audit.LogAsync(
+            AuditAction.ManagerAuthorizationDenied,
+            AuditModule.Authorization,
+            $"Autorisation « {action.Label()} » refusée — {reason}",
+            entityType: "ManagerAuthorization",
+            invoiceNumber: ctx.InvoiceNumber,
+            details: System.Text.Json.JsonSerializer.Serialize(new
+            {
+                action = action.ToString(),
+                reason,
+                attemptedManagerId = mgr?.Id,
+                attemptedManagerName = mgr?.FullName,
+                requesting = new { id = ctx.RequestingUserId, name = ctx.RequestingUserName },
+                ctx.Amount,
+                ctx.InvoiceId,
+                ctx.InvoiceNumber,
+                ctx.Reason
+            }));
+
+        return AuthorizationResult.Fail(reason);
+    }
+
+    private static bool HasPermission(User user, ManagerAction action)
+    {
+        if (user.Role == null) return false;
+        try
+        {
+            var perms = System.Text.Json.JsonSerializer
+                .Deserialize<Dictionary<string, bool>>(user.Role.Permissions ?? "{}");
+            return perms != null
+                && perms.TryGetValue(action.PermissionKey(), out var ok) && ok;
+        }
+        catch { return false; }
+    }
+
+    // -----------------------------------------------------------------
+    //  TICKETS
+    // -----------------------------------------------------------------
+    public bool TryConsumeTicket(Guid ticketId, ManagerAction action)
+    {
+        if (!_tickets.TryRemove(ticketId, out var t)) return false;
+        if (t.Action != action) return false;
+        if (t.ExpiresAt < _time.UtcNow) return false;
+        return true;
+    }
+
+    private void PurgeExpired()
+    {
+        var now = _time.UtcNow;
+        foreach (var kvp in _tickets)
+            if (kvp.Value.ExpiresAt < now)
+                _tickets.TryRemove(kvp.Key, out _);
+    }
+
+    // -----------------------------------------------------------------
+    //  HASH — same shape as AuthService.HashPassword (SHA-256 lowercase hex)
+    // -----------------------------------------------------------------
+    public static string Hash(string input)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+}
+
+
+==========================================================
+FILE: SFE.WPF/Services/IManagerAuthorizationPrompter.cs
+SIZE: 402 bytes
+==========================================================
+using SFE.Application.Interfaces;
+using SFE.Domain.Enums;
+
+namespace SFE.WPF.Services;
+
+public interface IManagerAuthorizationPrompter
+{
+    /// <summary>
+    /// Shows the modal, awaits scan/PIN/credentials, returns a valid ticket
+    /// or null if user cancelled / verification failed.
+    /// </summary>
+    Task<Guid?> RequireAsync(ManagerAction action, AuthorizationContext ctx);
+}
+
+
+==========================================================
+FILE: SFE.WPF/Services/ManagerAuthorizationPrompter.cs
+SIZE: 836 bytes
+==========================================================
+using System.Windows;
+using SFE.Application.Interfaces;
+using SFE.Domain.Enums;
+using SFE.WPF.ViewModels;
+using SFE.WPF.Views.Pages;
+
+namespace SFE.WPF.Services;
+
+public sealed class ManagerAuthorizationPrompter : IManagerAuthorizationPrompter
+{
+    private readonly IManagerAuthorizationService _svc;
+
+    public ManagerAuthorizationPrompter(IManagerAuthorizationService svc) => _svc = svc;
+
+    public Task<Guid?> RequireAsync(ManagerAction action, AuthorizationContext ctx)
+    {
+        var vm = new ManagerAuthorizationViewModel(_svc, action, ctx);
+        var win = new ManagerAuthorizationDialog(vm)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        var ok = win.ShowDialog() == true;
+        return Task.FromResult(ok ? vm.TicketId : (Guid?)null);
+    }
+}
+
+
+==========================================================
+FILE: SFE.WPF/ViewModels/ManagerAuthorizationViewModel.cs
+SIZE: 3129 bytes
+==========================================================
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SFE.Application.Interfaces;
+using SFE.Domain.Enums;
+
+namespace SFE.WPF.ViewModels;
+
+public partial class ManagerAuthorizationViewModel : ObservableObject
+{
+    private readonly IManagerAuthorizationService _svc;
+    private readonly AuthorizationContext _ctx;
+
+    public ManagerAction Action { get; }
+    public string ActionLabel => Action.Label();
+    public Guid TicketId { get; private set; }
+
+    [ObservableProperty] private int _selectedTabIndex; // 0=barcode, 1=pin, 2=credentials
+
+    // Barcode
+    [ObservableProperty] private string _barcodePayload = "";
+    // PIN
+    [ObservableProperty] private string _pinUsername = "";
+    [ObservableProperty] private string _pin = "";
+    // Credentials
+    [ObservableProperty] private string _credUsername = "";
+    [ObservableProperty] private string _credPassword = "";
+
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _errorMessage = "";
+    [ObservableProperty] private bool _hasError;
+
+    public event Action? Succeeded;
+    public event Action? Cancelled;
+
+    public ManagerAuthorizationViewModel(
+        IManagerAuthorizationService svc,
+        ManagerAction action,
+        AuthorizationContext ctx)
+    {
+        _svc = svc; Action = action; _ctx = ctx;
+    }
+
+    /// <summary>
+    /// Called by the dialog code-behind on Enter/scan-terminator when
+    /// the Barcode textbox has focus. Barcodes end with CR/LF from HID
+    /// scanners so we treat "text change with newline" as "submit".
+    /// </summary>
+    [RelayCommand]
+    private async Task SubmitBarcodeAsync()
+    {
+        if (IsBusy || string.IsNullOrWhiteSpace(BarcodePayload)) return;
+        await RunAsync(() => _svc.VerifyBarcodeAsync(BarcodePayload.Trim(), Action, _ctx));
+    }
+
+    [RelayCommand]
+    private async Task SubmitPinAsync()
+    {
+        if (IsBusy) return;
+        await RunAsync(() => _svc.VerifyPinAsync(
+            string.IsNullOrWhiteSpace(PinUsername) ? null : PinUsername.Trim(),
+            Pin, Action, _ctx));
+    }
+
+    [RelayCommand]
+    private async Task SubmitCredentialsAsync()
+    {
+        if (IsBusy) return;
+        await RunAsync(() => _svc.VerifyCredentialsAsync(
+            CredUsername.Trim(), CredPassword, Action, _ctx));
+    }
+
+    [RelayCommand] private void Cancel() => Cancelled?.Invoke();
+
+    private async Task RunAsync(Func<Task<AuthorizationResult>> op)
+    {
+        HasError = false; ErrorMessage = ""; IsBusy = true;
+        try
+        {
+            var r = await op();
+            if (r.Granted)
+            {
+                TicketId = r.TicketId;
+                Succeeded?.Invoke();
+            }
+            else
+            {
+                ErrorMessage = r.ErrorMessage ?? "Refusé.";
+                HasError = true;
+                // Clear sensitive fields on failure
+                Pin = ""; CredPassword = ""; BarcodePayload = "";
+            }
+        }
+        finally { IsBusy = false; }
+    }
+}
+
+
+==========================================================
+FILE: SFE.WPF/Views/Pages/ManagerAuthorizationDialog.xaml
+SIZE: 6422 bytes
+==========================================================
+<Window x:Class="SFE.WPF.Views.Pages.ManagerAuthorizationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="Autorisation Manager"
+        Width="560" Height="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent">
+    <Border CornerRadius="16" Background="#0F172A">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="36" Opacity="0.5" ShadowDepth="6" Color="#000"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Padding="20,16" Background="#1E293B"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="ShieldKeyOutline" Width="22" Height="22"
+                                             Foreground="#F59E0B" VerticalAlignment="Center"/>
+                    <StackPanel Margin="12,0,0,0">
+                        <TextBlock Text="AUTORISATION MANAGER REQUISE" FontSize="13"
+                                   FontWeight="Bold" Foreground="#F59E0B"/>
+                        <TextBlock Text="{Binding ActionLabel}" FontSize="12"
+                                   Foreground="#94A3B8" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Body -->
+            <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex}"
+                        Background="Transparent" BorderThickness="0" Margin="16,12">
+
+                <!-- Barcode tab -->
+                <TabItem Header="Code-barres">
+                    <StackPanel Margin="12,20">
+                        <TextBlock Text="Scannez la carte manager :"
+                                   Foreground="#94A3B8" Margin="0,0,0,8"/>
+                        <TextBox x:Name="BarcodeBox"
+                                 Text="{Binding BarcodePayload, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="BarcodeBox_KeyDown"
+                                 Background="#0F172A" Foreground="White"
+                                 FontSize="16" Padding="12" BorderBrush="#334155"/>
+                        <TextBlock Text="Astuce : appuyez sur Entrée aprcs saisie manuelle."
+                                   Foreground="#64748B" FontSize="11" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- PIN tab -->
+                <TabItem Header="PIN">
+                    <StackPanel Margin="12,20">
+                        <TextBlock Text="Identifiant manager (optionnel)" Foreground="#94A3B8"/>
+                        <TextBox Text="{Binding PinUsername, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F172A" Foreground="White" Padding="10"
+                                 Margin="0,4,0,12" BorderBrush="#334155"/>
+                        <TextBlock Text="PIN" Foreground="#94A3B8"/>
+                        <PasswordBox x:Name="PinBox"
+                                     PasswordChanged="PinBox_PasswordChanged"
+                                     Background="#0F172A" Foreground="White"
+                                     FontSize="18" Padding="10" Margin="0,4,0,0"
+                                     BorderBrush="#334155"/>
+                        <Button Content="Valider PIN" Margin="0,16,0,0"
+                                Command="{Binding SubmitPinCommand}"
+                                Background="#3B82F6" Foreground="White"
+                                Padding="14,10" BorderThickness="0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Credentials tab -->
+                <TabItem Header="Identifiants complets">
+                    <StackPanel Margin="12,20">
+                        <TextBlock Text="Identifiant manager" Foreground="#94A3B8"/>
+                        <TextBox Text="{Binding CredUsername, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F172A" Foreground="White" Padding="10"
+                                 Margin="0,4,0,12" BorderBrush="#334155"/>
+                        <TextBlock Text="Mot de passe" Foreground="#94A3B8"/>
+                        <PasswordBox x:Name="CredBox"
+                                     PasswordChanged="CredBox_PasswordChanged"
+                                     Background="#0F172A" Foreground="White"
+                                     Padding="10" Margin="0,4,0,0" BorderBrush="#334155"/>
+                        <Button Content="Valider identifiants" Margin="0,16,0,0"
+                                Command="{Binding SubmitCredentialsCommand}"
+                                Background="#3B82F6" Foreground="White"
+                                Padding="14,10" BorderThickness="0"/>
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
+
+            <!-- Footer -->
+            <Border Grid.Row="2" Padding="20,14" Background="#1E293B">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#EF4444"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    <Button Grid.Column="1" Content="Annuler"
+                            Command="{Binding CancelCommand}"
+                            Background="#334155" Foreground="White"
+                            Padding="16,10" BorderThickness="0"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
+
+
+==========================================================
+FILE: SFE.WPF/Views/Pages/ManagerAuthorizationDialog.xaml.cs
+SIZE: 1325 bytes
+==========================================================
+using System.Windows;
+using System.Windows.Input;
+using SFE.WPF.ViewModels;
+
+namespace SFE.WPF.Views.Pages;
+
+public partial class ManagerAuthorizationDialog : Window
+{
+    private readonly ManagerAuthorizationViewModel _vm;
+
+    public ManagerAuthorizationDialog(ManagerAuthorizationViewModel vm)
+    {
+        InitializeComponent();
+        _vm = vm;
+        DataContext = vm;
+
+        vm.Succeeded += () => { DialogResult = true; Close(); };
+        vm.Cancelled += () => { DialogResult = false; Close(); };
+
+        Loaded += (_, _) => BarcodeBox.Focus();
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object s, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left) DragMove();
+    }
+
+    private async void BarcodeBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        // HID barcode scanners emit CR (or CRLF) after the payload.
+        if (e.Key == Key.Enter || e.Key == Key.Return)
+        {
+            e.Handled = true;
+            await _vm.SubmitBarcodeCommand.ExecuteAsync(null);
+        }
+    }
+
+    private void PinBox_PasswordChanged(object sender, RoutedEventArgs e)
+        => _vm.Pin = PinBox.Password;
+
+    private void CredBox_PasswordChanged(object sender, RoutedEventArgs e)
+        => _vm.CredPassword = CredBox.Password;
+}
+
+
+==========================================================
+FILE: SFE.WPF/ViewModels/PosViewModel.cs
+SIZE: 95069 bytes
+==========================================================
+using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Management;
+using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using SFE.Application.Helpers;
+using SFE.Application.Interfaces;
+using SFE.Application.Services;
+using SFE.Domain.Abstractions;          // ?? ITimeProvider
+using SFE.Domain.Entities;
+using SFE.Domain.Enums;
+using SFE.WPF.Messages;
+using SFE.WPF.Services;
+using SFE.WPF.Helpers;
+using Microsoft.Extensions.DependencyInjection;
+using SFE.WPF.Views.Pages;
+using SFE.Application.Payments;
+using System.Windows.Input;
+
+namespace SFE.WPF.ViewModels;
+
+public partial class PosViewModel : BaseViewModel,
+    IRecipient<PriceModeChangedMessage>,
+    IRecipient<DiscountBeforeTaxChangedMessage>,
+    IRecipient<ExchangeRateChangedMessage>,
+    IRecipient<CartLineRecalculatedMessage>,
+    IActivatable
+{
+    private readonly InvoiceService _invoiceService;
+    private readonly ProductService _productService;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ClientService _clientService;
+    private readonly IFiscalDeviceService _fiscalDevice;
+    private readonly CustomerDisplayService _customerDisplay;
+    private readonly IAuthService _auth;
+    private readonly ITimeProvider _time;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly DispatcherTimer _clockTimer;
+    private readonly InMemoryPendingOrderStore _pendingOrderStore;
+    private readonly ManagerGate _gate;
+    private bool _isFirstActivation = true;
+
+    private Company? _currentCompany;
+    private PointOfSale? _currentPos;
+    private decimal _currentExchangeRate;
+
+    [ObservableProperty] private string _thermalPrinterName = "";
+    [ObservableProperty] private bool _hasThermalPrinter;
+    [ObservableProperty] private bool _autoPrintReceipt = true;
+
+    public ObservableCollection<string> AvailableOperators { get; } = new();
+    private bool _discountBeforeTax = true;
+
+    public event Action? CartPulseRequested;
+    public event Action? TotalPulseRequested;
+
+    // ------ CATALOGUE ------
+    public ObservableCollection<ProductCategory> Categories { get; } = new();
+    public ObservableCollection<Product> DisplayProducts { get; } = new();
+    public ObservableCollection<Product> SearchResults { get; } = new();
+    [ObservableProperty] private ProductCategory? _selectedCategory;
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private bool _showSearchResults;
+    [ObservableProperty] private bool _showFavoritesOnly = true;
+
+    // ------ PANIER ------
+    public ObservableCollection<CartItemViewModel> CartItems { get; } = new();
+    [ObservableProperty] private CartItemViewModel? _selectedCartItem;
+    [ObservableProperty] private int _cartItemCount;
+
+    // ------ TOTAUX ------
+    [ObservableProperty] private decimal _totalHTBeforeDiscount;
+    [ObservableProperty] private decimal _totalDiscount;
+    [ObservableProperty] private decimal _totalHT;
+    [ObservableProperty] private decimal _totalTVA;
+    [ObservableProperty] private decimal _totalTTC;
+    [ObservableProperty] private decimal _totalSpecificTax;
+    [ObservableProperty] private int _totalArticles;
+    [ObservableProperty] private decimal _grandTotal;
+    [ObservableProperty] private string _grandTotalLabel = "TOTAL TTC";
+
+    public string PriceModeDisplay => PriceMode == PriceMode.TTC ? "Prix TTC" : "Prix HT";
+    public bool IsHtMode => PriceMode == PriceMode.HT;
+    public bool HasAnyDiscount => TotalDiscount > 0;
+    public bool HasAnySpecificTax => TotalSpecificTax > 0;
+
+    // ------ REMISE POS ------
+    [ObservableProperty] private bool _showDiscountPanel;
+    [ObservableProperty] private string _customDiscountValue = "";
+    [ObservableProperty] private bool _isPercentDiscount = true;
+
+    // ------ PAIEMENT ------
+    [ObservableProperty] private PaymentType _selectedPaymentType = PaymentType.Especes;
+    [ObservableProperty] private string _receivedAmount = "";
+    [ObservableProperty] private decimal _changeAmount;
+    [ObservableProperty] private bool _showChange;
+    public ObservableCollection<PaymentDisplayItem> PaymentItems { get; } = new();
+    [ObservableProperty] private decimal _totalPaid;
+    [ObservableProperty] private decimal _remaining;
+    [ObservableProperty] private string _paymentAmount = "";
+    [ObservableProperty] private bool _showSplitPayment;
+
+    // ------ CHECKOUT WIZARD ------
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReviewStep))]
+    [NotifyPropertyChangedFor(nameof(IsPaymentStep))]
+    [NotifyPropertyChangedFor(nameof(ShowReviewStep))]
+    [NotifyPropertyChangedFor(nameof(ShowPaymentStep))]
+    private CheckoutStep _currentStep = CheckoutStep.Review;
+
+    public bool IsReviewStep => CurrentStep == CheckoutStep.Review;
+    public bool IsPaymentStep => CurrentStep == CheckoutStep.Payment;
+    public bool ShowReviewStep => !IsNormalized && CurrentStep == CheckoutStep.Review;
+    public bool ShowPaymentStep => !IsNormalized && CurrentStep == CheckoutStep.Payment;
+
+    // ------ CONFIG ------
+    [ObservableProperty] private PriceMode _priceMode = PriceMode.TTC;
+    [ObservableProperty] private InvoiceType _invoiceType = InvoiceType.FV;
+    [ObservableProperty] private string _operatorName = "Opérateur";
+    [ObservableProperty] private string _isf = "";
+    [ObservableProperty] private string _currentTime = "";
+    [ObservableProperty] private string _currentDate = "";
+
+    // ------ CLIENT ------
+    [ObservableProperty] private ClientType _selectedClientType = ClientType.PP;
+    [ObservableProperty] private string _clientNIF = "";
+    [ObservableProperty] private string _clientName = "";
+    [ObservableProperty] private string _clientAddress = "";
+    [ObservableProperty] private string _clientPhone = "";
+    [ObservableProperty] private string _clientEmail = "";
+    [ObservableProperty] private string _clientRCCM = "";
+    [ObservableProperty] private bool _showClientPanel;
+    [ObservableProperty] private int? _selectedClientId;
+    [ObservableProperty] private string _clientSearchText = "";
+    [ObservableProperty] private bool _isClientSearchOpen;
+    public ObservableCollection<Client> ClientSearchResults { get; } = new();
+    public bool IsClientNifRequired => SelectedClientType is ClientType.PM or ClientType.PC or ClientType.PL;
+    public bool IsClientNameRequired => SelectedClientType != ClientType.PP;
+    public string ClientTypeMention => ClientService.GetTypeMention(SelectedClientType);
+    public bool HasClientSelected => SelectedClientId.HasValue || !string.IsNullOrWhiteSpace(ClientName);
+    public ClientType[] ClientTypes { get; } = Enum.GetValues<ClientType>();
+
+    // ------ AVOIR ------
+    [ObservableProperty] private bool _isCreditNote;
+    [ObservableProperty] private CreditNoteNature _selectedCreditNoteNature = CreditNoteNature.COR;
+    [ObservableProperty] private string _originalReference = "";
+    [ObservableProperty] private bool _isOriginalLoaded;
+    [ObservableProperty] private string _originalInvoiceSummary = "";
+    [ObservableProperty] private bool _isLoadingOriginal;
+    [ObservableProperty] private bool _showCreditNotePanel;
+    private Invoice? _loadedOriginalInvoice;
+    private Dictionary<string, decimal> _cumulativeRefunded = new();
+    public ObservableCollection<CreditNoteLineSelection> CreditNoteSelections { get; } = new();
+    public bool IsRRR => IsCreditNote && SelectedCreditNoteNature == CreditNoteNature.RRR;
+    public bool RequiresOriginalLookup => IsCreditNote && !IsRRR;
+    public CreditNoteNature[] CreditNoteNatures { get; } = Enum.GetValues<CreditNoteNature>();
+
+    // ------ ACOMPTE ------
+    [ObservableProperty] private bool _isAdvanceInvoice;
+    [ObservableProperty] private string _advanceGroupId = "";
+    [ObservableProperty] private decimal _advancesTotalPaid;
+    [ObservableProperty] private bool _showAdvancePanel;
+    [ObservableProperty] private string _advanceAmountInput = "";
+    public ObservableCollection<AdvanceInvoiceSummary> PreviousAdvances { get; } = new();
+
+    // ------ DEVISE ------
+    [ObservableProperty] private Currency _selectedCurrency = Currency.CDF;
+    [ObservableProperty] private decimal _exchangeRate = 2800m;
+    [ObservableProperty] private decimal _totalInAlternateCurrency;
+    [ObservableProperty] private string _alternateCurrencyLabel = "USD";
+
+    // ------ COMMENTAIRES ------
+    [ObservableProperty] private string _commentA = "";
+    [ObservableProperty] private string _commentB = "";
+    [ObservableProperty] private string _commentC = "";
+    [ObservableProperty] private string _commentD = "";
+    [ObservableProperty] private string _commentE = "";
+    [ObservableProperty] private string _commentF = "";
+    [ObservableProperty] private string _commentG = "";
+    [ObservableProperty] private string _commentH = "";
+    [ObservableProperty] private bool _showCommentPanel;
+
+    public bool IsCommentARequired =>
+        SelectedClientType == ClientType.AO || CartItems.Any(l => l.TaxGroup == TaxGroup.D);
+    public string CommentALabel => SelectedClientType == ClientType.AO
+        ? "Réf. certificat d'exonération *"
+        : CartItems.Any(l => l.TaxGroup == TaxGroup.D)
+            ? "Réf. document de dérogation DGI *" : "Commentaire (optionnel)";
+
+    public ObservableCollection<TaxGroupSummary> TaxGroupSummaries { get; } = new();
+
+    // ------ NORMALISATION ------
+    [ObservableProperty] private bool _isNormalized;
+    [ObservableProperty] private string _codeDEFDGI = "";
+    [ObservableProperty] private string _invoiceNumber = "";
+    [ObservableProperty] private string _nim = "";
+    [ObservableProperty] private string _counters = "";
+    [ObservableProperty] private string _qrCodeContent = "";
+    [ObservableProperty] private string _deviceDateTime = "";
+
+    // ------ STATUS ------
+    [ObservableProperty] private string _statusMessage = "";
+    [ObservableProperty] private bool _showSuccess;
+    [ObservableProperty] private bool _showError;
+    [ObservableProperty] private bool _showReceiptOverlay;
+
+    // ------ STATS ------
+    [ObservableProperty] private int _todaySalesCount;
+    [ObservableProperty] private decimal _todaySalesTotal;
+
+    // ------ FACTURES EN ATTENTE ------
+    [ObservableProperty] private int _pendingInvoiceCount;
+    [ObservableProperty] private string _cancelUid = "";
+    [ObservableProperty] private bool _isCheckingPending;
+    [ObservableProperty] private string _pendingStatusMessage = "";
+    [ObservableProperty] private bool _showPendingSuccess;
+    [ObservableProperty] private bool _showPendingError;
+    [ObservableProperty] private bool _showPendingPanel;
+    public ObservableCollection<PendingInvoiceItem> PendingInvoices { get; } = new();
+    public bool HasPendingInvoices => PendingInvoiceCount > 0;
+
+    // ------ ENUMS ------
+    public PaymentType[] PaymentTypes { get; } = Enum.GetValues<PaymentType>();
+    public InvoiceType[] InvoiceTypes { get; } = Enum.GetValues<InvoiceType>();
+
+    public enum CheckoutStep { Review = 0, Payment = 1 }
+
+    // ------ HELD ------
+    public ObservableCollection<HeldTransactionViewModel> HeldTransactions { get; } = new();
+    [ObservableProperty] private int _heldCount;
+    [ObservableProperty] private bool _showHeldPanel;
+    [ObservableProperty] private string _holdReason = "";
+    [ObservableProperty] private bool _showHoldDialog;
+
+    // ------ POS ------
+    public ObservableCollection<PointOfSale> AvailablePointsOfSale { get; } = new();
+    [ObservableProperty] private PointOfSale? _selectedPointOfSale;
+    [ObservableProperty] private bool _hasMultiplePos;
+    [ObservableProperty] private string _selectedPosInfo = "";
+
+    [DllImport("winspool.drv", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern bool GetDefaultPrinter(StringBuilder pszBuffer, ref int pcchBuffer);
+
+
+
+    // ----------------------------------------------------------
+    //  CONSTRUCTEUR — ?? ITimeProvider injected
+    // ----------------------------------------------------------
+
+    public PosViewModel(
+        InvoiceService invoiceService, ProductService productService,
+        IUnitOfWork unitOfWork, CustomerDisplayService customerDisplay,
+        ClientService clientService, IFiscalDeviceService fiscalDevice,
+        IAuthService auth,
+        IServiceScopeFactory serviceScopeFactory, InMemoryPendingOrderStore inMemoryPendingOrderStore,
+        ManagerGate gate,
+        ITimeProvider time)                                           
+    {
+        _invoiceService = invoiceService;
+        _productService = productService;
+        _unitOfWork = unitOfWork;
+        _customerDisplay = customerDisplay;
+        _clientService = clientService;
+        _fiscalDevice = fiscalDevice;
+        _scopeFactory = serviceScopeFactory;
+        _pendingOrderStore = inMemoryPendingOrderStore;
+        _gate = gate;
+
+
+        _auth = auth;
+ 
+        _time = time ?? throw new ArgumentNullException(nameof(time));    // ??
+        PageTitle = "Caisse";
+
+        OperatorName = _auth.CurrentUser?.FullName ?? "Opérateur";
+
+        WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<ExchangeRateChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<CartLineRecalculatedMessage>(this);   // ??
+
+        _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clockTimer.Tick += (_, _) => UpdateClock();
+        _clockTimer.Start();
+        UpdateClock();
+        _ = InitializeAsync();
+    }
+
+    private AuthorizationContext BuildAuthContext(decimal amount = 0m, string? reason = null) => new()
+    {
+        InvoiceNumber = InvoiceNumber,
+        Amount = amount,
+        Reason = reason,
+        RequestingUserId = _auth.CurrentUser?.Id,
+        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
+    };
+
+    public void Receive(ExchangeRateChangedMessage message)
+    {
+        ExchangeRate = message.Value.UsdRate;
+        UpdateAlternateCurrency();
+    }
+
+    partial void OnCartItemCountChanged(int value) => OnPropertyChanged(nameof(CanPrintProforma));
+    partial void OnHasThermalPrinterChanged(bool value) => OnPropertyChanged(nameof(CanPrintProforma));
+
+    partial void OnIsNormalizedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowReviewStep));
+        OnPropertyChanged(nameof(ShowPaymentStep));
+        OnPropertyChanged(nameof(CanPrintProforma));
+    }
+
+    /// <summary>
+    /// Une ligne du panier vient de s'auto-recalculer (édition directe
+    /// de la quantité au clavier). On rafraîchit uniquement les totaux
+    /// globaux — la ligne a déjà mis à jour ses propres montants.
+    /// </summary>
+    public void Receive(CartLineRecalculatedMessage message)
+    {
+        if (IsNormalized) return;
+        if (!CartItems.Contains(message.Value)) return;   // ligne d'un autre panier (held, etc.)
+        RecalculateTotals();
+    }
+
+    // ----------------------------------------------------------
+    //  PARTIAL CHANGE HANDLERS
+    // ----------------------------------------------------------
+
+    partial void OnSelectedPointOfSaleChanged(PointOfSale? value)
+    {
+        _currentPos = value;
+        if (value == null) { SelectedPosInfo = ""; return; }
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(value.City)) parts.Add(value.City);
+        parts.Add(value.DeviceType.ToString());
+        if (!string.IsNullOrWhiteSpace(value.EmcfNIM)) parts.Add($"NIM: {value.EmcfNIM}");
+        if (value.ManagesStock) parts.Add("?? Stock");
+        SelectedPosInfo = string.Join(" · ", parts);
+        LoadPrinterSettings();
+
+        if (!IsNormalized && CartItems.Count == 0)
+            _ = GenerateNewNumber();
+    }
+
+    partial void OnPriceModeChanged(PriceMode value)
+    {
+        if (IsNormalized) return;
+        OnPropertyChanged(nameof(PriceModeDisplay));
+        OnPropertyChanged(nameof(IsHtMode));
+        RecalculateAllItems();
+    }
+
+    partial void OnInvoiceTypeChanged(InvoiceType value)
+    {
+        IsCreditNote = value == InvoiceType.FA || value == InvoiceType.EA;
+        IsAdvanceInvoice = value == InvoiceType.FT || value == InvoiceType.ET;
+        if (!IsCreditNote)
+        {
+            IsOriginalLoaded = false; OriginalInvoiceSummary = "";
+            _loadedOriginalInvoice = null; CreditNoteSelections.Clear(); ShowCreditNotePanel = false;
+        }
+        OnPropertyChanged(nameof(IsRRR));
+        OnPropertyChanged(nameof(RequiresOriginalLookup));
+        _ = GenerateNewNumber();
+    }
+
+    partial void OnSelectedCreditNoteNatureChanged(CreditNoteNature value)
+    {
+        OnPropertyChanged(nameof(IsRRR));
+        OnPropertyChanged(nameof(RequiresOriginalLookup));
+        if (IsRRR) { OriginalReference = "RRR"; IsOriginalLoaded = false; _loadedOriginalInvoice = null; CreditNoteSelections.Clear(); }
+        else if (OriginalReference == "RRR") OriginalReference = "";
+    }
+
+    partial void OnSelectedClientTypeChanged(ClientType value)
+    {
+        OnPropertyChanged(nameof(IsClientNifRequired));
+        OnPropertyChanged(nameof(IsClientNameRequired));
+        OnPropertyChanged(nameof(ClientTypeMention));
+        OnPropertyChanged(nameof(IsCommentARequired));
+        OnPropertyChanged(nameof(CommentALabel));
+    }
+
+    partial void OnReceivedAmountChanged(string value) => UpdateChange();
+    partial void OnSelectedCurrencyChanged(Currency value) => UpdateAlternateCurrency();
+    partial void OnExchangeRateChanged(decimal value) => UpdateAlternateCurrency();
+    partial void OnClientSearchTextChanged(string value) => _ = SearchClientsAsync(value);
+
+    // ----------------------------------------------------------
+    //  MESSAGES
+    // ----------------------------------------------------------
+
+    public void Receive(PriceModeChangedMessage message) => PriceMode = message.Value;
+    public void Receive(DiscountBeforeTaxChangedMessage message)
+    {
+        _discountBeforeTax = message.Value;
+        if (!IsNormalized) RecalculateAllItems();
+    }
+
+    private void RecalculateAllItems()
+    {
+        foreach (var item in CartItems) item.Recalculate(PriceMode, _discountBeforeTax);
+        RecalculateTotals();
+    }
+
+    // ----------------------------------------------------------
+    //  INITIALISATION
+    // ----------------------------------------------------------
+
+    private void UpdateClock()
+    {
+        // ?? L'horloge affiche l'heure locale de l'opérateur via ITimeProvider.
+        var now = _time.LocalNow;   // DateTimeOffset (local)
+        CurrentTime = now.ToString("HH:mm:ss");
+        CurrentDate = now.ToString("dddd dd MMMM yyyy", new System.Globalization.CultureInfo("fr-FR"));
+    }
+
+    private async Task InitializeAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+            if (company != null)
+            {
+                PriceMode = company.DefaultPriceMode;
+                _currentCompany = company;
+                Isf = company.ISF ?? "";
+
+                var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
+                AvailablePointsOfSale.Clear();
+                if (companyWithPos?.PointsOfSale != null)
+                {
+                    var activePosList = companyWithPos.PointsOfSale
+                        .Where(p => p.IsActive).OrderBy(p => p.Code).ToList();
+                    foreach (var pos in activePosList) AvailablePointsOfSale.Add(pos);
+                    HasMultiplePos = activePosList.Count > 1;
+
+                    SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
+                        activePosList, _auth.CurrentUser?.PointOfSaleId);
+                }
+            }
+
+            try
+            {
+                var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
+                if (appSettings != null)
+                {
+                    _discountBeforeTax = appSettings.DiscountBeforeTax;
+                    PriceMode = appSettings.DefaultPriceMode;
+                    SelectedCurrency = appSettings.DefaultCurrency;
+                    ExchangeRate = appSettings.CurrentExchangeRate;
+                    _currentExchangeRate = appSettings.CurrentExchangeRate;
+                }
+            }
+            catch { _discountBeforeTax = true; }
+
+            try
+            {
+                var cats = await _productService.GetCategoriesAsync();
+                Categories.Clear();
+                foreach (var c in cats) Categories.Add(c);
+                await LoadDisplayProductsAsync();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Erreur chargement produits : {ex.Message}";
+                ShowError = true;
+            }
+
+            try { await RefreshDailyStatsAsync(); } catch { }
+            try { await GenerateNewNumber(); } catch { }
+            try { await LoadOperatorsAsync(); } catch { }
+            try { DetectThermalPrinter(); } catch { }
+            try
+            {
+                if (_currentCompany != null)
+                    _customerDisplay.Open(_currentCompany.Name);
+            }
+            catch { }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur : {ex.Message}";
+            ShowError = true;
+        }
+        finally { IsBusy = false; }
+    }
+
+    private void LoadPrinterSettings()
+    {
+        if (SelectedPointOfSale == null) { DetectThermalPrinter(); return; }
+        var pos = SelectedPointOfSale;
+
+        if (!string.IsNullOrWhiteSpace(pos.ThermalPrinterName))
+        { ThermalPrinterName = pos.ThermalPrinterName; HasThermalPrinter = true; }
+        else DetectThermalPrinter();
+
+        AutoPrintReceipt = pos.AutoPrintReceipt;
+
+        try
+        {
+            if (pos.EnableCustomerDisplay && _currentCompany != null)
+                _customerDisplay.Open(_currentCompany.Name);
+        }
+        catch { }
+    }
+
+    private void DetectThermalPrinter()
+    {
+        var keywords = new[] { "OPTIMA", "POS", "Thermal", "Receipt", "58", "80" };
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_Printer");
+            foreach (var obj in searcher.Get())
+            {
+                string name = obj["Name"]?.ToString() ?? "";
+                foreach (var kw in keywords)
+                    if (name.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    { ThermalPrinterName = name; HasThermalPrinter = true; return; }
+            }
+        }
+        catch { }
+        var buffer = new StringBuilder(256); int size = buffer.Capacity;
+        if (GetDefaultPrinter(buffer, ref size) && buffer.Length > 0)
+        { ThermalPrinterName = buffer.ToString(); HasThermalPrinter = true; }
+        else { ThermalPrinterName = ""; HasThermalPrinter = false; }
+    }
+
+    private async Task LoadOperatorsAsync()
+    {
+        try
+        {
+            var operators = await _unitOfWork.Invoices.GetDistinctOperatorNamesAsync();
+            AvailableOperators.Clear();
+            foreach (var name in operators.OrderBy(n => n)) AvailableOperators.Add(name);
+            if (!string.IsNullOrEmpty(OperatorName) && !AvailableOperators.Contains(OperatorName))
+                AvailableOperators.Insert(0, OperatorName);
+            if (string.IsNullOrEmpty(OperatorName) && AvailableOperators.Count > 0)
+                OperatorName = AvailableOperators[0];
+        }
+        catch { }
+    }
+
+    private async Task GenerateNewNumber()
+    {
+        if (SelectedPointOfSale == null)
+        {
+            InvoiceNumber = "";
+            return;
+        }
+
+        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(
+            InvoiceType, SelectedPointOfSale.Id);
+    }
+
+    private async Task RefreshDailyStatsAsync()
+    {
+        try
+        {
+            TodaySalesCount = await _unitOfWork.Invoices.GetTodayCountAsync();
+            TodaySalesTotal = await _unitOfWork.Invoices.GetTodayTotalAsync();
+        }
+        catch { }
+    }
+
+    // ----------------------------------------------------------
+    //  CATALOGUE
+    // ----------------------------------------------------------
+
+    private async Task LoadDisplayProductsAsync()
+    {
+        List<Product> products;
+
+        if (ShowFavoritesOnly && SelectedCategory == null)
+        {
+            products = await _unitOfWork.Products.GetFavoritesAsync();
+
+            if (products.Count == 0)
+            {
+                ShowFavoritesOnly = false;
+                products = await _productService.GetAllActiveAsync();
+            }
+        }
+        else if (SelectedCategory != null)
+        {
+            products = await _unitOfWork.Products.GetByCategoryAsync(SelectedCategory.Id);
+        }
+        else
+        {
+            products = await _productService.GetAllActiveAsync();
+        }
+
+        DisplayProducts.Clear();
+        foreach (var p in products) DisplayProducts.Add(p);
+    }
+
+    partial void OnSelectedCategoryChanged(ProductCategory? value)
+    { ShowFavoritesOnly = false; _ = LoadDisplayProductsAsync(); }
+
+    partial void OnSearchTextChanged(string value) => _ = PerformSearchAsync(value);
+
+    private async Task PerformSearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+        { SearchResults.Clear(); ShowSearchResults = false; return; }
+        var results = await _productService.SearchAsync(query, 10);
+        SearchResults.Clear();
+        foreach (var r in results) SearchResults.Add(r);
+        ShowSearchResults = SearchResults.Count > 0;
+    }
+
+    [RelayCommand]
+    private void ShowFavorites()
+    { SelectedCategory = null; ShowFavoritesOnly = true; _ = LoadDisplayProductsAsync(); }
+
+    [RelayCommand]
+    private void ShowAllProducts()
+    { SelectedCategory = null; ShowFavoritesOnly = false; _ = LoadDisplayProductsAsync(); }
+
+    [RelayCommand]
+    private void SelectCategory(ProductCategory? category)
+    { if (category != null) SelectedCategory = category; }
+
+    // ----------------------------------------------------------
+    //  PANIER
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private async Task AddToCart(Product? product)
+    {
+        if (product == null || IsNormalized) return;
+        ClearStatus();
+        ShowSearchResults = false;
+        SearchText = "";
+
+        if (!TaxCalculator.IsItemTypeValidForGroup(product.ItemType, product.TaxGroup))
+        {
+            StatusMessage = product.TaxGroup == TaxGroup.N
+                ? $"« {product.Name} » : le groupe N exige le type TAX (Taxes et redevances)."
+                : $"« {product.Name} » : le type TAX est réservé au groupe N.";
+            ShowError = true;
+            return;
+        }
+
+        var existing = CartItems.FirstOrDefault(c => c.ProductId == product.Id);
+        if (existing != null)
+        {
+            var newQty = existing.Quantity + 1;
+
+            if (existing.TrackStock && newQty > existing.StockQuantity)
+            {
+                if (!await _gate.RequireAsync(
+                        ManagerAction.NegativeStockSale,
+                        BuildAuthContext(existing.UnitPriceTTC * newQty,
+                            $"Stock: {existing.StockQuantity:G} {existing.Unit} — Vente: {newQty:G}")))
+                {
+                    StatusMessage = $"Vente en stock négatif refusée pour « {existing.Name} ».";
+                    ShowError = true;
+                    return;
+                }
+            }
+
+
+            existing.Quantity = newQty;
+            existing.Recalculate(PriceMode, _discountBeforeTax);
+
+            if (existing.AmountTTC <= 0m)
+            {
+                existing.Quantity -= 1;
+                existing.Recalculate(PriceMode, _discountBeforeTax);
+                StatusMessage = "Montant TTC résultant invalide (= 0).";
+                ShowError = true;
+                return;
+            }
+        }
+        else
+        {
+            decimal ht, ttc;
+            if (SelectedCurrency == Currency.CDF)
+            {
+                ht = product.UnitPriceHtCdf;
+                ttc = product.UnitPriceTtcCdf;
+            }
+            else
+            {
+                ht = product.UnitPriceHtUsd;
+                ttc = product.UnitPriceTtcUsd;
+            }
+
+            var item = new CartItemViewModel
+            {
+                ProductId = product.Id,
+                Code = product.Code,
+                Name = product.Name,
+                ItemType = product.ItemType,
+                TaxGroup = product.TaxGroup,
+                TaxGroupAType = product.TaxGroupAType,
+                UnitPriceHT = ht,
+                UnitPriceTTC = ttc,
+                Unit = product.Unit,
+                Quantity = 1,
+                StockQuantity = product.StockQuantity,
+                TrackStock = product.TrackStock,
+                SpecificTaxType = product.SpecificTaxType,
+                SpecificTaxValue = product.SpecificTaxValue,
+                SpecificTaxName = product.HasSpecificTax
+                                  ? $"TS {product.SpecificTaxDisplay}"
+                                  : "",
+                TaxApplicationMode = product.TaxSpecificMode == TaxSpecificMode.OnTotal
+                    ? TaxApplicationMode.OnTotal
+                    : TaxApplicationMode.PerArticle,
+            };
+            item.Recalculate(PriceMode, _discountBeforeTax);
+
+            if (item.AmountTTC <= 0m)
+            {
+                StatusMessage = $"« {product.Name} » : montant TTC résultant = 0 (spec DGI art. 20-21).";
+                ShowError = true;
+                return;
+            }
+
+            if (product.TrackStock && 1 > product.StockQuantity)
+            {
+                if (!await _gate.RequireAsync(
+                        ManagerAction.NegativeStockSale,
+                        BuildAuthContext(product.UnitPriceTtcCdf, $"Stock: {product.StockQuantity:G} {product.Unit} — Vente: 1")))
+                {
+                    StatusMessage = $"Vente en stock négatif refusée pour « {product.Name} ».";
+                    ShowError = true;
+                    return;
+                }
+            }
+
+            CartItems.Add(item);
+        }
+        RecalculateTotals();
+        PlayAddSound();
+        TriggerCartPulse();
+        TotalPulseRequested?.Invoke();
+    }
+
+    private void PlayAddSound()
+    {
+        try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
+    }
+
+    private void TriggerCartPulse() => CartPulseRequested?.Invoke();
+
+    [RelayCommand]
+    private void IncrementQuantity(CartItemViewModel? item)
+    {
+        if (item == null || IsNormalized) return;
+        item.Quantity += 1;
+        item.Recalculate(PriceMode, _discountBeforeTax);
+        RecalculateTotals();
+    }
+
+    [RelayCommand]
+    private async Task DecrementQuantity(CartItemViewModel? item)
+    {
+        if (item == null || IsNormalized) return;
+
+        if (item.Quantity <= 1)
+        {
+            // Going to 0 = removing the line ? same auth as RemoveFromCart.
+            if (!await _gate.RequireAsync(
+                    ManagerAction.RemoveCartLine,
+                    BuildAuthContext(item.AmountTTC, $"Ligne: {item.Name}")))
+            {
+                StatusMessage = "Retrait annulé — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+            CartItems.Remove(item);
+            SelectedCartItem = null;
+        }
+        else
+        {
+            item.Quantity -= 1;
+            item.Recalculate(PriceMode, _discountBeforeTax);
+        }
+        RecalculateTotals();
+    }
+
+    [RelayCommand]
+    private async Task RemoveFromCart(CartItemViewModel? item)
+    {
+        if (item == null || IsNormalized) return;
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.RemoveCartLine,
+                BuildAuthContext(item.AmountTTC, $"Ligne: {item.Name}")))
+        {
+            StatusMessage = "Retrait annulé — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
+        CartItems.Remove(item);
+        if (SelectedCartItem == item) SelectedCartItem = null;
+        ShowDiscountPanel = false;
+        RecalculateTotals();
+    }
+
+    [RelayCommand]
+    private async Task ClearCart()
+    {
+        if (IsNormalized) return;
+        if (CartItems.Count == 0) { ShowDiscountPanel = false; ClearStatus(); return; }
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.ClearCart,
+                BuildAuthContext(TotalTTC, $"{CartItems.Count} ligne(s)")))
+        {
+            StatusMessage = "Vidage du panier annulé — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
+        CartItems.Clear(); SelectedCartItem = null;
+        ShowDiscountPanel = false;
+        CurrentStep = CheckoutStep.Review;
+        RecalculateTotals(); ClearStatus();
+    }
+
+    // ----------------------------------------------------------
+    //  REMISE
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void ToggleDiscountPanel()
+    {
+        if (SelectedCartItem == null || IsNormalized) { ShowDiscountPanel = false; return; }
+        bool wasOpen = ShowDiscountPanel;
+        CloseAllOverlays();
+        if (!wasOpen) { ShowDiscountPanel = true; CustomDiscountValue = ""; IsPercentDiscount = true; }
+    }
+
+    [RelayCommand]
+    private async Task ApplyQuickDiscount(string percentStr)
+    {
+        if (SelectedCartItem == null || IsNormalized) return;
+        if (!decimal.TryParse(percentStr, out var pct) || pct <= 0) return;
+
+        if (ManagerAuthorizationPolicy.IsLargeDiscount(DiscountType.Percentage, pct))
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ApplyLargeDiscount,
+                    BuildAuthContext(SelectedCartItem.AmountTTC,
+                        $"Remise {pct:0.##}% sur {SelectedCartItem.Name}")))
+            {
+                StatusMessage = "Remise refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
+        SelectedCartItem.DiscountType = DiscountType.Percentage;
+        SelectedCartItem.DiscountValue = pct;
+        SelectedCartItem.Recalculate(PriceMode, _discountBeforeTax);
+        RecalculateTotals(); ShowDiscountPanel = false;
+    }
+
+    [RelayCommand]
+    private async Task ApplyCustomDiscount()
+    {
+        if (SelectedCartItem == null || IsNormalized) return;
+        if (!decimal.TryParse(CustomDiscountValue, out var val) || val <= 0)
+        { StatusMessage = "Entrez une valeur de remise valide."; ShowError = true; return; }
+
+        var type = IsPercentDiscount ? DiscountType.Percentage : DiscountType.FixedAmount;
+
+        if (ManagerAuthorizationPolicy.IsLargeDiscount(type, val))
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ApplyLargeDiscount,
+                    BuildAuthContext(SelectedCartItem.AmountTTC,
+                        $"Remise {(type == DiscountType.Percentage ? $"{val:0.##}%" : $"{val:N0}")} sur {SelectedCartItem.Name}")))
+            {
+                StatusMessage = "Remise refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
+        SelectedCartItem.DiscountType = type;
+        SelectedCartItem.DiscountValue = val;
+        SelectedCartItem.Recalculate(PriceMode, _discountBeforeTax);
+        RecalculateTotals(); ShowDiscountPanel = false;
+        CustomDiscountValue = ""; ClearStatus();
+    }
+
+    [RelayCommand]
+    private void RemoveItemDiscount()
+    {
+        if (SelectedCartItem == null || IsNormalized) return;
+        SelectedCartItem.DiscountType = DiscountType.None;
+        SelectedCartItem.DiscountValue = 0;
+        SelectedCartItem.Recalculate(PriceMode, _discountBeforeTax);
+        RecalculateTotals(); ShowDiscountPanel = false;
+    }
+
+    // ----------------------------------------------------------
+    //  CLIENT
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void ToggleClientPanel()
+    {
+        bool wasOpen = ShowClientPanel;
+        CloseAllOverlays();
+        if (!wasOpen) ShowClientPanel = true;
+    }
+
+    private async Task SearchClientsAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+        { ClientSearchResults.Clear(); IsClientSearchOpen = false; return; }
+        try
+        {
+            var results = await _clientService.SearchAsync(query, 8);
+            ClientSearchResults.Clear();
+            foreach (var c in results) ClientSearchResults.Add(c);
+            IsClientSearchOpen = ClientSearchResults.Count > 0;
+        }
+        catch { IsClientSearchOpen = false; }
+    }
+
+    [RelayCommand]
+    private void SelectClient(Client? client)
+    {
+        if (client == null) return;
+        SelectedClientId = client.Id; SelectedClientType = client.Type;
+        ClientNIF = client.NIF ?? ""; ClientName = client.Name;
+        ClientAddress = client.Address ?? ""; ClientPhone = client.Phone ?? "";
+        ClientEmail = client.Email ?? ""; ClientRCCM = client.RCCM ?? "";
+        ClientSearchText = ""; ClientSearchResults.Clear(); IsClientSearchOpen = false;
+        OnPropertyChanged(nameof(HasClientSelected));
+    }
+
+    [RelayCommand]
+    private void ClearClient()
+    {
+        SelectedClientId = null; SelectedClientType = ClientType.PP;
+        ClientNIF = ""; ClientName = ""; ClientAddress = "";
+        ClientPhone = ""; ClientEmail = ""; ClientRCCM = "";
+        ClientSearchText = "";
+        OnPropertyChanged(nameof(HasClientSelected));
+    }
+
+    [RelayCommand]
+    private async Task SaveClientInline()
+    {
+        ShowError = false; ShowSuccess = false;
+        var client = new Client
+        {
+            Type = SelectedClientType,
+            NIF = string.IsNullOrWhiteSpace(ClientNIF) ? null : ClientNIF.Trim(),
+            Name = ClientName.Trim(),
+            Address = string.IsNullOrWhiteSpace(ClientAddress) ? null : ClientAddress.Trim(),
+            Phone = string.IsNullOrWhiteSpace(ClientPhone) ? null : ClientPhone.Trim(),
+            Email = string.IsNullOrWhiteSpace(ClientEmail) ? null : ClientEmail.Trim(),
+            RCCM = string.IsNullOrWhiteSpace(ClientRCCM) ? null : ClientRCCM.Trim(),
+        };
+        var result = await _clientService.CreateAsync(client);
+        if (result.IsValid)
+        { SelectedClientId = result.Client!.Id; StatusMessage = $"? Client « {client.Name} » enregistré."; ShowSuccess = true; OnPropertyChanged(nameof(HasClientSelected)); }
+        else { StatusMessage = result.ErrorMessage; ShowError = true; }
+    }
+
+    // ----------------------------------------------------------
+    //  AVOIR
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void ToggleCreditNotePanel()
+    {
+        if (!IsCreditNote) return;
+        bool wasOpen = ShowCreditNotePanel;
+        CloseAllOverlays();
+        if (!wasOpen) ShowCreditNotePanel = true;
+    }
+
+    [RelayCommand]
+    private async Task LookupOriginalInvoice()
+    {
+        if (string.IsNullOrWhiteSpace(OriginalReference) || IsRRR) return;
+        ShowError = false; ShowSuccess = false; IsLoadingOriginal = true;
+        try
+        {
+            var original = await _invoiceService.LookupOriginalInvoiceAsync(OriginalReference.Trim());
+            if (original == null)
+            {
+                StatusMessage = $"Facture introuvable pour « {OriginalReference} ».";
+                ShowError = true; IsOriginalLoaded = false; _loadedOriginalInvoice = null;
+                CreditNoteSelections.Clear(); return;
+            }
+            _loadedOriginalInvoice = original;
+            _cumulativeRefunded = await _invoiceService.GetCumulativeRefundedQuantitiesAsync(OriginalReference.Trim());
+            OriginalInvoiceSummary =
+                $"{original.InvoiceNumber} — {original.ClientName} — {original.TotalTTC:N0} CDF — {original.CreatedAt:dd/MM/yyyy}";
+            CreditNoteSelections.Clear();
+            foreach (var line in original.Lines.OrderBy(l => l.LineNumber))
+            {
+                decimal alreadyRefunded = _cumulativeRefunded.GetValueOrDefault(line.Code, 0m);
+                decimal maxQty = line.Quantity - alreadyRefunded;
+                if (maxQty <= 0) continue;
+                CreditNoteSelections.Add(new CreditNoteLineSelection
+                {
+                    OriginalLine = line,
+                    OriginalQuantity = line.Quantity,
+                    AlreadyRefunded = alreadyRefunded,
+                    MaxQuantity = maxQty,
+                    SelectedQuantity = maxQty,
+                    IsSelected = false
+                });
+            }
+            IsOriginalLoaded = true;
+            StatusMessage = CreditNoteSelections.Count == 0
+                ? "Tous les articles ont déjà été remboursés."
+                : $"? Facture chargée — {CreditNoteSelections.Count} article(s) disponible(s)";
+            if (CreditNoteSelections.Count == 0) ShowError = true; else ShowSuccess = true;
+        }
+        catch (Exception ex) { StatusMessage = $"Erreur : {ex.Message}"; ShowError = true; }
+        finally { IsLoadingOriginal = false; }
+    }
+
+    [RelayCommand]
+    private void AddCreditNoteLine(CreditNoteLineSelection? selection)
+    {
+        if (selection == null || !selection.IsSelected) return;
+        if (selection.SelectedQuantity <= 0 || selection.SelectedQuantity > selection.MaxQuantity)
+        {
+            StatusMessage = $"Quantité invalide. Max: {selection.MaxQuantity:G}";
+            ShowError = true;
+            return;
+        }
+        ShowError = false;
+
+        var ol = selection.OriginalLine;
+
+        SpecificTaxType tsType = ol.SpecificTaxType;
+        decimal tsValue = ol.SpecificTaxValue;
+
+        if (tsType == SpecificTaxType.None && ol.HasSpecificTax)
+        {
+            var (parsedType, parsedValue) = TaxCalculator.ParseLegacySpecificTax(ol.TaxSpecificValue);
+            tsType = parsedType;
+            tsValue = parsedValue;
+        }
+
+        var item = new CartItemViewModel
+        {
+            ProductId = 0,
+            Code = ol.Code,
+            Name = ol.Name,
+            ItemType = ol.ItemType,
+            TaxGroup = ol.TaxGroup,
+            TaxGroupAType = ol.TaxGroupAType,
+            UnitPriceHT = ol.UnitPriceHT,
+            UnitPriceTTC = ol.UnitPriceTTC,
+            Unit = ol.Unit,
+            Quantity = selection.SelectedQuantity,
+            DiscountType = ol.DiscountType,
+            DiscountValue = ol.DiscountValue,
+            SpecificTaxType = tsType,
+            SpecificTaxValue = tsValue,
+            SpecificTaxName = ol.SpecificTaxName ?? "",
+            TaxApplicationMode = ol.TaxApplicationMode,
+        };
+        item.Recalculate(PriceMode, _discountBeforeTax);
+
+        CartItems.Add(item);
+        RecalculateTotals();
+
+        selection.MaxQuantity -= selection.SelectedQuantity;
+        selection.AlreadyRefunded += selection.SelectedQuantity;
+        selection.IsSelected = false;
+        selection.SelectedQuantity = selection.MaxQuantity;
+
+        if (selection.MaxQuantity <= 0)
+            CreditNoteSelections.Remove(selection);
+    }
+
+    [RelayCommand]
+    private void AddAllSelectedCreditNoteLines()
+    {
+        foreach (var s in CreditNoteSelections.Where(s => s.IsSelected).ToList())
+            AddCreditNoteLine(s);
+    }
+
+    // ----------------------------------------------------------
+    //  ACOMPTE
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void ToggleAdvancePanel()
+    {
+        if (!IsAdvanceInvoice) return;
+        bool wasOpen = ShowAdvancePanel;
+        CloseAllOverlays();
+        if (!wasOpen) ShowAdvancePanel = true;
+    }
+
+    [RelayCommand]
+    private void CreateNewAdvanceGroup()
+    { AdvanceGroupId = _invoiceService.GenerateAdvanceGroupId(); PreviousAdvances.Clear(); AdvancesTotalPaid = 0; }
+
+    [RelayCommand]
+    private async Task LoadAdvanceGroup()
+    {
+        if (string.IsNullOrWhiteSpace(AdvanceGroupId)) return;
+        try
+        {
+            var advances = await _invoiceService.GetAdvancesForGroupAsync(AdvanceGroupId);
+            PreviousAdvances.Clear();
+            foreach (var adv in advances)
+                PreviousAdvances.Add(new AdvanceInvoiceSummary
+                { InvoiceNumber = adv.InvoiceNumber, Date = adv.CreatedAt, Amount = adv.TotalTTC, CodeDEFDGI = adv.CodeDEFDGI });
+            AdvancesTotalPaid = advances.Sum(a => a.TotalTTC);
+        }
+        catch (Exception ex) { StatusMessage = $"Erreur : {ex.Message}"; ShowError = true; }
+    }
+
+    // ----------------------------------------------------------
+    //  COMMENTAIRES
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void ToggleCommentPanel()
+    {
+        bool wasOpen = ShowCommentPanel;
+        CloseAllOverlays();
+        if (!wasOpen) ShowCommentPanel = true;
+    }
+
+    // ----------------------------------------------------------
+    //  TOTAUX
+    // ----------------------------------------------------------
+    private void RecalculateTotals()
+    {
+        bool isTTC = PriceMode == PriceMode.TTC;
+
+        foreach (var item in CartItems)
+        {
+            if (item.TaxApplicationMode == TaxApplicationMode.OnTotal)
+                item.Recalculate(PriceMode, _discountBeforeTax);
+        }
+
+        var onTotalGroups = CartItems
+            .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
+                      && l.SpecificTaxType != SpecificTaxType.None
+                      && l.SpecificTaxValue > 0)
+            .GroupBy(l => new { l.SpecificTaxType, l.SpecificTaxValue });
+
+        foreach (var grp in onTotalGroups)
+        {
+            var lines = grp.ToList();
+
+            if (grp.Key.SpecificTaxType == SpecificTaxType.Percentage)
+            {
+                decimal tsRate = grp.Key.SpecificTaxValue / 100m;
+
+                foreach (var line in lines)
+                {
+                    decimal vatRate = line.TaxRate / 100m;
+
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = line.AmountTTC;
+                        decimal goodsHT = line.AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
+
+                        decimal ts = TaxCalculator.R2(goodsTTC * tsRate);
+                        decimal tvaTS = TaxCalculator.R2(ts * vatRate);
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = goodsHT + ts;
+                        line.AmountTVA = tvaGoods + tvaTS;
+                        line.AmountTTC = line.AmountHT + line.AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = line.AmountHT;
+                        decimal ts = TaxCalculator.R2(goodsHT * tsRate);
+                        decimal ht = goodsHT + ts;
+                        decimal tva = TaxCalculator.R2(ht * vatRate);
+                        decimal ttc = ht + tva;
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = ht;
+                        line.AmountTVA = tva;
+                        line.AmountTTC = ttc;
+                    }
+
+                    if (line.AmountHT + line.AmountTVA != line.AmountTTC)
+                        line.AmountTVA = line.AmountTTC - line.AmountHT;
+                }
+            }
+            else
+            {
+                decimal groupQty = lines.Sum(l => l.Quantity);
+                decimal tsForGroup = TaxCalculator.ComputeOnTotalSpecificTax(
+                    grp.Key.SpecificTaxType, grp.Key.SpecificTaxValue, 0m, groupQty);
+
+                decimal distributionBase = isTTC
+                    ? lines.Sum(l => l.AmountTTC)
+                    : lines.Sum(l => l.AmountHT);
+
+                decimal distributed = 0m;
+
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    decimal share;
+                    if (i < lines.Count - 1)
+                    {
+                        decimal lineBase = isTTC ? lines[i].AmountTTC : lines[i].AmountHT;
+                        share = distributionBase > 0
+                            ? TaxCalculator.R2(tsForGroup * lineBase / distributionBase)
+                            : TaxCalculator.R2(tsForGroup / lines.Count);
+                        distributed += share;
+                    }
+                    else
+                    {
+                        share = tsForGroup - distributed;
+                    }
+
+                    decimal vatRate = lines[i].TaxRate / 100m;
+                    lines[i].TaxSpecificAmount = share;
+
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = lines[i].AmountTTC;
+                        decimal goodsHT = lines[i].AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
+                        decimal tvaTS = TaxCalculator.R2(share * vatRate);
+
+                        lines[i].AmountHT = goodsHT + share;
+                        lines[i].AmountTVA = tvaGoods + tvaTS;
+                        lines[i].AmountTTC = lines[i].AmountHT + lines[i].AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = lines[i].AmountHT;
+                        decimal newBase = goodsHT + share;
+                        decimal newTTC = TaxCalculator.R2(newBase * (1m + vatRate));
+                        decimal newTVA = newTTC - newBase;
+
+                        lines[i].AmountHT = newBase;
+                        lines[i].AmountTVA = newTVA;
+                        lines[i].AmountTTC = newTTC;
+                    }
+
+                    if (lines[i].AmountHT + lines[i].AmountTVA != lines[i].AmountTTC)
+                        lines[i].AmountTVA = lines[i].AmountTTC - lines[i].AmountHT;
+                }
+            }
+        }
+
+        var taxGroups = CartItems
+            .Where(l => l.TaxGroup != TaxGroup.N && l.TaxRate > 0)
+            .GroupBy(l => l.TaxGroup);
+
+        foreach (var group in taxGroups)
+        {
+            var groupLines = group.ToList();
+            if (groupLines.Count == 0) continue;
+
+            decimal rate = groupLines.First().TaxRate / 100m;
+
+            if (isTTC)
+            {
+                decimal groupTTC = groupLines.Sum(l => l.AmountTTC);
+                decimal expectedHT = TaxCalculator.R2(groupTTC / (1m + rate));
+                decimal expectedTVA = groupTTC - expectedHT;
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountHT -= diff;
+                }
+            }
+            else
+            {
+                decimal groupHT = groupLines.Sum(l => l.AmountHT);
+                decimal expectedTVA = TaxCalculator.R2(groupHT * rate);
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountTTC += diff;
+                }
+            }
+        }
+
+        TotalHTBeforeDiscount = CartItems.Sum(c => c.AmountHTBeforeDiscount);
+        TotalDiscount = CartItems.Sum(c => c.DiscountAmount);
+        TotalHT = CartItems.Sum(c => c.AmountHT);
+        TotalTVA = CartItems.Sum(c => c.AmountTVA);
+        TotalTTC = CartItems.Sum(c => c.AmountTTC);
+        TotalSpecificTax = CartItems.Sum(c => c.TaxSpecificAmount);
+        GrandTotal = PriceMode == PriceMode.TTC ? TotalTTC : TotalHT;
+        GrandTotalLabel = PriceMode == PriceMode.TTC ? "TOTAL TTC" : "TOTAL HT";
+        TotalArticles = CartItems.Sum(c => (int)c.Quantity);
+        CartItemCount = CartItems.Count;
+
+        OnPropertyChanged(nameof(HasAnyDiscount));
+        OnPropertyChanged(nameof(HasAnySpecificTax));
+        OnPropertyChanged(nameof(IsCommentARequired));
+        OnPropertyChanged(nameof(CommentALabel));
+
+        TaxGroupSummaries.Clear();
+        foreach (var g in CartItems.GroupBy(l => l.TaxGroup).OrderBy(g => g.Key))
+        {
+            TaxGroupSummaries.Add(new TaxGroupSummary
+            {
+                Group = g.Key,
+                Label = $"{(char)('A' + (int)g.Key)} - {TaxCalculator.GetGroupLabel(g.Key)}",
+                Rate = g.First().TaxRate,
+                TotalHT = g.Sum(l => l.AmountHT),
+                TotalTVA = g.Sum(l => l.AmountTVA),
+                TotalTTC = g.Sum(l => l.AmountTTC)
+            });
+        }
+
+        UpdateAlternateCurrency();
+        RecalculatePayments();
+        UpdateChange();
+        _customerDisplay.UpdateCart(CartItems, GrandTotal, GrandTotalLabel, TotalArticles);
+    }
+
+    // ----------------------------------------------------------
+    //  DEVISE
+    // ----------------------------------------------------------
+
+    private void UpdateAlternateCurrency()
+    {
+        if (SelectedCurrency == Currency.CDF)
+        { AlternateCurrencyLabel = "USD"; TotalInAlternateCurrency = ExchangeRate > 0 ? Math.Round(TotalTTC / ExchangeRate, 2) : 0; }
+        else
+        { AlternateCurrencyLabel = "CDF"; TotalInAlternateCurrency = Math.Round(TotalTTC * ExchangeRate, 2); }
+    }
+
+    // ----------------------------------------------------------
+    //  PAIEMENT
+    // ----------------------------------------------------------
+
+    private void UpdateChange()
+    {
+        if (PaymentItems.Count > 0)
+        { ChangeAmount = Remaining < 0 ? Math.Abs(Remaining) : 0; ShowChange = ChangeAmount > 0; }
+        else if (DecimalParsingHelper.TryParseFlexible(ReceivedAmount, out var received) && received > TotalTTC)
+        { ChangeAmount = Math.Round(received - TotalTTC, 2, MidpointRounding.AwayFromZero); ShowChange = true; }
+        else { ChangeAmount = 0; ShowChange = false; }
+    }
+
+    [RelayCommand]
+    private void SetExactAmount() =>
+        ReceivedAmount = TotalTTC.ToString("F2");
+
+    [RelayCommand]
+    private void SetRoundedAmount(string amountStr)
+    {
+        if (DecimalParsingHelper.TryParseFlexible(amountStr, out var amount))
+            ReceivedAmount = amount.ToString("F2");
+    }
+
+    [RelayCommand]
+    private void ToggleSplitPayment()
+    { ShowSplitPayment = !ShowSplitPayment; if (!ShowSplitPayment) { PaymentItems.Clear(); RecalculatePayments(); } }
+
+    [RelayCommand]
+    private void AddPayment()
+    {
+        decimal amount;
+        if (string.IsNullOrWhiteSpace(PaymentAmount))
+        {
+            amount = Remaining;
+        }
+        else if (!DecimalParsingHelper.TryParseFlexible(PaymentAmount, out amount) || amount <= 0)
+        {
+            StatusMessage = "Montant invalide.";
+            ShowError = true;
+            return;
+        }
+
+        if (amount <= 0) return;
+
+        amount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+
+        PaymentItems.Add(new PaymentDisplayItem
+        {
+            PaymentType = SelectedPaymentType,
+            Amount = amount,
+            Label = GetPaymentLabel(SelectedPaymentType)
+        });
+        PaymentAmount = "";
+        RecalculatePayments();
+    }
+
+    [RelayCommand]
+    private void RemovePayment(PaymentDisplayItem? item)
+    { if (item == null || IsNormalized) return; PaymentItems.Remove(item); RecalculatePayments(); }
+
+    private void RecalculatePayments()
+    { TotalPaid = PaymentItems.Sum(p => p.Amount); Remaining = TotalTTC - TotalPaid; UpdateChange(); }
+
+    // ----------------------------------------------------------
+    //  PROCESS SALE
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private async Task ProcessSale()
+    {
+        if (IsNormalized || CartItems.Count == 0) return;
+        if (SelectedPointOfSale == null)
+        { StatusMessage = "Veuillez sélectionner un point de vente."; ShowError = true; return; }
+
+        // ? Credit notes require manager authorization at commit.
+        if (IsCreditNote)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.IssueCreditNote,
+                    BuildAuthContext(TotalTTC,
+                        $"{SelectedCreditNoteNature} — Réf: {OriginalReference}")))
+            {
+                StatusMessage = "Avoir refusé — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
+        if (IsSunmiChannel && SunmiHandoff == SunmiHandoff.None)
+        { StatusMessage = "Terminal Sunmi : choisissez « Afficher QR » ou « Terminal LAN »."; ShowError = true; return; }
+        if (IsLocalPos && SelectedPaymentType == PaymentType.MobileMoney && string.IsNullOrWhiteSpace(SelectedMobileOperator))
+        { StatusMessage = "Sélectionnez l'opérateur Mobile Money (M-Pesa, Airtel, Orange…)."; ShowError = true; return; }
+
+        ClearStatus(); IsBusy = true; StatusMessage = "Normalisation en cours...";
+
+        // -- Compute paidAmount / advanceAmount (unchanged) ------------------
+        decimal paidAmount;
+        decimal advanceAmount = 0m;
+
+        if (IsAdvanceInvoice)
+        {
+            if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
+            { StatusMessage = "Veuillez saisir le montant de l'acompte reçu."; ShowError = true; IsBusy = false; return; }
+            if (advanceAmount > TotalTTC + 0.01m)
+            { StatusMessage = $"L'acompte ({advanceAmount:N2}) ne peut pas dépasser le total commandé ({TotalTTC:N2})."; ShowError = true; IsBusy = false; return; }
+
+            PaymentItems.Clear();
+            PaymentItems.Add(new PaymentDisplayItem
+            { PaymentType = SelectedPaymentType, Amount = advanceAmount, Label = GetPaymentLabel(SelectedPaymentType) });
+            RecalculatePayments();
+            paidAmount = advanceAmount;
+        }
+        else
+        {
+            paidAmount = TotalTTC;
+            if (PaymentItems.Count > 0)
+            {
+                if (Remaining > 0.01m)
+                { PaymentItems.Add(new PaymentDisplayItem { PaymentType = PaymentType.Especes, Amount = Remaining, Label = "Espèces" }); RecalculatePayments(); }
+                paidAmount = TotalPaid;
+            }
+            else if (DecimalParsingHelper.TryParseFlexible(ReceivedAmount, out var received) && received >= TotalTTC) paidAmount = received;
+            else if (string.IsNullOrWhiteSpace(ReceivedAmount)) paidAmount = TotalTTC;
+            else { StatusMessage = "Le montant reçu est insuffisant."; ShowError = true; IsBusy = false; return; }
+        }
+
+        var invoice = BuildInvoice(paidAmount, advanceAmount);
+
+        // -- PUBLISH the order to /orders ONLY when the Sunmi should see it --
+        // (LocalPos = cash/manual card/etc. ? no reason to expose it to the terminal.)
+        bool orderPublished = false;
+        if (IsSunmiChannel)
+        {
+            _pendingOrderStore.Set(
+                new OrderDto(
+                    OrderId: invoice.InvoiceNumber,
+                    Label: $"{invoice.Type} {invoice.InvoiceNumber}",
+                    Amount: invoice.TotalTTC,
+                    Currency: invoice.CurrencyCode ?? "CDF"),
+                invoice);              // ? THE FIX: publish the draft too
+            orderPublished = true;
+        }
+
+        try
+        {
+            // 1. ENCAISSEMENT
+            var payment = await ExecutePaymentAsync(invoice);
+            if (!payment.Success)
+            {
+                StatusMessage = payment.ErrorMessage;
+                ShowError = true;
+                return;                       // finally clears the store
+            }
+
+            // 2. FISCALISATION
+            var result = await _invoiceService.NormalizeInvoiceAsync(invoice);
+
+            // 3. Payment approved but fiscalisation KO
+            //    World B: the till doesn't hold a card-void primitive. Card is already
+            //    debited by the terminal. We surface a critical, actionable message.
+            //    A real Void will land when IPaymentProvider gains a ReverseAsync().
+            if (!result.Success && payment.ChargeApproved)
+            {
+                StatusMessage =
+                    $"? CRITIQUE : encaissement approuvé mais fiscalisation échouée. " +
+                    $"Réf : {invoice.InvoiceNumber}. " +
+                    $"Annulez manuellement sur le terminal Sunmi et conservez la référence. " +
+                    $"Détail : {result.ErrorMessage}";
+                ShowError = true;
+                return;                       // finally clears the store
+            }
+
+            if (result.Success)
+            {
+                IsNormalized = true;
+                CodeDEFDGI = result.CodeDEFDGI;
+                QrCodeContent = result.QRCodeContent;
+
+                var saved = await _unitOfWork.Invoices.GetWithDetailsAsync(result.InvoiceId);
+                if (saved != null)
+                {
+                    Nim = saved.NIM; Counters = saved.Counters; DeviceDateTime = saved.DeviceDateTime;
+                    if (AutoPrintReceipt && HasThermalPrinter) await PrintThermalReceiptAsync(saved);
+                    if (SelectedPointOfSale?.PrintCopies >= 2 && HasThermalPrinter)
+                    { await Task.Delay(500); await PrintThermalReceiptAsync(saved, isDuplicate: true); }
+                    _customerDisplay.ShowNormalized(saved.TotalTTC, result.CodeDEFDGI, result.QRCodeContent);
+                }
+
+                if (SelectedPaymentType == PaymentType.Especes && SelectedPointOfSale?.EnableCashDrawer == true && HasThermalPrinter)
+                    OpenCashDrawerInternal();
+
+                ShowReceiptOverlay = true;
+                StatusMessage = $"? Vente normalisée — {result.CodeDEFDGI}";
+                ShowSuccess = true;
+                await RefreshDailyStatsAsync();
+            }
+            else
+            {
+                StatusMessage = result.ErrorMessage ?? "Erreur inconnue.";
+                ShowError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur : {ex.Message}";
+            ShowError = true;
+        }
+        finally
+        {
+            // Guarantee /orders never keeps a stale order visible after this sale ends.
+            if (orderPublished) _pendingOrderStore.Clear();
+            IsBusy = false;
+        }
+    }
+
+    // ----------------------------------------------------------
+    //  THERMAL PRINTING
+    // ----------------------------------------------------------
+
+    private async Task PrintThermalReceiptAsync(Invoice invoice, bool isDuplicate = false, bool asProforma = false)
+    {
+        // ?? On capture l'instant d'impression AVANT le Task.Run afin :
+        //    - d'éviter tout décalage si la file d'impression est lente
+        //    - de garantir que tous les duplicatas imprimés en rafale partagent
+        //      le même timestamp que le reçu original (cohérence visuelle).
+        var pos = SelectedPointOfSale;
+        var printedAt = _time.ToLocal(_time.UtcNow, pos?.TimeZoneId);
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                var receiptBytes = EscPosReceiptBuilder.Build(
+                    invoice,
+                    _currentCompany!,
+                    SelectedPointOfSale,
+                    _time,
+                    _currentExchangeRate,
+                    isDuplicate,asProforma);
+
+                string jobLabel =
+                       asProforma ? $"Proforma {invoice.InvoiceNumber}" :
+                       isDuplicate ? $"Duplicata {invoice.InvoiceNumber}" :
+                       $"Facture {invoice.InvoiceNumber}";
+
+                RawPrinterHelper.SendBytesToPrinter(ThermalPrinterName, receiptBytes, $"Facture {invoice.InvoiceNumber}");
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(
+                    () => StatusMessage += $" ? Impression: {ex.Message}");
+            }
+        });
+    }
+
+    [RelayCommand]
+    private async Task ReprintReceipt()
+    {
+        if (!IsNormalized || string.IsNullOrEmpty(CodeDEFDGI)) return;
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.ReprintFiscalReceipt,
+                BuildAuthContext(TotalTTC, $"Duplicata {InvoiceNumber} / {CodeDEFDGI}")))
+        {
+            StatusMessage = "Réimpression refusée — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
+        try
+        {
+            var invoice = await _unitOfWork.Invoices.GetByCodeDEFDGIAsync(CodeDEFDGI);
+            if (invoice != null)
+            {
+                await PrintThermalReceiptAsync(invoice, isDuplicate: true);
+                StatusMessage = "? Duplicata imprimé."; ShowSuccess = true;
+            }
+        }
+        catch (Exception ex) { StatusMessage = $"Erreur réimpression: {ex.Message}"; ShowError = true; }
+    }
+
+    /// <summary>Internal — called automatically after a cash sale. No auth needed.</summary>
+    private void OpenCashDrawerInternal()
+    {
+        if (!HasThermalPrinter) return;
+        RawPrinterHelper.SendBytesToPrinter(
+            ThermalPrinterName,
+            new byte[] { 0x1B, 0x70, 0x00, 0x32, 0x32 },
+            "CashDrawer");
+    }
+
+    [RelayCommand]
+    private async Task OpenCashDrawer()
+    {
+        if (!HasThermalPrinter) return;
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.NoSaleDrawer,
+                BuildAuthContext(reason: "Ouverture tiroir sans vente")))
+        {
+            StatusMessage = "Ouverture tiroir refusée — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
+        OpenCashDrawerInternal();
+        StatusMessage = "? Tiroir ouvert.";
+        ShowSuccess = true;
+    }
+
+    // ----------------------------------------------------------
+    //  FACTURES EN ATTENTE
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void TogglePendingPanel()
+    {
+        bool wasOpen = ShowPendingPanel;
+        CloseAllOverlays();
+        if (!wasOpen) ShowPendingPanel = true;
+    }
+
+    [RelayCommand]
+    private async Task CheckPendingInvoices()
+    {
+        IsCheckingPending = true; ShowPendingError = false; ShowPendingSuccess = false;
+        PendingStatusMessage = "Interrogation du dispositif…";
+        try
+        {
+            var status = await _fiscalDevice.GetStatusAsync();
+            if (!status.Success) { PendingStatusMessage = status.ErrorMessage ?? "Impossible de contacter le dispositif."; ShowPendingError = true; return; }
+            PendingInvoiceCount = status.PendingCount; PendingInvoices.Clear();
+            foreach (var p in status.PendingInvoices) PendingInvoices.Add(new PendingInvoiceItem { Uid = p.Uid, DateDisplay = p.DateDisplay });
+            OnPropertyChanged(nameof(HasPendingInvoices));
+            if (PendingInvoiceCount == 0) { PendingStatusMessage = "? Aucune facture en attente."; ShowPendingSuccess = true; }
+            else { PendingStatusMessage = $"? {PendingInvoiceCount} facture(s) en attente."; ShowPendingError = true; }
+        }
+        catch (Exception ex) { PendingStatusMessage = $"Erreur : {ex.Message}"; ShowPendingError = true; }
+        finally { IsCheckingPending = false; }
+    }
+
+    [RelayCommand]
+    private async Task CancelPendingInvoice(string? uid)
+    {
+        string targetUid = uid ?? CancelUid;
+        if (string.IsNullOrWhiteSpace(targetUid)) { PendingStatusMessage = "Veuillez saisir un UID."; ShowPendingError = true; return; }
+        ShowPendingError = false; ShowPendingSuccess = false; PendingStatusMessage = $"Annulation de {targetUid}…";
+        try
+        {
+            bool cancelled = await _fiscalDevice.CancelPendingInvoiceAsync(targetUid);
+            if (cancelled)
+            {
+                PendingStatusMessage = $"? Facture « {targetUid} » annulée."; ShowPendingSuccess = true;
+                var item = PendingInvoices.FirstOrDefault(p => p.Uid == targetUid);
+                if (item != null) PendingInvoices.Remove(item);
+                PendingInvoiceCount = Math.Max(0, PendingInvoiceCount - 1);
+                OnPropertyChanged(nameof(HasPendingInvoices)); CancelUid = "";
+            }
+            else { PendingStatusMessage = "Échec de l'annulation."; ShowPendingError = true; }
+        }
+        catch (Exception ex) { PendingStatusMessage = $"Erreur : {ex.Message}"; ShowPendingError = true; }
+    }
+
+    [RelayCommand]
+    private async Task CancelAllPending()
+    {
+        if (PendingInvoices.Count == 0) return;
+        int ok = 0, fail = 0;
+        foreach (var item in PendingInvoices.ToList())
+        { try { if (await _fiscalDevice.CancelPendingInvoiceAsync(item.Uid)) { PendingInvoices.Remove(item); ok++; } else fail++; } catch { fail++; } }
+        PendingInvoiceCount = PendingInvoices.Count; OnPropertyChanged(nameof(HasPendingInvoices));
+        PendingStatusMessage = fail == 0 ? $"? {ok} annulée(s)." : $"? {ok} annulée(s), {fail} en échec.";
+        if (fail == 0) ShowPendingSuccess = true; else ShowPendingError = true;
+    }
+
+    // ----------------------------------------------------------
+    //  NEW SALE
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private async Task NewSale()
+    {
+        // Only ask when there's actually something to lose.
+        if (!IsNormalized && CartItems.Count > 0)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ClearCart,
+                    BuildAuthContext(TotalTTC, "Nouvelle vente — panier en cours")))
+            {
+                StatusMessage = "Nouvelle vente annulée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
+
+        _pendingOrderStore.Clear();
+        CartItems.Clear(); SelectedCartItem = null; ShowDiscountPanel = false;
+        ReceivedAmount = ""; PaymentAmount = ""; PaymentItems.Clear();
+        TotalPaid = 0; Remaining = 0; ChangeAmount = 0; ShowChange = false;
+        ShowSplitPayment = false; IsNormalized = false; ShowReceiptOverlay = false;
+        CodeDEFDGI = ""; Nim = ""; Counters = ""; QrCodeContent = ""; DeviceDateTime = "";
+        ClearClient();
+        IsCreditNote = false; IsOriginalLoaded = false; OriginalInvoiceSummary = "";
+        _loadedOriginalInvoice = null; _cumulativeRefunded.Clear(); CreditNoteSelections.Clear();
+        OriginalReference = ""; ShowCreditNotePanel = false;
+        IsAdvanceInvoice = false; AdvanceGroupId = ""; AdvancesTotalPaid = 0;
+        AdvanceAmountInput = "";
+        PreviousAdvances.Clear(); ShowAdvancePanel = false;
+        CommentA = ""; CommentB = ""; CommentC = ""; CommentD = "";
+        CommentE = ""; CommentF = ""; CommentG = ""; CommentH = "";
+        ShowCommentPanel = false; ShowPendingPanel = false; PendingStatusMessage = "";
+        ShowPendingSuccess = false; ShowPendingError = false;
+        GrandTotal = 0; GrandTotalLabel = PriceMode == PriceMode.TTC ? "TOTAL TTC" : "TOTAL HT";
+        TaxGroupSummaries.Clear(); TotalInAlternateCurrency = 0;
+        RecalculateTotals(); ClearStatus(); CloseAllOverlays();
+        InvoiceType = InvoiceType.FV; await GenerateNewNumber();
+        ShowFavoritesOnly = true; SelectedCategory = null;
+        CurrentStep = CheckoutStep.Review;
+        PaymentChannel = PaymentChannel.LocalPos; SunmiHandoff = SunmiHandoff.None; SelectedMobileOperator = null;
+        await LoadDisplayProductsAsync(); _customerDisplay.SetIdle();
+
+    }
+
+    private void ClearStatus() { StatusMessage = ""; ShowSuccess = false; ShowError = false; }
+
+    private void CloseAllOverlays()
+    {
+        ShowDiscountPanel = false;
+        ShowHeldPanel = false;
+        ShowClientPanel = false;
+        ShowCreditNotePanel = false;
+        ShowAdvancePanel = false;
+        ShowCommentPanel = false;
+        ShowPendingPanel = false;
+    }
+
+    // ----------------------------------------------------------
+    //  BUILD INVOICE
+    // ----------------------------------------------------------
+
+    private Invoice BuildInvoice(decimal paidAmount, decimal advanceAmount = 0m)
+    {
+        var invoice = new Invoice
+        {
+            InvoiceNumber = InvoiceNumber,
+            Type = InvoiceType,
+            PriceMode = PriceMode,
+            DiscountBeforeTax = _discountBeforeTax,
+            ISF = Isf,
+            ClientType = SelectedClientType,
+            ClientNIF = ClientNIF,
+            ClientName = ClientName,
+            ClientAddress = ClientAddress,
+            ClientPhone = ClientPhone,
+            ClientEmail = ClientEmail,
+            ClientRCCM = ClientRCCM,
+            OperatorName = OperatorName,
+            OperatorId = "01",
+            CommentA = CommentA,
+            CommentB = CommentB,
+            CommentC = CommentC,
+            CommentD = CommentD,
+            CommentE = CommentE,
+            CommentF = CommentF,
+            CommentG = CommentG,
+            CommentH = CommentH,
+            CurrencyCode = SelectedCurrency.ToString(),
+            CurrencyRate = ExchangeRate,
+            TotalHTBeforeDiscount = TotalHTBeforeDiscount,
+            TotalDiscount = TotalDiscount,
+            PointOfSaleId = SelectedPointOfSale?.Id ?? 1
+        };
+
+        if (IsCreditNote)
+        {
+            invoice.CreditNoteNature = SelectedCreditNoteNature;
+            invoice.OriginalInvoiceReference = OriginalReference;
+            invoice.ReferenceType = SelectedCreditNoteNature.ToString();
+            invoice.ReferenceDesc = GetCreditNoteDesc(SelectedCreditNoteNature);
+        }
+        if (IsAdvanceInvoice)
+        {
+            if (!string.IsNullOrWhiteSpace(AdvanceGroupId))
+                invoice.AdvanceGroupId = AdvanceGroupId;
+
+            invoice.OrderTotal = TotalTTC;
+            invoice.AdvanceAmount = advanceAmount;
+            invoice.PreviousAdvancesTotal = AdvancesTotalPaid;
+        }
+
+        int lineNum = 1;
+        foreach (var item in CartItems)
+        {
+            invoice.Lines.Add(new InvoiceLine
+            {
+                LineNumber = lineNum++,
+                Code = item.Code,
+                Name = item.Name,
+                ItemType = item.ItemType,
+                TaxGroup = item.TaxGroup,
+                TaxGroupAType = item.TaxGroup == TaxGroup.A ? item.TaxGroupAType : null,
+                TaxRate = item.TaxRate,
+                UnitPriceHT = item.UnitPriceHT,
+                UnitPriceTTC = item.UnitPriceTTC,
+                Quantity = item.Quantity,
+                Unit = item.Unit,
+                DiscountType = item.DiscountType,
+                DiscountValue = item.DiscountValue,
+                DiscountAmount = item.DiscountAmount,
+                AmountHTBeforeDiscount = item.AmountHTBeforeDiscount,
+
+                HasSpecificTax = item.HasSpecificTax,
+                SpecificTaxName = item.SpecificTaxName,
+                SpecificTaxType = item.SpecificTaxType,
+                SpecificTaxValue = item.SpecificTaxValue,
+                TaxApplicationMode = item.TaxApplicationMode,
+
+                AmountHT = item.AmountHT,
+                AmountTVA = item.AmountTVA,
+                AmountTTC = item.AmountTTC,
+                TaxSpecificAmount = item.TaxSpecificAmount,
+            });
+        }
+
+        invoice.TotalHT = TotalHT;
+        invoice.TotalTVA = TotalTVA;
+        invoice.TotalTTC = TotalTTC;
+        invoice.TotalSpecificTax = TotalSpecificTax;
+
+        // -- PAIEMENTS --
+        // ?? On tague l'opérateur Mobile Money (M-Pesa / Airtel / Orange).
+        // Le PaymentType reste MobileMoney ? une seule ligne fiscale / Z-report.
+        if (PaymentItems.Count > 0)
+        {
+            foreach (var pay in PaymentItems)
+                invoice.Payments.Add(new InvoicePayment
+                {
+                    PaymentType = pay.PaymentType,
+                    Amount = pay.Amount,
+                    CurrencyCode = SelectedCurrency.ToString(),
+                    CurrencyRate = ExchangeRate,
+                    MobileOperator = pay.PaymentType == PaymentType.MobileMoney
+                        ? SelectedMobileOperator
+                        : null
+                });
+        }
+        else
+        {
+            invoice.Payments.Add(new InvoicePayment
+            {
+                PaymentType = SelectedPaymentType,
+                Amount = paidAmount,
+                CurrencyCode = SelectedCurrency.ToString(),
+                CurrencyRate = ExchangeRate,
+                MobileOperator = SelectedPaymentType == PaymentType.MobileMoney
+                    ? SelectedMobileOperator
+                    : null
+            });
+        }
+
+        return invoice;
+    }
+
+    // ----------------------------------------------------------
+    //  HOLD / RECALL
+    // ----------------------------------------------------------
+
+    [RelayCommand]
+    private void RequestHold()
+    {
+        if (CartItems.Count == 0 || IsNormalized) return;
+        if (CartItems.Count <= 2) { HoldReason = ""; HoldCurrentSale(); return; }
+        HoldReason = ""; ShowHoldDialog = true;
+    }
+
+    [RelayCommand]
+    private void HoldCurrentSale()
+    {
+        if (CartItems.Count == 0 || IsNormalized) return;
+        ShowHoldDialog = false;
+        var held = new HeldTransactionViewModel
+        {
+            Label = CartItems.Count == 1 ? CartItems[0].Name : $"{CartItems[0].Name} +{CartItems.Count - 1}",
+            Reason = string.IsNullOrWhiteSpace(HoldReason) ? "" : HoldReason.Trim(),
+            // ?? Horodatage via ITimeProvider (heure locale : affichage opérateur).
+            // Si HeldAt doit être en UTC, remplacer par : _time.UtcNow.UtcDateTime
+            HeldAt = _time.LocalNow.LocalDateTime,
+            TotalTTC = TotalTTC,
+            ItemCount = TotalArticles,
+            OperatorName = OperatorName,
+            InvoiceNumber = InvoiceNumber,
+            InvoiceType = InvoiceType,
+            PaymentType = SelectedPaymentType,
+            ReceivedAmount = ReceivedAmount,
+            PriceMode = PriceMode,
+            DiscountBeforeTax = _discountBeforeTax
+        };
+        foreach (var item in CartItems)
+            held.Items.Add(new CartItemSnapshot
+            {
+                ProductId = item.ProductId,
+                Code = item.Code,
+                Name = item.Name,
+                ItemType = item.ItemType,
+                TaxGroup = item.TaxGroup,
+                TaxGroupAType = item.TaxGroupAType,
+                TaxRate = item.TaxRate,
+                UnitPriceHT = item.UnitPriceHT,
+                UnitPriceTTC = item.UnitPriceTTC,
+                Unit = item.Unit,
+                Quantity = item.Quantity,
+                DiscountType = item.DiscountType,
+                DiscountValue = item.DiscountValue,
+                DiscountAmount = item.DiscountAmount,
+                AmountHTBeforeDiscount = item.AmountHTBeforeDiscount,
+
+                SpecificTaxType = item.SpecificTaxType,
+                SpecificTaxValue = item.SpecificTaxValue,
+                SpecificTaxName = item.SpecificTaxName,
+                TaxApplicationMode = item.TaxApplicationMode,
+                TaxSpecificAmount = item.TaxSpecificAmount,
+
+                AmountHT = item.AmountHT,
+                AmountTVA = item.AmountTVA,
+                AmountTTC = item.AmountTTC,
+                StockQuantity = item.StockQuantity,
+                TrackStock = item.TrackStock
+            });
+        HeldTransactions.Add(held); HeldCount = HeldTransactions.Count;
+        CartItems.Clear(); SelectedCartItem = null; ShowDiscountPanel = false;
+        ReceivedAmount = ""; ChangeAmount = 0; ShowChange = false;
+        CurrentStep = CheckoutStep.Review;
+        PaymentItems.Clear(); RecalculatePayments(); RecalculateTotals();
+        _ = GenerateNewNumber();
+        StatusMessage = $"? Panier en attente — {held.ItemCount} article(s)"; ShowSuccess = true; HoldReason = "";
+    }
+
+    [RelayCommand]
+    private void RecallHeldSale(HeldTransactionViewModel? held)
+    {
+        if (held == null || IsNormalized) return;
+        if (CartItems.Count > 0) { HoldReason = "(auto-hold)"; HoldCurrentSale(); }
+        CartItems.Clear();
+        foreach (var snapshot in held.Items)
+            CartItems.Add(new CartItemViewModel
+            {
+                ProductId = snapshot.ProductId,
+                Code = snapshot.Code,
+                Name = snapshot.Name,
+                ItemType = snapshot.ItemType,
+                TaxGroup = snapshot.TaxGroup,
+                TaxRate = snapshot.TaxRate,
+                UnitPriceHT = snapshot.UnitPriceHT,
+                UnitPriceTTC = snapshot.UnitPriceTTC,
+                Unit = snapshot.Unit,
+                Quantity = snapshot.Quantity,
+                DiscountType = snapshot.DiscountType,
+                DiscountValue = snapshot.DiscountValue,
+                DiscountAmount = snapshot.DiscountAmount,
+                AmountHTBeforeDiscount = snapshot.AmountHTBeforeDiscount,
+
+                SpecificTaxType = snapshot.SpecificTaxType,
+                SpecificTaxValue = snapshot.SpecificTaxValue,
+                SpecificTaxName = snapshot.SpecificTaxName,
+                TaxApplicationMode = snapshot.TaxApplicationMode,
+                TaxSpecificAmount = snapshot.TaxSpecificAmount,
+
+                AmountHT = snapshot.AmountHT,
+                AmountTVA = snapshot.AmountTVA,
+                AmountTTC = snapshot.AmountTTC,
+                StockQuantity = snapshot.StockQuantity,
+                TrackStock = snapshot.TrackStock
+            });
+        InvoiceNumber = held.InvoiceNumber; InvoiceType = held.InvoiceType;
+        SelectedPaymentType = held.PaymentType; ReceivedAmount = held.ReceivedAmount;
+
+        foreach (var item in CartItems)
+            item.Recalculate(PriceMode, _discountBeforeTax);
+
+        RecalculateTotals();
+        HeldTransactions.Remove(held); HeldCount = HeldTransactions.Count;
+        ShowHeldPanel = HeldTransactions.Count > 0 && ShowHeldPanel;
+        StatusMessage = $"? Panier rappelé — {held.ItemCount} article(s)"; ShowSuccess = true;
+    }
+
+    [RelayCommand]
+    private void DeleteHeldSale(HeldTransactionViewModel? held)
+    {
+        if (held == null) return;
+        HeldTransactions.Remove(held); HeldCount = HeldTransactions.Count;
+        if (HeldTransactions.Count == 0) ShowHeldPanel = false;
+        StatusMessage = "?? Panier supprimé"; ShowSuccess = true;
+    }
+
+    [RelayCommand]
+    private void ToggleHeldPanel()
+    {
+        if (HeldTransactions.Count == 0) { ShowHeldPanel = false; return; }
+        bool wasOpen = ShowHeldPanel;
+        CloseAllOverlays();
+        if (!wasOpen) ShowHeldPanel = true;
+    }
+
+    [RelayCommand]
+    private void CancelHold() { ShowHoldDialog = false; HoldReason = ""; }
+
+    [RelayCommand]
+    private void ShowOfflineQr(string orderId)
+    {
+        var vm = new OfflineQrViewModel(_scopeFactory, orderId);
+        var win = new OfflineQrWindow(vm) { Owner = System.Windows.Application.Current.MainWindow };
+        win.ShowDialog();
+    }
+
+    [RelayCommand]
+    private void GoToPaymentStep()
+    {
+        if (IsNormalized) return;
+        if (CartItems.Count == 0)
+        {
+            StatusMessage = "Ajoutez au moins un article avant de passer au paiement.";
+            ShowError = true;
+            return;
+        }
+        ClearStatus();
+        CurrentStep = CheckoutStep.Payment;
+    }
+
+    [RelayCommand]
+    private void GoToReviewStep() => CurrentStep = CheckoutStep.Review;
+
+    [RelayCommand] private void SelectLocalPos() => PaymentChannel = PaymentChannel.LocalPos;
+    [RelayCommand] private void SelectSunmi() => PaymentChannel = PaymentChannel.SunmiTerminal;
+
+    public int SunmiHandoffIndex
+    {
+        get => SunmiHandoff == SunmiHandoff.LanDevice ? 1
+             : SunmiHandoff == SunmiHandoff.ShowQr ? 0 : -1;
+        set => SunmiHandoff = value == 1 ? SunmiHandoff.LanDevice : SunmiHandoff.ShowQr;
+    }
+
+    // ----------------------------------------------------------
+    //  HELPERS
+    // ----------------------------------------------------------
+
+
+
+    private static string GetPaymentLabel(PaymentType type) => type switch
+    {
+        PaymentType.Especes => "Espèces",
+        PaymentType.Virement => "Virement",
+        PaymentType.CarteBancaire => "Carte bancaire",
+        PaymentType.MobileMoney => "Mobile Money",
+        PaymentType.Cheques => "Chèques",
+        PaymentType.Credit => "Crédit",
+        PaymentType.Autre => "Autre",
+        _ => type.ToString()
+    };
+
+    private static string GetCreditNoteDesc(CreditNoteNature nature) => nature switch
+    {
+        CreditNoteNature.COR => "Correction",
+        CreditNoteNature.RAN => "Annulation",
+        CreditNoteNature.RAM => "Remboursement",
+        CreditNoteNature.RRR => "Remise/Ristourne/Rabais",
+        _ => ""
+    };
+
+    // ----------------------------------------------------------
+    //  IActivatable
+    // ----------------------------------------------------------
+
+    public async Task ActivateAsync()
+    {
+        if (_isFirstActivation) { _isFirstActivation = false; return; }
+        try
+        {
+            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+            if (company != null)
+            {
+                _currentCompany = company;
+                Isf = company.ISF;
+
+                var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
+                if (companyWithPos?.PointsOfSale != null)
+                {
+                    var activePosList = companyWithPos.PointsOfSale
+                        .Where(p => p.IsActive).OrderBy(p => p.Code).ToList();
+                    var previousId = SelectedPointOfSale?.Id;
+                    AvailablePointsOfSale.Clear();
+                    foreach (var pos in activePosList) AvailablePointsOfSale.Add(pos);
+                    HasMultiplePos = activePosList.Count > 1;
+                    SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
+                        activePosList, _auth.CurrentUser?.PointOfSaleId, previousId);
+                }
+            }
+
+            try { await LoadDisplayProductsAsync(); } catch { }
+            try { await RefreshDailyStatsAsync(); } catch { }
+            try { await LoadOperatorsAsync(); } catch { }
+        }
+        catch { }
+    }
+}
+
+
+==========================================================
+FILE: SFE.WPF/ViewModels/UsersViewModel.cs
+SIZE: 18406 bytes
+==========================================================
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SFE.Application.Events;
+using SFE.Application.Interfaces;
+using SFE.Application.Services;
+using SFE.Domain.Entities;
+
+namespace SFE.WPF.ViewModels;
+
+public partial class UsersViewModel : BaseViewModel
+{
+    private readonly UserService _userService;
+    private readonly IAuthService _authService;
+
+    [ObservableProperty] private ObservableCollection<PointOfSale> _availablePointsOfSale = new();
+    [ObservableProperty] private PointOfSale? _selectedPointOfSale;
+
+    [ObservableProperty] private bool _isUsersTab = true;
+
+    // ------- USER LIST -------
+    public ObservableCollection<UserListItem> Users { get; } = new();
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private int _userCount;
+
+    // ------- USER FORM -------
+    [ObservableProperty] private bool _isEditingUser;
+    [ObservableProperty] private bool _isCreatingUser;
+    [ObservableProperty] private string _userFormTitle = "";
+    [ObservableProperty] private bool _isProtectedUser;
+    private int _editingUserId;
+
+    [ObservableProperty] private string _formUsername = "";
+    [ObservableProperty] private string _formPassword = "";
+    [ObservableProperty] private string _formFullName = "";
+    [ObservableProperty] private Role? _formRole;
+    [ObservableProperty] private bool _formIsActive = true;
+
+    [ObservableProperty] private PointOfSale? _formPointOfSale;
+
+    public ObservableCollection<Role> AvailableRoles { get; } = new();
+    public ObservableCollection<PointOfSale> AvailablePos { get; } = new();
+
+    // ------- ROLE LIST -------
+    public ObservableCollection<RoleListItem> Roles { get; } = new();
+    [ObservableProperty] private int _roleCount;
+
+    // ------- ROLE FORM -------
+    [ObservableProperty] private bool _isEditingRole;
+    [ObservableProperty] private bool _isCreatingRole;
+    [ObservableProperty] private string _roleFormTitle = "";
+    [ObservableProperty] private bool _isProtectedRole;
+    [ObservableProperty] private string _protectedRoleMessage = "";                // ? NEW
+    private int _editingRoleId;
+
+    [ObservableProperty] private string _formRoleName = "";
+    public ObservableCollection<PermissionItem> FormPermissions { get; } = new();
+
+    // ------- ROLE-TAB PRIVILEGES -------
+    [ObservableProperty] private bool _canManageRoles;   // ? renamed — covers create/edit/delete
+
+    private List<User> _allUsers = new();
+
+    private int CurrentUserId => _authService.CurrentUser?.Id ?? 0;
+    private User? CurrentUser => _authService.CurrentUser;
+
+    private bool CurrentUserIsSuperAdmin =>
+        CurrentUser != null && UserService.IsSuperAdminUser(CurrentUser);
+
+    private bool CurrentUserIsITTech
+    {
+        get
+        {
+            var me = _allUsers.FirstOrDefault(u => u.Id == CurrentUserId);
+            return me?.Role != null && UserService.IsITTechRole(me.Role);
+        }
+    }
+
+    public UsersViewModel(UserService userService, IAuthService authService)
+    {
+        _userService = userService;
+        _authService = authService;
+        PageTitle = "Utilisateurs & Rôles";
+
+        Subscribe(async () => await LoadAllAsync(),
+            AppEvent.UserCreated, AppEvent.UserUpdated, AppEvent.UserDeleted,
+            AppEvent.RoleCreated, AppEvent.RoleUpdated, AppEvent.RoleDeleted);
+
+        _ = LoadAllAsync();
+    }
+
+    partial void OnSearchTextChanged(string value) => ApplyUserFilter();
+
+    [RelayCommand] private void SwitchToUsersTab() { IsUsersTab = true; CancelRoleEdit(); }
+    [RelayCommand] private void SwitchToRolesTab() { IsUsersTab = false; CancelUserEdit(); }
+
+    // ------- LOAD -------
+
+    private async Task LoadAllAsync()
+    {
+        try
+        {
+            IsBusy = true;
+
+            _allUsers = await _userService.GetAllWithRolesAsync();
+            var allPos = await _userService.GetAllPointsOfSaleAsync();
+
+            AvailableRoles.Clear();
+            if (CurrentUser != null)
+            {
+                var assignable = await _userService.GetAssignableRolesAsync(CurrentUser);
+                foreach (var r in assignable)
+                    AvailableRoles.Add(r);
+            }
+
+            AvailablePos.Clear();
+            foreach (var p in allPos.Where(p => p.IsActive).OrderBy(p => p.Code))
+                AvailablePos.Add(p);
+
+            // ? Compute privilege flags once
+            bool isSA = CurrentUserIsSuperAdmin;
+            bool isIT = CurrentUserIsITTech;
+            CanManageRoles = isSA;   // ? only SuperAdmin
+
+            var allRoles = await _userService.GetAllRolesAsync();
+            Roles.Clear();
+            foreach (var r in allRoles.OrderBy(r => r.Name))
+            {
+                var count = _allUsers.Count(u => u.RoleId == r.Id);
+                Roles.Add(new RoleListItem(r, count, isSA));                 // ?
+            }
+            RoleCount = Roles.Count;
+
+            ApplyUserFilter();
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur de chargement : {ex.Message}");
+        }
+        finally { IsBusy = false; }
+    }
+
+    private void ApplyUserFilter()
+    {
+        var filtered = _allUsers.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var q = SearchText.Trim().ToLower();
+            filtered = filtered.Where(u =>
+                u.Username.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                u.FullName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (u.Role?.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        Users.Clear();
+        foreach (var u in filtered)
+            Users.Add(new UserListItem(u, CurrentUserIsSuperAdmin, CurrentUserIsITTech));
+        UserCount = Users.Count;
+    }
+
+    // ------- USER COMMANDS -------
+
+    [RelayCommand]
+    private void NewUser()
+    {
+        ClearUserForm();
+        IsCreatingUser = true;
+        IsEditingUser = true;
+        IsProtectedUser = false;
+        UserFormTitle = "Nouvel utilisateur";
+        FormIsActive = true;
+    }
+
+    [RelayCommand]
+    private void EditUser(UserListItem? item)
+    {
+        if (item == null) return;
+        var user = _allUsers.FirstOrDefault(u => u.Id == item.Id);
+        if (user == null) return;
+
+        _editingUserId = user.Id;
+        IsCreatingUser = false;
+        IsEditingUser = true;
+        IsProtectedUser = UserService.IsSuperAdminUser(user);
+        UserFormTitle = $"Modifier — {user.FullName}";
+
+        FormUsername = user.Username;
+        FormPassword = "";
+        FormFullName = user.FullName;
+        FormIsActive = user.IsActive;
+        FormRole = AvailableRoles.FirstOrDefault(r => r.Id == user.RoleId);
+        FormPointOfSale = AvailablePos.FirstOrDefault(p => p.Id == user.PointOfSaleId);
+
+        ClearStatus();
+    }
+
+    [RelayCommand]
+    private async Task SaveUser()
+    {
+        ClearStatus();
+        ServiceResult result;
+
+        if (IsCreatingUser)
+        {
+            var user = new User
+            {
+                Username = FormUsername,
+                FullName = FormFullName,
+                RoleId = FormRole?.Id ?? 0,
+                IsActive = FormIsActive,
+                PointOfSaleId = FormPointOfSale?.Id
+            };
+            result = await _userService.CreateUserAsync(user, FormPassword, CurrentUserId);
+        }
+        else
+        {
+            var user = new User
+            {
+                Id = _editingUserId,
+                Username = FormUsername,
+                FullName = FormFullName,
+                RoleId = FormRole?.Id ?? _allUsers.First(u => u.Id == _editingUserId).RoleId,
+                IsActive = FormIsActive,
+                PointOfSaleId = FormPointOfSale?.Id
+            };
+            var newPwd = string.IsNullOrWhiteSpace(FormPassword) ? null : FormPassword;
+            result = await _userService.UpdateUserAsync(user, CurrentUserId, newPwd);
+        }
+
+        if (result.Success)
+        {
+            var msg = IsCreatingUser ? "? Utilisateur créé avec succès." : "? Utilisateur mis à jour.";
+            IsEditingUser = false;
+            await LoadAllAsync();
+            _ = ShowSuccessAsync(msg);
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private async Task DeleteUser(UserListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+        var result = await _userService.DeleteUserAsync(item.Id, CurrentUserId);
+        if (result.Success)
+        {
+            if (IsEditingUser && _editingUserId == item.Id) CancelUserEdit();
+            await LoadAllAsync();
+            _ = ShowSuccessAsync("? Utilisateur supprimé.");
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private async Task ToggleUserActive(UserListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+        var result = await _userService.ToggleActiveAsync(item.Id, CurrentUserId);
+        if (result.Success)
+        {
+            await LoadAllAsync();
+            _ = ShowSuccessAsync(item.IsActive ? "? Utilisateur désactivé." : "? Utilisateur activé.");
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private void CancelUserEdit()
+    {
+        IsEditingUser = false;
+        IsCreatingUser = false;
+        ClearUserForm();
+        ClearStatus();
+    }
+
+    private void ClearUserForm()
+    {
+        _editingUserId = 0;
+        FormUsername = "";
+        FormPassword = "";
+        FormFullName = "";
+        FormRole = null;
+        FormIsActive = true;
+        IsProtectedUser = false;
+        UserFormTitle = "";
+        FormPointOfSale = null;
+    }
+
+    // ------- ROLE COMMANDS -------
+
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
+    private void NewRole()
+    {
+        ClearRoleForm();
+        IsCreatingRole = true;
+        IsEditingRole = true;
+        IsProtectedRole = false;
+        ProtectedRoleMessage = "";
+        RoleFormTitle = "Nouveau rôle";
+        InitPermissionItems(new Dictionary<string, bool>());
+    }
+
+    [RelayCommand]
+    private void EditRole(RoleListItem? item)
+    {
+        if (item == null) return;
+        _editingRoleId = item.Id;
+        IsCreatingRole = false;
+        IsEditingRole = true;
+
+        IsProtectedRole = !item.CanEditRole;
+
+        if (IsProtectedRole)
+        {
+            if (item.IsSuperAdmin)
+                ProtectedRoleMessage = "?? Rôle SuperAdmin protégé — ce rôle ne peut pas être modifié ni supprimé.";
+            else
+                ProtectedRoleMessage = "?? Seul le SuperAdmin peut modifier les rôles.";
+
+            RoleFormTitle = $"?? {item.Name} (lecture seule)";
+        }
+        else
+        {
+            ProtectedRoleMessage = "";
+            RoleFormTitle = $"Modifier — {item.Name}";
+        }
+
+        FormRoleName = item.Name;
+        InitPermissionItems(UserService.ParsePermissions(item.PermissionsJson));
+        ClearStatus();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
+    private async Task SaveRole()
+    {
+        ClearStatus();
+        var perms = FormPermissions.ToDictionary(p => p.Key, p => p.IsGranted);
+        ServiceResult result;
+
+        if (IsCreatingRole)
+            result = await _userService.CreateRoleAsync(FormRoleName, perms, CurrentUserId);      // ?
+        else
+            result = await _userService.UpdateRoleAsync(_editingRoleId, FormRoleName, perms, CurrentUserId); // ?
+
+        if (result.Success)
+        {
+            var msg = IsCreatingRole ? "? Rôle créé avec succès." : "? Rôle mis à jour.";
+            IsEditingRole = false;
+            await LoadAllAsync();
+            _ = ShowSuccessAsync(msg);
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
+    private async Task DeleteRole(RoleListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+        var result = await _userService.DeleteRoleAsync(item.Id, CurrentUserId);
+        if (result.Success)
+        {
+            if (IsEditingRole && _editingRoleId == item.Id) CancelRoleEdit();
+            await LoadAllAsync();
+            _ = ShowSuccessAsync("? Rôle supprimé.");
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private void CancelRoleEdit()
+    {
+        IsEditingRole = false;
+        IsCreatingRole = false;
+        ClearRoleForm();
+        ClearStatus();
+    }
+
+    private void ClearRoleForm()
+    {
+        _editingRoleId = 0;
+        FormRoleName = "";
+        IsProtectedRole = false;
+        ProtectedRoleMessage = "";
+        RoleFormTitle = "";
+        FormPermissions.Clear();
+    }
+
+    private void InitPermissionItems(Dictionary<string, bool> current)
+    {
+        FormPermissions.Clear();
+        foreach (var (key, label) in UserService.AllPermissions)
+        {
+            current.TryGetValue(key, out var granted);
+            FormPermissions.Add(new PermissionItem { Key = key, Label = label, IsGranted = granted });
+        }
+    }
+
+    partial void OnCanManageRolesChanged(bool value)
+    {
+        NewRoleCommand.NotifyCanExecuteChanged();
+        SaveRoleCommand.NotifyCanExecuteChanged();
+        DeleteRoleCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand]
+    private async Task GenerateCard(UserListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+
+        var (result, plainCode) = await _userService.GenerateManagerBarcodeAsync(item.Id, CurrentUserId);
+        if (!result.Success)
+        {
+            ShowErrorMessage(result.ErrorMessage);
+            return;
+        }
+
+        // Reload so the "issued at" timestamp is refreshed
+        await LoadAllAsync();
+
+        var user = _allUsers.First(u => u.Id == item.Id);
+        var window = new Views.Windows.ManagerCardWindow(user, plainCode!)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+
+        _ = ShowSuccessAsync($"? Carte émise pour {user.FullName}.");
+    }
+}
+
+// ------------------------------------------------------
+//  HELPER CLASSES
+// ------------------------------------------------------
+
+public class UserListItem
+{
+    public int Id { get; }
+    public string Username { get; }
+    public string FullName { get; }
+    public string RoleName { get; }
+    public string PosName { get; }
+    public bool IsActive { get; }
+    public string ActiveDisplay { get; }
+    public string LastLoginDisplay { get; }
+    public bool IsSuperAdmin { get; }
+    public bool CanEdit { get; }
+    public bool CanModify { get; }
+    public bool CanGenerateCard { get; }
+
+    public UserListItem(User u, bool currentUserIsSuperAdmin, bool currentUserIsITTech)
+    {
+        Id = u.Id;
+        Username = u.Username;
+        FullName = u.FullName;
+        RoleName = u.Role?.Name ?? "—";
+        PosName = u.PointOfSale != null ? $"{u.PointOfSale.Code}" : "—";
+        IsActive = u.IsActive;
+        ActiveDisplay = u.IsActive ? "Actif" : "Inactif";
+        LastLoginDisplay = u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "Jamais";
+        IsSuperAdmin = UserService.IsSuperAdminUser(u);
+
+        var isITTech = u.Role != null && UserService.IsITTechRole(u.Role);
+        var isInspecteurDGI = u.Role != null && UserService.IsInspecteurDGIRole(u.Role);
+
+        CanEdit = true;
+        if (IsSuperAdmin && !currentUserIsSuperAdmin) CanEdit = false;
+        if (isITTech && !currentUserIsSuperAdmin) CanEdit = false;
+        if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanEdit = false;
+
+        CanModify = !IsSuperAdmin;
+        if (isITTech && !currentUserIsSuperAdmin) CanModify = false;
+        if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanModify = false;
+
+        CanGenerateCard = currentUserIsSuperAdmin
+                  && u.IsActive
+                  && u.Role != null
+                  && UserService.IsManagerEligibleRole(u.Role);
+    }
+}
+
+public class RoleListItem
+{
+    public int Id { get; }
+    public string Name { get; }
+    public int UserCount { get; }
+    public bool IsSuperAdmin { get; }
+    public bool IsITTech { get; }
+    public bool IsInspecteurDGI { get; }
+    public bool IsRestricted { get; }
+    public bool CanEditRole { get; }
+    public bool CanDeleteRole { get; }
+    public string PermissionsJson { get; }
+
+    public RoleListItem(Role r, int userCount, bool currentUserIsSA)   // ? simplified ctor
+    {
+        Id = r.Id;
+        Name = r.Name;
+        UserCount = userCount;
+        PermissionsJson = r.Permissions;
+
+        IsSuperAdmin = UserService.IsSuperAdminRole(r);
+        IsITTech = UserService.IsITTechRole(r);
+        IsInspecteurDGI = UserService.IsInspecteurDGIRole(r);
+        IsRestricted = IsSuperAdmin || IsITTech || IsInspecteurDGI;
+
+        // ? Only SuperAdmin manages roles. Never edit/delete the SA role itself.
+        CanEditRole = currentUserIsSA && !IsSuperAdmin;
+        CanDeleteRole = currentUserIsSA && !IsSuperAdmin;
+    }
+}
+
+public partial class PermissionItem : ObservableObject
+{
+    public string Key { get; set; } = "";
+    public string Label { get; set; } = "";
+    [ObservableProperty] private bool _isGranted;
+}
+
+
+==========================================================
+FILE: SFE.Domain/Enums/AuditAction.cs
+SIZE: 7193 bytes
+==========================================================
+namespace SFE.Domain.Enums;
+
+public enum AuditAction
+{
+    // --- Authentication ---
+    UserLogin = 100,
+    UserLogout = 101,
+    UserLoginFailed = 102,
+
+    // --- Invoicing ---
+    InvoiceNormalized = 200,
+    InvoicePrinted = 201,
+    InvoiceDuplicated = 202,
+    CreditNoteNormalized = 203,
+    AdvanceInvoiceNormalized = 204,
+    ProformaCreated = 205,        // ??
+    ProformaConverted = 206,      // ??
+    ProformaCancelled = 207,      // ??
+
+    // --- Reports ---
+    ReportZGenerated = 300,
+    ReportXGenerated = 301,
+    ReportAGenerated = 302,
+    ReportExported = 303,
+
+    // --- Session ---
+    SessionOpened = 400,
+    SessionClosed = 401,
+    CashDeposit = 402,
+    CashWithdrawal = 403,
+
+    // --- Products ---
+    ProductCreated = 500,
+    ProductUpdated = 501,
+    ProductDeleted = 502,
+
+    // --- Categories ---
+    CategoryCreated = 510,
+    CategoryUpdated = 511,
+    CategoryDeleted = 512,
+
+    // --- Stock ---
+    StockAdjusted = 600,
+    StockTransferCreated = 601,
+    StockTransferShipped = 602,
+    StockTransferReceived = 603,
+    StockTransferCancelled = 604,
+    StockEntry = 605,
+    StockExit = 607,
+    StockAdjustment = 608,
+    StockPhysicalCount = 609,
+    StockInitial = 610,
+    StockSaleDecrement = 611,
+    StockCreditReturn = 612,
+    TransferCreated = 613,
+    TransferShipped = 614,
+    TransferReceived = 615,
+    TransferCancelled = 616,
+
+    // --- Clients ---
+    ClientCreated = 700,
+    ClientUpdated = 701,
+    ClientDeleted = 702,
+
+    // --- Users & Roles ---
+    UserCreated = 800,
+    UserUpdated = 801,
+    UserDeleted = 802,
+    RoleCreated = 810,
+    RoleUpdated = 811,
+    RoleDeleted = 812,
+    UserActivated = 813,
+    UserDeactivated = 814,
+
+
+    // --- Settings ---
+    SettingsUpdated = 900,
+    CompanyUpdated = 901,
+    PosCreated = 902,
+    PosUpdated = 903,
+    ExchangeRateUpdated = 904,
+    PosReactivated = 905,
+
+    // --- System / MCF ---
+    McfConnectionLost = 1000,
+    McfReconnected = 1001,
+    McfSyncRequested = 1002,
+
+    // --- POS ---
+    PosDeactivated,
+
+    InvoiceNormalizationFailed,
+    InvoiceFiscalDeviceError,
+    InvoiceValidationFailed,
+    InvoiceSaveFailed,
+
+    // --- Licensing --- (block 1100)
+    LicenseTrialIssued = 1100,
+    LicenseInstalled = 1101,
+    LicenseActivated = 1102,
+    LicenseRevokedByPortal = 1103,
+    LicenseExpired = 1104,
+    LicenseEnteredGrace = 1105,
+    LicenseEnteredOffline = 1106,
+    LicenseTamperDetected = 1107,
+    LicenseFeatureBlocked = 1108,
+    LicenseHeartbeatSucceeded = 1109,
+    LicenseHeartbeatFailed = 1110,
+
+    // --- Authorization ---
+    ManagerAuthorizationGranted = 1200,
+    ManagerAuthorizationDenied = 1201,
+    ManagerCardIssued = 1202,
+    ManagerCardRevoked = 1203,
+    ManagerCardAutoRevoked = 1204,
+}
+
+public static class AuditActionExtensions
+{
+    public static string Label(this AuditAction a) => a switch
+    {
+        AuditAction.UserLogin => "Connexion",
+        AuditAction.UserLogout => "Déconnexion",
+        AuditAction.UserLoginFailed => "Échec connexion",
+
+        AuditAction.InvoiceNormalized => "Facture normalisée",
+        AuditAction.InvoicePrinted => "Facture imprimée",
+        AuditAction.InvoiceDuplicated => "Duplicata",
+        AuditAction.CreditNoteNormalized => "Avoir normalisé",
+        AuditAction.AdvanceInvoiceNormalized => "Acompte normalisé",
+
+        AuditAction.ReportZGenerated => "Rapport Z",
+        AuditAction.ReportXGenerated => "Rapport X",
+        AuditAction.ReportAGenerated => "Rapport A",
+        AuditAction.ReportExported => "Rapport exporté",
+
+        AuditAction.SessionOpened => "Ouverture session",
+        AuditAction.SessionClosed => "Clôture session",
+        AuditAction.CashDeposit => "Dépôt espèces",
+        AuditAction.CashWithdrawal => "Retrait espèces",
+
+        AuditAction.ProductCreated => "Produit créé",
+        AuditAction.ProductUpdated => "Produit modifié",
+        AuditAction.ProductDeleted => "Produit supprimé",
+
+        AuditAction.CategoryCreated => "Catégorie créée",
+        AuditAction.CategoryUpdated => "Catégorie modifiée",
+        AuditAction.CategoryDeleted => "Catégorie supprimée",
+
+        AuditAction.StockAdjusted => "Ajustement stock",
+        AuditAction.StockTransferCreated => "Transfert créé",
+        AuditAction.StockTransferShipped => "Transfert expédié",
+        AuditAction.StockTransferReceived => "Transfert reçu",
+        AuditAction.StockTransferCancelled => "Transfert annulé",
+
+        AuditAction.ClientCreated => "Client créé",
+        AuditAction.ClientUpdated => "Client modifié",
+
+        AuditAction.UserCreated => "Utilisateur créé",
+        AuditAction.UserUpdated => "Utilisateur modifié",
+        AuditAction.UserDeleted => "Utilisateur supprimé",
+        AuditAction.RoleCreated => "Rôle créé",
+        AuditAction.RoleUpdated => "Rôle modifié",
+        AuditAction.RoleDeleted => "Rôle supprimé",
+
+        AuditAction.SettingsUpdated => "Paramètres modifiés",
+        AuditAction.CompanyUpdated => "Entreprise modifiée",
+        AuditAction.PosCreated => "PDV créé",
+        AuditAction.PosUpdated => "PDV modifié",
+        AuditAction.ExchangeRateUpdated => "Taux de change MAJ",
+
+        AuditAction.McfConnectionLost => "MCF déconnecté",
+        AuditAction.McfReconnected => "MCF reconnecté",
+        AuditAction.McfSyncRequested => "Sync MCF demandée",
+
+        AuditAction.InvoiceNormalizationFailed => "Échec normalisation facture",
+        AuditAction.InvoiceFiscalDeviceError => "Erreur dispositif fiscal",
+        AuditAction.InvoiceValidationFailed => "Échec validation facture",
+        AuditAction.InvoiceSaveFailed => "Échec sauvegarde facture",
+
+        AuditAction.ProformaCreated => "Proforma créée",
+        AuditAction.ProformaConverted => "Proforma convertie",
+        AuditAction.ProformaCancelled => "Proforma annulée",
+
+        AuditAction.LicenseTrialIssued => "Licence d'essai émise",
+        AuditAction.LicenseInstalled => "Licence installée",
+        AuditAction.LicenseActivated => "Licence activée",
+        AuditAction.LicenseRevokedByPortal => "Licence révoquée",
+        AuditAction.LicenseExpired => "Licence expirée",
+        AuditAction.LicenseEnteredGrace => "Licence en délai de grâce",
+        AuditAction.LicenseEnteredOffline => "Licence hors ligne prolongée",
+        AuditAction.LicenseTamperDetected => "Anomalie licence détectée",
+        AuditAction.LicenseFeatureBlocked => "Fonctionnalité bloquée",
+        AuditAction.LicenseHeartbeatSucceeded => "Heartbeat OK",
+        AuditAction.LicenseHeartbeatFailed => "Heartbeat échec",
+
+        AuditAction.ManagerAuthorizationGranted => "Autorisation manager accordée",
+        AuditAction.ManagerAuthorizationDenied => "Autorisation manager refusée",
+
+
+        _ => a.ToString()
+    };
+}
+
+
+==========================================================
+FILE: SFE.Domain/Enums/AuditModule.cs
+SIZE: 1780 bytes
+==========================================================
+namespace SFE.Domain.Enums;
+
+public enum AuditModule
+{
+    Authentication,
+    Invoicing,
+    Reports,
+    Session,
+    Products,
+    Stock,
+    Clients,
+    Users,
+    PointOfSale,
+    Settings,
+    System,
+    Licensing,
+    Authorization,
+}
+
+public static class AuditModuleExtensions
+{
+    public static string Label(this AuditModule m) => m switch
+    {
+        AuditModule.Authentication => "Authentification",
+        AuditModule.Invoicing => "Facturation",
+        AuditModule.Reports => "Rapports",
+        AuditModule.Session => "Session",
+        AuditModule.Products => "Produits",
+        AuditModule.Stock => "Stock",
+        AuditModule.Clients => "Clients",
+        AuditModule.Users => "Utilisateurs",
+        AuditModule.Settings => "Paramètres",
+        AuditModule.System => "Système",
+        AuditModule.Licensing => "Licence",
+        AuditModule.PointOfSale => "PDV",
+        AuditModule.Authorization => "Autorisation",
+        _ => m.ToString()
+    };
+
+    public static string Icon(this AuditModule m) => m switch
+    {
+        AuditModule.Authentication => "ShieldAccountOutline",
+        AuditModule.Invoicing => "ReceiptTextOutline",
+        AuditModule.Reports => "ChartBoxOutline",
+        AuditModule.Session => "CashRegister",
+        AuditModule.Products => "PackageVariantClosed",
+        AuditModule.Stock => "WarehouseOutline",
+        AuditModule.Clients => "AccountGroupOutline",
+        AuditModule.Users => "AccountCogOutline",
+        AuditModule.Settings => "CogOutline",
+        AuditModule.System => "ServerNetworkOutline",
+        AuditModule.Licensing => "KeyChainVariant",
+        AuditModule.Authorization => "ShieldKeyOutline",
+        _ => "InformationOutline"
+    };
+}
+
+
+==========================================================
+FILE: SFE.Domain/Entities/User.cs
+SIZE: 1808 bytes
+==========================================================
+// File: SFE.Domain/Entities/User.cs
+namespace SFE.Domain.Entities;
+
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public int RoleId { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>SHA-256 of the manager PIN. Null = user has no PIN configured.</summary>
+    public string? ManagerPinHash { get; set; }
+
+    /// <summary>SHA-256 of the manager's authorization barcode payload. Null = no barcode issued.</summary>
+    public string? ManagerBarcodeHash { get; set; }
+    public DateTimeOffset? ManagerBarcodeIssuedAt { get; set; }
+    public DateTimeOffset? LastLoginAt { get; set; }
+
+    // -----------------------------------------------
+    //  ?? POS ASSIGNMENT (replaces AssignedPosIds JSON)
+    // -----------------------------------------------
+    /// <summary>
+    /// The POS (shop/location) this operator is assigned to.
+    /// Null = unassigned or has access to ALL POS (admin/manager).
+    /// </summary>
+    public int? PointOfSaleId { get; set; }
+
+    // -----------------------------------------------
+    //  NAVIGATION
+    // -----------------------------------------------
+    public Role? Role { get; set; }
+    public PointOfSale? PointOfSale { get; set; }
+}
+
+
+==========================================================
+FILE: SFE.WPF/Services/ManagerGate.cs
+SIZE: 1046 bytes
+==========================================================
+using SFE.Application.Interfaces;
+using SFE.Domain.Enums;
+
+namespace SFE.WPF.Services;
+
+/// <summary>
+/// Thin wrapper around <see cref="IManagerAuthorizationPrompter"/> +
+/// <see cref="IManagerAuthorizationService"/>: shows the modal, consumes
+/// the ticket, and returns a plain bool. All grant/deny audit rows are
+/// written by ManagerAuthorizationService — no extra logging needed here.
+/// </summary>
+public sealed class ManagerGate
+{
+    private readonly IManagerAuthorizationPrompter _prompter;
+    private readonly IManagerAuthorizationService _svc;
+
+    public ManagerGate(IManagerAuthorizationPrompter prompter,
+                       IManagerAuthorizationService svc)
+    {
+        _prompter = prompter;
+        _svc = svc;
+    }
+
+    public async Task<bool> RequireAsync(ManagerAction action, AuthorizationContext ctx)
+    {
+        var ticket = await _prompter.RequireAsync(action, ctx);
+        if (ticket is null) return false;
+        return _svc.TryConsumeTicket(ticket.Value, action);
+    }
+}
+
+
+==========================================================
+FILE: SFE.WPF/Views/Windows/ManagerCardWindow.xaml
+SIZE: 15304 bytes
+==========================================================
+<Window x:Class="SFE.WPF.Views.Windows.ManagerCardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:ctrl="clr-namespace:SFE.WPF.Controls"
+        Title="Carte manager"
+        Width="620" Height="640"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BackgroundBrush}">
+
+    <Window.Resources>
+
+        <!-- Header gradient -->
+        <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1E3A5F" Offset="0"/>
+            <GradientStop Color="#2563EB" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Ghost button -->
+        <Style x:Key="BtnGhost" TargetType="Button">
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#F1F5F9"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#94A3B8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#E2E8F0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary button -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="MinWidth" Value="170"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#2563EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1D4ED8"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#1D4ED8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1E40AF"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#1E40AF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <Border Width="42" Height="42" CornerRadius="12" Background="#7C3AED">
+                <md:PackIcon Kind="CardAccountDetails"
+                             Width="22"
+                             Height="22"
+                             Foreground="White"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"/>
+            </Border>
+
+            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Carte manager émise"
+                           FontFamily="{StaticResource AppFont}"
+                           FontSize="16"
+                           FontWeight="Bold"/>
+
+                <TextBlock Text="Imprimez la carte maintenant — le code ne sera plus affiché."
+                           FontFamily="{StaticResource AppFont}"
+                           FontSize="11"
+                           Foreground="#94A3B8"
+                           Margin="0,2,0,0"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Warning banner -->
+        <Border Grid.Row="1"
+                CornerRadius="12"
+                Padding="14"
+                Margin="0,0,0,16"
+                Background="#FEF3C7"
+                BorderBrush="#FDE68A"
+                BorderThickness="1">
+            <StackPanel Orientation="Horizontal">
+                <md:PackIcon Kind="AlertOctagon"
+                             Width="20"
+                             Height="20"
+                             Foreground="#92400E"
+                             Margin="0,0,10,0"
+                             VerticalAlignment="Center"/>
+
+                <TextBlock TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           FontFamily="{StaticResource AppFont}"
+                           FontSize="12"
+                           Foreground="#92400E"
+                           Text="Ce code d'autorisation ne sera plus jamais réaffiché. Imprimez la carte et remettez-la au manager. Toute nouvelle génération invalide la carte précédente."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Card preview -->
+        <Border Grid.Row="2"
+                x:Name="CardRoot"
+                Width="480"
+                Height="300"
+                CornerRadius="14"
+                BorderBrush="#1E3A5F"
+                BorderThickness="1"
+                Background="White"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24"
+                                  ShadowDepth="6"
+                                  Direction="270"
+                                  Opacity="0.15"
+                                  Color="#1E3A5F"/>
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Card header strip -->
+                <Border Grid.Row="0"
+                        CornerRadius="14,14,0,0"
+                        Padding="18,12"
+                        Background="{StaticResource HeaderGradient}">
+                    <Grid>
+                        <TextBlock Text="ASSIUM"
+                                   Foreground="White"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="14"
+                                   FontWeight="Bold"
+                                   HorizontalAlignment="Left"/>
+
+                        <TextBlock Text="CARTE MANAGER"
+                                   Foreground="#FDE68A"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Identity -->
+                <StackPanel Grid.Row="1" Margin="20,16,20,0">
+                    <TextBlock x:Name="TxtFullName"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="#1E3A5F"/>
+
+                    <TextBlock x:Name="TxtRole"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="12"
+                               Foreground="#64748B"
+                               Margin="0,4,0,0"/>
+
+                    <TextBlock x:Name="TxtPos"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="11"
+                               Foreground="#94A3B8"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <!-- Barcode -->
+                <StackPanel Grid.Row="2"
+                            Margin="20,0,20,4"
+                            HorizontalAlignment="Center">
+                    <ctrl:Code128Barcode x:Name="Barcode"
+                                         Height="56"
+                                         ModuleWidth="1.6"/>
+
+                    <TextBlock x:Name="TxtCode"
+                               FontFamily="Consolas"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#1E3A5F"
+                               HorizontalAlignment="Center"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Footer -->
+                <Border Grid.Row="3"
+                        Padding="20,10"
+                        Background="#F8FAFC"
+                        CornerRadius="0,0,14,14"
+                        BorderBrush="#E2E8F0"
+                        BorderThickness="0,1,0,0">
+                    <Grid>
+                        <TextBlock x:Name="TxtIssued"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="10"
+                                   Foreground="#94A3B8"
+                                   HorizontalAlignment="Left"/>
+
+                        <TextBlock Text="SFE • Système Fiscal Électronique"
+                                   FontFamily="{StaticResource AppFont}"
+                                   FontSize="10"
+                                   Foreground="#94A3B8"
+                                   HorizontalAlignment="Right"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="3" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0"
+            Content="Fermer"
+            Style="{StaticResource BtnGhost}"
+            Click="OnClose"/>
+
+            <!-- 80 mm thermal receipt (barcode only) -->
+            <Button Grid.Column="2"
+            Style="{StaticResource BtnGhost}"
+            Margin="0,0,8,0"
+            ToolTip="Imprimer uniquement le code-barres sur imprimante thermique 80 mm (Xprinter)"
+            Click="OnPrintThermal">
+                <StackPanel Orientation="Horizontal">
+                    <md:PackIcon Kind="ReceiptTextOutline"
+                         Width="18"
+                         Height="18"
+                         VerticalAlignment="Center"
+                         Margin="0,0,8,0"/>
+                    <TextBlock Text="Ticket 80 mm"
+                       VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Full card (regular printer) -->
+            <Button Grid.Column="3"
+            Style="{StaticResource BtnPrimary}"
+            Click="OnPrint">
+                <StackPanel Orientation="Horizontal">
+                    <md:PackIcon Kind="Printer"
+                         Width="18"
+                         Height="18"
+                         VerticalAlignment="Center"
+                         Margin="0,0,8,0"/>
+                    <TextBlock Text="Imprimer la carte"
+                       VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+    </Grid>
+</Window>
+
+
+==========================================================
+FILE: SFE.WPF/Views/Windows/ManagerCardWindow.xaml.cs
+SIZE: 8689 bytes
+==========================================================
+using System;
+using System.Printing;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using SFE.Domain.Entities;
+using SFE.WPF.Controls;
+
+namespace SFE.WPF.Views.Windows;
+
+public partial class ManagerCardWindow : Window
+{
+    private readonly User _user;
+    private readonly string _plainCode;
+
+    public ManagerCardWindow(User user, string plainCode)
+    {
+        InitializeComponent();
+        _user = user;
+        _plainCode = plainCode;
+
+        TxtFullName.Text = user.FullName;
+        TxtRole.Text = user.Role?.Name ?? "—";
+        TxtPos.Text = user.PointOfSale != null
+            ? $"Point de vente : {user.PointOfSale.Code} — {user.PointOfSale.Name}"
+            : "Point de vente : non assigné";
+        TxtCode.Text = plainCode;
+        TxtIssued.Text = $"Émise le {DateTime.Now:dd/MM/yyyy HH:mm}";
+        Barcode.Value = plainCode;
+    }
+
+    private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    // -----------------------------------------------------------------
+    // FULL CARD (A4 / standard printer)
+    // -----------------------------------------------------------------
+    private void OnPrint(object sender, RoutedEventArgs e)
+    {
+        var dlg = new PrintDialog();
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            // 1) Make sure the on-screen card has a valid layout
+            CardRoot.UpdateLayout();
+
+            // 2) Rasterize the card at ~300 DPI — no cloning, no reparenting
+            var bmp = RenderElementToBitmap(CardRoot, dpi: 300);
+
+            // 3) Wrap the bitmap in an Image sized to fit the printable area
+            var img = new Image
+            {
+                Source = bmp,
+                Stretch = Stretch.Uniform,
+                Width = dlg.PrintableAreaWidth,
+                Height = dlg.PrintableAreaHeight
+            };
+
+            var host = new Grid
+            {
+                Width = dlg.PrintableAreaWidth,
+                Height = dlg.PrintableAreaHeight,
+                Background = Brushes.White
+            };
+            host.Children.Add(img);
+
+            host.Measure(new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight));
+            host.Arrange(new Rect(0, 0, dlg.PrintableAreaWidth, dlg.PrintableAreaHeight));
+
+            dlg.PrintVisual(host, $"Carte manager — {_user.Username}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Impossible d'imprimer la carte :\n{ex.Message}",
+                "Impression", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // 80 mm THERMAL RECEIPT (Xprinter) — barcode only, minimalist
+    // -----------------------------------------------------------------
+    private void OnPrintThermal(object sender, RoutedEventArgs e)
+    {
+        var dlg = new PrintDialog();
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            // 80 mm ˜ 302 DIPs at 96 DPI. Printable width is usually ~72 mm (272 DIP).
+            // We take whatever the driver reports, capped to something sane.
+            double paperWidth = dlg.PrintableAreaWidth > 0
+                ? Math.Min(dlg.PrintableAreaWidth, 302)
+                : 272;
+
+            // Build a compact receipt-style visual in code (no reparenting issues)
+            var panel = new StackPanel
+            {
+                Width = paperWidth,
+                Background = Brushes.White,
+                Margin = new Thickness(0, 6, 0, 6)
+            };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "CARTE MANAGER",
+                FontFamily = new FontFamily("Segoe UI"),
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = _user.FullName,
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 12,
+                TextAlignment = TextAlignment.Center
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = _user.Role?.Name ?? "—",
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 10,
+                Foreground = Brushes.Black,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
+            // Barcode — thick modules print reliably on 203-dpi thermal heads
+            var barcode = new Code128Barcode
+            {
+                Value = _plainCode,
+                ModuleWidth = 2.0,
+                QuietZoneModules = 10,
+                Height = 90,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            panel.Children.Add(barcode);
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = _plainCode,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 13,
+                FontWeight = FontWeights.Bold,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 4)
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"Émise le {DateTime.Now:dd/MM/yyyy HH:mm}",
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 9,
+                TextAlignment = TextAlignment.Center,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(0, 2, 0, 6)
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "— Ne pas partager —",
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 9,
+                FontStyle = FontStyles.Italic,
+                TextAlignment = TextAlignment.Center,
+                Foreground = Brushes.Gray
+            });
+
+            // Force layout — this panel has no parent, so no InvalidOperationException
+            panel.Measure(new Size(paperWidth, double.PositiveInfinity));
+            panel.Arrange(new Rect(0, 0, panel.DesiredSize.Width, panel.DesiredSize.Height));
+            panel.UpdateLayout();
+
+            dlg.PrintVisual(panel, $"Carte manager (80mm) — {_user.Username}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Impossible d'imprimer sur ticket :\n{ex.Message}",
+                "Impression 80 mm", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------
+    private static BitmapSource RenderElementToBitmap(FrameworkElement fe, double dpi = 300)
+    {
+        var w = Math.Max(1, fe.ActualWidth);
+        var h = Math.Max(1, fe.ActualHeight);
+
+        var scale = dpi / 96.0;
+        var rtb = new RenderTargetBitmap(
+            (int)Math.Ceiling(w * scale),
+            (int)Math.Ceiling(h * scale),
+            dpi, dpi, PixelFormats.Pbgra32);
+
+        // Draw the element via a VisualBrush — this does NOT reparent it.
+        var dv = new DrawingVisual();
+        using (var ctx = dv.RenderOpen())
+        {
+            var brush = new VisualBrush(fe) { Stretch = Stretch.None };
+            ctx.DrawRectangle(brush, null, new Rect(0, 0, w, h));
+        }
+        rtb.Render(dv);
+        rtb.Freeze();
+        return rtb;
+    }
+}
+
+
+==========================================================
+ SUMMARY
+ Found  : 16 / 16
+ Missing: 0
+==========================================================

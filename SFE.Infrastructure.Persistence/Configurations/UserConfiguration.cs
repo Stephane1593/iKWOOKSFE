@@ -40,5 +40,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .WithMany(r => r.Users)
             .HasForeignKey(u => u.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(u => u.ManagerPinHash).HasMaxLength(128);
+        builder.Property(u => u.ManagerBarcodeHash).HasMaxLength(128);
+        builder.HasIndex(u => u.ManagerBarcodeHash);   // unique-ish lookup
+        builder.Property(u => u.ManagerBarcodeIssuedAt).IsRequired(false);
     }
 }

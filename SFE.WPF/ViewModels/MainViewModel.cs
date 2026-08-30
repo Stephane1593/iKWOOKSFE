@@ -9,6 +9,8 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using SFE.Application.Events;
 using SFE.Domain.Abstractions;
+using SFE.Licensing.Local;
+using SFE.Licensing.Domain;
 
 namespace SFE.WPF.ViewModels;
 
@@ -17,6 +19,7 @@ public partial class MainViewModel : BaseViewModel
     private readonly IAuthService _authService;
     private readonly CashSessionState _sessionState;
     private readonly ITimeProvider _timeProvider;
+    private readonly ILicenseGuard _guard;
 
     [ObservableProperty] private object? _currentPage;
     [ObservableProperty] private string _currentPageKey = "";
@@ -59,27 +62,42 @@ public partial class MainViewModel : BaseViewModel
     public bool CanAccessPos => _authService.HasPermission("pos") && _sessionState.IsSessionOpen;
     public bool CanAccessInvoicing => _authService.HasPermission("invoicing") && _sessionState.IsSessionOpen;
 
-    // 🆕 Facturation en masse — utilise la même permission que "invoicing"
-    //     et requiert une session ouverte (comme la facturation normale).
     public bool CanAccessBulkInvoicing => _authService.HasPermission("invoicing")
                                        && _sessionState.IsSessionOpen
-                                       && !_sessionState.IsSetupMode;
+                                       && !_sessionState.IsSetupMode
+                                       && (_guard?.Current.HasFeature(Feature.BulkInvoicing) ?? false);
 
     public bool CanAccessClients => _authService.HasPermission("clients");
     public bool CanAccessSalesHistory => _authService.HasPermission("salesHistory");
     public bool CanAccessProducts => _authService.HasPermission("products");
     public bool CanAccessStock => _authService.HasPermission("stock");
-    public bool CanAccessTransfers => _authService.HasPermission("transfers");
-    public bool CanAccessLoyalty => _authService.HasPermission("loyalty");
+
+    public bool CanAccessTransfers => _authService.HasPermission("transfers")
+                                   && (_guard?.Current.HasFeature(Feature.StockTransfers) ?? false);
+
+    public bool CanAccessLoyalty => _authService.HasPermission("loyalty")
+                                 && (_guard?.Current.HasFeature(Feature.Loyalty) ?? false);
 
     public bool CanAccessReports => (_authService.HasPermission("reports")
                                   || _authService.HasPermission("closeZ"))
                                   && _sessionState.IsSessionOpen;
 
     public bool CanAccessReportHistory => _authService.HasPermission("reports");
+
+    public bool CanAccessAdvancedReports => _authService.HasPermission("reports")
+                                         && (_guard?.Current.HasFeature(Feature.AdvancedReports) ?? false);
+
     public bool CanAccessSettings => _authService.HasPermission("settings");
     public bool CanAccessUsers => _authService.HasPermission("users");
     public bool CanAccessAudit => _authService.HasPermission("audit");
+
+    // Multi-POS admin page: hide the menu when the licence caps at 1 POS AND
+    // the user has no explicit POS-management permission override.
+    public bool CanManageMultiplePos =>
+        _authService.HasPermission("posManagement")
+        && (_guard?.Current.Claims is null
+            || _guard.Current.Claims.MaxPointsOfSale > 1
+            || _guard.Current.Status == LicenseStatus.Trial);
 
     public bool CanCloseZ => _authService.HasPermission("closeZ")
                           && _sessionState.IsSessionOpen
@@ -109,11 +127,13 @@ public partial class MainViewModel : BaseViewModel
     public MainViewModel(
         IAuthService authService,
         CashSessionState sessionState,
-        ITimeProvider timeProvider)
+        ITimeProvider timeProvider,
+        ILicenseGuard guard)
     {
         _authService = authService;
         _sessionState = sessionState;
         _timeProvider = timeProvider;
+        _guard = guard;
         PageTitle = "iKWOOK SFE";
 
         IsSetupMode = sessionState.IsSetupMode;
@@ -126,6 +146,9 @@ public partial class MainViewModel : BaseViewModel
 
         AppEventBus.Subscribe(OnAppEvent);
 
+        ApplyLicenseSnapshot(_guard.Current);
+        _guard.StatusChanged += OnLicenseChanged;
+
         if (!sessionState.IsSetupMode)
         {
             _ = CheckDeviceStatusAsync();
@@ -133,6 +156,8 @@ public partial class MainViewModel : BaseViewModel
             _deviceCheckTimer.Tick += async (_, _) => await CheckDeviceStatusAsync();
             _deviceCheckTimer.Start();
         }
+
+
     }
 
     private async Task OnAppEvent(AppEventArgs args)
@@ -237,10 +262,19 @@ public partial class MainViewModel : BaseViewModel
         // 🆕 Garde-fou : bloquer la facturation en masse si session fermée / setup
         if (pageKey == "BulkInvoicing" && !CanAccessBulkInvoicing)
         {
-            System.Windows.MessageBox.Show(
-                "La facturation en masse nécessite une session de caisse ouverte " +
-                "et la permission « invoicing ».",
-                "Accès refusé",
+            string reason;
+            if (_sessionState.IsSetupMode)
+                reason = "La facturation en masse n'est pas disponible en mode configuration.";
+            else if (!_sessionState.IsSessionOpen)
+                reason = "Ouvrez une session de caisse pour accéder à la facturation en masse.";
+            else if (!_authService.HasPermission("invoicing"))
+                reason = "Vous n'avez pas la permission « invoicing ».";
+            else if (!(_guard?.Current.HasFeature(Feature.BulkInvoicing) ?? false))
+                reason = "La facturation en masse n'est pas incluse dans votre licence actuelle.";
+            else
+                reason = "Accès refusé.";
+
+            System.Windows.MessageBox.Show(reason, "Accès refusé",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Warning);
             return;
@@ -353,7 +387,7 @@ public partial class MainViewModel : BaseViewModel
     private void ShowAbout()
     {
         System.Windows.MessageBox.Show(
-            "iKWOOK SFE v2.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par iKWOOK.\nTous droits réservés.",
+            "iKWOOK SFE v2.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par Assium Group.\nTous droits réservés.",
             "À propos de iKWOOK SFE",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Information);
@@ -489,6 +523,87 @@ public partial class MainViewModel : BaseViewModel
             ShowNotificationBanner = false;
         }
     }
+
+    private void OnLicenseChanged(LicenseSnapshot snap)
+    {
+        // StatusChanged is raised from the guard's semaphore; marshal to UI thread.
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            ApplyLicenseSnapshot(snap);
+        else
+            dispatcher.Invoke(() => ApplyLicenseSnapshot(snap));
+    }
+
+    private void ApplyLicenseSnapshot(LicenseSnapshot s)
+    {
+
+        // If the licence is nominal, clear any licence-authored banner.
+        // Do NOT clear if the current banner is MCF-related.
+        bool licenseIsClean = s.Status == LicenseStatus.Active
+                           || (s.Status == LicenseStatus.Trial && (s.DaysUntilExpiry ?? int.MaxValue) > 7);
+
+        if (licenseIsClean && ShowNotificationBanner && !IsMcfDisconnectedWarning
+            && NotificationType != "error") // keep MCF-offline errors intact
+        {
+            // Only clear if the current banner text looks licence-authored.
+            // Simplest heuristic: if it mentions "Licence" or "évaluation", drop it.
+            if (NotificationMessage.Contains("Licence", StringComparison.OrdinalIgnoreCase)
+                || NotificationMessage.Contains("évaluation", StringComparison.OrdinalIgnoreCase))
+            {
+                ShowNotificationBanner = false;
+                NotificationMessage = "";
+            }
+        }
+
+
+        // The MCF banner and the license banner share ShowNotificationBanner.
+        // We only override when the license status is worse than "everything's fine".
+        // MCF-related banners (already surfaced by CheckDgiConnectionAsync) win when
+        // the license is nominal.
+        switch (s.Status)
+        {
+            case LicenseStatus.GracePeriod:
+                NotificationMessage = $"Licence expirée — délai de grâce " +
+                                      $"({s.DaysOfGraceRemaining} j restants). " +
+                                      $"Renouvelez rapidement pour éviter le blocage.";
+                NotificationType = "warning";
+                ShowNotificationBanner = true;
+                break;
+
+            case LicenseStatus.ActiveOffline:
+                NotificationMessage = "Licence active mais aucun contact récent avec le portail. " +
+                                      "Vérifiez la connexion Internet.";
+                NotificationType = "info";
+                ShowNotificationBanner = true;
+                break;
+
+            case LicenseStatus.Suspended:
+            case LicenseStatus.Expired:
+            case LicenseStatus.Tampered:
+                NotificationMessage = s.Reason ?? "Licence inactive — mode lecture seule.";
+                NotificationType = "error";
+                ShowNotificationBanner = true;
+                break;
+
+            case LicenseStatus.Trial when s.DaysUntilExpiry is <= 7:
+                NotificationMessage = $"Version d'évaluation — {s.DaysUntilExpiry} jour(s) restants. " +
+                                      $"Contactez iKWOOK pour activer votre licence.";
+                NotificationType = "info";
+                ShowNotificationBanner = true;
+                break;
+        }
+
+        // Every menu whose visibility depends on a Feature must be re-notified.
+        OnPropertyChanged(nameof(CanAccessBulkInvoicing));
+        OnPropertyChanged(nameof(CanAccessTransfers));
+        OnPropertyChanged(nameof(CanAccessLoyalty));
+        OnPropertyChanged(nameof(CanAccessAdvancedReports));
+        OnPropertyChanged(nameof(CanManageMultiplePos));
+        OnPropertyChanged(nameof(CanSeeEditer));
+        OnPropertyChanged(nameof(CanSeeAffichage));
+        OnPropertyChanged(nameof(CanSeeOutils));
+    }
+
 
     [RelayCommand]
     private void DismissNotification()

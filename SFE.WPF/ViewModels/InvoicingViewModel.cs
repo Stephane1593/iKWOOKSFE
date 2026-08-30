@@ -11,6 +11,8 @@ using SFE.Domain.Enums;
 using SFE.WPF.Messages;
 using SFE.WPF.Helpers;
 using SFE.Domain.Abstractions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using SFE.WPF.Services;
 
 namespace SFE.WPF.ViewModels;
 
@@ -27,6 +29,7 @@ public partial class InvoicingViewModel : BaseViewModel,
     private readonly IFiscalDeviceService _fiscalDevice;
     private readonly IAuthService _auth;
     private readonly ITimeProvider _timeProvider;
+    private readonly ManagerGate _gate;
     private bool _isFirstActivation = true;
 
     // ══════ OPERATORS ══════
@@ -404,6 +407,7 @@ public partial class InvoicingViewModel : BaseViewModel,
         ProductService productService, ClientService clientService,
         IFiscalDeviceService fiscalDevice,
         IAuthService auth,
+        ManagerGate gate,
         ITimeProvider timeProvider)
     {
         _invoiceService = invoiceService;
@@ -413,6 +417,7 @@ public partial class InvoicingViewModel : BaseViewModel,
         _fiscalDevice = fiscalDevice;
         _auth = auth;
         _timeProvider = timeProvider;
+        _gate = gate; 
         PageTitle = "Facturation";
 
         // 🆕 Initialisation temporelle via ITimeProvider (plus de DateTime.Now direct)
@@ -1087,6 +1092,47 @@ public partial class InvoicingViewModel : BaseViewModel,
                     ShowError = true;
                 }
                 return;
+            }
+
+            if (IsCreditNote)
+            {
+                var ok = await _gate.RequireAsync(
+                    ManagerAction.IssueCreditNote,
+                    new AuthorizationContext
+                    {
+                        InvoiceNumber = InvoiceNumber,
+                        Amount = TotalTTC,
+                        Reason = $"{SelectedCreditNoteNature} — Réf: {OriginalReference}",
+                        RequestingUserId = _auth.CurrentUser?.Id,
+                        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
+                    });
+
+                if (!ok)
+                {
+                    StatusMessage = "Avoir refusé — autorisation manager requise.";
+                    ShowError = true;
+                    return;                    // finally { IsBusy = false; } will run
+                }
+            }
+            if (IsCreditNote)
+            {
+                var ok = await _gate.RequireAsync(
+                    ManagerAction.IssueCreditNote,
+                    new AuthorizationContext
+                    {
+                        InvoiceNumber = InvoiceNumber,
+                        Amount = TotalTTC,
+                        Reason = $"{SelectedCreditNoteNature} — Réf: {OriginalReference}",
+                        RequestingUserId = _auth.CurrentUser?.Id,
+                        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
+                    });
+
+                if (!ok)
+                {
+                    StatusMessage = "Avoir refusé — autorisation manager requise.";
+                    ShowError = true;
+                    return;                    // finally { IsBusy = false; } will run
+                }
             }
 
             StatusMessage = "Normalisation en cours...";

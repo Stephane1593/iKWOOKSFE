@@ -40,6 +40,7 @@ public partial class PosViewModel : BaseViewModel,
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DispatcherTimer _clockTimer;
     private readonly InMemoryPendingOrderStore _pendingOrderStore;
+    private readonly ManagerGate _gate;
     private bool _isFirstActivation = true;
 
     private Company? _currentCompany;
@@ -255,7 +256,8 @@ public partial class PosViewModel : BaseViewModel,
         ClientService clientService, IFiscalDeviceService fiscalDevice,
         IAuthService auth,
         IServiceScopeFactory serviceScopeFactory, InMemoryPendingOrderStore inMemoryPendingOrderStore,
-        ITimeProvider time)                                               // 🆕
+        ManagerGate gate,
+        ITimeProvider time)                                           
     {
         _invoiceService = invoiceService;
         _productService = productService;
@@ -265,6 +267,7 @@ public partial class PosViewModel : BaseViewModel,
         _fiscalDevice = fiscalDevice;
         _scopeFactory = serviceScopeFactory;
         _pendingOrderStore = inMemoryPendingOrderStore;
+        _gate = gate;
 
 
         _auth = auth;
@@ -285,6 +288,15 @@ public partial class PosViewModel : BaseViewModel,
         UpdateClock();
         _ = InitializeAsync();
     }
+
+    private AuthorizationContext BuildAuthContext(decimal amount = 0m, string? reason = null) => new()
+    {
+        InvoiceNumber = InvoiceNumber,
+        Amount = amount,
+        Reason = reason,
+        RequestingUserId = _auth.CurrentUser?.Id,
+        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
+    };
 
     public void Receive(ExchangeRateChangedMessage message)
     {
@@ -619,7 +631,7 @@ public partial class PosViewModel : BaseViewModel,
     // ══════════════════════════════════════════════════════════
 
     [RelayCommand]
-    private void AddToCart(Product? product)
+    private async Task AddToCart(Product? product)
     {
         if (product == null || IsNormalized) return;
         ClearStatus();
@@ -638,7 +650,23 @@ public partial class PosViewModel : BaseViewModel,
         var existing = CartItems.FirstOrDefault(c => c.ProductId == product.Id);
         if (existing != null)
         {
-            existing.Quantity += 1;
+            var newQty = existing.Quantity + 1;
+
+            if (existing.TrackStock && newQty > existing.StockQuantity)
+            {
+                if (!await _gate.RequireAsync(
+                        ManagerAction.NegativeStockSale,
+                        BuildAuthContext(existing.UnitPriceTTC * newQty,
+                            $"Stock: {existing.StockQuantity:G} {existing.Unit} — Vente: {newQty:G}")))
+                {
+                    StatusMessage = $"Vente en stock négatif refusée pour « {existing.Name} ».";
+                    ShowError = true;
+                    return;
+                }
+            }
+
+
+            existing.Quantity = newQty;
             existing.Recalculate(PriceMode, _discountBeforeTax);
 
             if (existing.AmountTTC <= 0m)
@@ -696,6 +724,18 @@ public partial class PosViewModel : BaseViewModel,
                 return;
             }
 
+            if (product.TrackStock && 1 > product.StockQuantity)
+            {
+                if (!await _gate.RequireAsync(
+                        ManagerAction.NegativeStockSale,
+                        BuildAuthContext(product.UnitPriceTtcCdf, $"Stock: {product.StockQuantity:G} {product.Unit} — Vente: 1")))
+                {
+                    StatusMessage = $"Vente en stock négatif refusée pour « {product.Name} ».";
+                    ShowError = true;
+                    return;
+                }
+            }
+
             CartItems.Add(item);
         }
         RecalculateTotals();
@@ -721,18 +761,46 @@ public partial class PosViewModel : BaseViewModel,
     }
 
     [RelayCommand]
-    private void DecrementQuantity(CartItemViewModel? item)
+    private async Task DecrementQuantity(CartItemViewModel? item)
     {
         if (item == null || IsNormalized) return;
-        if (item.Quantity <= 1) { CartItems.Remove(item); SelectedCartItem = null; }
-        else { item.Quantity -= 1; item.Recalculate(PriceMode, _discountBeforeTax); }
+
+        if (item.Quantity <= 1)
+        {
+            // Going to 0 = removing the line → same auth as RemoveFromCart.
+            if (!await _gate.RequireAsync(
+                    ManagerAction.RemoveCartLine,
+                    BuildAuthContext(item.AmountTTC, $"Ligne: {item.Name}")))
+            {
+                StatusMessage = "Retrait annulé — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+            CartItems.Remove(item);
+            SelectedCartItem = null;
+        }
+        else
+        {
+            item.Quantity -= 1;
+            item.Recalculate(PriceMode, _discountBeforeTax);
+        }
         RecalculateTotals();
     }
 
     [RelayCommand]
-    private void RemoveFromCart(CartItemViewModel? item)
+    private async Task RemoveFromCart(CartItemViewModel? item)
     {
         if (item == null || IsNormalized) return;
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.RemoveCartLine,
+                BuildAuthContext(item.AmountTTC, $"Ligne: {item.Name}")))
+        {
+            StatusMessage = "Retrait annulé — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
         CartItems.Remove(item);
         if (SelectedCartItem == item) SelectedCartItem = null;
         ShowDiscountPanel = false;
@@ -740,9 +808,20 @@ public partial class PosViewModel : BaseViewModel,
     }
 
     [RelayCommand]
-    private void ClearCart()
+    private async Task ClearCart()
     {
         if (IsNormalized) return;
+        if (CartItems.Count == 0) { ShowDiscountPanel = false; ClearStatus(); return; }
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.ClearCart,
+                BuildAuthContext(TotalTTC, $"{CartItems.Count} ligne(s)")))
+        {
+            StatusMessage = "Vidage du panier annulé — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
         CartItems.Clear(); SelectedCartItem = null;
         ShowDiscountPanel = false;
         CurrentStep = CheckoutStep.Review;
@@ -763,10 +842,24 @@ public partial class PosViewModel : BaseViewModel,
     }
 
     [RelayCommand]
-    private void ApplyQuickDiscount(string percentStr)
+    private async Task ApplyQuickDiscount(string percentStr)
     {
         if (SelectedCartItem == null || IsNormalized) return;
         if (!decimal.TryParse(percentStr, out var pct) || pct <= 0) return;
+
+        if (ManagerAuthorizationPolicy.IsLargeDiscount(DiscountType.Percentage, pct))
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ApplyLargeDiscount,
+                    BuildAuthContext(SelectedCartItem.AmountTTC,
+                        $"Remise {pct:0.##}% sur {SelectedCartItem.Name}")))
+            {
+                StatusMessage = "Remise refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
         SelectedCartItem.DiscountType = DiscountType.Percentage;
         SelectedCartItem.DiscountValue = pct;
         SelectedCartItem.Recalculate(PriceMode, _discountBeforeTax);
@@ -774,15 +867,32 @@ public partial class PosViewModel : BaseViewModel,
     }
 
     [RelayCommand]
-    private void ApplyCustomDiscount()
+    private async Task ApplyCustomDiscount()
     {
         if (SelectedCartItem == null || IsNormalized) return;
         if (!decimal.TryParse(CustomDiscountValue, out var val) || val <= 0)
         { StatusMessage = "Entrez une valeur de remise valide."; ShowError = true; return; }
-        SelectedCartItem.DiscountType = IsPercentDiscount ? DiscountType.Percentage : DiscountType.FixedAmount;
+
+        var type = IsPercentDiscount ? DiscountType.Percentage : DiscountType.FixedAmount;
+
+        if (ManagerAuthorizationPolicy.IsLargeDiscount(type, val))
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ApplyLargeDiscount,
+                    BuildAuthContext(SelectedCartItem.AmountTTC,
+                        $"Remise {(type == DiscountType.Percentage ? $"{val:0.##}%" : $"{val:N0}")} sur {SelectedCartItem.Name}")))
+            {
+                StatusMessage = "Remise refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
+        SelectedCartItem.DiscountType = type;
         SelectedCartItem.DiscountValue = val;
         SelectedCartItem.Recalculate(PriceMode, _discountBeforeTax);
-        RecalculateTotals(); ShowDiscountPanel = false; CustomDiscountValue = ""; ClearStatus();
+        RecalculateTotals(); ShowDiscountPanel = false;
+        CustomDiscountValue = ""; ClearStatus();
     }
 
     [RelayCommand]
@@ -1317,6 +1427,20 @@ public partial class PosViewModel : BaseViewModel,
         if (SelectedPointOfSale == null)
         { StatusMessage = "Veuillez sélectionner un point de vente."; ShowError = true; return; }
 
+        // ⭐ Credit notes require manager authorization at commit.
+        if (IsCreditNote)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.IssueCreditNote,
+                    BuildAuthContext(TotalTTC,
+                        $"{SelectedCreditNoteNature} — Réf: {OriginalReference}")))
+            {
+                StatusMessage = "Avoir refusé — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
         if (IsSunmiChannel && SunmiHandoff == SunmiHandoff.None)
         { StatusMessage = "Terminal Sunmi : choisissez « Afficher QR » ou « Terminal LAN »."; ShowError = true; return; }
         if (IsLocalPos && SelectedPaymentType == PaymentType.MobileMoney && string.IsNullOrWhiteSpace(SelectedMobileOperator))
@@ -1418,7 +1542,7 @@ public partial class PosViewModel : BaseViewModel,
                 }
 
                 if (SelectedPaymentType == PaymentType.Especes && SelectedPointOfSale?.EnableCashDrawer == true && HasThermalPrinter)
-                    OpenCashDrawer();
+                    OpenCashDrawerInternal();
 
                 ShowReceiptOverlay = true;
                 StatusMessage = $"✓ Vente normalisée — {result.CodeDEFDGI}";
@@ -1488,19 +1612,55 @@ public partial class PosViewModel : BaseViewModel,
     private async Task ReprintReceipt()
     {
         if (!IsNormalized || string.IsNullOrEmpty(CodeDEFDGI)) return;
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.ReprintFiscalReceipt,
+                BuildAuthContext(TotalTTC, $"Duplicata {InvoiceNumber} / {CodeDEFDGI}")))
+        {
+            StatusMessage = "Réimpression refusée — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
         try
         {
             var invoice = await _unitOfWork.Invoices.GetByCodeDEFDGIAsync(CodeDEFDGI);
-            if (invoice != null) { await PrintThermalReceiptAsync(invoice, isDuplicate: true); StatusMessage = "✓ Duplicata imprimé."; ShowSuccess = true; }
+            if (invoice != null)
+            {
+                await PrintThermalReceiptAsync(invoice, isDuplicate: true);
+                StatusMessage = "✔ Duplicata imprimé."; ShowSuccess = true;
+            }
         }
         catch (Exception ex) { StatusMessage = $"Erreur réimpression: {ex.Message}"; ShowError = true; }
     }
 
-    [RelayCommand]
-    private void OpenCashDrawer()
+    /// <summary>Internal — called automatically after a cash sale. No auth needed.</summary>
+    private void OpenCashDrawerInternal()
     {
         if (!HasThermalPrinter) return;
-        RawPrinterHelper.SendBytesToPrinter(ThermalPrinterName, new byte[] { 0x1B, 0x70, 0x00, 0x32, 0x32 }, "CashDrawer");
+        RawPrinterHelper.SendBytesToPrinter(
+            ThermalPrinterName,
+            new byte[] { 0x1B, 0x70, 0x00, 0x32, 0x32 },
+            "CashDrawer");
+    }
+
+    [RelayCommand]
+    private async Task OpenCashDrawer()
+    {
+        if (!HasThermalPrinter) return;
+
+        if (!await _gate.RequireAsync(
+                ManagerAction.NoSaleDrawer,
+                BuildAuthContext(reason: "Ouverture tiroir sans vente")))
+        {
+            StatusMessage = "Ouverture tiroir refusée — autorisation manager requise.";
+            ShowError = true;
+            return;
+        }
+
+        OpenCashDrawerInternal();
+        StatusMessage = "✔ Tiroir ouvert.";
+        ShowSuccess = true;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1575,6 +1735,20 @@ public partial class PosViewModel : BaseViewModel,
     [RelayCommand]
     private async Task NewSale()
     {
+        // Only ask when there's actually something to lose.
+        if (!IsNormalized && CartItems.Count > 0)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ClearCart,
+                    BuildAuthContext(TotalTTC, "Nouvelle vente — panier en cours")))
+            {
+                StatusMessage = "Nouvelle vente annulée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
+
+
         _pendingOrderStore.Clear();
         CartItems.Clear(); SelectedCartItem = null; ShowDiscountPanel = false;
         ReceivedAmount = ""; PaymentAmount = ""; PaymentItems.Clear();

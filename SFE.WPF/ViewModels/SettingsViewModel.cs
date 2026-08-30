@@ -9,6 +9,8 @@ using SFE.Domain.Abstractions;
 using SFE.Domain.Enums;
 using SFE.Infrastructure.EMcf;
 using SFE.Infrastructure.Mcf;
+using SFE.Licensing.Domain;
+using SFE.Licensing.Local;
 using SFE.WPF.Messages;
 using SFE.WPF.Services;
 using System.Collections.ObjectModel;
@@ -16,6 +18,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -26,6 +29,8 @@ public partial class SettingsViewModel : BaseViewModel
     private readonly SettingsService _settingsService;
     private readonly IFiscalDeviceService _fiscalDevice;
     private readonly ITimeProvider _time;
+    private readonly ILicenseGuard _license;
+
     private int _companyId;
     private int _activePosId;
     private bool _isLoading;
@@ -176,11 +181,25 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty]
     private ObservableCollection<EmcfDeviceDisplayItem> _deviceEmcfList = new();
 
-    // ══════════ LICENCE ══════════
+    // ---------- LICENCE ----------
     [ObservableProperty] private string _licenseKey = "";
-    [ObservableProperty] private string _licenseStatus = "Non activée";
-    [ObservableProperty] private string _licensePlan = "Free";
+    [ObservableProperty] private string _licensePlan = "…";
+    [ObservableProperty] private string _licenseStatusText = "…";
+    [ObservableProperty] private string _licenseStatusBadgeKind = "neutral"; // ok|warn|error|neutral
+    [ObservableProperty] private string _licenseExpiryLine = "";
+    [ObservableProperty] private string _licenseCompanyLine = "";
+    [ObservableProperty] private string _licenseIssuedToLine = "";
+    [ObservableProperty] private string _licenseKindLine = "";
     [ObservableProperty] private string _licenseMessage = "";
+    [ObservableProperty] private bool _licenseMessageIsError;
+    [ObservableProperty] private bool _isActivatingLicense;
+    [ObservableProperty] private bool _hasActiveLicense;
+
+    public ObservableCollection<string> LicenseFeatures { get; } = new();
+
+    // Loyalty gate — recomputed on every license status change.
+    [ObservableProperty] private bool _canUseLoyalty = true;
+    [ObservableProperty] private string _loyaltyLockReason = "";
 
     // ══════════════════════════════════════════════════════════════
     // CONSTRUCTEUR
@@ -190,12 +209,14 @@ public partial class SettingsViewModel : BaseViewModel
         SettingsService settingsService,
         IAuthService authService,
         IFiscalDeviceService fiscalDevice,
-        ITimeProvider time)
+        ITimeProvider time,
+        ILicenseGuard license)
     {
         _settingsService = settingsService;
         _authService = authService;
         _fiscalDevice = fiscalDevice;
         _time = time;
+        _license = license; 
         PageTitle = "Paramètres";
 
         WeakReferenceMessenger.Default.Register<ActivePosDeviceConfigChangedMessage>(this, async (r, m) =>
@@ -217,6 +238,10 @@ public partial class SettingsViewModel : BaseViewModel
                 Debug.WriteLine($"[Settings] Failed to refresh active POS device config: {ex.Message}");
             }
         });
+
+        // Licence: seed from the current snapshot, then follow every transition.
+        _license.StatusChanged += OnLicenseStatusChanged;
+        RefreshLicenseFromSnapshot(_license.Current);
 
         RefreshComPorts();
         _ = LoadSettingsAsync();
@@ -494,6 +519,14 @@ public partial class SettingsViewModel : BaseViewModel
                 || minPts < 0)
             {
                 SaveStatus = "Nombre minimum de points invalide.";
+                ShowSaveError = true;
+                return;
+            }
+            // Hard gate: even if the UI toggle got past IsEnabled somehow, refuse to persist
+            // LoyaltyEnabled=true when the license doesn't include the feature.
+            if (IsLoyaltyEnabled && !_license.TryUse(Feature.Loyalty, out var loyaltyBlockReason))
+            {
+                SaveStatus = loyaltyBlockReason ?? "Fidélité non incluse dans votre licence.";
                 ShowSaveError = true;
                 return;
             }
@@ -1223,36 +1256,197 @@ public partial class SettingsViewModel : BaseViewModel
         }
     }
 
-    // ══════════════════════════════════════════════════════════════
+    // --------------------------------------------------------------
     // LICENCE
-    // ══════════════════════════════════════════════════════════════
+    // --------------------------------------------------------------
 
-    [RelayCommand]
-    private Task ActivateLicense()
+    private bool CanActivateLicense() =>
+        !IsActivatingLicense && !string.IsNullOrWhiteSpace(LicenseKey);
+
+    partial void OnLicenseKeyChanged(string value)
+        => ActivateLicenseCommand.NotifyCanExecuteChanged();
+
+    partial void OnIsActivatingLicenseChanged(bool value)
+        => ActivateLicenseCommand.NotifyCanExecuteChanged();
+
+    [RelayCommand(CanExecute = nameof(CanActivateLicense))]
+    private async Task ActivateLicense()
     {
         LicenseMessage = "";
+        LicenseMessageIsError = false;
 
-        if (string.IsNullOrWhiteSpace(LicenseKey))
+        var blob = (LicenseKey ?? "").Trim();
+        if (blob.Length == 0)
         {
-            LicenseMessage = "Veuillez entrer une clé de licence.";
-            return Task.CompletedTask;
+            LicenseMessage = "Veuillez coller le contenu de votre fichier de licence (.lic).";
+            LicenseMessageIsError = true;
+            return;
         }
 
-        var parts = LicenseKey.Trim().Split('-');
-        if (parts.Length != 4 || parts[0] != "GECOM")
+        IsActivatingLicense = true;
+        try
         {
-            LicenseMessage = "Format invalide. Attendu : GECOM-XXXXX-XXXXX-XXXXX";
-            return Task.CompletedTask;
+            var snap = await _license.InstallLicenseAsync(blob);
+            RefreshLicenseFromSnapshot(snap);
+
+            LicenseKey = "";
+            LicenseMessage = "Licence installée avec succès.";
+            LicenseMessageIsError = false;
+
+            SaveStatus = "Licence activée avec succès !";
+            ShowSaveSuccess = true;
+            await Task.Delay(4000);
+            ShowSaveSuccess = false;
         }
-
-        LicensePlan = "Pro";
-        LicenseStatus = "Activée ✓";
-        LicenseMessage = "";
-        SaveStatus = "Licence activée avec succès !";
-        ShowSaveSuccess = true;
-
-        return Task.CompletedTask;
+        catch (Exception ex)
+        {
+            LicenseMessage = $"Licence invalide : {ex.Message}";
+            LicenseMessageIsError = true;
+        }
+        finally
+        {
+            IsActivatingLicense = false;
+        }
     }
+
+    [RelayCommand]
+    private async Task LoadLicenseFromFile()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Charger un fichier de licence",
+            Filter = "Fichier de licence|*.lic;*.dat;*.txt|Tous les fichiers|*.*"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            LicenseKey = (await File.ReadAllTextAsync(dlg.FileName)).Trim();
+            await ActivateLicense();
+        }
+        catch (Exception ex)
+        {
+            LicenseMessage = $"Impossible de lire le fichier : {ex.Message}";
+            LicenseMessageIsError = true;
+        }
+    }
+
+    private void OnLicenseStatusChanged(LicenseSnapshot snap)
+    {
+        // The guard may raise this on a worker thread — always marshal.
+        if (System.Windows.Application.Current is { Dispatcher: { } d } && !d.CheckAccess())
+            d.Invoke(() => RefreshLicenseFromSnapshot(snap));
+        else
+            RefreshLicenseFromSnapshot(snap);
+    }
+
+    private void RefreshLicenseFromSnapshot(LicenseSnapshot snap)
+    {
+        var c = snap.Claims;
+        HasActiveLicense = c is not null;
+
+        // --- Plan line ---
+        if (c is null)
+        {
+            LicensePlan = "—";
+            LicenseKindLine = "";
+        }
+        else if (c.IsTrial)
+        {
+            LicensePlan = "Essai";
+            LicenseKindLine = "Version d'évaluation (30 jours)";
+        }
+        else
+        {
+            LicensePlan = c.Edition switch
+            {
+                "MultiPos" => $"Multi-POS ({c.MaxPointsOfSale} caisses)",
+                "Standalone" => "Standalone",
+                _ => c.Edition
+            };
+            LicenseKindLine = $"{c.MaxUsers} utilisateur(s) · {c.ActivationSlots} activation(s)";
+        }
+
+        // --- Status label + badge kind ---
+        (LicenseStatusText, LicenseStatusBadgeKind) = snap.Status switch
+        {
+            LicenseStatus.Active => ("Activée", "ok"),
+            LicenseStatus.Trial => ("Essai en cours", "ok"),
+            LicenseStatus.ActiveOffline => ("Active — hors ligne", "warn"),
+            LicenseStatus.GracePeriod => ("Délai de grâce", "warn"),
+            LicenseStatus.Suspended => ("Suspendue", "error"),
+            LicenseStatus.Expired => ("Expirée", "error"),
+            LicenseStatus.Tampered => ("Anomalie détectée", "error"),
+            _ => ("Non activée", "neutral")
+        };
+
+        // --- Expiry / grace line ---
+        if (c is null)
+        {
+            LicenseExpiryLine = "";
+        }
+        else if (snap.Status == LicenseStatus.GracePeriod)
+        {
+            LicenseExpiryLine = $"Expirée le {c.ExpiresAt.LocalDateTime:d} — " +
+                                $"{snap.DaysOfGraceRemaining ?? 0} j de grâce restants.";
+        }
+        else if (snap.DaysUntilExpiry is { } d && d <= 30)
+        {
+            LicenseExpiryLine = d < 0
+                ? $"Expirée depuis le {c.ExpiresAt.LocalDateTime:d}."
+                : $"Expire le {c.ExpiresAt.LocalDateTime:d} ({d} j restants).";
+        }
+        else
+        {
+            LicenseExpiryLine = c.ExpiresAt == default
+                ? ""
+                : $"Expire le {c.ExpiresAt.LocalDateTime:d}.";
+        }
+
+        LicenseCompanyLine = c?.CompanyName ?? "";
+        LicenseIssuedToLine = c is null ? "" : $"ID : {c.LicenseId}";
+
+        // --- Feature chips (French labels, not raw tokens) ---
+        LicenseFeatures.Clear();
+        if (c is not null)
+        {
+            foreach (var token in c.Features)
+            {
+                if (!FeatureTokens.TryParse(token, out var f)) continue;
+                LicenseFeatures.Add(FeatureLabel(f));
+            }
+        }
+
+        // --- Snapshot reason surfaced as an info/error banner ---
+        if (!string.IsNullOrEmpty(snap.Reason))
+        {
+            LicenseMessage = snap.Reason;
+            LicenseMessageIsError = snap.Status.IsFatal();
+        }
+        else if (!LicenseMessageIsError)
+        {
+            // Preserve the last success message; only clear if we're not showing an error.
+            // (Errors are cleared explicitly in ActivateLicense on next attempt.)
+        }
+
+        // --- Downstream feature gates (extend this list as we wire more gates) ---
+        CanUseLoyalty = _license.TryUse(Feature.Loyalty, out var loyaltyReason);
+        LoyaltyLockReason = loyaltyReason ?? "";
+    }
+
+    private static string FeatureLabel(Feature f) => f switch
+    {
+        Feature.BulkInvoicing => "Facturation en lot",
+        Feature.Loyalty => "Programme de fidélité",
+        Feature.StockTransfers => "Transferts de stock",
+        Feature.MultiPos => "Multi points de vente",
+        Feature.SunmiTerminal => "Terminal Sunmi",
+        Feature.EmcfFallback => "Fallback e-MCF ↔ MCF",
+        Feature.AdvancedReports => "Rapports avancés",
+        Feature.RemoteSupport => "Support distant",
+        _ => f.ToString()
+    };
 
     // ══════════════════════════════════════════════════════════════
     // HELPERS

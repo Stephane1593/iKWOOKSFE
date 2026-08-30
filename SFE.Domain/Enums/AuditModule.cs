@@ -12,7 +12,9 @@ public enum AuditModule
     Users,
     PointOfSale,
     Settings,
-    System
+    System,
+    Licensing,
+    Authorization,
 }
 
 public static class AuditModuleExtensions
@@ -29,7 +31,9 @@ public static class AuditModuleExtensions
         AuditModule.Users => "Utilisateurs",
         AuditModule.Settings => "Paramètres",
         AuditModule.System => "Système",
+        AuditModule.Licensing => "Licence",
         AuditModule.PointOfSale => "PDV",
+        AuditModule.Authorization => "Autorisation",
         _ => m.ToString()
     };
 
@@ -45,6 +49,8 @@ public static class AuditModuleExtensions
         AuditModule.Users => "AccountCogOutline",
         AuditModule.Settings => "CogOutline",
         AuditModule.System => "ServerNetworkOutline",
+        AuditModule.Licensing => "KeyChainVariant",
+        AuditModule.Authorization => "ShieldKeyOutline",
         _ => "InformationOutline"
     };
 }

@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local dev signing keys — never commit
+.sfe-keys/
+*.hex
+*.lic
+LicenseGenerator.txt
+gen-dev-keypair.ps1

@@ -405,6 +405,32 @@ public partial class UsersViewModel : BaseViewModel
         SaveRoleCommand.NotifyCanExecuteChanged();
         DeleteRoleCommand.NotifyCanExecuteChanged();
     }
+
+    [RelayCommand]
+    private async Task GenerateCard(UserListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+
+        var (result, plainCode) = await _userService.GenerateManagerBarcodeAsync(item.Id, CurrentUserId);
+        if (!result.Success)
+        {
+            ShowErrorMessage(result.ErrorMessage);
+            return;
+        }
+
+        // Reload so the "issued at" timestamp is refreshed
+        await LoadAllAsync();
+
+        var user = _allUsers.First(u => u.Id == item.Id);
+        var window = new Views.Windows.ManagerCardWindow(user, plainCode!)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        window.ShowDialog();
+
+        _ = ShowSuccessAsync($"✓ Carte émise pour {user.FullName}.");
+    }
 }
 
 // ══════════════════════════════════════════════════════
@@ -424,6 +450,7 @@ public class UserListItem
     public bool IsSuperAdmin { get; }
     public bool CanEdit { get; }
     public bool CanModify { get; }
+    public bool CanGenerateCard { get; }
 
     public UserListItem(User u, bool currentUserIsSuperAdmin, bool currentUserIsITTech)
     {
@@ -448,6 +475,11 @@ public class UserListItem
         CanModify = !IsSuperAdmin;
         if (isITTech && !currentUserIsSuperAdmin) CanModify = false;
         if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanModify = false;
+
+        CanGenerateCard = currentUserIsSuperAdmin
+                  && u.IsActive
+                  && u.Role != null
+                  && UserService.IsManagerEligibleRole(u.Role);
     }
 }
 

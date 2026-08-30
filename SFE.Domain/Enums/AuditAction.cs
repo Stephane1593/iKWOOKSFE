@@ -79,6 +79,7 @@ public enum AuditAction
     PosCreated = 902,
     PosUpdated = 903,
     ExchangeRateUpdated = 904,
+    PosReactivated = 905,
 
     // ═══ System / MCF ═══
     McfConnectionLost = 1000,
@@ -92,6 +93,26 @@ public enum AuditAction
     InvoiceFiscalDeviceError,
     InvoiceValidationFailed,
     InvoiceSaveFailed,
+
+    // --- Licensing --- (block 1100)
+    LicenseTrialIssued = 1100,
+    LicenseInstalled = 1101,
+    LicenseActivated = 1102,
+    LicenseRevokedByPortal = 1103,
+    LicenseExpired = 1104,
+    LicenseEnteredGrace = 1105,
+    LicenseEnteredOffline = 1106,
+    LicenseTamperDetected = 1107,
+    LicenseFeatureBlocked = 1108,
+    LicenseHeartbeatSucceeded = 1109,
+    LicenseHeartbeatFailed = 1110,
+
+    // --- Authorization ---
+    ManagerAuthorizationGranted = 1200,
+    ManagerAuthorizationDenied = 1201,
+    ManagerCardIssued = 1202,
+    ManagerCardRevoked = 1203,
+    ManagerCardAutoRevoked = 1204,
 }
 
 public static class AuditActionExtensions
@@ -160,6 +181,21 @@ public static class AuditActionExtensions
         AuditAction.ProformaCreated => "Proforma créée",
         AuditAction.ProformaConverted => "Proforma convertie",
         AuditAction.ProformaCancelled => "Proforma annulée",
+
+        AuditAction.LicenseTrialIssued => "Licence d'essai émise",
+        AuditAction.LicenseInstalled => "Licence installée",
+        AuditAction.LicenseActivated => "Licence activée",
+        AuditAction.LicenseRevokedByPortal => "Licence révoquée",
+        AuditAction.LicenseExpired => "Licence expirée",
+        AuditAction.LicenseEnteredGrace => "Licence en délai de grâce",
+        AuditAction.LicenseEnteredOffline => "Licence hors ligne prolongée",
+        AuditAction.LicenseTamperDetected => "Anomalie licence détectée",
+        AuditAction.LicenseFeatureBlocked => "Fonctionnalité bloquée",
+        AuditAction.LicenseHeartbeatSucceeded => "Heartbeat OK",
+        AuditAction.LicenseHeartbeatFailed => "Heartbeat échec",
+
+        AuditAction.ManagerAuthorizationGranted => "Autorisation manager accordée",
+        AuditAction.ManagerAuthorizationDenied => "Autorisation manager refusée",
 
 
         _ => a.ToString()

@@ -4,6 +4,8 @@ using Microsoft.Win32;
 using SFE.Application.Interfaces;
 using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
+using SFE.Licensing.Local;
+using SFE.Licensing.Domain;
 using System.Collections.ObjectModel;
 using System.IO;
 
@@ -16,6 +18,7 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
     private readonly IUnitOfWork _uow;
     private readonly IAuthService _session;
     private readonly ITimeProvider _time;
+    private readonly ILicenseGuard _guard;
     private CancellationTokenSource? _cts;
 
     public ObservableCollection<PointOfSale> AvailablePointsOfSale { get; } = new();
@@ -40,22 +43,55 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
     [ObservableProperty] private bool canExecute;
     [ObservableProperty] private bool executionFinished;
 
+    [ObservableProperty] private bool _canUseBulkInvoicing = true;
+    [ObservableProperty] private string _bulkLockReason = "";
+    [ObservableProperty] private bool _isBulkLocked;
+
     public BulkInvoicingViewModel(
         IBulkInvoiceService bulk,
         IExcelInvoiceParser parser,
         IUnitOfWork uow,
         IAuthService session,
-        ITimeProvider time)
+        ITimeProvider time,
+        ILicenseGuard guard)
     {
         _bulk = bulk;
         _parser = parser;
         _uow = uow;
         _session = session;
         _time = time;
+        _guard = guard;
+
+        _guard.StatusChanged += OnLicenseChanged;
+        RefreshLicenseGate();
+    }
+
+    private void OnLicenseChanged(LicenseSnapshot _)
+    {
+        var d = System.Windows.Application.Current?.Dispatcher;
+        if (d is null || d.CheckAccess()) RefreshLicenseGate();
+        else d.Invoke(RefreshLicenseGate);
+    }
+
+    private void RefreshLicenseGate()
+    {
+        CanUseBulkInvoicing = _guard.TryUse(Feature.BulkInvoicing, out var reason);
+        BulkLockReason = reason ?? "";
+        IsBulkLocked = !CanUseBulkInvoicing;
+
+        // If the licence just went away mid-session, kill any pending "ready to execute"
+        // state so the user can't hit Traiter after the fact.
+        if (!CanUseBulkInvoicing)
+        {
+            CanExecute = false;
+            _cts?.Cancel();
+        }
     }
 
     public async Task ActivateAsync()
     {
+        RefreshLicenseGate();
+
         AvailablePointsOfSale.Clear();
         foreach (var pos in await _uow.PointsOfSale.GetAllAsync())
             AvailablePointsOfSale.Add(pos);
@@ -90,6 +126,16 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
     [RelayCommand]
     private async Task ParseAsync()
     {
+        if (!_guard.TryUse(Feature.BulkInvoicing, out var why))
+        {
+            LastError = why;
+            System.Windows.MessageBox.Show(why!,
+                "Fonctionnalité non disponible",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
         if (string.IsNullOrEmpty(SelectedFilePath) || SelectedPointOfSale == null)
         {
             LastError = "Sélectionnez un fichier et un point de vente.";
@@ -120,7 +166,9 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
             foreach (var inv in result.Invoices)
                 ParsedInvoices.Add(new BulkInvoicePreview(inv));
 
-            CanExecute = result.IsValid && result.Invoices.Count > 0;
+            CanExecute = result.IsValid
+                         && result.Invoices.Count > 0
+                         && CanUseBulkInvoicing;
             ProgressCaption = $"{result.Invoices.Count} facture(s) prête(s), {result.Errors.Count} erreur(s).";
         }
         catch (Exception ex)
@@ -133,6 +181,13 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
     [RelayCommand]
     private async Task ExecuteAsync()
     {
+        if (!_guard.TryUse(Feature.BulkInvoicing, out var why))
+        {
+            // Re-run the full refresh so the banner appears if the state just changed.
+            RefreshLicenseGate();
+            LastError = why;
+            return;
+        }
         if (CurrentParseResult == null || !CanExecute) return;
 
         IsExecuting = true;

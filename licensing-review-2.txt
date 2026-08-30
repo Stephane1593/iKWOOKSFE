@@ -1,0 +1,1504 @@
+==========================================================
+ LICENSING REVIEW BUNDLE #2
+ Focus     : feature tokens + MaxUsers enforcement
+ Generated : 2026-08-27 09:05:08
+ Repo root : C:\iKwook
+ File count: 6 requested
+==========================================================
+
+
+==========================================================
+FILE: Licensing.Domain/Feature.cs
+SIZE: 1411 bytes
+==========================================================
+namespace SFE.Licensing.Domain;
+
+/// <summary>
+/// Feature flags gated by the license. Every SFE build contains all the code;
+/// the license only unlocks features. Values are the string tokens embedded
+/// in the license blob — do NOT rename without a migration.
+/// </summary>
+public enum Feature
+{
+    BulkInvoicing,
+    Loyalty,
+    StockTransfers,
+    MultiPos,
+    SunmiTerminal,
+    EmcfFallback,
+    AdvancedReports,
+    RemoteSupport
+}
+
+public static class FeatureTokens
+{
+    // Two-way map for wire format stability.
+    private static readonly Dictionary<Feature, string> _toToken = new()
+    {
+        [Feature.BulkInvoicing] = "bulk_invoicing",
+        [Feature.Loyalty] = "loyalty",
+        [Feature.StockTransfers] = "stock_transfers",
+        [Feature.MultiPos] = "multi_pos",
+        [Feature.SunmiTerminal] = "sunmi_terminal",
+        [Feature.EmcfFallback] = "emcf_fallback",
+        [Feature.AdvancedReports] = "advanced_reports",
+        [Feature.RemoteSupport] = "remote_support"
+    };
+
+    private static readonly Dictionary<string, Feature> _fromToken =
+        _toToken.ToDictionary(kv => kv.Value, kv => kv.Key, StringComparer.OrdinalIgnoreCase);
+
+    public static string ToToken(this Feature f) => _toToken[f];
+
+    public static bool TryParse(string token, out Feature feature)
+        => _fromToken.TryGetValue(token, out feature);
+}
+
+
+==========================================================
+FILE: SFE.Application/Services/UserService.cs
+SIZE: 22433 bytes
+==========================================================
+using System.Text.Json;
+using SFE.Application.Events;
+using SFE.Application.Interfaces;
+using SFE.Domain.Entities;
+using SFE.Domain.Enums;
+
+namespace SFE.Application.Services;
+
+public class UserService
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IAuditService _audit;
+
+    // ------- CONSTANTES DE PROTECTION -------
+    public const string SuperAdminUsername = "superadmin";
+    public const string SuperAdminRoleName = "SuperAdmin";
+    public const string ITTechRoleName = "IT Tech";
+    public const string InspecteurDGIRoleName = "Inspecteur DGI";
+
+    private static readonly HashSet<string> SuperAdminOnlyRoleNames =
+        new(StringComparer.OrdinalIgnoreCase) { SuperAdminRoleName, ITTechRoleName };
+
+    private static readonly HashSet<string> ElevatedRoleNames =
+        new(StringComparer.OrdinalIgnoreCase) { InspecteurDGIRoleName };
+
+    public static readonly List<(string Key, string Label)> AllPermissions = new()
+    {
+        ("dashboard",      "Tableau de bord"),
+        ("pos",            "Point de vente (caisse)"),
+        ("invoicing",      "Facturation"),
+        ("clients",        "Clients"),
+        ("salesHistory",   "Historique des ventes"),
+        ("products",       "Produits"),
+        ("stock",          "Stock"),
+        ("transfers",      "Transferts stock"),
+        ("loyalty",        "Programme fidélité"),
+        ("reports",        "Rapports (X, A, historique)"),
+        ("closeZ",         "Clôture Z (fin de session)"),
+        ("settings",       "Paramètres"),
+        ("users",          "Gestion utilisateurs"),
+        ("audit",          "Journal d'audit"),
+        ("bypassPosCheck", "Accès sans POS")
+    };
+
+    public UserService(IUnitOfWork unitOfWork, IAuditService audit)
+    {
+        _uow = unitOfWork;
+        _audit = audit;
+    }
+
+    // ------- QUERIES -------
+
+    public async Task<List<User>> GetAllWithRolesAsync()
+        => await _uow.Users.GetAllWithRolesAsync();
+
+    public async Task<User?> GetByIdAsync(int id)
+        => await _uow.Users.GetByIdAsync(id);
+
+    public async Task<List<Role>> GetAllRolesAsync()
+        => await _uow.GetRepository<Role>().GetAllAsync();
+
+    public async Task<List<Role>> GetAssignableRolesAsync(User currentUser)
+    {
+        var allRoles = await _uow.GetRepository<Role>().GetAllAsync();
+        var (isSA, isIT) = await ResolvePrivilegesAsync(currentUser.Id);
+
+        return allRoles
+            .Where(r =>
+            {
+                if (IsSuperAdminRole(r)) return false;
+                if (SuperAdminOnlyRoleNames.Contains(r.Name) && !isSA) return false;
+                if (ElevatedRoleNames.Contains(r.Name) && !isSA && !isIT) return false;
+                return true;
+            })
+            .OrderBy(r => r.Name)
+            .ToList();
+    }
+
+    public async Task<List<PointOfSale>> GetAllPointsOfSaleAsync()
+        => await _uow.PointsOfSale.GetAllAsync();
+
+    // ------- STATIC GUARDS -------
+
+    public static bool IsSuperAdminUser(User user)
+        => user.Username.Equals(SuperAdminUsername, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsSuperAdminRole(Role role)
+        => role.Name.Equals(SuperAdminRoleName, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsITTechRole(Role role)
+        => role.Name.Equals(ITTechRoleName, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsInspecteurDGIRole(Role role)
+        => role.Name.Equals(InspecteurDGIRoleName, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsRestrictedRole(Role role)
+        => SuperAdminOnlyRoleNames.Contains(role.Name)
+        || ElevatedRoleNames.Contains(role.Name);
+
+    public static bool IsSuperAdminOnlyRole(Role role)
+        => SuperAdminOnlyRoleNames.Contains(role.Name);
+
+    public static bool IsElevatedRole(Role role)
+        => ElevatedRoleNames.Contains(role.Name);
+
+    // ------- PRIVILEGE RESOLVER -------
+
+    private async Task<(bool isSA, bool isIT)> ResolvePrivilegesAsync(int userId)
+    {
+        var cu = await _uow.Users.GetByIdAsync(userId);
+        if (cu == null) return (false, false);
+        if (IsSuperAdminUser(cu)) return (true, false);
+        var cuRole = await _uow.GetRepository<Role>().GetByIdAsync(cu.RoleId);
+        return (false, cuRole != null && IsITTechRole(cuRole));
+    }
+
+    // ------- USER-LEVEL AUTHORIZATION -------
+
+    private async Task<string?> AuthorizeUserManagementAsync(int currentUserId, Role targetRole)
+    {
+        if (IsSuperAdminRole(targetRole))
+            return "Le rôle SuperAdmin ne peut pas être attribué manuellement.";
+
+        var (isSA, isIT) = await ResolvePrivilegesAsync(currentUserId);
+
+        if (IsSuperAdminOnlyRole(targetRole) && !isSA)
+            return $"Seul le SuperAdmin peut gérer les utilisateurs avec le rôle « {targetRole.Name} ».";
+
+        if (IsElevatedRole(targetRole) && !isSA && !isIT)
+            return $"Seul le SuperAdmin ou un IT Tech peut gérer les utilisateurs avec le rôle « {targetRole.Name} ».";
+
+        return null;
+    }
+
+    // ------- USER CRUD -------
+
+    public async Task<ServiceResult> CreateUserAsync(User user, string plainPassword, int currentUserId)
+    {
+        if (string.IsNullOrWhiteSpace(user.Username))
+            return ServiceResult.Fail("Le nom d'utilisateur est obligatoire.");
+
+        if (string.IsNullOrWhiteSpace(plainPassword) || plainPassword.Length < 4)
+            return ServiceResult.Fail("Le mot de passe doit contenir au moins 4 caractères.");
+
+        if (string.IsNullOrWhiteSpace(user.FullName))
+            return ServiceResult.Fail("Le nom complet est obligatoire.");
+
+        if (user.RoleId <= 0)
+            return ServiceResult.Fail("Veuillez sélectionner un rôle.");
+
+        if (user.Username.Equals(SuperAdminUsername, StringComparison.OrdinalIgnoreCase))
+            return ServiceResult.Fail("Le nom d'utilisateur « superadmin » est réservé au système.");
+
+        var existing = await _uow.Users.GetByUsernameAsync(user.Username.Trim());
+        if (existing != null)
+            return ServiceResult.Fail($"Le nom d'utilisateur « {user.Username} » est déjà pris.");
+
+        var targetRole = await _uow.GetRepository<Role>().GetByIdAsync(user.RoleId);
+        if (targetRole == null)
+            return ServiceResult.Fail("Rôle introuvable.");
+
+        var authError = await AuthorizeUserManagementAsync(currentUserId, targetRole);
+        if (authError != null)
+            return ServiceResult.Fail(authError);
+
+        user.Username = user.Username.Trim().ToLower();
+        user.FullName = user.FullName.Trim();
+        user.PasswordHash = AuthService.HashPassword(plainPassword);
+        user.IsActive = true;
+
+        await _uow.Users.AddAsync(user);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.UserCreated, user.Id.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.UserCreated,
+            AuditModule.Users,
+            $"Utilisateur « {user.Username} » ({user.FullName}) · Rôle « {targetRole.Name} »" +
+                (user.PointOfSaleId.HasValue ? $" · POS #{user.PointOfSaleId}" : ""),
+            entityType: "User",
+            entityId: user.Id.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> UpdateUserAsync(User user, int currentUserId, string? newPlainPassword = null)
+    {
+        var existing = await _uow.Users.GetByUsernameAsync(user.Username);
+        if (existing == null)
+            existing = await _uow.Users.GetByIdAsync(user.Id);
+        if (existing == null)
+            return ServiceResult.Fail("Utilisateur introuvable.");
+
+        // -- SuperAdmin: only themselves --
+        if (IsSuperAdminUser(existing))
+        {
+            if (currentUserId != existing.Id)
+                return ServiceResult.Fail("Seul le SuperAdmin peut modifier son propre compte.");
+            if (user.RoleId != existing.RoleId)
+                return ServiceResult.Fail("Le rôle du SuperAdmin ne peut pas être modifié.");
+            if (!user.IsActive)
+                return ServiceResult.Fail("Le compte SuperAdmin ne peut pas être désactivé.");
+            if (!user.Username.Equals(existing.Username, StringComparison.OrdinalIgnoreCase))
+                return ServiceResult.Fail("Le nom d'utilisateur du SuperAdmin ne peut pas être modifié.");
+        }
+
+        var existingRole = await _uow.GetRepository<Role>().GetByIdAsync(existing.RoleId);
+        if (existingRole != null && IsRestrictedRole(existingRole) && !IsSuperAdminRole(existingRole))
+        {
+            var authError = await AuthorizeUserManagementAsync(currentUserId, existingRole);
+            if (authError != null)
+                return ServiceResult.Fail(authError);
+        }
+
+        if (string.IsNullOrWhiteSpace(user.FullName))
+            return ServiceResult.Fail("Le nom complet est obligatoire.");
+        if (user.RoleId <= 0)
+            return ServiceResult.Fail("Veuillez sélectionner un rôle.");
+
+        string? newRoleName = null;
+        if (user.RoleId != existing.RoleId)
+        {
+            var newRole = await _uow.GetRepository<Role>().GetByIdAsync(user.RoleId);
+            if (newRole == null)
+                return ServiceResult.Fail("Rôle introuvable.");
+
+            var authError = await AuthorizeUserManagementAsync(currentUserId, newRole);
+            if (authError != null)
+                return ServiceResult.Fail(authError);
+
+            newRoleName = newRole.Name;
+        }
+
+        if (!existing.Username.Equals(user.Username, StringComparison.OrdinalIgnoreCase))
+        {
+            var dup = await _uow.Users.GetByUsernameAsync(user.Username.Trim());
+            if (dup != null)
+                return ServiceResult.Fail($"Le nom d'utilisateur « {user.Username} » est déjà pris.");
+        }
+
+        var changes = new List<string>();
+        if (existing.FullName != user.FullName.Trim())
+            changes.Add($"Nom : « {existing.FullName} » ? « {user.FullName.Trim()} »");
+        if (existing.RoleId != user.RoleId)
+            changes.Add($"Rôle : « {existingRole?.Name} » ? « {newRoleName} »");
+        if (existing.IsActive != user.IsActive)
+            changes.Add(user.IsActive ? "Réactivé" : "Désactivé");
+        if (existing.PointOfSaleId != user.PointOfSaleId)
+            changes.Add($"POS : #{existing.PointOfSaleId} ? #{user.PointOfSaleId}");
+        if (!string.IsNullOrWhiteSpace(newPlainPassword))
+            changes.Add("Mot de passe modifié");
+
+        existing.FullName = user.FullName.Trim();
+        existing.RoleId = user.RoleId;
+        existing.IsActive = user.IsActive;
+        existing.PointOfSaleId = user.PointOfSaleId;
+
+        if (!string.IsNullOrWhiteSpace(newPlainPassword))
+        {
+            if (newPlainPassword.Length < 4)
+                return ServiceResult.Fail("Le mot de passe doit contenir au moins 4 caractères.");
+            existing.PasswordHash = AuthService.HashPassword(newPlainPassword);
+        }
+
+        await _uow.Users.UpdateAsync(existing);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.UserUpdated, existing.Id.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        var detail = changes.Count > 0
+            ? $"Utilisateur « {existing.Username} » · {string.Join(" · ", changes)}"
+            : $"Utilisateur « {existing.Username} » · Aucune modification détectée";
+        await _audit.LogAsync(
+            AuditAction.UserUpdated,
+            AuditModule.Users,
+            detail,
+            entityType: "User",
+            entityId: existing.Id.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> DeleteUserAsync(int userId, int currentUserId)
+    {
+        if (userId == currentUserId)
+            return ServiceResult.Fail("Vous ne pouvez pas supprimer votre propre compte.");
+
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user == null)
+            return ServiceResult.Fail("Utilisateur introuvable.");
+
+        if (IsSuperAdminUser(user))
+            return ServiceResult.Fail("Le compte SuperAdmin ne peut pas être supprimé.");
+
+        var userRole = await _uow.GetRepository<Role>().GetByIdAsync(user.RoleId);
+        if (userRole != null && IsRestrictedRole(userRole))
+        {
+            var authError = await AuthorizeUserManagementAsync(currentUserId, userRole);
+            if (authError != null)
+                return ServiceResult.Fail(authError);
+        }
+
+        var username = user.Username;
+        var fullName = user.FullName;
+        var roleName = userRole?.Name ?? "?";
+
+        await _uow.Users.DeleteAsync(user);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.UserDeleted, userId.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.UserDeleted,
+            AuditModule.Users,
+            $"Utilisateur « {username} » ({fullName}) · Rôle « {roleName} » · Supprimé",
+            entityType: "User",
+            entityId: userId.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> ToggleActiveAsync(int userId, int currentUserId)
+    {
+        if (userId == currentUserId)
+            return ServiceResult.Fail("Vous ne pouvez pas désactiver votre propre compte.");
+
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user == null)
+            return ServiceResult.Fail("Utilisateur introuvable.");
+
+        if (IsSuperAdminUser(user))
+            return ServiceResult.Fail("Le compte SuperAdmin ne peut pas être désactivé.");
+
+        var userRole = await _uow.GetRepository<Role>().GetByIdAsync(user.RoleId);
+        if (userRole != null && IsRestrictedRole(userRole))
+        {
+            var authError = await AuthorizeUserManagementAsync(currentUserId, userRole);
+            if (authError != null)
+                return ServiceResult.Fail(authError);
+        }
+
+        user.IsActive = !user.IsActive;
+        await _uow.Users.UpdateAsync(user);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.UserUpdated, userId.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        var action = user.IsActive ? AuditAction.UserActivated : AuditAction.UserDeactivated;
+        await _audit.LogAsync(
+            action,
+            AuditModule.Users,
+            $"Utilisateur « {user.Username} » ({user.FullName}) · " +
+                (user.IsActive ? "Activé" : "Désactivé"),
+            entityType: "User",
+            entityId: userId.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    // ------- ROLE CRUD -------
+
+    public async Task<ServiceResult> CreateRoleAsync(
+        string name, Dictionary<string, bool> permissions, int currentUserId)
+    {
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return ServiceResult.Fail("Seul le SuperAdmin peut créer de nouveaux rôles.");
+
+        if (string.IsNullOrWhiteSpace(name))
+            return ServiceResult.Fail("Le nom du rôle est obligatoire.");
+
+        if (name.Equals(SuperAdminRoleName, StringComparison.OrdinalIgnoreCase))
+            return ServiceResult.Fail("Le nom « SuperAdmin » est réservé au système.");
+
+        var roleRepo = _uow.GetRepository<Role>();
+        var existing = await roleRepo.FindAsync(r => r.Name == name.Trim());
+        if (existing.Any())
+            return ServiceResult.Fail($"Le rôle « {name} » existe déjà.");
+
+        var enabledPerms = permissions
+            .Where(kv => kv.Value)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        var role = new Role
+        {
+            Name = name.Trim(),
+            Permissions = JsonSerializer.Serialize(permissions)
+        };
+
+        await roleRepo.AddAsync(role);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.RoleCreated, role.Id.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.RoleCreated,
+            AuditModule.Users,
+            $"Rôle « {role.Name} » · Permissions : {(enabledPerms.Count > 0 ? string.Join(", ", enabledPerms) : "aucune")}",
+            entityType: "Role",
+            entityId: role.Id.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> UpdateRoleAsync(
+        int roleId, string name, Dictionary<string, bool> permissions, int currentUserId)
+    {
+        var roleRepo = _uow.GetRepository<Role>();
+        var role = await roleRepo.GetByIdAsync(roleId);
+        if (role == null)
+            return ServiceResult.Fail("Rôle introuvable.");
+
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return ServiceResult.Fail("Seul le SuperAdmin peut modifier les rôles.");
+
+        if (IsSuperAdminRole(role))
+            return ServiceResult.Fail("Le rôle SuperAdmin ne peut pas être modifié.");
+
+        if (string.IsNullOrWhiteSpace(name))
+            return ServiceResult.Fail("Le nom du rôle est obligatoire.");
+
+        if (name.Equals(SuperAdminRoleName, StringComparison.OrdinalIgnoreCase))
+            return ServiceResult.Fail("Le nom « SuperAdmin » est réservé au système.");
+
+        if (!role.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            var dup = await roleRepo.FindAsync(r => r.Name == name.Trim());
+            if (dup.Any(r => r.Id != roleId))
+                return ServiceResult.Fail($"Le rôle « {name} » existe déjà.");
+        }
+
+        var changes = new List<string>();
+        if (role.Name != name.Trim())
+            changes.Add($"Nom : « {role.Name} » ? « {name.Trim()} »");
+
+        var oldPerms = ParsePermissions(role.Permissions);
+        var addedPerms = permissions.Where(kv => kv.Value && (!oldPerms.TryGetValue(kv.Key, out var old) || !old)).Select(kv => kv.Key).ToList();
+        var removedPerms = oldPerms.Where(kv => kv.Value && (!permissions.TryGetValue(kv.Key, out var nw) || !nw)).Select(kv => kv.Key).ToList();
+        if (addedPerms.Count > 0)
+            changes.Add($"+Permissions : {string.Join(", ", addedPerms)}");
+        if (removedPerms.Count > 0)
+            changes.Add($"-Permissions : {string.Join(", ", removedPerms)}");
+
+        role.Name = name.Trim();
+        role.Permissions = JsonSerializer.Serialize(permissions);
+
+        await roleRepo.UpdateAsync(role);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.RoleUpdated, role.Id.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        var detail = changes.Count > 0
+            ? $"Rôle « {role.Name} » · {string.Join(" · ", changes)}"
+            : $"Rôle « {role.Name} » · Aucune modification détectée";
+        await _audit.LogAsync(
+            AuditAction.RoleUpdated,
+            AuditModule.Users,
+            detail,
+            entityType: "Role",
+            entityId: role.Id.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> DeleteRoleAsync(int roleId, int currentUserId)
+    {
+        var roleRepo = _uow.GetRepository<Role>();
+        var role = await roleRepo.GetByIdAsync(roleId);
+        if (role == null)
+            return ServiceResult.Fail("Rôle introuvable.");
+
+        var (isSA, _) = await ResolvePrivilegesAsync(currentUserId);
+        if (!isSA)
+            return ServiceResult.Fail("Seul le SuperAdmin peut modifier les rôles.");
+
+        if (IsSuperAdminRole(role))
+            return ServiceResult.Fail("Le rôle SuperAdmin ne peut pas être supprimé.");
+
+        var usersWithRole = await _uow.Users.FindAsync(u => u.RoleId == roleId);
+        if (usersWithRole.Any())
+            return ServiceResult.Fail(
+                $"Ce rôle est encore attribué à {usersWithRole.Count} utilisateur(s). " +
+                "Réassignez-les avant de supprimer le rôle.");
+
+        var roleName = role.Name;
+
+        await roleRepo.DeleteAsync(role);
+        await _uow.SaveChangesAsync();
+
+        _uow.EnqueueEvent(AppEvent.RoleDeleted, roleId.ToString());
+        await _uow.FlushEventsAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.RoleDeleted,
+            AuditModule.Users,
+            $"Rôle « {roleName} » · Supprimé",
+            entityType: "Role",
+            entityId: roleId.ToString());
+
+        return ServiceResult.Ok();
+    }
+
+    // ------- HELPERS -------
+
+    public static Dictionary<string, bool> ParsePermissions(string json)
+    {
+        try { return JsonSerializer.Deserialize<Dictionary<string, bool>>(json ?? "{}") ?? new(); }
+        catch { return new(); }
+    }
+
+    public static int[] ParseAssignedPosIds(string json)
+    {
+        try { return JsonSerializer.Deserialize<int[]>(json ?? "[]") ?? []; }
+        catch { return []; }
+    }
+}
+
+// ------- SERVICE RESULT -------
+
+public class ServiceResult
+{
+    public bool Success { get; init; }
+    public string ErrorMessage { get; init; } = "";
+
+    public static ServiceResult Ok() => new() { Success = true };
+    public static ServiceResult Fail(string message) => new() { Success = false, ErrorMessage = message };
+}
+
+
+==========================================================
+FILE: SFE.WPF/ViewModels/UsersViewModel.cs
+SIZE: 17363 bytes
+==========================================================
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SFE.Application.Events;
+using SFE.Application.Interfaces;
+using SFE.Application.Services;
+using SFE.Domain.Entities;
+
+namespace SFE.WPF.ViewModels;
+
+public partial class UsersViewModel : BaseViewModel
+{
+    private readonly UserService _userService;
+    private readonly IAuthService _authService;
+
+    [ObservableProperty] private ObservableCollection<PointOfSale> _availablePointsOfSale = new();
+    [ObservableProperty] private PointOfSale? _selectedPointOfSale;
+
+    [ObservableProperty] private bool _isUsersTab = true;
+
+    // ------- USER LIST -------
+    public ObservableCollection<UserListItem> Users { get; } = new();
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private int _userCount;
+
+    // ------- USER FORM -------
+    [ObservableProperty] private bool _isEditingUser;
+    [ObservableProperty] private bool _isCreatingUser;
+    [ObservableProperty] private string _userFormTitle = "";
+    [ObservableProperty] private bool _isProtectedUser;
+    private int _editingUserId;
+
+    [ObservableProperty] private string _formUsername = "";
+    [ObservableProperty] private string _formPassword = "";
+    [ObservableProperty] private string _formFullName = "";
+    [ObservableProperty] private Role? _formRole;
+    [ObservableProperty] private bool _formIsActive = true;
+
+    [ObservableProperty] private PointOfSale? _formPointOfSale;
+
+    public ObservableCollection<Role> AvailableRoles { get; } = new();
+    public ObservableCollection<PointOfSale> AvailablePos { get; } = new();
+
+    // ------- ROLE LIST -------
+    public ObservableCollection<RoleListItem> Roles { get; } = new();
+    [ObservableProperty] private int _roleCount;
+
+    // ------- ROLE FORM -------
+    [ObservableProperty] private bool _isEditingRole;
+    [ObservableProperty] private bool _isCreatingRole;
+    [ObservableProperty] private string _roleFormTitle = "";
+    [ObservableProperty] private bool _isProtectedRole;
+    [ObservableProperty] private string _protectedRoleMessage = "";                // ? NEW
+    private int _editingRoleId;
+
+    [ObservableProperty] private string _formRoleName = "";
+    public ObservableCollection<PermissionItem> FormPermissions { get; } = new();
+
+    // ------- ROLE-TAB PRIVILEGES -------
+    [ObservableProperty] private bool _canManageRoles;   // ? renamed — covers create/edit/delete
+
+    private List<User> _allUsers = new();
+
+    private int CurrentUserId => _authService.CurrentUser?.Id ?? 0;
+    private User? CurrentUser => _authService.CurrentUser;
+
+    private bool CurrentUserIsSuperAdmin =>
+        CurrentUser != null && UserService.IsSuperAdminUser(CurrentUser);
+
+    private bool CurrentUserIsITTech
+    {
+        get
+        {
+            var me = _allUsers.FirstOrDefault(u => u.Id == CurrentUserId);
+            return me?.Role != null && UserService.IsITTechRole(me.Role);
+        }
+    }
+
+    public UsersViewModel(UserService userService, IAuthService authService)
+    {
+        _userService = userService;
+        _authService = authService;
+        PageTitle = "Utilisateurs & Rôles";
+
+        Subscribe(async () => await LoadAllAsync(),
+            AppEvent.UserCreated, AppEvent.UserUpdated, AppEvent.UserDeleted,
+            AppEvent.RoleCreated, AppEvent.RoleUpdated, AppEvent.RoleDeleted);
+
+        _ = LoadAllAsync();
+    }
+
+    partial void OnSearchTextChanged(string value) => ApplyUserFilter();
+
+    [RelayCommand] private void SwitchToUsersTab() { IsUsersTab = true; CancelRoleEdit(); }
+    [RelayCommand] private void SwitchToRolesTab() { IsUsersTab = false; CancelUserEdit(); }
+
+    // ------- LOAD -------
+
+    private async Task LoadAllAsync()
+    {
+        try
+        {
+            IsBusy = true;
+
+            _allUsers = await _userService.GetAllWithRolesAsync();
+            var allPos = await _userService.GetAllPointsOfSaleAsync();
+
+            AvailableRoles.Clear();
+            if (CurrentUser != null)
+            {
+                var assignable = await _userService.GetAssignableRolesAsync(CurrentUser);
+                foreach (var r in assignable)
+                    AvailableRoles.Add(r);
+            }
+
+            AvailablePos.Clear();
+            foreach (var p in allPos.Where(p => p.IsActive).OrderBy(p => p.Code))
+                AvailablePos.Add(p);
+
+            // ? Compute privilege flags once
+            bool isSA = CurrentUserIsSuperAdmin;
+            bool isIT = CurrentUserIsITTech;
+            CanManageRoles = isSA;   // ? only SuperAdmin
+
+            var allRoles = await _userService.GetAllRolesAsync();
+            Roles.Clear();
+            foreach (var r in allRoles.OrderBy(r => r.Name))
+            {
+                var count = _allUsers.Count(u => u.RoleId == r.Id);
+                Roles.Add(new RoleListItem(r, count, isSA));                 // ?
+            }
+            RoleCount = Roles.Count;
+
+            ApplyUserFilter();
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur de chargement : {ex.Message}");
+        }
+        finally { IsBusy = false; }
+    }
+
+    private void ApplyUserFilter()
+    {
+        var filtered = _allUsers.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var q = SearchText.Trim().ToLower();
+            filtered = filtered.Where(u =>
+                u.Username.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                u.FullName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (u.Role?.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        Users.Clear();
+        foreach (var u in filtered)
+            Users.Add(new UserListItem(u, CurrentUserIsSuperAdmin, CurrentUserIsITTech));
+        UserCount = Users.Count;
+    }
+
+    // ------- USER COMMANDS -------
+
+    [RelayCommand]
+    private void NewUser()
+    {
+        ClearUserForm();
+        IsCreatingUser = true;
+        IsEditingUser = true;
+        IsProtectedUser = false;
+        UserFormTitle = "Nouvel utilisateur";
+        FormIsActive = true;
+    }
+
+    [RelayCommand]
+    private void EditUser(UserListItem? item)
+    {
+        if (item == null) return;
+        var user = _allUsers.FirstOrDefault(u => u.Id == item.Id);
+        if (user == null) return;
+
+        _editingUserId = user.Id;
+        IsCreatingUser = false;
+        IsEditingUser = true;
+        IsProtectedUser = UserService.IsSuperAdminUser(user);
+        UserFormTitle = $"Modifier — {user.FullName}";
+
+        FormUsername = user.Username;
+        FormPassword = "";
+        FormFullName = user.FullName;
+        FormIsActive = user.IsActive;
+        FormRole = AvailableRoles.FirstOrDefault(r => r.Id == user.RoleId);
+        FormPointOfSale = AvailablePos.FirstOrDefault(p => p.Id == user.PointOfSaleId);
+
+        ClearStatus();
+    }
+
+    [RelayCommand]
+    private async Task SaveUser()
+    {
+        ClearStatus();
+        ServiceResult result;
+
+        if (IsCreatingUser)
+        {
+            var user = new User
+            {
+                Username = FormUsername,
+                FullName = FormFullName,
+                RoleId = FormRole?.Id ?? 0,
+                IsActive = FormIsActive,
+                PointOfSaleId = FormPointOfSale?.Id
+            };
+            result = await _userService.CreateUserAsync(user, FormPassword, CurrentUserId);
+        }
+        else
+        {
+            var user = new User
+            {
+                Id = _editingUserId,
+                Username = FormUsername,
+                FullName = FormFullName,
+                RoleId = FormRole?.Id ?? _allUsers.First(u => u.Id == _editingUserId).RoleId,
+                IsActive = FormIsActive,
+                PointOfSaleId = FormPointOfSale?.Id
+            };
+            var newPwd = string.IsNullOrWhiteSpace(FormPassword) ? null : FormPassword;
+            result = await _userService.UpdateUserAsync(user, CurrentUserId, newPwd);
+        }
+
+        if (result.Success)
+        {
+            var msg = IsCreatingUser ? "? Utilisateur créé avec succès." : "? Utilisateur mis à jour.";
+            IsEditingUser = false;
+            await LoadAllAsync();
+            _ = ShowSuccessAsync(msg);
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private async Task DeleteUser(UserListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+        var result = await _userService.DeleteUserAsync(item.Id, CurrentUserId);
+        if (result.Success)
+        {
+            if (IsEditingUser && _editingUserId == item.Id) CancelUserEdit();
+            await LoadAllAsync();
+            _ = ShowSuccessAsync("? Utilisateur supprimé.");
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private async Task ToggleUserActive(UserListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+        var result = await _userService.ToggleActiveAsync(item.Id, CurrentUserId);
+        if (result.Success)
+        {
+            await LoadAllAsync();
+            _ = ShowSuccessAsync(item.IsActive ? "? Utilisateur désactivé." : "? Utilisateur activé.");
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private void CancelUserEdit()
+    {
+        IsEditingUser = false;
+        IsCreatingUser = false;
+        ClearUserForm();
+        ClearStatus();
+    }
+
+    private void ClearUserForm()
+    {
+        _editingUserId = 0;
+        FormUsername = "";
+        FormPassword = "";
+        FormFullName = "";
+        FormRole = null;
+        FormIsActive = true;
+        IsProtectedUser = false;
+        UserFormTitle = "";
+        FormPointOfSale = null;
+    }
+
+    // ------- ROLE COMMANDS -------
+
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
+    private void NewRole()
+    {
+        ClearRoleForm();
+        IsCreatingRole = true;
+        IsEditingRole = true;
+        IsProtectedRole = false;
+        ProtectedRoleMessage = "";
+        RoleFormTitle = "Nouveau rôle";
+        InitPermissionItems(new Dictionary<string, bool>());
+    }
+
+    [RelayCommand]
+    private void EditRole(RoleListItem? item)
+    {
+        if (item == null) return;
+        _editingRoleId = item.Id;
+        IsCreatingRole = false;
+        IsEditingRole = true;
+
+        IsProtectedRole = !item.CanEditRole;
+
+        if (IsProtectedRole)
+        {
+            if (item.IsSuperAdmin)
+                ProtectedRoleMessage = "?? Rôle SuperAdmin protégé — ce rôle ne peut pas être modifié ni supprimé.";
+            else
+                ProtectedRoleMessage = "?? Seul le SuperAdmin peut modifier les rôles.";
+
+            RoleFormTitle = $"?? {item.Name} (lecture seule)";
+        }
+        else
+        {
+            ProtectedRoleMessage = "";
+            RoleFormTitle = $"Modifier — {item.Name}";
+        }
+
+        FormRoleName = item.Name;
+        InitPermissionItems(UserService.ParsePermissions(item.PermissionsJson));
+        ClearStatus();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
+    private async Task SaveRole()
+    {
+        ClearStatus();
+        var perms = FormPermissions.ToDictionary(p => p.Key, p => p.IsGranted);
+        ServiceResult result;
+
+        if (IsCreatingRole)
+            result = await _userService.CreateRoleAsync(FormRoleName, perms, CurrentUserId);      // ?
+        else
+            result = await _userService.UpdateRoleAsync(_editingRoleId, FormRoleName, perms, CurrentUserId); // ?
+
+        if (result.Success)
+        {
+            var msg = IsCreatingRole ? "? Rôle créé avec succès." : "? Rôle mis à jour.";
+            IsEditingRole = false;
+            await LoadAllAsync();
+            _ = ShowSuccessAsync(msg);
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRoles))]
+    private async Task DeleteRole(RoleListItem? item)
+    {
+        if (item == null) return;
+        ClearStatus();
+        var result = await _userService.DeleteRoleAsync(item.Id, CurrentUserId);
+        if (result.Success)
+        {
+            if (IsEditingRole && _editingRoleId == item.Id) CancelRoleEdit();
+            await LoadAllAsync();
+            _ = ShowSuccessAsync("? Rôle supprimé.");
+        }
+        else { ShowErrorMessage(result.ErrorMessage); }
+    }
+
+    [RelayCommand]
+    private void CancelRoleEdit()
+    {
+        IsEditingRole = false;
+        IsCreatingRole = false;
+        ClearRoleForm();
+        ClearStatus();
+    }
+
+    private void ClearRoleForm()
+    {
+        _editingRoleId = 0;
+        FormRoleName = "";
+        IsProtectedRole = false;
+        ProtectedRoleMessage = "";
+        RoleFormTitle = "";
+        FormPermissions.Clear();
+    }
+
+    private void InitPermissionItems(Dictionary<string, bool> current)
+    {
+        FormPermissions.Clear();
+        foreach (var (key, label) in UserService.AllPermissions)
+        {
+            current.TryGetValue(key, out var granted);
+            FormPermissions.Add(new PermissionItem { Key = key, Label = label, IsGranted = granted });
+        }
+    }
+
+    partial void OnCanManageRolesChanged(bool value)
+    {
+        NewRoleCommand.NotifyCanExecuteChanged();
+        SaveRoleCommand.NotifyCanExecuteChanged();
+        DeleteRoleCommand.NotifyCanExecuteChanged();
+    }
+}
+
+// ------------------------------------------------------
+//  HELPER CLASSES
+// ------------------------------------------------------
+
+public class UserListItem
+{
+    public int Id { get; }
+    public string Username { get; }
+    public string FullName { get; }
+    public string RoleName { get; }
+    public string PosName { get; }
+    public bool IsActive { get; }
+    public string ActiveDisplay { get; }
+    public string LastLoginDisplay { get; }
+    public bool IsSuperAdmin { get; }
+    public bool CanEdit { get; }
+    public bool CanModify { get; }
+
+    public UserListItem(User u, bool currentUserIsSuperAdmin, bool currentUserIsITTech)
+    {
+        Id = u.Id;
+        Username = u.Username;
+        FullName = u.FullName;
+        RoleName = u.Role?.Name ?? "—";
+        PosName = u.PointOfSale != null ? $"{u.PointOfSale.Code}" : "—";
+        IsActive = u.IsActive;
+        ActiveDisplay = u.IsActive ? "Actif" : "Inactif";
+        LastLoginDisplay = u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "Jamais";
+        IsSuperAdmin = UserService.IsSuperAdminUser(u);
+
+        var isITTech = u.Role != null && UserService.IsITTechRole(u.Role);
+        var isInspecteurDGI = u.Role != null && UserService.IsInspecteurDGIRole(u.Role);
+
+        CanEdit = true;
+        if (IsSuperAdmin && !currentUserIsSuperAdmin) CanEdit = false;
+        if (isITTech && !currentUserIsSuperAdmin) CanEdit = false;
+        if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanEdit = false;
+
+        CanModify = !IsSuperAdmin;
+        if (isITTech && !currentUserIsSuperAdmin) CanModify = false;
+        if (isInspecteurDGI && !currentUserIsSuperAdmin && !currentUserIsITTech) CanModify = false;
+    }
+}
+
+public class RoleListItem
+{
+    public int Id { get; }
+    public string Name { get; }
+    public int UserCount { get; }
+    public bool IsSuperAdmin { get; }
+    public bool IsITTech { get; }
+    public bool IsInspecteurDGI { get; }
+    public bool IsRestricted { get; }
+    public bool CanEditRole { get; }
+    public bool CanDeleteRole { get; }
+    public string PermissionsJson { get; }
+
+    public RoleListItem(Role r, int userCount, bool currentUserIsSA)   // ? simplified ctor
+    {
+        Id = r.Id;
+        Name = r.Name;
+        UserCount = userCount;
+        PermissionsJson = r.Permissions;
+
+        IsSuperAdmin = UserService.IsSuperAdminRole(r);
+        IsITTech = UserService.IsITTechRole(r);
+        IsInspecteurDGI = UserService.IsInspecteurDGIRole(r);
+        IsRestricted = IsSuperAdmin || IsITTech || IsInspecteurDGI;
+
+        // ? Only SuperAdmin manages roles. Never edit/delete the SA role itself.
+        CanEditRole = currentUserIsSA && !IsSuperAdmin;
+        CanDeleteRole = currentUserIsSA && !IsSuperAdmin;
+    }
+}
+
+public partial class PermissionItem : ObservableObject
+{
+    public string Key { get; set; } = "";
+    public string Label { get; set; } = "";
+    [ObservableProperty] private bool _isGranted;
+}
+
+
+==========================================================
+FILE: SFE.Application/Interfaces/IUserRepository.cs
+SIZE: 475 bytes
+==========================================================
+using SFE.Domain.Entities;
+
+namespace SFE.Application.Interfaces;
+
+public interface IUserRepository : IRepository<User>
+{
+    Task<User?> GetByUsernameAsync(string username);
+    Task<User?> AuthenticateAsync(string username, string passwordHash);
+    Task<List<User>> GetActiveUsersAsync();
+    Task<List<User>> GetAllWithRolesAsync();
+
+    // ??
+    Task<User?> GetWithPosAndRoleAsync(int userId);
+    Task<List<User>> GetByPointOfSaleAsync(int posId);
+}
+
+
+==========================================================
+FILE: SFE.Licensing.Local/LicenseGuard.cs
+SIZE: 14021 bytes
+==========================================================
+using Microsoft.Extensions.Logging;
+using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
+using SFE.Domain.Enums;
+using SFE.Licensing.Domain;
+using SFE.Licensing.Local.MachineFingerprintProviders;
+using SFE.Licensing.Local.Signing;
+using SFE.Licensing.Local.Storage;
+using SFE.Licensing.Local.Time;
+
+namespace SFE.Licensing.Local;
+
+public sealed class LicenseGuard : ILicenseGuard
+{
+    private readonly ILicenseVerifier _verifier;
+    private readonly ILocalLicenseStore _store;
+    private readonly IMachineFingerprintProvider _fingerprint;
+    private readonly IAntiClockTamper _clock;
+    private readonly ITimeProvider _time;
+    private readonly IAuditService _audit;
+    private readonly ITrialIssuer _trialIssuer;
+    private readonly ILogger<LicenseGuard> _log;
+
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private LicenseSnapshot _current = new(
+        Status: LicenseStatus.Unknown,
+        Claims: null,
+        EvaluatedAtUtc: DateTimeOffset.MinValue,
+        LastSuccessfulContactUtc: null,
+        GraceStartedAtUtc: null,
+        DaysUntilExpiry: null,
+        DaysOfGraceRemaining: null,
+        Reason: null);
+
+    public LicenseSnapshot Current => _current;
+    public event Action<LicenseSnapshot>? StatusChanged;
+
+    public LicenseGuard(
+        ILicenseVerifier verifier,
+        ILocalLicenseStore store,
+        IMachineFingerprintProvider fingerprint,
+        IAntiClockTamper clock,
+        ITimeProvider time,
+        IAuditService audit,
+        ITrialIssuer trialIssuer,
+        ILogger<LicenseGuard> log)
+    {
+        _verifier = verifier;
+        _store = store;
+        _fingerprint = fingerprint;
+        _clock = clock;
+        _time = time;
+        _audit = audit;
+        _trialIssuer = trialIssuer;
+        _log = log;
+    }
+
+    // -------------------------------------------------------
+    //  Boot
+    // -------------------------------------------------------
+
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var state = await _store.ReadStateAsync(ct);
+            var fp = _fingerprint.Compute();
+
+            if (string.IsNullOrEmpty(state.Fingerprint))
+            {
+                state.Fingerprint = fp.Value;
+                await _store.WriteStateAsync(state, ct);
+            }
+            else if (!string.Equals(state.Fingerprint, fp.Value, StringComparison.Ordinal))
+            {
+                _log.LogWarning(
+                    "Machine fingerprint changed. Was {Old}, now {New}. This install must be re-activated.",
+                    state.Fingerprint, fp.Value);
+                state.TamperSuspected = true;
+                await _store.WriteStateAsync(state, ct);
+            }
+
+            var blob = await _store.ReadLicenseBlobAsync(ct);
+            if (string.IsNullOrEmpty(blob))
+            {
+                _log.LogInformation("No license file found; issuing trial.");
+                blob = await _trialIssuer.IssueTrialAsync(fp, ct);
+                if (blob is not null)
+                {
+                    await _store.WriteLicenseBlobAsync(blob, ct);
+                    state = await _store.ReadStateAsync(ct);
+                    state.TrialIssuedAtUtc = _time.UtcNow;
+                    await _store.WriteStateAsync(state, ct);
+                    _audit.Log(AuditAction.LicenseTrialIssued, AuditModule.Licensing,
+                        "Licence d'essai (30 jours) émise.");
+                }
+            }
+        }
+        finally { _gate.Release(); }
+
+        await ReevaluateAsync(ct);
+    }
+
+    // -------------------------------------------------------
+    //  Reevaluate (the heart of the guard)
+    // -------------------------------------------------------
+
+    public async Task<LicenseSnapshot> ReevaluateAsync(CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var (trustedNow, tampered) = await _clock.ObserveAsync(ct);
+            var state = await _store.ReadStateAsync(ct);
+
+            var blob = await _store.ReadLicenseBlobAsync(ct);
+            if (string.IsNullOrEmpty(blob))
+            {
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.Expired, null, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    null, null, "Aucune licence installée."));
+            }
+
+            LicenseClaims claims;
+            try
+            {
+                claims = _verifier.Verify(blob);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "License verification failed.");
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.Tampered, null, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    null, null, "La signature de la licence est invalide."));
+            }
+
+            // -- Machine binding check --
+            var currentFp = _fingerprint.Compute();
+            if (!string.IsNullOrEmpty(claims.BoundFingerprint) &&
+                !string.Equals(claims.BoundFingerprint, currentFp.Value, StringComparison.Ordinal))
+            {
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.Tampered, claims, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    null, null, "Licence liée à une autre machine."));
+            }
+
+            // -- Sticky tamper / revocation --
+            if (state.TamperSuspected || tampered)
+            {
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.Tampered, claims, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    null, null, "Anomalie d'horloge ou d'empreinte machine détectée."));
+            }
+
+            if (state.Revoked)
+            {
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.Suspended, claims, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    null, null, state.PortalMessage ?? "Licence suspendue par le fournisseur."));
+            }
+
+            // -- Time-based transitions --
+            var daysUntilExpiry = (int)Math.Ceiling((claims.ExpiresAt - trustedNow).TotalDays);
+            var pastExpiry = trustedNow > claims.ExpiresAt;
+            var graceDeadline = claims.ExpiresAt.AddDays(claims.GraceDays);
+            var pastGrace = trustedNow > graceDeadline;
+
+            if (pastGrace)
+            {
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.Expired, claims, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    daysUntilExpiry, 0, "Licence expirée et délai de grâce écoulé."));
+            }
+
+            if (pastExpiry)
+            {
+                var graceLeft = (int)Math.Ceiling((graceDeadline - trustedNow).TotalDays);
+                return Update(new LicenseSnapshot(
+                    LicenseStatus.GracePeriod, claims, trustedNow,
+                    state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                    daysUntilExpiry, graceLeft,
+                    $"Licence expirée — délai de grâce ({graceLeft} j restants)."));
+            }
+
+            // -- Online freshness (does not apply to trial: trials are 100% offline) --
+            var status = claims.IsTrial ? LicenseStatus.Trial : LicenseStatus.Active;
+
+            // Only enforce online-freshness once this install has EVER contacted a portal.
+            // Offline-only deployments (v1, no portal) never set LastSuccessfulContactUtc,
+            // so a valid license stays Active instead of falsely showing "no recent contact".
+            if (!claims.IsTrial && state.LastSuccessfulContactUtc is { } lc)
+            {
+                var maxOffline = TimeSpan.FromHours(claims.HeartbeatIntervalHours * 4);
+                if ((trustedNow - lc) > maxOffline)
+                {
+                    state.OfflineSinceUtc ??= trustedNow;
+                    await _store.WriteStateAsync(state, ct);
+                    status = LicenseStatus.ActiveOffline;
+                }
+                else if (state.OfflineSinceUtc is not null)
+                {
+                    state.OfflineSinceUtc = null;
+                    await _store.WriteStateAsync(state, ct);
+                }
+            }
+
+            return Update(new LicenseSnapshot(
+                status, claims, trustedNow,
+                state.LastSuccessfulContactUtc, state.OfflineSinceUtc,
+                daysUntilExpiry, null,
+                status == LicenseStatus.ActiveOffline
+                    ? "Aucun contact récent avec le portail — mode hors-ligne."
+                    : null));
+        }
+        finally { _gate.Release(); }
+    }
+
+    // -------------------------------------------------------
+    //  Enforcement
+    // -------------------------------------------------------
+
+    public void Require(Feature feature)
+    {
+        if (!TryUse(feature, out var reason))
+            throw new FeatureBlockedException(_current.Status, feature, reason ?? "Feature blocked.");
+    }
+
+    public bool TryUse(Feature feature, out string? reason)
+    {
+        var snap = _current;
+
+        if (snap.Status.IsFatal())
+        {
+            reason = snap.Reason ?? "Licence inactive.";
+            _audit.Log(AuditAction.LicenseFeatureBlocked, AuditModule.Licensing,
+                $"Fonctionnalité bloquée ({feature}) — statut {snap.Status}.");
+            return false;
+        }
+
+        if (snap.Claims is null || !snap.HasFeature(feature))
+        {
+            reason = $"La fonctionnalité « {feature} » n'est pas incluse dans votre licence.";
+            _audit.Log(AuditAction.LicenseFeatureBlocked, AuditModule.Licensing,
+                $"Fonctionnalité non incluse : {feature}.");
+            return false;
+        }
+
+        reason = null;
+        return true;
+    }
+
+    // -------------------------------------------------------
+    //  Mutations (called by Client + admin UI)
+    // -------------------------------------------------------
+
+    public async Task<LicenseSnapshot> InstallLicenseAsync(string blob, CancellationToken ct = default)
+    {
+        var claims = _verifier.Verify(blob); // throws if invalid — do NOT overwrite existing on bad input
+
+        var fp = _fingerprint.Compute();
+        if (!string.IsNullOrEmpty(claims.BoundFingerprint) &&
+            !string.Equals(claims.BoundFingerprint, fp.Value, StringComparison.Ordinal))
+            throw new InvalidOperationException("Licence liée à une autre machine.");
+
+        await _store.WriteLicenseBlobAsync(blob, ct);
+
+        var state = await _store.ReadStateAsync(ct);
+        state.LicenseId = claims.LicenseId;
+        state.Revoked = false;
+        state.PortalMessage = null;
+        state.TamperSuspected = false;   // a valid, correctly-bound license clears tamper
+        state.Fingerprint = fp.Value;
+        await _store.WriteStateAsync(state, ct);
+
+        _audit.Log(AuditAction.LicenseInstalled, AuditModule.Settings,
+            $"Nouvelle licence installée : {claims.LicenseId} (expire {claims.ExpiresAt:yyyy-MM-dd}).");
+
+        return await ReevaluateAsync(ct);
+    }
+
+    public async Task NoteSuccessfulContactAsync(DateTimeOffset atUtc, CancellationToken ct = default)
+    {
+        var state = await _store.ReadStateAsync(ct);
+        if (state.LastSuccessfulContactUtc is null || atUtc > state.LastSuccessfulContactUtc)
+        {
+            state.LastSuccessfulContactUtc = atUtc;
+            state.OfflineSinceUtc = null;
+            await _store.WriteStateAsync(state, ct);
+        }
+        await ReevaluateAsync(ct);
+    }
+
+    public async Task MarkRevokedAsync(string? portalMessage, CancellationToken ct = default)
+    {
+        var state = await _store.ReadStateAsync(ct);
+        state.Revoked = true;
+        state.PortalMessage = portalMessage;
+        await _store.WriteStateAsync(state, ct);
+
+        _audit.Log(AuditAction.LicenseRevokedByPortal, AuditModule.Licensing,
+            $"Licence révoquée par le portail : {portalMessage ?? "(aucun motif)"}.");
+
+        await ReevaluateAsync(ct);
+    }
+
+    // -------------------------------------------------------
+    //  Internal
+    // -------------------------------------------------------
+
+    private LicenseSnapshot Update(LicenseSnapshot next)
+    {
+        var prev = _current;
+        _current = next;
+        if (prev.Status != next.Status)
+        {
+            _log.LogInformation("License status: {Prev} -> {Next} ({Reason})",
+                prev.Status, next.Status, next.Reason);
+
+            var action = next.Status switch
+            {
+                LicenseStatus.Expired => AuditAction.LicenseExpired,
+                LicenseStatus.GracePeriod => AuditAction.LicenseEnteredGrace,
+                LicenseStatus.ActiveOffline => AuditAction.LicenseEnteredOffline,
+                LicenseStatus.Tampered => AuditAction.LicenseTamperDetected,
+                LicenseStatus.Suspended => AuditAction.LicenseRevokedByPortal,
+                _ => (AuditAction?)null
+            };
+            if (action is { } a)
+            {
+                _audit.Log(a, AuditModule.Licensing,
+                    $"Statut de licence : {prev.Status} -> {next.Status}. {next.Reason}".Trim());
+            }
+
+            try { StatusChanged?.Invoke(next); } catch { /* subscriber errors are their problem */ }
+        }
+        return next;
+    }
+}
+
+
+==========================================================
+FILE: Licensing.Domain/LicenseSnapshot.cs
+SIZE: 650 bytes
+==========================================================
+namespace SFE.Licensing.Domain;
+
+/// <summary>
+/// Immutable projection of the current license state, safe to pass around and
+/// bind to the UI. Recomputed by the guard whenever anything changes.
+/// </summary>
+public sealed record LicenseSnapshot(
+    LicenseStatus Status,
+    LicenseClaims? Claims,
+    DateTimeOffset EvaluatedAtUtc,
+    DateTimeOffset? LastSuccessfulContactUtc,
+    DateTimeOffset? GraceStartedAtUtc,
+    int? DaysUntilExpiry,
+    int? DaysOfGraceRemaining,
+    string? Reason)
+{
+    public bool AllowsInvoicing => !Status.IsFatal();
+    public bool HasFeature(Feature f) => Claims?.HasFeature(f) == true;
+}
+
+
+==========================================================
+ SUMMARY
+ Found  : 6 / 6
+ Missing: 0
+==========================================================

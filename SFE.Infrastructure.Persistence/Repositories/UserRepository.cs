@@ -62,4 +62,18 @@ public class UserRepository : Repository<User>, IUserRepository
             .OrderBy(u => u.FullName)
             .ToListAsync();
     }
+
+    public Task<User?> FindByManagerBarcodeHashAsync(string barcodeHash) =>
+    _context.Users.Include(u => u.Role)
+        .FirstOrDefaultAsync(u => u.IsActive && u.ManagerBarcodeHash == barcodeHash);
+
+    public Task<User?> FindByManagerPinHashAsync(string pinHash) =>
+        _context.Users.Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.IsActive && u.ManagerPinHash == pinHash);
+
+    public Task<User?> FindByUsernameAndPinHashAsync(string username, string pinHash) =>
+        _context.Users.Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.IsActive
+                                   && u.Username == username
+                                   && u.ManagerPinHash == pinHash);
 }

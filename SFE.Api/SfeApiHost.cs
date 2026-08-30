@@ -8,6 +8,7 @@ using SFE.Application.Interfaces;
 using SFE.Application.Payments;
 using SFE.Application.Services;
 using SFE.Domain.Abstractions;
+using SFE.Licensing.Local;
 using SFE.Domain.Enums;
 
 namespace SFE.Api;
@@ -61,7 +62,9 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
         // ══ Pairing gate ══
         _app.Use(async (ctx, next) =>
         {
-            if (ctx.Request.Path.StartsWithSegments("/health"))
+            // These endpoints are available before terminal pairing.
+            if (ctx.Request.Path.StartsWithSegments("/health") ||
+                ctx.Request.Path.StartsWithSegments("/license/status"))
             {
                 await next();
                 return;
@@ -90,6 +93,22 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
         });
 
         _app.MapGet("/health", () => Results.Ok(new { ok = true }));
+
+        _app.MapGet("/license/status", () =>
+        {
+            var guard = appServices.GetRequiredService<ILicenseGuard>();
+            var s = guard.Current;
+            return Results.Ok(new
+            {
+                status = s.Status.ToString(),
+                allowsInvoicing = s.AllowsInvoicing,
+                reason = s.Reason,
+                expiresAt = s.Claims?.ExpiresAt,
+                daysUntilExpiry = s.DaysUntilExpiry,
+                edition = s.Claims?.Edition,
+                features = s.Claims?.Features
+            });
+        });
 
         _app.MapGet("/orders", async (CancellationToken ct) =>
         {

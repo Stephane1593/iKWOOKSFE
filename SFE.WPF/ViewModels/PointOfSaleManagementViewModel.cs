@@ -15,6 +15,8 @@ using System.IO;
 using System.IO.Ports;
 using System.Text;
 using System.Windows.Media;
+using SFE.Licensing.Domain;
+using SFE.Licensing.Local;
 
 namespace SFE.WPF.ViewModels;
 
@@ -85,22 +87,41 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     private readonly StockService _stockService;
     private readonly ITimeProvider _time;
     private readonly FiscalDeviceResolver? _resolver;
+    private readonly ILicenseGuard _license;
 
     public PointOfSaleManagementViewModel(
         PointOfSaleService posService,
         IUnitOfWork unitOfWork,
         StockService stockService,
         ITimeProvider time,
+        ILicenseGuard license,
         FiscalDeviceResolver? resolver = null)
     {
         _posService = posService;
         _unitOfWork = unitOfWork;
         _stockService = stockService;
         _time = time ?? throw new ArgumentNullException(nameof(time));
+        _license = license;
         _resolver = resolver;
         PageTitle = "Points de vente";
 
+        _license.StatusChanged += OnLicenseChanged;
+        RefreshFeatureGates();
+
         _ = LoadAsync();
+    }
+
+    private void OnLicenseChanged(LicenseSnapshot _)
+    {
+        var d = System.Windows.Application.Current?.Dispatcher;
+        if (d is null || d.CheckAccess()) RefreshFeatureGates();
+        else d.Invoke(RefreshFeatureGates);
+    }
+
+    public void Dispose()
+    {
+        _license.StatusChanged -= OnLicenseChanged;
+        GC.SuppressFinalize(this);
     }
 
     // ── State ──
@@ -109,6 +130,14 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [ObservableProperty] private bool _isEditing;
     [ObservableProperty] private string _formTitle = "";
     [ObservableProperty] private bool _isProbingComPorts;
+
+    // ── Licence-driven UI hints ──
+    [ObservableProperty] private bool _canAddNewPos = true;
+    [ObservableProperty] private string _multiPosLockReason = "";
+    [ObservableProperty] private bool _canUseSunmi = true;
+    [ObservableProperty] private string _sunmiLockReason = "";
+    [ObservableProperty] private bool _canDisableFallback = true;
+    [ObservableProperty] private string _fallbackLockReason = "";
 
     // ── Edit form: General ──
     private int _editId;
@@ -202,6 +231,45 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         set => SetProperty(ref _selectedComPort, value);
     }
 
+    private void RefreshFeatureGates()
+    {
+        // Sunmi terminal feature
+        CanUseSunmi = _license.TryUse(Feature.SunmiTerminal, out var sReason);
+        SunmiLockReason = sReason ?? "";
+        if (!CanUseSunmi && EditSunmiEnabled) EditSunmiEnabled = false;
+
+        // e-MCF ↔ MCF fallback feature — required to *disable* fallback on a hybrid box
+        CanDisableFallback = _license.TryUse(Feature.EmcfFallback, out var fReason);
+        FallbackLockReason = fReason ?? "";
+        if (!CanDisableFallback && EditDisableFallback) EditDisableFallback = false;
+
+        // Multi-POS: enforced by count vs. MaxPointsOfSale in claims.
+        RecomputeCanAddNewPos();
+    }
+
+    private void RecomputeCanAddNewPos()
+    {
+        var claims = _license.Current.Claims;
+        var activeCount = AllPos?.Count(p => p.IsActive) ?? 0;
+
+        // If no claims yet (trial/unknown), allow one POS to unblock first-run.
+        var max = claims?.MaxPointsOfSale ?? 1;
+
+        if (activeCount < max)
+        {
+            CanAddNewPos = true;
+            MultiPosLockReason = "";
+        }
+        else
+        {
+            CanAddNewPos = false;
+            MultiPosLockReason = claims is null
+                ? "Aucune licence active — un seul point de vente autorisé."
+                : $"Votre licence autorise {max} point(s) de vente actif(s). " +
+                  "Passez à une édition Multi-POS pour en ajouter davantage.";
+        }
+    }
+
     private string EditMcfPortName => SelectedComPort?.Name ?? "";
 
     // ── Edit form: Inline test result ──
@@ -243,12 +311,22 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         var posList = await _posService.GetAllAsync(CompanyId);
         AllPos = new ObservableCollection<PointOfSale>(posList);
+
+        RecomputeCanAddNewPos();
     }
 
     [RelayCommand]
     private async Task StartNewPosAsync()
     {
         if (!await EnsureCompanyLoadedAsync()) return;
+
+        // Licence: MultiPos slot check.
+        RecomputeCanAddNewPos();
+        if (!CanAddNewPos)
+        {
+            ShowErrorMessage(MultiPosLockReason);
+            return;
+        }
 
         _editId = 0;
         EditCode = await _posService.GenerateNextCodeAsync(CompanyId);
@@ -356,6 +434,35 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         {
             ShowErrorMessage("Veuillez sélectionner un port COM pour le mode MCF/Hybride.");
             return;
+        }
+
+        // ── Licence enforcement ──
+
+        // 1) Sunmi terminal
+        if (EditSunmiEnabled && !_license.TryUse(Feature.SunmiTerminal, out var sunmiReason))
+        {
+            ShowErrorMessage(sunmiReason ?? "Terminal Sunmi non inclus dans votre licence.");
+            return;
+        }
+
+        // 2) MCF ↔ e-MCF fallback: disabling fallback requires the feature.
+        //    (Enabling fallback — the default — is always allowed.)
+        if (deviceType == DeviceType.Mcf && EditDisableFallback
+            && !_license.TryUse(Feature.EmcfFallback, out var fbReason))
+        {
+            ShowErrorMessage(fbReason ?? "La désactivation du repli e-MCF requiert la fonctionnalité correspondante.");
+            return;
+        }
+
+        // 3) MultiPos slot: enforced only on CREATE. Existing POS can always be edited/reactivated.
+        if (_editId == 0)
+        {
+            RecomputeCanAddNewPos();
+            if (!CanAddNewPos)
+            {
+                ShowErrorMessage(MultiPosLockReason);
+                return;
+            }
         }
 
         var disableFallback = (deviceType == DeviceType.Mcf) && EditDisableFallback;
@@ -472,6 +579,33 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         }
         else ShowErrorMessage(result.ErrorMessage);
     }
+
+    [RelayCommand]
+    private async Task ReactivatePosAsync(PointOfSale? pos)
+    {
+        if (pos == null || pos.IsActive) return;
+
+        // Réactiver augmente le nombre de POS actifs → même limite que la création.
+        RecomputeCanAddNewPos();
+        if (!CanAddNewPos)
+        {
+            ShowErrorMessage(MultiPosLockReason);
+            return;
+        }
+
+        var result = await _posService.ReactivateAsync(pos.Id);
+        if (result.Success)
+        {
+            try { _resolver?.Invalidate(); } catch { /* non-fatal */ }
+            await LoadAsync();
+            _ = ShowSuccessAsync($"✅ POS {pos.Code} réactivé.");
+        }
+        else
+        {
+            ShowErrorMessage(result.ErrorMessage);
+        }
+    }
+
 
     [RelayCommand]
     private async Task InitializeStockAsync(PointOfSale pos)

@@ -137,6 +137,39 @@ public class PointOfSaleService
         return new PosSaveResult { Success = true, PointOfSaleId = posId };
     }
 
+    public async Task<PosSaveResult> ReactivateAsync(int posId)
+    {
+        var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
+        if (pos == null)
+            return new PosSaveResult { Success = false, ErrorMessage = "POS introuvable." };
+
+        if (pos.IsActive)
+            return new PosSaveResult { Success = true, PointOfSaleId = posId };
+
+        // Le code doit rester unique parmi les POS actifs.
+        var clash = await _unitOfWork.PointsOfSale.GetActiveByCodeAsync(pos.Code);
+        if (clash != null && clash.Id != pos.Id)
+            return new PosSaveResult
+            {
+                Success = false,
+                ErrorMessage = $"Impossible de réactiver : le code « {pos.Code} » est " +
+                    "déjà utilisé par un autre POS actif. Renommez-le d'abord."
+            };
+
+        pos.IsActive = true;
+        await _unitOfWork.PointsOfSale.UpdateAsync(pos);
+        await _unitOfWork.SaveChangesAsync();
+
+        await _audit.LogAsync(
+            AuditAction.PosReactivated,   // ⚠️ voir note ci-dessous
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} » · Réactivé",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
+        return new PosSaveResult { Success = true, PointOfSaleId = posId };
+    }
+
     /// <summary>Génère le prochain code POS (POS-001, POS-002, ...)</summary>
     public async Task<string> GenerateNextCodeAsync(int companyId)
     {

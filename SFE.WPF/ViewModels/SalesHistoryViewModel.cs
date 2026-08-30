@@ -13,6 +13,7 @@ using QuestPDF.Infrastructure;
 using SFE.Application.Services;
 using System.Windows.Media;
 using MediaColor = System.Windows.Media.Color;
+using SFE.WPF.Services;
 
 namespace SFE.WPF.ViewModels;
 
@@ -21,7 +22,8 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private readonly IUnitOfWork _unitOfWork;
     private readonly InvoiceService _invoiceService;
     private readonly IAuthService _auth;
-    private readonly ITimeProvider _timeProvider;   // 🆕
+    private readonly ITimeProvider _timeProvider;
+    private readonly ManagerGate _gate;
 
     // ══════════════════════ RESULTS ══════════════════════
     public ObservableCollection<InvoiceListItemViewModel> Invoices { get; } = new();
@@ -129,15 +131,27 @@ public partial class SalesHistoryViewModel : BaseViewModel
         IUnitOfWork unitOfWork,
         InvoiceService invoiceService,
         IAuthService auth,
-        ITimeProvider timeProvider)               // 🆕
+        ManagerGate gate,
+        ITimeProvider timeProvider)              
     {
         _unitOfWork = unitOfWork;
         _invoiceService = invoiceService;
         _auth = auth;
-        _timeProvider = timeProvider;             // 🆕
+        _timeProvider = timeProvider;
+        _gate = gate;
         PageTitle = "Journal des ventes";
         _ = InitializeAsync();
     }
+
+    private AuthorizationContext BuildCtx(int invoiceId, string invNo, decimal amount, string reason) => new()
+    {
+        InvoiceId = invoiceId,
+        InvoiceNumber = invNo,
+        Amount = amount,
+        Reason = reason,
+        RequestingUserId = _auth.CurrentUser?.Id,
+        RequestingUserName = _auth.CurrentUser?.FullName ?? "—"
+    };
 
     [RelayCommand]
     private async Task ConvertProforma(InvoiceListItemViewModel? item)
@@ -515,6 +529,20 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private async Task PrintInvoice()
     {
         if (DocumentViewModel?.SourceInvoice == null) return;
+        var inv = DocumentViewModel.SourceInvoice;
+
+        if (inv.PrintCount >= 1)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ReprintFiscalReceipt,
+                    BuildCtx(inv.Id, inv.InvoiceNumber ?? "", inv.TotalTTC,
+                             $"Duplicata #{inv.PrintCount + 1}")))
+            {
+                StatusMessage = "Impression refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
         ClearStatus();
         IsBusy = true;
 
@@ -551,6 +579,21 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private async Task ExportPdf()
     {
         if (DocumentViewModel?.SourceInvoice == null) return;
+
+        var invoice = DocumentViewModel.SourceInvoice;
+
+        if (invoice.PrintCount >= 1)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ReprintFiscalReceipt,
+                    BuildCtx(invoice.Id, invoice.InvoiceNumber ?? "", invoice.TotalTTC,
+                             $"Duplicata #{invoice.PrintCount + 1}")))
+            {
+                StatusMessage = "Impression refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
         ClearStatus();
         IsBusy = true;
 
@@ -591,6 +634,19 @@ public partial class SalesHistoryViewModel : BaseViewModel
     private async Task ReprintInvoice(InvoiceListItemViewModel? item)
     {
         if (item == null) return;
+
+        if (item.PrintCount >= 1)
+        {
+            if (!await _gate.RequireAsync(
+                    ManagerAction.ReprintFiscalReceipt,
+                    BuildCtx(item.InvoiceId, item.InvoiceNumber ?? "", item.TotalTTC,
+                             $"Duplicata #{item.PrintCount + 1}")))
+            {
+                StatusMessage = "Impression refusée — autorisation manager requise.";
+                ShowError = true;
+                return;
+            }
+        }
         IsBusy = true;
         ClearStatus();
 

@@ -36,23 +36,8 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
 
-    private readonly string _dbPath;
     private readonly ITimeProvider _time;
     private readonly ITenantProvider _tenant;
-
-    // ── Design-time / fallback constructor ──
-    public AppDbContext()
-    {
-        var appData = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "SFE");
-        Directory.CreateDirectory(appData);
-        _dbPath = Path.Combine(appData, "sfe.db");
-
-        // Fallbacks design-time (migrations EF)
-        _time = new SystemTimeProvider();
-        _tenant = new TenantContext();
-    }
 
     // ── DI constructor (runtime) ──
     public AppDbContext(
@@ -60,19 +45,8 @@ public sealed class AppDbContext : DbContext
         ITimeProvider time,
         ITenantProvider tenant) : base(options)
     {
-        _dbPath = string.Empty;
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _tenant = tenant ?? throw new ArgumentNullException(nameof(tenant));
-    }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        if (!optionsBuilder.IsConfigured)
-        {
-            optionsBuilder
-                .UseSqlite($"Data Source={_dbPath};Cache=Shared")
-                .AddInterceptors(new SqliteWalInterceptor());
-        }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
