@@ -1,50 +1,57 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- ══════════ TOGGLE SWITCH (basé sur ToggleButton) ══════════ -->
-    <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
-        <Setter Property="Width" Value="52"/>
-        <Setter Property="Height" Value="28"/>
-        <Setter Property="Cursor" Value="Hand"/>
+    <!--  ══════════ TOGGLE SWITCH (basé sur ToggleButton) ══════════  -->
+    <Style x:Key="ToggleSwitchStyle"
+           TargetType="ToggleButton">
+        <Setter Property="Width" Value="52" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Grid>
-                        <!-- La piste (track) -->
+                        <!--  La piste (track)  -->
                         <Border x:Name="Track"
-                                CornerRadius="14"
+                                Width="52"
+                                Height="28"
                                 Background="#CBD5E1"
-                                Width="52" Height="28"/>
+                                CornerRadius="14" />
 
-                        <!-- Le curseur (thumb) -->
+                        <!--  Le curseur (thumb)  -->
                         <Border x:Name="Thumb"
-                                CornerRadius="11"
-                                Background="White"
-                                Width="22" Height="22"
-                                HorizontalAlignment="Left"
+                                Width="22"
+                                Height="22"
                                 Margin="3,0,0,0"
+                                HorizontalAlignment="Left"
+                                Background="White"
+                                CornerRadius="11"
                                 RenderTransformOrigin="0.5,0.5">
                             <Border.Effect>
-                                <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.2" Color="#000000"/>
+                                <DropShadowEffect BlurRadius="4"
+                                                  Opacity="0.2"
+                                                  ShadowDepth="1"
+                                                  Color="#000000" />
                             </Border.Effect>
                             <Border.RenderTransform>
-                                <TranslateTransform x:Name="ThumbTranslate" X="0"/>
+                                <TranslateTransform x:Name="ThumbTranslate" X="0" />
                             </Border.RenderTransform>
                         </Border>
                     </Grid>
 
                     <ControlTemplate.Triggers>
-                        <!-- ACTIVÉ -->
+                        <!--  ACTIVÉ  -->
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Track" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource PrimaryBrush}" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="ThumbTranslate"
                                                          Storyboard.TargetProperty="X"
-                                                         To="24" Duration="0:0:0.15">
+                                                         To="24"
+                                                         Duration="0:0:0.15">
                                             <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
+                                                <CubicEase EasingMode="EaseOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
                                     </Storyboard>
@@ -55,9 +62,10 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="ThumbTranslate"
                                                          Storyboard.TargetProperty="X"
-                                                         To="0" Duration="0:0:0.15">
+                                                         To="0"
+                                                         Duration="0:0:0.15">
                                             <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
+                                                <CubicEase EasingMode="EaseOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
                                     </Storyboard>
@@ -65,10 +73,10 @@
                             </Trigger.ExitActions>
                         </Trigger>
 
-                        <!-- DÉSACTIVÉ -->
+                        <!--  DÉSACTIVÉ  -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Track" Property="Opacity" Value="0.5"/>
-                            <Setter TargetName="Thumb" Property="Opacity" Value="0.7"/>
+                            <Setter TargetName="Track" Property="Opacity" Value="0.5" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.7" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -76,34 +84,48 @@
         </Setter>
     </Style>
 
-    <!-- Toggle switch vert (pour succès/actif) -->
-    <Style x:Key="ToggleSwitchSuccessStyle" TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+    <!--  Toggle switch vert (pour succès/actif)  -->
+    <Style x:Key="ToggleSwitchSuccessStyle"
+           BasedOn="{StaticResource ToggleSwitchStyle}"
+           TargetType="ToggleButton">
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Grid>
-                        <Border x:Name="Track" CornerRadius="14" Background="#CBD5E1" Width="52" Height="28"/>
-                        <Border x:Name="Thumb" CornerRadius="11" Background="White"
-                                Width="22" Height="22" HorizontalAlignment="Left" Margin="3,0,0,0">
+                        <Border x:Name="Track"
+                                Width="52"
+                                Height="28"
+                                Background="#CBD5E1"
+                                CornerRadius="14" />
+                        <Border x:Name="Thumb"
+                                Width="22"
+                                Height="22"
+                                Margin="3,0,0,0"
+                                HorizontalAlignment="Left"
+                                Background="White"
+                                CornerRadius="11">
                             <Border.Effect>
-                                <DropShadowEffect ShadowDepth="1" BlurRadius="4" Opacity="0.2"/>
+                                <DropShadowEffect BlurRadius="4"
+                                                  Opacity="0.2"
+                                                  ShadowDepth="1" />
                             </Border.Effect>
                             <Border.RenderTransform>
-                                <TranslateTransform x:Name="ThumbTranslate" X="0"/>
+                                <TranslateTransform x:Name="ThumbTranslate" X="0" />
                             </Border.RenderTransform>
                         </Border>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Track" Property="Background" Value="{StaticResource SuccessBrush}"/>
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource SuccessBrush}" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="ThumbTranslate"
                                                          Storyboard.TargetProperty="X"
-                                                         To="24" Duration="0:0:0.15">
+                                                         To="24"
+                                                         Duration="0:0:0.15">
                                             <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
+                                                <CubicEase EasingMode="EaseOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
                                     </Storyboard>
@@ -114,9 +136,10 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="ThumbTranslate"
                                                          Storyboard.TargetProperty="X"
-                                                         To="0" Duration="0:0:0.15">
+                                                         To="0"
+                                                         Duration="0:0:0.15">
                                             <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
+                                                <CubicEase EasingMode="EaseOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
                                     </Storyboard>
@@ -129,54 +152,60 @@
         </Setter>
     </Style>
 
-    <!-- ══════════ RADIO CARD (pour sélection e-MCF / MCF) ══════════ -->
-    <Style x:Key="RadioCardStyle" TargetType="RadioButton">
-        <Setter Property="Cursor" Value="Hand"/>
+    <!--  ══════════ RADIO CARD (pour sélection e-MCF / MCF) ══════════  -->
+    <Style x:Key="RadioCardStyle"
+           TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
                     <Border x:Name="CardBorder"
+                            MinWidth="200"
+                            Padding="20,16"
                             Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="2"
-                            CornerRadius="12"
-                            Padding="20,16"
-                            MinWidth="200">
+                            CornerRadius="12">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Indicateur radio -->
-                            <Ellipse x:Name="RadioOuter" Grid.Column="0"
-                                     Width="22" Height="22"
-                                     Stroke="{StaticResource BorderBrush}"
-                                     StrokeThickness="2"
+                            <!--  Indicateur radio  -->
+                            <Ellipse x:Name="RadioOuter"
+                                     Grid.Column="0"
+                                     Width="22"
+                                     Height="22"
+                                     Margin="0,2,14,0"
+                                     VerticalAlignment="Top"
                                      Fill="Transparent"
-                                     VerticalAlignment="Top"
-                                     Margin="0,2,14,0"/>
-                            <Ellipse x:Name="RadioInner" Grid.Column="0"
-                                     Width="12" Height="12"
-                                     Fill="{StaticResource PrimaryBrush}"
-                                     VerticalAlignment="Top"
+                                     Stroke="{StaticResource BorderBrush}"
+                                     StrokeThickness="2" />
+                            <Ellipse x:Name="RadioInner"
+                                     Grid.Column="0"
+                                     Width="12"
+                                     Height="12"
                                      Margin="0,7,14,0"
-                                     Opacity="0"/>
+                                     VerticalAlignment="Top"
+                                     Fill="{StaticResource PrimaryBrush}"
+                                     Opacity="0" />
 
-                            <!-- Contenu -->
-                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center"/>
+                            <!--  Contenu  -->
+                            <ContentPresenter Grid.Column="1"
+                                              VerticalAlignment="Center" />
                         </Grid>
                     </Border>
 
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource PrimaryLightBrush}"/>
-                            <Setter TargetName="RadioOuter" Property="Stroke" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter TargetName="RadioInner" Property="Opacity" Value="1"/>
+                            <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                            <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource PrimaryLightBrush}" />
+                            <Setter TargetName="RadioOuter" Property="Stroke" Value="{StaticResource PrimaryBrush}" />
+                            <Setter TargetName="RadioInner" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}"/>
+                            <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

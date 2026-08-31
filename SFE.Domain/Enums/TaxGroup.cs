@@ -5,6 +5,7 @@
 /// </summary>
 public enum TaxGroup
 {
+
     A = 0,  // Exonéré / Hors champ — TVA 0%
     B = 1,  // Taxable standard — TVA 16%
     C = 2,  // Taux réduit — TVA 5%
@@ -22,3 +23,4 @@ public enum TaxGroup
     O = 14, // Taux réduit — TVA 1%
     P = 15  // Marché public ext. — TVA 1%
 }
+

@@ -10,9 +10,12 @@ public partial class ReportListItemViewModel : ObservableObject
     public ReportType Type { get; init; }
     public int ReportNumber { get; init; }
     public bool IsPeriodic { get; init; }
-    public DateTime GeneratedAt { get; init; }
-    public DateTime PeriodStart { get; init; }
-    public DateTime PeriodEnd { get; init; }
+
+    // 🆕 DateTimeOffset — cohérent avec DailyReport & ITimeProvider
+    public DateTimeOffset GeneratedAt { get; init; }
+    public DateTimeOffset PeriodStart { get; init; }
+    public DateTimeOffset PeriodEnd { get; init; }
+
     public string OperatorName { get; init; } = "";
     public decimal GrandTotalTTC { get; init; }
     public decimal GrandTotalHT { get; init; }
@@ -20,6 +23,10 @@ public partial class ReportListItemViewModel : ObservableObject
     public int TotalInvoiceCount { get; init; }
     public int IncompleteCount { get; init; }
     public string? PrintContent { get; init; }
+
+    // 🆕 Champs session (Type=Z) — exposés pour binding direct
+    public bool HasSessionData { get; init; }
+    public decimal VarianceTotalCDF { get; init; }
 
     // ══════ DISPLAY ══════
 
@@ -50,14 +57,36 @@ public partial class ReportListItemViewModel : ObservableObject
     };
 
     public string Title => $"{TypeLabel} N°{ReportNumber}";
-    public string DateLabel => GeneratedAt.ToString("dd/MM/yyyy HH:mm");
+
+    // .LocalDateTime garantit l'affichage en heure locale du poste
+    public string DateLabel => GeneratedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm");
+
     public string PeriodLabel => PeriodStart.Date == PeriodEnd.Date
-        ? $"{PeriodStart:dd/MM/yyyy}"
-        : $"{PeriodStart:dd/MM} → {PeriodEnd:dd/MM/yyyy}";
+        ? $"{PeriodStart.LocalDateTime:dd/MM/yyyy}"
+        : $"{PeriodStart.LocalDateTime:dd/MM} → {PeriodEnd.LocalDateTime:dd/MM/yyyy}";
+
     public string TotalLabel => $"{GrandTotalTTC:N0} CDF";
+
     public string InvoiceCountLabel => TotalInvoiceCount == 1
         ? "1 facture"
         : $"{TotalInvoiceCount} factures";
+
+    // 🆕 Indicateur visuel d'écart de caisse (Z-rapport avec session)
+    public bool HasVariance => HasSessionData && VarianceTotalCDF != 0;
+
+    public string VarianceLabel => VarianceTotalCDF switch
+    {
+        0 => "",
+        > 0 => $"+{VarianceTotalCDF:N0} CDF",
+        _ => $"{VarianceTotalCDF:N0} CDF"
+    };
+
+    public string VarianceColor => VarianceTotalCDF switch
+    {
+        0 => "#64748B",
+        > 0 => "#059669",   // vert = excédent
+        _ => "#DC2626"     // rouge = manquant
+    };
 
     public static ReportListItemViewModel FromEntity(DailyReport r) => new()
     {
@@ -74,6 +103,8 @@ public partial class ReportListItemViewModel : ObservableObject
         GrandTotalTVA = r.GrandTotalTVA,
         TotalInvoiceCount = r.TotalInvoiceCount,
         IncompleteCount = r.IncompleteCount,
-        PrintContent = r.PrintContent
+        PrintContent = r.PrintContent,
+        HasSessionData = r.HasSessionData,
+        VarianceTotalCDF = r.VarianceTotalCDF
     };
 }

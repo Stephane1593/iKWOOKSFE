@@ -1,6 +1,9 @@
 ﻿using System.Windows.Controls;
 using System.Windows.Input;
 using SFE.WPF.ViewModels;
+using System.Windows.Media.Animation;
+using System.Windows.Media;
+using System.Windows;
 
 namespace SFE.WPF.Views.Pages;
 
@@ -14,6 +17,52 @@ public partial class PosPage : UserControl
         this.KeyDown += PosPage_KeyDown;
         this.Focusable = true;
         this.Loaded += (_, _) => this.Focus();
+        Unloaded += OnUnloaded;
+        if (DataContext is PosViewModel vm)
+        {
+            vm.CartPulseRequested += AnimateCartBadge;
+            vm.TotalPulseRequested += AnimateTotal;
+        }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is IDisposable disposable)
+            disposable.Dispose();
+    }
+
+    private void AnimateCartBadge()
+    {
+        var scale = BadgeScale;
+        if (scale == null) return;
+
+        var anim = new DoubleAnimation
+        {
+            From = 1,
+            To = 1.4,
+            Duration = TimeSpan.FromMilliseconds(120),
+            AutoReverse = true
+        };
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+    }
+
+    private void AnimateTotal()
+    {
+        //var scale = TotalScale;
+        //if (scale == null) return;
+
+        //var anim = new DoubleAnimation
+        //{
+        //    From = 1,
+        //    To = 1.05,
+        //    Duration = TimeSpan.FromMilliseconds(100),
+        //    AutoReverse = true
+        //};
+
+        //scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        //scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     private void PosPage_KeyDown(object sender, KeyEventArgs e)

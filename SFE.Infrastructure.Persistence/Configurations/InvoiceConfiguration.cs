@@ -11,6 +11,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.ToTable("Invoices");
         builder.HasKey(i => i.Id);
 
+        // ── Identité ──
         builder.Property(i => i.InvoiceNumber).IsRequired().HasMaxLength(64);
         builder.HasIndex(i => i.InvoiceNumber).IsUnique();
 
@@ -35,6 +36,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.CurrencyCode).HasMaxLength(10);
         builder.Property(i => i.CurrencyRate).HasPrecision(18, 4);
 
+        // ── Commentaires ──
         builder.Property(i => i.CommentA).HasMaxLength(500);
         builder.Property(i => i.CommentB).HasMaxLength(500);
         builder.Property(i => i.CommentC).HasMaxLength(500);
@@ -44,11 +46,17 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.CommentG).HasMaxLength(500);
         builder.Property(i => i.CommentH).HasMaxLength(500);
 
+        // ── Totaux ──
         builder.Property(i => i.TotalHT).HasPrecision(18, 2);
         builder.Property(i => i.TotalTVA).HasPrecision(18, 2);
         builder.Property(i => i.TotalTTC).HasPrecision(18, 2);
         builder.Property(i => i.TotalSpecificTax).HasPrecision(18, 2);
+        builder.Property(i => i.TotalHTBeforeDiscount).HasPrecision(18, 2);
+        builder.Property(i => i.TotalDiscount).HasPrecision(18, 2);
+        builder.Property(i => i.TotalFixedSpecificTax).HasPrecision(18, 2);
+        builder.Property(i => i.TotalPercentSpecificTax).HasPrecision(18, 2);
 
+        // ── Sécurité fiscale ──
         builder.Property(i => i.EmcfUid).HasMaxLength(50);
         builder.Property(i => i.CodeDEFDGI).HasMaxLength(50);
         builder.Property(i => i.QRCodeContent).HasMaxLength(200);
@@ -56,10 +64,12 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.Counters).HasMaxLength(50);
         builder.Property(i => i.DeviceDateTime).HasMaxLength(30);
 
+        // ── Index ──
         builder.HasIndex(i => i.Type);
         builder.HasIndex(i => i.Status);
         builder.HasIndex(i => i.CreatedAt);
 
+        // ── Relations Lines / Payments ──
         builder.HasMany(i => i.Lines)
             .WithOne(l => l.Invoice)
             .HasForeignKey(l => l.InvoiceId)
@@ -70,9 +80,16 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .HasForeignKey(p => p.InvoiceId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Add to InvoiceConfiguration.Configure():
+        // ══════════════════════════════════════════════════════
+        //  ACOMPTE / SOLDE — Chaîne d'avances
+        // ══════════════════════════════════════════════════════
 
         builder.Property(i => i.AdvanceGroupId).HasMaxLength(50);
+
+        // 🆕 Nouveaux champs Phase 1
+        builder.Property(i => i.OrderTotal).HasPrecision(18, 2);
+        builder.Property(i => i.AdvanceAmount).HasPrecision(18, 2);
+
         builder.Property(i => i.TotalAdvancesPaid).HasPrecision(18, 2);
         builder.Property(i => i.RemainingBalance).HasPrecision(18, 2);
 
@@ -82,5 +99,47 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(i => i.AdvanceGroupId);
+
+        // Advance chain
+        builder.Property(i => i.AdvanceGroupId).HasMaxLength(40);
+        builder.Property(i => i.OrderTotal).HasPrecision(18, 2);
+        builder.Property(i => i.PreviousAdvancesTotal).HasPrecision(18, 2);
+        builder.Property(i => i.AdvanceAmount).HasPrecision(18, 2);
+        builder.Property(i => i.RemainingAfterAdvance).HasPrecision(18, 2);
+
+        builder.HasIndex(i => i.AdvanceGroupId);
+
+        // Proforma → FV self-reference
+        builder.HasOne(i => i.ConvertedToInvoice)
+               .WithMany()
+               .HasForeignKey(i => i.ConvertedToInvoiceId)
+               .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(i => i.ConvertedToInvoiceId);
+
+
+        // CREDIT NOTE (FA/EA → Original FV)
+        builder.HasOne(i => i.OriginalInvoice)
+               .WithMany()
+               .HasForeignKey(i => i.OriginalInvoiceId)
+               .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(i => i.OriginalInvoiceId);
+
+        // PROFORMA → Invoice that was created from it
+        builder.HasOne(i => i.SourceProforma)
+               .WithMany()
+               .HasForeignKey(i => i.SourceProformaId)
+               .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(i => i.SourceProformaId);
+        builder.HasIndex(i => new { i.Type, i.ConvertedToInvoiceId })
+               .HasFilter("[Type] = 6");
+
+        builder.Property(i => i.ProformaValidUntil).IsRequired(false);
+
+        builder.Property(i => i.PrintCount).HasDefaultValue(0);
+        builder.Property(i => i.FirstPrintedAt).IsRequired(false);
+        builder.Property(i => i.LastPrintedAt).IsRequired(false);
     }
 }

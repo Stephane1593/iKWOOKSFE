@@ -17,6 +17,11 @@ public class Product
     public ItemType ItemType { get; set; } = ItemType.BIE;
     public TaxGroup TaxGroup { get; set; } = TaxGroup.B;
 
+    public TaxGroupAType? TaxGroupAType { get; set; }
+
+    [NotMapped]
+    public string TaxGroupDisplay => TaxGroup.DisplayCode(TaxGroupAType);
+
     // ── Taxe spécifique — TYPÉE (remplace string TaxSpecificValue) ──
     /// <summary>Type : pourcentage du HT ou montant fixe par unité</summary>
     public SpecificTaxType SpecificTaxType { get; set; } = SpecificTaxType.None;
@@ -47,8 +52,8 @@ public class Product
     // === État ===
     public bool IsActive { get; set; } = true;
     public bool IsFavorite { get; set; } = false;
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     // Multi-devise : stockés à la création/modification
     public decimal UnitPriceHtCdf { get; set; }

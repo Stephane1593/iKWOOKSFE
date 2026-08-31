@@ -1,470 +1,1079 @@
-﻿<UserControl x:Class="SFE.WPF.Views.ReportView"
+﻿<!-- File: SFE.WPF/Views/ReportView.xaml -->
+<UserControl x:Class="SFE.WPF.Views.ReportView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:conv="clr-namespace:SFE.WPF.Converters"
-             Background="#F1F5F9">
+             Background="{StaticResource BackgroundBrush}">
 
     <UserControl.Resources>
-        <!-- ═══ CONVERTERS ═══ -->
         <conv:BoolToVisibilityConverter x:Key="BoolVis"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
         <conv:StringToColorBrushConverter x:Key="StrBrush"/>
-        <BooleanToVisibilityConverter x:Key="SysBoolVis"/>
 
-        <!-- ═══ FLAT BUTTON TEMPLATE ═══ -->
-        <Style x:Key="FlatBtn" TargetType="Button">
-            <Setter Property="Padding" Value="16,9"/>
-            <Setter Property="FontSize" Value="13"/>
+        <!-- ══════════ ACCENT COLORS ══════════ -->
+        <Color x:Key="AccentBlue">#3B82F6</Color>
+        <Color x:Key="AccentBlueDark">#2563EB</Color>
+        <Color x:Key="AccentBlueDeep">#1D4ED8</Color>
+        <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}"/>
+
+        <!-- Report type accent colors -->
+        <Color x:Key="TypeZColor">#DC2626</Color>
+        <Color x:Key="TypeXColor">#2563EB</Color>
+        <Color x:Key="TypeAColor">#059669</Color>
+        <SolidColorBrush x:Key="TypeZBrush" Color="{StaticResource TypeZColor}"/>
+        <SolidColorBrush x:Key="TypeXBrush" Color="{StaticResource TypeXColor}"/>
+        <SolidColorBrush x:Key="TypeABrush" Color="{StaticResource TypeAColor}"/>
+
+        <!-- ══════════ TOUCH SCROLLBAR THUMB ══════════ -->
+        <Style x:Key="TouchScrollThumb" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="ThumbBd" CornerRadius="5" Margin="2,0">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="ThumbBg" Color="#C4CDD5"/>
+                            </Border.Background>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#A0AEC0" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#C4CDD5" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="ThumbBd" Property="Background">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="{StaticResource AccentBlue}"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ VERTICAL SCROLLBAR ══════════ -->
+        <Style x:Key="TouchScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="MinWidth" Value="10"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border CornerRadius="5" Background="#F1F5F9" Margin="2,0"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource TouchScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ HORIZONTAL SCROLLBAR ══════════ -->
+        <Style x:Key="TouchScrollBarH" TargetType="ScrollBar">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="MinHeight" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border CornerRadius="3" Background="#F1F5F9" Margin="0,2"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border CornerRadius="3" Background="#C4CDD5" Margin="0,2"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ DARK VERTICAL SCROLLBAR (for code viewer) ══════════ -->
+        <Style x:Key="DarkScrollThumb" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="ThumbBd" CornerRadius="4" Margin="2,0">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="ThumbBg" Color="#475569"/>
+                            </Border.Background>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#64748B" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ThumbBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#475569" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="ThumbBd" Property="Background">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="{StaticResource AccentBlue}"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="MinWidth" Value="8"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border CornerRadius="4" Background="#1E293B" Margin="2,0"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource DarkScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ GHOST BUTTON (animated) ══════════ -->
+        <Style x:Key="GhostBtn" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="14,8"
+                                BorderThickness="1.5">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="White"/>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush x:Name="BdBr" Color="{StaticResource BorderColor}"/>
+                            </Border.BorderBrush>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#F8FAFC" Duration="0:0:0.12"/>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#94A3B8" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="White" Duration="0:0:0.15"/>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="{StaticResource BorderColor}"
+                                                        Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ PRIMARY BUTTON (dark gradient, animated) ══════════ -->
+        <Style x:Key="PrimaryDarkBtn" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12.5"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="16,9">
+                            <Border.Background>
+                                <LinearGradientBrush x:Name="BdGrad" StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop x:Name="G0" Color="#1E293B" Offset="0"/>
+                                    <GradientStop x:Name="G1" Color="#0F172A" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="1" BlurRadius="6"
+                                                  Opacity="0.15" Color="#0F172A"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="G0"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#334155" Duration="0:0:0.18"/>
+                                        <ColorAnimation Storyboard.TargetName="G1"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#1E293B" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="G0"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#1E293B" Duration="0:0:0.22"/>
+                                        <ColorAnimation Storyboard.TargetName="G1"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#0F172A" Duration="0:0:0.22"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ SEARCH BOX (animated focus) ══════════ -->
+        <Style x:Key="SearchBox" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="14,10"
+                                BorderThickness="1.5">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="#F8FAFC"/>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush x:Name="BdBr" Color="{StaticResource BorderColor}"/>
+                            </Border.BorderBrush>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <materialDesign:PackIcon x:Name="SearchIco" Kind="Magnify"
+                                    Width="18" Height="18" Margin="0,0,10,0"
+                                    VerticalAlignment="Center">
+                                    <materialDesign:PackIcon.Foreground>
+                                        <SolidColorBrush x:Name="IcoFg" Color="#94A3B8"/>
+                                    </materialDesign:PackIcon.Foreground>
+                                </materialDesign:PackIcon>
+                                <ScrollViewer Grid.Column="1" x:Name="PART_ContentHost"
+                                              VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" x:Name="ph"
+                                           Text="Rechercher un rapport…"
+                                           FontFamily="{StaticResource AppFont}"
+                                           Foreground="#94A3B8" FontSize="13"
+                                           VerticalAlignment="Center"
+                                           IsHitTestVisible="False"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="ph" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="BdBr"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="{StaticResource AccentBlue}"
+                                                            Duration="0:0:0.15"/>
+                                            <ColorAnimation Storyboard.TargetName="BdBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="White" Duration="0:0:0.15"/>
+                                            <ColorAnimation Storyboard.TargetName="IcoFg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="{StaticResource AccentBlue}"
+                                                            Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="BdBr"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="{StaticResource BorderColor}"
+                                                            Duration="0:0:0.18"/>
+                                            <ColorAnimation Storyboard.TargetName="BdBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="#F8FAFC" Duration="0:0:0.18"/>
+                                            <ColorAnimation Storyboard.TargetName="IcoFg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="#94A3B8" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ COMBOBOX STYLE (rounded, animated) ══════════ -->
+        <Style x:Key="FilterCombo" TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="MinWidth" Value="130"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="Bd" CornerRadius="10" Padding="14,8"
+                                    BorderThickness="1.5">
+                                <Border.Background>
+                                    <SolidColorBrush x:Name="CbBg" Color="White"/>
+                                </Border.Background>
+                                <Border.BorderBrush>
+                                    <SolidColorBrush x:Name="CbBr" Color="{StaticResource BorderColor}"/>
+                                </Border.BorderBrush>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <materialDesign:PackIcon Kind="FilterOutline"
+                                        Width="16" Height="16" Margin="0,0,8,0"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center"/>
+                                    <ContentPresenter Grid.Column="1"
+                                        Content="{TemplateBinding SelectionBoxItem}"
+                                        ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                        VerticalAlignment="Center"/>
+                                    <materialDesign:PackIcon Grid.Column="2" Kind="ChevronDown"
+                                        Width="16" Height="16" Margin="8,0,0,0"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom" PopupAnimation="Slide">
+                                <Border Background="White" CornerRadius="10"
+                                        BorderBrush="#E2E8F0" BorderThickness="1"
+                                        Margin="0,4,0,0" Padding="4">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="16" Opacity="0.1"
+                                                          ShadowDepth="4" Color="#0D2B3E"/>
+                                    </Border.Effect>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  MaxHeight="200" PanningMode="VerticalOnly">
+                                        <StackPanel IsItemsHost="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                            <ToggleButton x:Name="ToggleBtn" Opacity="0"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="CbBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#94A3B8" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="CbBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="{StaticResource BorderColor}"
+                                                        Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsDropDownOpen" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="CbBr"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="{StaticResource AccentBlue}"
+                                                            Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="CbBr"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="{StaticResource BorderColor}"
+                                                            Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ COMBOBOX ITEM ══════════ -->
+        <Style x:Key="FilterComboItem" TargetType="ComboBoxItem">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" CornerRadius="8" Padding="12,9">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="ItemBg" Color="Transparent"/>
+                            </Border.Background>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ItemBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#F1F5F9" Duration="0:0:0.1"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="ItemBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="Transparent" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="{StaticResource AccentBlue}" Opacity="0.08"/>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ LIST ITEM (animated hover + selection) ══════════ -->
+        <Style x:Key="ReportListItem" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="14,12"
+                                BorderThickness="1.5" SnapsToDevicePixels="True">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="Transparent"/>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush x:Name="BdBr" Color="Transparent"/>
+                            </Border.BorderBrush>
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#F8FAFC" Duration="0:0:0.12"/>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#E2E8F0" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="Transparent" Duration="0:0:0.15"/>
+                                        <ColorAnimation Storyboard.TargetName="BdBr"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="Transparent" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="BdBr"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="{StaticResource AccentBlue}"
+                                                            Duration="0:0:0.15"/>
+                                            <ColorAnimation Storyboard.TargetName="BdBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="#EFF6FF" Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="BdBr"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="Transparent" Duration="0:0:0.18"/>
+                                            <ColorAnimation Storyboard.TargetName="BdBg"
+                                                            Storyboard.TargetProperty="Color"
+                                                            To="Transparent" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ══════════ PANEL ICON BUTTON ══════════ -->
+        <Style x:Key="PanelIconBtn" TargetType="Button">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
+                        <Border x:Name="Bd" CornerRadius="8">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="BdBg" Color="#00F1F5F9"/>
+                            </Border.Background>
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Opacity" Value="0.88"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Opacity" Value="0.72"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
-                            </Trigger>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#F1F5F9" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="BdBg"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#00F1F5F9" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- ═══ GHOST BUTTON (outline) ═══ -->
-        <Style x:Key="GhostBtn" TargetType="Button">
-            <Setter Property="Padding" Value="12,7"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="#475569"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="#CBD5E1"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#F8FAFC"/>
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#94A3B8"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ═══ LIST ITEM CONTAINER ═══ -->
-        <Style x:Key="ReportListItem" TargetType="ListBoxItem">
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="bd"
-                                Background="White"
-                                CornerRadius="8"
-                                Padding="12,10"
-                                BorderThickness="2"
-                                BorderBrush="Transparent"
-                                Cursor="Hand"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#F8FAFC"/>
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#E2E8F0"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#3B82F6"/>
-                                <Setter TargetName="bd" Property="Background" Value="#EFF6FF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
 
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- MAIN LAYOUT                                                -->
+    <!-- ══════════════════════════════════════════════════════════ -->
     <Grid>
-        <!-- ════════════════════════════════════════
-             MAIN CONTENT
-             ════════════════════════════════════════ -->
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <DockPanel Margin="28,24">
 
-            <!-- ═══ ROW 0: HEADER ═══ -->
-            <Border Grid.Row="0" Background="White"
-                    Padding="24,16" BorderBrush="#E2E8F0"
-                    BorderThickness="0,0,0,1">
+            <!-- ═══════════════════════════════════════ -->
+            <!-- HEADER CARD                             -->
+            <!-- ═══════════════════════════════════════ -->
+            <Border DockPanel.Dock="Top" Background="{StaticResource CardBrush}"
+                    CornerRadius="14" Padding="24,20" Margin="0,0,0,16">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="14" Opacity="0.06"
+                                      ShadowDepth="2" Color="#0D2B3E"/>
+                </Border.Effect>
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel>
-                        <TextBlock Text="Rapports fiscaux"
-                                   FontSize="22" FontWeight="Bold"
-                                   Foreground="#0F172A"/>
-                        <TextBlock Text="Générer et consulter les rapports Z, X et A conformes DGI"
-                                   FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                    <!-- Icon Badge -->
+                    <Border CornerRadius="10" Padding="10" Margin="0,0,16,0"
+                            VerticalAlignment="Center">
+                        <Border.Background>
+                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                        </Border.Background>
+                        <materialDesign:PackIcon Kind="FileDocumentMultipleOutline"
+                                                 Width="22" Height="22"
+                                                 Foreground="{StaticResource PrimaryBrush}"/>
+                    </Border>
+
+                    <!-- Title -->
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Historique des rapports"
+                                   Style="{StaticResource SectionTitleStyle}" Margin="0"/>
+                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,3,0,0">
+                            <Run Text="Consulter les rapports Z, X et A générés — "/>
+                            <Run Text="{Binding TotalCount, Mode=OneWay}" FontWeight="SemiBold"/>
+                            <Run Text=" rapports au total"/>
+                        </TextBlock>
                     </StackPanel>
 
-                    <Button Grid.Column="1" Style="{StaticResource GhostBtn}"
-                            Command="{Binding RefreshCommand}"
-                            Content="🔄  Actualiser" FontSize="13"/>
+                    <!-- Refresh -->
+                    <Button Grid.Column="2" Style="{StaticResource GhostBtn}"
+                            Command="{Binding RefreshCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16"
+                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="Actualiser" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource AppFont}"/>
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
 
-            <!-- ═══ ROW 1: STATS STRIP ═══ -->
-            <UniformGrid Grid.Row="1" Columns="3" Margin="16,12,16,0">
-                <!-- Z-Rapport stat -->
-                <Border Background="White" CornerRadius="8" Padding="16,12"
-                        Margin="0,0,6,0" BorderBrush="#FEE2E2"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Background="#FEF2F2" CornerRadius="4"
-                                    Padding="6,2" Margin="0,0,8,0">
-                                <TextBlock Text="Z" FontWeight="Bold"
-                                           Foreground="#DC2626" FontSize="12"/>
-                            </Border>
-                            <TextBlock Text="Z-Rapport" FontWeight="SemiBold"
-                                       Foreground="#1E293B" FontSize="13"
-                                       VerticalAlignment="Center"/>
+            <!-- ═══════════════════════════════════════ -->
+            <!-- KPI STATS ROW                           -->
+            <!-- ═══════════════════════════════════════ -->
+            <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="0,0,0,16">
+
+                <!-- ── Z Card ── -->
+                <Border Background="{StaticResource CardBrush}" CornerRadius="12"
+                        Padding="18,16" Margin="0,0,8,0">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" Opacity="0.05"
+                                          ShadowDepth="2" Color="#0D2B3E"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border CornerRadius="10" Padding="8" Margin="0,0,14,0"
+                                VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{StaticResource TypeZColor}" Opacity="0.08"/>
+                            </Border.Background>
+                            <materialDesign:PackIcon Kind="LockCheckOutline"
+                                Width="20" Height="20" Foreground="{StaticResource TypeZBrush}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}">
+                                Z-Rapports
+                            </TextBlock>
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="22"
+                                       FontWeight="Bold" Foreground="{StaticResource TypeZBrush}"
+                                       Margin="0,2,0,0"
+                                       Text="{Binding ZCount, Mode=OneWay}"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding LastZInfo}" FontSize="12"
-                                   Foreground="#64748B" Margin="0,6,0,0"/>
-                        <TextBlock Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0">
-                            <Run Text="{Binding ZCount, Mode=OneWay}"/>
-                            <Run Text=" rapports générés"/>
-                        </TextBlock>
-                    </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding LastZInfo}"
+                                   FontFamily="{StaticResource AppFont}" FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="80"/>
+                    </Grid>
                 </Border>
 
-                <!-- X-Rapport stat -->
-                <Border Background="White" CornerRadius="8" Padding="16,12"
-                        Margin="3,0,3,0" BorderBrush="#BFDBFE"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Background="#EFF6FF" CornerRadius="4"
-                                    Padding="6,2" Margin="0,0,8,0">
-                                <TextBlock Text="X" FontWeight="Bold"
-                                           Foreground="#2563EB" FontSize="12"/>
-                            </Border>
-                            <TextBlock Text="X-Rapport" FontWeight="SemiBold"
-                                       Foreground="#1E293B" FontSize="13"
-                                       VerticalAlignment="Center"/>
+                <!-- ── X Card ── -->
+                <Border Background="{StaticResource CardBrush}" CornerRadius="12"
+                        Padding="18,16" Margin="4,0,4,0">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" Opacity="0.05"
+                                          ShadowDepth="2" Color="#0D2B3E"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border CornerRadius="10" Padding="8" Margin="0,0,14,0"
+                                VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{StaticResource TypeXColor}" Opacity="0.08"/>
+                            </Border.Background>
+                            <materialDesign:PackIcon Kind="FileChartOutline"
+                                Width="20" Height="20" Foreground="{StaticResource TypeXBrush}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}">
+                                X-Rapports
+                            </TextBlock>
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="22"
+                                       FontWeight="Bold" Foreground="{StaticResource TypeXBrush}"
+                                       Margin="0,2,0,0"
+                                       Text="{Binding XCount, Mode=OneWay}"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding LastXInfo}" FontSize="12"
-                                   Foreground="#64748B" Margin="0,6,0,0"/>
-                        <TextBlock Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0">
-                            <Run Text="{Binding XCount, Mode=OneWay}"/>
-                            <Run Text=" rapports générés"/>
-                        </TextBlock>
-                    </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding LastXInfo}"
+                                   FontFamily="{StaticResource AppFont}" FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="80"/>
+                    </Grid>
                 </Border>
 
-                <!-- A-Rapport stat -->
-                <Border Background="White" CornerRadius="8" Padding="16,12"
-                        Margin="6,0,0,0" BorderBrush="#A7F3D0"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Background="#ECFDF5" CornerRadius="4"
-                                    Padding="6,2" Margin="0,0,8,0">
-                                <TextBlock Text="A" FontWeight="Bold"
-                                           Foreground="#059669" FontSize="12"/>
-                            </Border>
-                            <TextBlock Text="A-Rapport" FontWeight="SemiBold"
-                                       Foreground="#1E293B" FontSize="13"
-                                       VerticalAlignment="Center"/>
+                <!-- ── A Card ── -->
+                <Border Background="{StaticResource CardBrush}" CornerRadius="12"
+                        Padding="18,16" Margin="8,0,0,0">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" Opacity="0.05"
+                                          ShadowDepth="2" Color="#0D2B3E"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border CornerRadius="10" Padding="8" Margin="0,0,14,0"
+                                VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{StaticResource TypeAColor}" Opacity="0.08"/>
+                            </Border.Background>
+                            <materialDesign:PackIcon Kind="ChartBoxOutline"
+                                Width="20" Height="20" Foreground="{StaticResource TypeABrush}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}">
+                                A-Rapports
+                            </TextBlock>
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="22"
+                                       FontWeight="Bold" Foreground="{StaticResource TypeABrush}"
+                                       Margin="0,2,0,0"
+                                       Text="{Binding ACount, Mode=OneWay}"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding LastAInfo}" FontSize="12"
-                                   Foreground="#64748B" Margin="0,6,0,0"/>
-                        <TextBlock Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0">
-                            <Run Text="{Binding ACount, Mode=OneWay}"/>
-                            <Run Text=" rapports générés"/>
-                        </TextBlock>
-                    </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding LastAInfo}"
+                                   FontFamily="{StaticResource AppFont}" FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="80"/>
+                    </Grid>
                 </Border>
             </UniformGrid>
 
-            <!-- ═══ ROW 2: ACTION CARDS ═══ -->
-            <UniformGrid Grid.Row="2" Columns="4" Margin="16,12,16,0">
+            <!-- ═══════════════════════════════════════ -->
+            <!-- STATUS MESSAGE                          -->
+            <!-- ═══════════════════════════════════════ -->
+            <Border DockPanel.Dock="Top" Margin="0,0,0,12" CornerRadius="10"
+                    Padding="14,10"
+                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolVis}}">
+                <Border.Background>
+                    <SolidColorBrush Color="#059669" Opacity="0.06"/>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="#059669" Opacity="0.18"/>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="CheckCircleOutline" Width="18" Height="18"
+                                             Foreground="#059669" VerticalAlignment="Center"
+                                             Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontFamily="{StaticResource AppFont}" FontSize="13"
+                               Foreground="#059669" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
 
-                <!-- X Quotidien -->
-                <Border Background="White" CornerRadius="10" Padding="16,14"
-                        Margin="0,0,6,0" BorderBrush="#E2E8F0"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="📊  X-Rapport quotidien"
-                                   FontWeight="SemiBold" FontSize="13"
-                                   Foreground="#1E293B"/>
-                        <TextBlock Text="Situation depuis le dernier Z-rapport. Lecture seule, ne remet pas les compteurs à zéro."
-                                   TextWrapping="Wrap" FontSize="11"
-                                   Foreground="#64748B" Margin="0,6,0,12"
-                                   LineHeight="16"/>
-                        <Button Style="{StaticResource FlatBtn}"
-                                Background="#2563EB"
-                                Command="{Binding GenerateXDailyCommand}"
-                                Content="Générer" HorizontalAlignment="Stretch"/>
-                    </StackPanel>
-                </Border>
+            <Border DockPanel.Dock="Top" Margin="0,0,0,12" CornerRadius="10"
+                    Padding="14,10"
+                    Visibility="{Binding ShowError, Converter={StaticResource BoolVis}}">
+                <Border.Background>
+                    <SolidColorBrush Color="#EF4444" Opacity="0.06"/>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="#EF4444" Opacity="0.18"/>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18"
+                                             Foreground="#EF4444" VerticalAlignment="Center"
+                                             Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontFamily="{StaticResource AppFont}" FontSize="13"
+                               Foreground="#EF4444" VerticalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
 
-                <!-- X Périodique -->
-                <Border Background="White" CornerRadius="10" Padding="16,14"
-                        Margin="3,0,3,0" BorderBrush="#E2E8F0"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="📊  X-Rapport périodique"
-                                   FontWeight="SemiBold" FontSize="13"
-                                   Foreground="#1E293B"/>
-                        <TextBlock Text="Rapport sur une période personnalisée."
-                                   TextWrapping="Wrap" FontSize="11"
-                                   Foreground="#64748B" Margin="0,4,0,8"
-                                   LineHeight="16"/>
-
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Du :" FontSize="11"
-                                       Foreground="#64748B"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <DatePicker Grid.Column="1" FontSize="12"
-                                        SelectedDate="{Binding PeriodicFrom}"
-                                        VerticalContentAlignment="Center"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Au :" FontSize="11"
-                                       Foreground="#64748B"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <DatePicker Grid.Column="1" FontSize="12"
-                                        SelectedDate="{Binding PeriodicTo}"
-                                        VerticalContentAlignment="Center"/>
-                        </Grid>
-
-                        <Button Style="{StaticResource FlatBtn}"
-                                Background="#2563EB"
-                                Command="{Binding GenerateXPeriodicCommand}"
-                                Content="Générer" HorizontalAlignment="Stretch"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Z Clôture -->
-                <Border Background="White" CornerRadius="10" Padding="16,14"
-                        Margin="3,0,3,0" BorderBrush="#FECACA"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="🔒  Z-Rapport (Clôture)"
-                                   FontWeight="SemiBold" FontSize="13"
-                                   Foreground="#1E293B"/>
-                        <TextBlock Text="Clôture de session. Agrège les transactions depuis le dernier Z et remet les compteurs à zéro."
-                                   TextWrapping="Wrap" FontSize="11"
-                                   Foreground="#64748B" Margin="0,6,0,12"
-                                   LineHeight="16"/>
-                        <Button Style="{StaticResource FlatBtn}"
-                                Background="#DC2626"
-                                Command="{Binding RequestGenerateZCommand}"
-                                Content="Clôturer" HorizontalAlignment="Stretch"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- A-Rapport -->
-                <Border Background="White" CornerRadius="10" Padding="16,14"
-                        Margin="6,0,0,0" BorderBrush="#E2E8F0"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="📦  A-Rapport (Articles)"
-                                   FontWeight="SemiBold" FontSize="13"
-                                   Foreground="#1E293B"/>
-                        <TextBlock Text="Détail par article : quantités vendues, retournées et stock courant depuis le dernier A-rapport."
-                                   TextWrapping="Wrap" FontSize="11"
-                                   Foreground="#64748B" Margin="0,6,0,12"
-                                   LineHeight="16"/>
-                        <Button Style="{StaticResource FlatBtn}"
-                                Background="#059669"
-                                Command="{Binding GenerateACommand}"
-                                Content="Générer" HorizontalAlignment="Stretch"/>
-                    </StackPanel>
-                </Border>
-            </UniformGrid>
-
-            <!-- ═══ ROW 3: CONTENT (LIST + PREVIEW) ═══ -->
-            <Grid Grid.Row="3" Margin="16,12,16,16">
+            <!-- ═══════════════════════════════════════ -->
+            <!-- TWO-COLUMN: LIST + PREVIEW              -->
+            <!-- ═══════════════════════════════════════ -->
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="360"/>
-                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="400"/>
+                    <ColumnDefinition Width="14"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- ─── LEFT: HISTORY ─── -->
-                <Border Background="White" CornerRadius="10"
-                        BorderBrush="#E2E8F0" BorderThickness="1">
+                <!-- ────────────────────────────────── -->
+                <!-- LEFT: REPORT LIST                   -->
+                <!-- ────────────────────────────────── -->
+                <Border Grid.Column="0" Background="{StaticResource CardBrush}"
+                        CornerRadius="14" ClipToBounds="True">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="14" Opacity="0.06"
+                                          ShadowDepth="2" Color="#0D2B3E"/>
+                    </Border.Effect>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Filter bar -->
-                        <Border Padding="12,10" BorderBrush="#E2E8F0"
+                        <!-- Search + Filter -->
+                        <Border Padding="14,14,14,10" BorderBrush="#F1F5F9"
                                 BorderThickness="0,0,0,1">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBox Style="{StaticResource SearchBox}"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         Margin="0,0,0,10"/>
 
-                                <TextBlock Text="Historique"
-                                           FontWeight="SemiBold" FontSize="14"
-                                           Foreground="#1E293B"
-                                           VerticalAlignment="Center"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <ComboBox Grid.Column="1"
-                                          ItemsSource="{Binding FilterOptions}"
-                                          SelectedItem="{Binding SelectedFilter}"
-                                          FontSize="12" MinWidth="110"
-                                          VerticalContentAlignment="Center"/>
-                            </Grid>
+                                    <ComboBox Style="{StaticResource FilterCombo}"
+                                              ItemContainerStyle="{StaticResource FilterComboItem}"
+                                              ItemsSource="{Binding FilterOptions}"
+                                              SelectedItem="{Binding SelectedFilter}"/>
+
+                                    <Border Grid.Column="1" CornerRadius="8" Padding="10,6"
+                                            Margin="10,0,0,0" VerticalAlignment="Center">
+                                        <Border.Background>
+                                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.06"/>
+                                        </Border.Background>
+                                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource PrimaryBrush}"
+                                                   VerticalAlignment="Center">
+                                            <Run Text="{Binding Reports.Count, Mode=OneWay}"/>
+                                            <Run Text=" résultat(s)"/>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
                         </Border>
 
-                        <!-- Report list -->
-                        <ListBox Grid.Row="1"
-                                 ItemsSource="{Binding Reports}"
-                                 SelectedItem="{Binding SelectedReport}"
-                                 ItemContainerStyle="{StaticResource ReportListItem}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Padding="8"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 VirtualizingPanel.IsVirtualizing="True">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
+                        <!-- Report List -->
+                        <Grid Grid.Row="1">
+                            <ListBox ItemsSource="{Binding Reports}"
+                                     SelectedItem="{Binding SelectedReport}"
+                                     ItemContainerStyle="{StaticResource ReportListItem}"
+                                     Background="Transparent" BorderThickness="0"
+                                     Padding="8" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.VirtualizationMode="Recycling"
+                                     Visibility="{Binding NoResults, Converter={StaticResource InvBoolVis}}">
+                                <ListBox.Resources>
+                                    <Style TargetType="ScrollBar"
+                                           BasedOn="{StaticResource TouchScrollBar}"/>
+                                </ListBox.Resources>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                        <!-- Type badge -->
-                                        <Border Width="36" Height="36"
-                                                CornerRadius="8"
-                                                Background="{Binding TypeBgColor, Converter={StaticResource StrBrush}}"
-                                                Margin="0,0,10,0">
-                                            <TextBlock Text="{Binding TypeBadge}"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       FontWeight="Bold"
-                                                       FontSize="14"
-                                                       Foreground="{Binding TypeColor, Converter={StaticResource StrBrush}}"/>
-                                        </Border>
+                                            <!-- Type Badge -->
+                                            <Border Width="40" Height="40"
+                                                    CornerRadius="10"
+                                                    Background="{Binding TypeBgColor, Converter={StaticResource StrBrush}}"
+                                                    Margin="0,0,12,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding TypeBadge}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontWeight="Bold" FontSize="14"
+                                                           Foreground="{Binding TypeColor, Converter={StaticResource StrBrush}}"/>
+                                            </Border>
 
-                                        <!-- Info -->
-                                        <StackPanel Grid.Column="1"
-                                                    VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}"
-                                                       FontWeight="SemiBold"
-                                                       FontSize="13"
-                                                       Foreground="#1E293B"/>
-                                            <StackPanel Orientation="Horizontal"
-                                                        Margin="0,2,0,0">
-                                                <TextBlock Text="{Binding DateLabel}"
-                                                           FontSize="11"
-                                                           Foreground="#94A3B8"/>
-                                                <TextBlock Text="  •  " FontSize="11"
-                                                           Foreground="#CBD5E1"/>
-                                                <TextBlock Text="{Binding PeriodLabel}"
-                                                           FontSize="11"
-                                                           Foreground="#94A3B8"/>
+                                            <!-- Info -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                    <materialDesign:PackIcon Kind="CalendarOutline"
+                                                        Width="13" Height="13" Margin="0,0,4,0"
+                                                        Foreground="{StaticResource TextMutedBrush}"
+                                                        VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding DateLabel}"
+                                                               FontFamily="{StaticResource AppFont}"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                    <Ellipse Width="3" Height="3"
+                                                             Fill="{StaticResource TextMutedBrush}"
+                                                             Margin="8,0" VerticalAlignment="Center"/>
+                                                    <materialDesign:PackIcon Kind="AccountOutline"
+                                                        Width="13" Height="13" Margin="0,0,4,0"
+                                                        Foreground="{StaticResource TextMutedBrush}"
+                                                        VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding OperatorName}"
+                                                               FontFamily="{StaticResource AppFont}"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
                                             </StackPanel>
-                                        </StackPanel>
 
-                                        <!-- Total -->
-                                        <StackPanel Grid.Column="2"
-                                                    VerticalAlignment="Center"
-                                                    HorizontalAlignment="Right">
-                                            <TextBlock Text="{Binding TotalLabel}"
-                                                       FontWeight="SemiBold"
-                                                       FontSize="12"
-                                                       Foreground="#1E293B"
-                                                       HorizontalAlignment="Right"/>
-                                            <TextBlock Text="{Binding InvoiceCountLabel}"
-                                                       FontSize="11"
-                                                       Foreground="#94A3B8"
-                                                       HorizontalAlignment="Right"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                                            <!-- Amount -->
+                                            <StackPanel Grid.Column="2"
+                                                        VerticalAlignment="Center"
+                                                        HorizontalAlignment="Right"
+                                                        Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding TotalLabel}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontWeight="Bold" FontSize="13"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Right"/>
+                                                <TextBlock Text="{Binding InvoiceCountLabel}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           HorizontalAlignment="Right"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
 
-                        <!-- Empty state -->
-                        <StackPanel Grid.Row="1"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Center"
-                                    Visibility="{Binding NoResults, Converter={StaticResource BoolVis}}">
-                            <TextBlock Text="📋" FontSize="36"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="Aucun rapport"
-                                       FontSize="14" Foreground="#94A3B8"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,8,0,0"/>
-                            <TextBlock Text="Générez votre premier rapport ci-dessus"
-                                       FontSize="12" Foreground="#CBD5E1"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
+                            <!-- Empty State -->
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                        Visibility="{Binding NoResults, Converter={StaticResource BoolVis}}">
+                                <Border Width="56" Height="56" CornerRadius="28"
+                                        HorizontalAlignment="Center" Margin="0,0,0,14">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.06"/>
+                                    </Border.Background>
+                                    <materialDesign:PackIcon Kind="FileSearchOutline"
+                                        Width="28" Height="28"
+                                        Foreground="{StaticResource PrimaryBrush}"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Aucun rapport trouvé"
+                                           FontFamily="{StaticResource AppFont}" FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="Modifiez le filtre ou la recherche"
+                                           FontFamily="{StaticResource AppFont}" FontSize="12"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
 
-                <!-- ─── RIGHT: PREVIEW ─── -->
-                <Border Grid.Column="2" Background="White"
-                        CornerRadius="10" BorderBrush="#E2E8F0"
-                        BorderThickness="1">
+                <!-- ────────────────────────────────── -->
+                <!-- RIGHT: PREVIEW PANEL                -->
+                <!-- ────────────────────────────────── -->
+                <Border Grid.Column="2" Background="{StaticResource CardBrush}"
+                        CornerRadius="14" ClipToBounds="True">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="14" Opacity="0.06"
+                                          ShadowDepth="2" Color="#0D2B3E"/>
+                    </Border.Effect>
                     <Grid>
-                        <!-- Preview visible -->
+                        <!-- ── When a report is selected ── -->
                         <Grid Visibility="{Binding ShowPreview, Converter={StaticResource BoolVis}}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -472,7 +1081,7 @@
                             </Grid.RowDefinitions>
 
                             <!-- Toolbar -->
-                            <Border Padding="16,10" BorderBrush="#E2E8F0"
+                            <Border Padding="20,16" BorderBrush="#F1F5F9"
                                     BorderThickness="0,0,0,1">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -482,163 +1091,199 @@
 
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding PreviewTitle}"
-                                                   FontWeight="SemiBold"
-                                                   FontSize="14"
-                                                   Foreground="#1E293B"/>
+                                                   FontFamily="{StaticResource AppFont}"
+                                                   FontWeight="Bold" FontSize="15"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock Text="{Binding PreviewSubtitle}"
-                                                   FontSize="11"
-                                                   Foreground="#94A3B8"
-                                                   Margin="0,2,0,0"/>
+                                                   FontFamily="{StaticResource AppFont}"
+                                                   FontSize="11.5"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Margin="0,3,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="1"
-                                                Orientation="Horizontal">
-                                        <Button Style="{StaticResource GhostBtn}"
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <!-- Copy -->
+                                        <Button Style="{StaticResource PanelIconBtn}"
+                                                ToolTip="Copier"
                                                 Command="{Binding CopyReportCommand}"
-                                                Content="📋 Copier"
-                                                Margin="0,0,6,0"/>
-                                        <Button Style="{StaticResource FlatBtn}"
-                                                Background="#1E293B"
-                                                Command="{Binding PrintReportCommand}"
-                                                Content="🖨  Imprimer"/>
+                                                Margin="0,0,4,0">
+                                            <materialDesign:PackIcon Kind="ContentCopy"
+                                                Width="18" Height="18"
+                                                Foreground="{StaticResource TextMutedBrush}"/>
+                                        </Button>
+                                        <!-- Export -->
+                                        <Button Style="{StaticResource PanelIconBtn}"
+                                                ToolTip="Exporter"
+                                                Command="{Binding ExportReportCommand}"
+                                                Margin="0,0,6,0">
+                                            <materialDesign:PackIcon Kind="FileExportOutline"
+                                                Width="18" Height="18"
+                                                Foreground="{StaticResource TextMutedBrush}"/>
+                                        </Button>
+                                        <!-- Print -->
+                                        <Button Style="{StaticResource PrimaryDarkBtn}"
+                                                Command="{Binding PrintReportCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="Printer"
+                                                    Width="15" Height="15"
+                                                    Foreground="White" VerticalAlignment="Center"
+                                                    Margin="0,0,8,0"/>
+                                                <TextBlock Text="Imprimer" VerticalAlignment="Center"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           Foreground="White"/>
+                                            </StackPanel>
+                                        </Button>
                                     </StackPanel>
                                 </Grid>
                             </Border>
 
-                            <!-- Report text -->
+                            <!-- Content Viewer -->
                             <ScrollViewer Grid.Row="1"
                                           HorizontalScrollBarVisibility="Auto"
-                                          VerticalScrollBarVisibility="Auto">
-                                <Border Background="#0F172A" Padding="24,20">
-                                    <TextBlock Text="{Binding ReportPreview}"
-                                               FontFamily="Consolas"
-                                               FontSize="12.5"
-                                               LineHeight="18"
-                                               Foreground="#E2E8F0"
-                                               TextWrapping="NoWrap"/>
+                                          VerticalScrollBarVisibility="Auto"
+                                          PanningMode="Both">
+                                <ScrollViewer.Resources>
+                                    <Style TargetType="{x:Type ScrollBar}"
+                                           BasedOn="{StaticResource DarkScrollBar}">
+                                        <Style.Triggers>
+                                            <Trigger Property="Orientation" Value="Horizontal">
+                                                <Setter Property="Height" Value="6"/>
+                                                <Setter Property="MinHeight" Value="6"/>
+                                                <Setter Property="Width" Value="Auto"/>
+                                                <Setter Property="MinWidth" Value="0"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ScrollBar">
+                                                            <Grid>
+                                                                <Border CornerRadius="3"
+                                                                        Background="#1E293B"
+                                                                        Margin="0,2"/>
+                                                                <Track x:Name="PART_Track"
+                                                                       IsDirectionReversed="False">
+                                                                    <Track.Thumb>
+                                                                        <Thumb>
+                                                                            <Thumb.Template>
+                                                                                <ControlTemplate TargetType="Thumb">
+                                                                                    <Border CornerRadius="3"
+                                                                                            Background="#475569"
+                                                                                            Margin="0,2"/>
+                                                                                </ControlTemplate>
+                                                                            </Thumb.Template>
+                                                                        </Thumb>
+                                                                    </Track.Thumb>
+                                                                </Track>
+                                                            </Grid>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ScrollViewer.Resources>
+
+                                <Border Padding="24,20">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#0F172A" Offset="0"/>
+                                            <GradientStop Color="#1E293B" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Accent bar -->
+                                        <Border Width="3" CornerRadius="2"
+                                                Margin="0,0,20,0" VerticalAlignment="Stretch">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                    <GradientStop Color="{StaticResource AccentBlue}" Offset="0"/>
+                                                    <GradientStop Color="#8B5CF6" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding ReportPreview}"
+                                                   FontFamily="Consolas" FontSize="12.5"
+                                                   LineHeight="20" Foreground="#E2E8F0"
+                                                   TextWrapping="NoWrap"/>
+                                    </Grid>
                                 </Border>
                             </ScrollViewer>
                         </Grid>
 
-                        <!-- No selection placeholder -->
-                        <StackPanel VerticalAlignment="Center"
-                                    HorizontalAlignment="Center"
+                        <!-- ── Placeholder (no selection) ── -->
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                     Visibility="{Binding ShowPreview, Converter={StaticResource InvBoolVis}}">
-                            <TextBlock Text="📄" FontSize="48"
-                                       HorizontalAlignment="Center"/>
+                            <Border Width="72" Height="72" CornerRadius="36"
+                                    HorizontalAlignment="Center" Margin="0,0,0,18">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.06"/>
+                                </Border.Background>
+                                <materialDesign:PackIcon Kind="FileEyeOutline"
+                                    Width="36" Height="36"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
                             <TextBlock Text="Sélectionnez un rapport"
-                                       FontSize="15" Foreground="#94A3B8"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,12,0,0"/>
-                            <TextBlock Text="ou générez-en un nouveau avec les boutons ci-dessus"
-                                       FontSize="12" Foreground="#CBD5E1"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,4,0,0"/>
+                                       FontFamily="{StaticResource AppFont}" FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Cliquez sur un rapport dans la liste pour afficher son contenu"
+                                       FontFamily="{StaticResource AppFont}" FontSize="13"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       HorizontalAlignment="Center" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
+        </DockPanel>
 
-            <!-- ═══ ROW 4: STATUS BAR ═══ -->
-            <Border Grid.Row="4" Padding="16,8"
-                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolVis}}"
-                    Background="#ECFDF5">
-                <TextBlock Text="{Binding StatusMessage}"
-                           FontSize="12" Foreground="#059669"/>
-            </Border>
-
-            <Border Grid.Row="4" Padding="16,8"
-                    Visibility="{Binding ShowError, Converter={StaticResource BoolVis}}"
-                    Background="#FEF2F2">
-                <TextBlock Text="{Binding StatusMessage}"
-                           FontSize="12" Foreground="#DC2626"
-                           TextWrapping="Wrap"/>
-            </Border>
-        </Grid>
-
-        <!-- ════════════════════════════════════════
-             LOADING OVERLAY
-             ════════════════════════════════════════ -->
-        <Border Background="#60FFFFFF"
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!-- LOADING SPINNER                                            -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <Border Background="#60000000"
                 Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}">
-            <StackPanel VerticalAlignment="Center"
-                        HorizontalAlignment="Center">
-                <Border Background="White" CornerRadius="12"
-                        Padding="32,24">
-                    <Border.Effect>
-                      <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.3" Color="Black"/>
-                    </Border.Effect>
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="⏳" FontSize="28"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="Traitement en cours…"
-                                   FontSize="14" Foreground="#64748B"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,8,0,0"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-        </Border>
-
-        <!-- ════════════════════════════════════════
-             CONFIRMATION OVERLAY (Z-RAPPORT)
-             ════════════════════════════════════════ -->
-        <Grid Visibility="{Binding ShowConfirmation, Converter={StaticResource BoolVis}}">
-            <!-- Backdrop -->
-            <Border Background="#90000000">
-                <Border.InputBindings>
-                    <MouseBinding MouseAction="LeftClick"
-                                  Command="{Binding CancelConfirmationCommand}"/>
-                </Border.InputBindings>
-            </Border>
-
-            <!-- Dialog card -->
-            <Border Background="White" CornerRadius="14"
-                    MaxWidth="460" MaxHeight="360"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center"
-                    Padding="28,24">
+            <Border Background="{StaticResource CardBrush}" CornerRadius="16"
+                    Padding="36,28" HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="40" Opacity="0.25"
-                                      ShadowDepth="4" Direction="270"/>
+                    <DropShadowEffect BlurRadius="24" Opacity="0.15"
+                                      ShadowDepth="4" Color="#0D2B3E"/>
                 </Border.Effect>
-
-                <StackPanel>
-                    <!-- Icon + Title -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Background="#FEF2F2" CornerRadius="8"
-                                Width="40" Height="40" Margin="0,0,12,0">
-                            <TextBlock Text="⚠" FontSize="20"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock Text="{Binding ConfirmTitle}"
-                                   FontSize="17" FontWeight="Bold"
-                                   Foreground="#1E293B"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Message -->
-                    <TextBlock Text="{Binding ConfirmMessage}"
-                               FontSize="13" Foreground="#475569"
-                               TextWrapping="Wrap" LineHeight="20"
-                               Margin="0,0,0,24"/>
-
-                    <!-- Buttons -->
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right">
-                        <Button Style="{StaticResource GhostBtn}"
-                                Content="Annuler"
-                                Command="{Binding CancelConfirmationCommand}"
-                                MinWidth="90" Margin="0,0,10,0"/>
-                        <Button Style="{StaticResource FlatBtn}"
-                                Background="#DC2626"
-                                Content="{Binding ConfirmButtonText}"
-                                Command="{Binding ConfirmActionCommand}"
-                                MinWidth="160"/>
-                    </StackPanel>
+                <StackPanel HorizontalAlignment="Center">
+                    <materialDesign:PackIcon Kind="Loading" Width="36" Height="36"
+                                             Foreground="{StaticResource PrimaryBrush}"
+                                             HorizontalAlignment="Center"
+                                             RenderTransformOrigin="0.5,0.5">
+                        <materialDesign:PackIcon.RenderTransform>
+                            <RotateTransform x:Name="SpinnerRotate"/>
+                        </materialDesign:PackIcon.RenderTransform>
+                        <materialDesign:PackIcon.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="SpinnerRotate"
+                                            Storyboard.TargetProperty="Angle"
+                                            From="0" To="360" Duration="0:0:1"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </materialDesign:PackIcon.Triggers>
+                    </materialDesign:PackIcon>
+                    <TextBlock Text="Chargement…"
+                               FontFamily="{StaticResource AppFont}" FontSize="14"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center" Margin="0,14,0,0"/>
                 </StackPanel>
             </Border>
-        </Grid>
+        </Border>
     </Grid>
 </UserControl>

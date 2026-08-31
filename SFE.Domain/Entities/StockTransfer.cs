@@ -25,10 +25,10 @@ public class StockTransfer
     // === Audit ===
     public string CreatedBy { get; set; } = string.Empty;
     public string? ReceivedBy { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime? ShippedAt { get; set; }
-    public DateTime? ReceivedAt { get; set; }
-    public DateTime? CancelledAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ShippedAt { get; set; }
+    public DateTimeOffset? ReceivedAt { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
 
     // === Navigation ===
     public PointOfSale FromPointOfSale { get; set; } = null!;

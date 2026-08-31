@@ -13,6 +13,14 @@ public class PointOfSale
     public string Phone { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// IANA ID (preferred), Windows ID, or city name — anything
+    /// <see cref="ITimeProvider.GetZone"/> understands.
+    /// Examples: "Africa/Kinshasa", "Africa/Lubumbashi", "Goma", "Lubumbashi".
+    /// When null/empty, the tenant's app default is used.
+    /// </summary>
+    public string? TimeZoneId { get; set; }
+
     // --- Configuration dispositif fiscal ---
     public DeviceType DeviceType { get; set; } = DeviceType.EMcf;
 
@@ -25,9 +33,96 @@ public class PointOfSale
     public string? McfPortName { get; set; }
     public int McfBaudRate { get; set; } = 115200;
 
+    /// <summary>
+    /// 🆕 STRICT MODE — when DeviceType = Mcf, disables the e-MCF fallback.
+    /// Sales will fail outright if the MCF is unreachable. Ignored for
+    /// EMcf (no fallback meaningful) and Hybrid (Hybrid IS the fallback).
+    /// </summary>
+    public bool DisableFallback { get; set; } = false;
+
+    // ═══ CONNECTION STATUS (populated by test/status checks) ═══
+
+    /// <summary>Last time the fiscal device connection was successfully tested.</summary>
+    public DateTimeOffset? LastConnectionTestAt { get; set; }
+
+    /// <summary>NIM returned by the fiscal device during last successful connection.</summary>
+    public string? LastKnownNIM { get; set; }
+
+    /// <summary>NIF returned by the fiscal device during last successful connection.</summary>
+    public string? LastKnownNIF { get; set; }
+
+    /// <summary>Last successful connection of MCF to DGI server (from C2h command).</summary>
+    public DateTimeOffset? McfLastServerConnection { get; set; }
+
+    /// <summary>MCF server connection status (DIS/CON/TRA/RES).</summary>
+    public string? McfServerStatus { get; set; }
+
     // 🆕 --- Stock ---
     /// <summary>Ce POS gère-t-il du stock ? (false pour un POS de services purs)</summary>
     public bool ManagesStock { get; set; } = true;
+
+    // ═══════════════════════════════════════════════════════
+    //  🆕 PRINTER CONFIGURATION (per POS)
+    // ═══════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Windows printer name for the thermal receipt printer.
+    /// Empty = auto-detect on startup.
+    /// Example: "EPSON TM-T88V", "POS-80C", "OPTIMA Printer"
+    /// </summary>
+    public string ThermalPrinterName { get; set; } = "";
+
+    /// <summary>
+    /// Paper width in mm. Common values: 58, 80.
+    /// Determines chars-per-line: 80mm=48 chars, 58mm=32 chars.
+    /// </summary>
+    public int PaperWidthMm { get; set; } = 80;
+
+    /// <summary>
+    /// Automatically print receipt after normalization.
+    /// </summary>
+    public bool AutoPrintReceipt { get; set; } = true;
+
+    /// <summary>
+    /// Number of copies to auto-print (1 = customer copy only, 2 = customer + merchant).
+    /// </summary>
+    public int PrintCopies { get; set; } = 1;
+
+    /// <summary>
+    /// Enable the customer-facing display on a secondary monitor.
+    /// </summary>
+    public bool EnableCustomerDisplay { get; set; } = true;
+
+    /// <summary>
+    /// Enable cash drawer opening via ESC/POS pulse after cash payment.
+    /// </summary>
+    public bool EnableCashDrawer { get; set; } = false;
+
+    /// <summary>
+    /// ESC/POS cash drawer pin (0 = pin 2, 1 = pin 5).
+    /// Most drawers use pin 2.
+    /// </summary>
+    public int CashDrawerPin { get; set; } = 0;
+
+    /// <summary>
+    /// Code page for ESC/POS text encoding.
+    /// 858 = Multilingual Latin I + Euro (default for French).
+    /// 437 = USA. 850 = Multilingual Latin I.
+    /// </summary>
+    public int PrinterCodePage { get; set; } = 858;
+
+    /// <summary>
+    /// Print company logo at top of receipt (bitmap stored in Company.Logo).
+    /// Requires printer that supports ESC/POS GS v 0 raster bitmap.
+    /// </summary>
+    public bool PrintLogo { get; set; } = false;
+
+    /// <summary>
+    /// Custom footer text printed at bottom of each receipt.
+    /// Example: "Merci de votre fidélité !"
+    /// </summary>
+    public string ReceiptFooterText { get; set; } = "Merci pour votre achat !";
+
 
     /// <summary>Autoriser la vente même si stock = 0 ?</summary>
     public bool AllowNegativeStock { get; set; } = false;
@@ -35,7 +130,13 @@ public class PointOfSale
     // === Navigation ===
     public Company? Company { get; set; }
 
-    // 🆕
+    // 🆕 Operators assigned to this POS
+    public List<User> Operators { get; set; } = new();
+
     public List<PosStock> PosStocks { get; set; } = new();
     public List<StockMovement> StockMovements { get; set; } = new();
+
+    public bool SunmiEnabled { get; set; }
+    public string? SunmiTerminalUrl { get; set; }   // e.g. http://192.168.1.50:8080
+    public string? SunmiTerminalId { get; set; }
 }

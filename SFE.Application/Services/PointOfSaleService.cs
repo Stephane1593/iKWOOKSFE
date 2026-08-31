@@ -1,5 +1,4 @@
-﻿// File: SFE.Application/Services/PointOfSaleService.cs
-using SFE.Application.Interfaces;
+﻿using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -12,11 +11,13 @@ public class PointOfSaleService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly StockService _stockService;
+    private readonly IAuditService _audit;
 
-    public PointOfSaleService(IUnitOfWork unitOfWork, StockService stockService)
+    public PointOfSaleService(IUnitOfWork unitOfWork, StockService stockService, IAuditService audit)
     {
         _unitOfWork = unitOfWork;
         _stockService = stockService;
+        _audit = audit;
     }
 
     public async Task<List<PointOfSale>> GetAllAsync(int companyId)
@@ -58,6 +59,17 @@ public class PointOfSaleService
             await _stockService.InitializeAllProductsInPosAsync(pos.Id, "Système");
         }
 
+        // ── AUDIT ── (fixed argument order: description, entityType, entityId)
+        var description = $"{pos.Code} · « {pos.Name} » · Entreprise #{pos.CompanyId}"
+            + (pos.ManagesStock ? " · Gestion de stock activée" : "");
+
+        await _audit.LogAsync(
+            AuditAction.PosCreated,
+            AuditModule.PointOfSale,
+            description,
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
         return new PosSaveResult { Success = true, PointOfSaleId = pos.Id };
     }
 
@@ -78,6 +90,14 @@ public class PointOfSaleService
 
         await _unitOfWork.PointsOfSale.UpdateAsync(pos);
         await _unitOfWork.SaveChangesAsync();
+
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.PosUpdated,
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} »",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
 
         return new PosSaveResult { Success = true, PointOfSaleId = pos.Id };
     }
@@ -105,6 +125,47 @@ public class PointOfSaleService
         pos.IsActive = false;
         await _unitOfWork.PointsOfSale.UpdateAsync(pos);
         await _unitOfWork.SaveChangesAsync();
+
+        // ── AUDIT ── (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.PosDeactivated,
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} » · Désactivé",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
+        return new PosSaveResult { Success = true, PointOfSaleId = posId };
+    }
+
+    public async Task<PosSaveResult> ReactivateAsync(int posId)
+    {
+        var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
+        if (pos == null)
+            return new PosSaveResult { Success = false, ErrorMessage = "POS introuvable." };
+
+        if (pos.IsActive)
+            return new PosSaveResult { Success = true, PointOfSaleId = posId };
+
+        // Le code doit rester unique parmi les POS actifs.
+        var clash = await _unitOfWork.PointsOfSale.GetActiveByCodeAsync(pos.Code);
+        if (clash != null && clash.Id != pos.Id)
+            return new PosSaveResult
+            {
+                Success = false,
+                ErrorMessage = $"Impossible de réactiver : le code « {pos.Code} » est " +
+                    "déjà utilisé par un autre POS actif. Renommez-le d'abord."
+            };
+
+        pos.IsActive = true;
+        await _unitOfWork.PointsOfSale.UpdateAsync(pos);
+        await _unitOfWork.SaveChangesAsync();
+
+        await _audit.LogAsync(
+            AuditAction.PosReactivated,   // ⚠️ voir note ci-dessous
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} » · Réactivé",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
 
         return new PosSaveResult { Success = true, PointOfSaleId = posId };
     }
@@ -136,6 +197,29 @@ public class PointOfSaleService
         if (pos.CompanyId <= 0)
             return new ValidationResult("L'entreprise n'est pas définie.");
         return new ValidationResult { IsValid = true };
+    }
+
+    /// <summary>
+    /// Returns the POS assigned to the user if it exists and is active,
+    /// otherwise returns the first active POS, or null.
+    /// </summary>
+    public async Task<PointOfSale?> GetDefaultForUserAsync(int? userPointOfSaleId)
+    {
+        var activeList = await _unitOfWork.PointsOfSale.GetActiveAsync();
+
+        if (activeList.Count == 0)
+            return null;
+
+        // 1️⃣ Try the POS assigned to the user
+        if (userPointOfSaleId.HasValue)
+        {
+            var userPos = activeList.FirstOrDefault(p => p.Id == userPointOfSaleId.Value);
+            if (userPos != null)
+                return userPos;
+        }
+
+        // 2️⃣ Fallback: first active POS
+        return activeList.First();
     }
 }
 

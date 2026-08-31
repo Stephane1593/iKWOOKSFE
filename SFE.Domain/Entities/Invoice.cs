@@ -33,12 +33,29 @@ public class Invoice
     public string ReferenceType { get; set; } = string.Empty;
     public string ReferenceDesc { get; set; } = string.Empty;
 
-    // === 🆕 Facture d'acompte (FT/ET) — Chaîne d'avances ===
+    // ══════════════════════════════════════════════════════════
+    //  ACOMPTE / SOLDE — Chaîne d'avances
+    // ══════════════════════════════════════════════════════════
+
     /// <summary>
-    /// Pour FT/ET : identifiant de groupe partagé entre les acomptes et la facture finale.
-    /// Format libre, ex: "ADV-2026/001". Tous les FT du même groupe + le FV final partagent cette clé.
+    /// Identifiant de groupe partagé entre les acomptes (FT/ET) et la facture finale (FV/EV).
+    /// Format : "ADV-2026/XXXXXXXX". Tous les FT du même projet + le FV final partagent cette clé.
     /// </summary>
     public string? AdvanceGroupId { get; set; }
+
+    /// <summary>
+    /// 🆕 Pour FT/ET : montant TOTAL de la commande planifiée (ex: 200 000 CDF).
+    /// Pour FV/EV final : copie du total commandé pour traçabilité.
+    /// Indépendant de TotalTTC.
+    /// </summary>
+    public decimal OrderTotal { get; set; }
+
+    /// <summary>
+    /// 🆕 Pour FT/ET : montant exact perçu en acompte sur cette facture.
+    /// Doit être égal à TotalTTC du FT lui-même (cohérence métier).
+    /// Pour les autres types : 0.
+    /// </summary>
+    public decimal AdvanceAmount { get; set; }
 
     /// <summary>
     /// Pour FV/EV finale : ID de la facture parente (optionnel, usage interne).
@@ -50,7 +67,7 @@ public class Invoice
     // === Devise ===
     public string CurrencyCode { get; set; } = string.Empty;
     public decimal CurrencyRate { get; set; }
-    public DateTime? CurrencyDate { get; set; }
+    public DateTimeOffset? CurrencyDate { get; set; }
 
     // === Commentaires (8 lignes A-H) ===
     public string CommentA { get; set; } = string.Empty;
@@ -62,9 +79,9 @@ public class Invoice
     public string CommentG { get; set; } = string.Empty;
     public string CommentH { get; set; } = string.Empty;
 
-    // ══════════════════════════════════════════════
-    // TOTAUX CALCULÉS
-    // ══════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  TOTAUX CALCULÉS
+    // ══════════════════════════════════════════════════════════
     public decimal TotalHTBeforeDiscount { get; set; }
     public decimal TotalDiscount { get; set; }
     public decimal TotalHT { get; set; }
@@ -75,20 +92,83 @@ public class Invoice
     public decimal TotalFixedSpecificTax { get; set; }
     public decimal TotalPercentSpecificTax { get; set; }
 
-    // ══════════════════════════════════════════════
-    // 🆕 ACOMPTES — Montants suivis
-    // ══════════════════════════════════════════════
-    /// <summary>Somme des acomptes déjà versés (calculé depuis ChildInvoices FT/ET).</summary>
+    // ══════════════════════════════════════════════════════════
+    //  ACOMPTES — Synthèse pour FV finale
+    // ══════════════════════════════════════════════════════════
+    /// <summary>
+    /// Pour FV/EV finale : somme des acomptes déjà perçus avant cette facture
+    /// (calculée depuis les FT/ET du même AdvanceGroupId).
+    /// </summary>
     public decimal TotalAdvancesPaid { get; set; }
-    /// <summary>Solde restant dû = TotalTTC - TotalAdvancesPaid.</summary>
+
+    /// <summary>
+    /// Pour FV/EV finale : solde à percevoir sur cette facture.
+    /// = TotalTTC - TotalAdvancesPaid
+    /// </summary>
     public decimal RemainingBalance { get; set; }
 
-    // ══════════════════════════════════════════════
-    // PARAMÈTRE SNAPSHOT
-    // ══════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    // ADVANCE CHAIN (FT/ET → FV/EV)
+    // ═══════════════════════════════════════════════════════════════
+
+
+
+    /// <summary>
+    /// Sum of advance amounts already invoiced BEFORE this one in the chain.
+    /// On the final FV this equals the sum of all FT.AdvanceAmount.
+    /// </summary>
+    public decimal PreviousAdvancesTotal { get; set; }
+
+
+    /// <summary>
+    /// Computed at issuance: OrderTotal − (PreviousAdvancesTotal + AdvanceAmount).
+    /// Stored for audit/print convenience.
+    /// </summary>
+    public decimal RemainingAfterAdvance { get; set; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROFORMA (PRO)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// When this proforma is converted into a real FV/EV, points to that invoice.
+    /// Used to enforce one-shot conversion and for traceability.
+    /// </summary>
+    public int? ConvertedToInvoiceId { get; set; }
+
+    /// <summary>
+    /// Optional: proforma offer expiration date. Past this date, the proforma
+    /// is considered stale and is filtered out by GetActiveProformasAsync().
+    /// </summary>
+    public DateTimeOffset? ProformaValidUntil { get; set; }
+
+    /// <summary>
+    /// Navigation back to the FV/EV that materialized this proforma.
+    /// </summary>
+    public Invoice? ConvertedToInvoice { get; set; }
+
+    // 🆕 ─────────── ADD BELOW ───────────
+
+    /// <summary>
+    /// 🆕 For an FV/EV/FT/ET that was born from a proforma conversion,
+    /// points back to the original PRO row. NULL for invoices created
+    /// directly (without a proforma stage).
+    /// 
+    /// Use case on print: "Cette facture remplace le proforma N°PRO-2026/0042 du 12/03/2026."
+    /// </summary>
+    public int? SourceProformaId { get; set; }
+
+    /// <summary>
+    /// 🆕 Navigation forward to the proforma that originated this fiscal invoice.
+    /// </summary>
+    public Invoice? SourceProforma { get; set; }
+
+    // ══════════════════════════════════════════════════════════
+    //  PARAMÈTRE SNAPSHOT
+    // ══════════════════════════════════════════════════════════
     public bool DiscountBeforeTax { get; set; } = true;
 
-    // === Éléments de sécurité ===
+    // === Éléments de sécurité (vides pour PROFORMA) ===
     public string EmcfUid { get; set; } = string.Empty;
     public string CodeDEFDGI { get; set; } = string.Empty;
     public string QRCodeContent { get; set; } = string.Empty;
@@ -97,9 +177,9 @@ public class Invoice
     public string DeviceDateTime { get; set; } = string.Empty;
 
     // === Dates ===
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime? NormalizedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? NormalizedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     // === Relations ===
     public List<InvoiceLine> Lines { get; set; } = new();
@@ -109,12 +189,35 @@ public class Invoice
     // === Point de vente ===
     public int PointOfSaleId { get; set; }
 
-    // ══════════════════════════════════════════════
-    // 🆕 HELPERS
-    // ══════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════════════════
     public bool IsAdvanceInvoice => Type is InvoiceType.FT or InvoiceType.ET;
     public bool IsCreditNote => Type is InvoiceType.FA or InvoiceType.EA;
     public bool IsExport => Type is InvoiceType.EV or InvoiceType.EA or InvoiceType.ET;
-    public bool IsFinalWithAdvances => (Type is InvoiceType.FV or InvoiceType.EV)
-                                       && !string.IsNullOrEmpty(AdvanceGroupId);
+
+    /// <summary>🆕 Proforma : non normalisable, non fiscale.</summary>
+    public bool IsProforma => Type is InvoiceType.PRO;
+
+    /// <summary>FV/EV finale qui solde une chaîne d'avances.</summary>
+    public bool IsFinalWithAdvances =>
+        (Type is InvoiceType.FV or InvoiceType.EV)
+        && !string.IsNullOrEmpty(AdvanceGroupId);
+
+    // ══════════════════════════════════════════════════════════
+    //  PRINT TRACKING — ORIGINAL / DUPLICATA
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Nombre total d'impressions/exports PDF de cette facture.
+    /// 0 = jamais imprimée, 1 = ORIGINAL émis, ≥2 = duplicata déjà émis.
+    /// Pour les proformas, simple compteur (pas de mention duplicata).
+    /// </summary>
+    public int PrintCount { get; set; }
+
+    /// <summary>Date de la première impression (ORIGINAL).</summary>
+    public DateTimeOffset? FirstPrintedAt { get; set; }
+
+    /// <summary>Date de la dernière impression/duplicata.</summary>
+    public DateTimeOffset? LastPrintedAt { get; set; }
 }

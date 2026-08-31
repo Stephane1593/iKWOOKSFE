@@ -1,8 +1,10 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Helpers;
@@ -75,18 +77,39 @@ public partial class InvoiceDocumentViewModel : ObservableObject
     // ═══════ AMOUNT IN WORDS ═══════
     [ObservableProperty] private string _amountInWords = "";
 
+    // ═══════ SOURCE DATA (for native PDF generation) ═══════
+    public Invoice? SourceInvoice { get; set; }
+    public Company? SourceCompany { get; set; }
+    public PointOfSale? SourcePos { get; set; }
+    public decimal SourceExchangeRate { get; set; }
+    public byte[]? SourceLogoBytes { get; set; }
+
     // ═══════ COLLECTIONS ═══════
     public ObservableCollection<DocLineViewModel> Lines { get; } = new();
     public ObservableCollection<DocPaymentViewModel> Payments { get; } = new();
     public ObservableCollection<TaxBreakdownLine> TaxBreakdown { get; } = new();
+
+    // Add inside InvoiceDocumentViewModel class
+    public int PrintNumber { get; set; } = 1;
+
+    private static bool IsCreditNote(InvoiceType type) => type == InvoiceType.FA || type == InvoiceType.EA;
 
     // ═══════════════════════════════════════════════════════
     //  FACTORY
     // ═══════════════════════════════════════════════════════
 
     public static InvoiceDocumentViewModel Create(
-        Invoice invoice, Company? company, PointOfSale? pos = null, decimal exchangeRate = 0)
+        Invoice invoice,
+        Company? company,
+        ITimeProvider timeProvider,
+        PointOfSale? pos = null,
+        decimal exchangeRate = 0)
     {
+        var createdLocal = timeProvider.ToLocal(invoice.CreatedAt);
+        var normalizedLocal = invoice.NormalizedAt is { } n
+            ? timeProvider.ToLocal(n)
+            : (DateTimeOffset?)null;
+
         var vm = new InvoiceDocumentViewModel
         {
             // Invoice
@@ -96,10 +119,10 @@ public partial class InvoiceDocumentViewModel : ObservableObject
             TypeName = GetTypeName(invoice.Type),
             TypeTitle = GetTypeTitle(invoice.Type),
             Status = invoice.Status,
-            CreatedAt = invoice.CreatedAt,
-            CreatedAtDisplay = invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss"),
+            CreatedAt = createdLocal.DateTime,
+            CreatedAtDisplay = createdLocal.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture),
             OperatorName = invoice.OperatorName,
-            Isf = invoice.ISF,
+            Isf = invoice.ISF ?? "",
 
             // Client
             ClientName = invoice.ClientName ?? "—",
@@ -108,20 +131,19 @@ public partial class InvoiceDocumentViewModel : ObservableObject
             ClientContact = invoice.ClientPhone ?? "—",
             ClientAddress = invoice.ClientAddress ?? "—",
 
-            // Totals
-            TotalHT = invoice.TotalHT,
-            TotalTVA = invoice.TotalTVA,
-            TotalTTC = invoice.TotalTTC,
-            TotalSpecificTax = invoice.TotalSpecificTax,
+            // Totals — displayed as negative for Avoir (FA/EA), DB stays untouched
+            TotalHT = ApplySign(invoice.TotalHT, invoice.Type),
+            TotalTVA = ApplySign(invoice.TotalTVA, invoice.Type),
+            TotalTTC = ApplySign(invoice.TotalTTC, invoice.Type),
+            TotalSpecificTax = ApplySign(invoice.TotalSpecificTax, invoice.Type),
             LineCount = invoice.Lines.Count,
 
             // Normalization
             CodeDEFDGI = invoice.CodeDEFDGI ?? "",
-            //DefNid = invoice.DefNid ?? invoice.NIM ?? "",
             Nim = invoice.NIM ?? "",
             Counters = invoice.Counters ?? "",
-            NormalizedAt = invoice.NormalizedAt,
-            NormalizedAtDisplay = invoice.NormalizedAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "—",
+            NormalizedAt = normalizedLocal?.DateTime,
+            NormalizedAtDisplay = normalizedLocal?.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture) ?? "—",
             HasNormalization = !string.IsNullOrEmpty(invoice.CodeDEFDGI),
         };
 
@@ -154,7 +176,7 @@ public partial class InvoiceDocumentViewModel : ObservableObject
         {
             vm.ExchangeRate = exchangeRate;
             vm.ExchangeRateDisplay = exchangeRate.ToString("N4");
-            vm.TotalTTCUsd = Math.Round(invoice.TotalTTC / exchangeRate, 2);
+            vm.TotalTTCUsd = Math.Round(vm.TotalTTC / exchangeRate, 2);
             vm.TotalTTCUsdDisplay = vm.TotalTTCUsd.ToString("N2");
             vm.HasExchangeRate = true;
         }
@@ -163,7 +185,10 @@ public partial class InvoiceDocumentViewModel : ObservableObject
         vm.QrCodeImage = QrCodeHelper.Generate(invoice.QRCodeContent);
 
         // Amount in words
-        vm.AmountInWords = $"Arrêté la présente facture à la somme de {NumberToFrenchWords.Convert(invoice.TotalTTC)}";
+        var amountWords = NumberToFrenchWords.Convert(Math.Abs(vm.TotalTTC));
+        vm.AmountInWords = IsCreditNote(invoice.Type)
+            ? $"Arrêté le présent avoir à la somme de {amountWords} (montant à déduire)"
+            : $"Arrêté la présente facture à la somme de {amountWords}";
 
         // Lines
         int num = 1;
@@ -178,7 +203,7 @@ public partial class InvoiceDocumentViewModel : ObservableObject
                 UnitPriceHT = line.UnitPriceHT,
                 TaxSpecific = line.SpecificTaxRate > 0 ? $"{line.SpecificTaxRate}%" : "",
                 Quantity = line.Quantity,
-                TotalHT = line.AmountHT
+                TotalHT = ApplySign(line.AmountHT, invoice.Type)
             });
         }
 
@@ -202,6 +227,15 @@ public partial class InvoiceDocumentViewModel : ObservableObject
 
         // Tax breakdown
         BuildTaxBreakdown(vm, invoice);
+
+        // ═══════════════════════════════════════════════════════
+        // SOURCE DATA — for InvoicePrinterHelper / QuestPDF
+        // ═══════════════════════════════════════════════════════
+        vm.SourceInvoice = invoice;
+        vm.SourceCompany = company;
+        vm.SourcePos = pos;
+        vm.SourceExchangeRate = exchangeRate;
+        vm.SourceLogoBytes = company?.Logo;
 
         return vm;
     }
@@ -373,6 +407,9 @@ public partial class InvoiceDocumentViewModel : ObservableObject
         bmp.Freeze();
         return bmp;
     }
+
+    private static decimal ApplySign(decimal amount, InvoiceType type) =>
+    IsCreditNote(type) ? -amount : amount;
 }
 
 // ═══════════════════════════════════════════════════════

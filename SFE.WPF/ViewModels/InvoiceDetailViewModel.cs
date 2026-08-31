@@ -1,5 +1,7 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -7,6 +9,8 @@ namespace SFE.WPF.ViewModels;
 
 public partial class InvoiceDetailViewModel : ObservableObject
 {
+    private const string DateTimeFormat = "dd/MM/yyyy HH:mm:ss";
+
     [ObservableProperty] private int _invoiceId;
     [ObservableProperty] private string _invoiceNumber = "";
     [ObservableProperty] private string _typeName = "";
@@ -41,8 +45,13 @@ public partial class InvoiceDetailViewModel : ObservableObject
     public ObservableCollection<InvoiceLineDetailViewModel> Lines { get; } = new();
     public ObservableCollection<InvoicePaymentDetailViewModel> Payments { get; } = new();
 
-    public static InvoiceDetailViewModel FromEntity(Invoice invoice)
+    public static InvoiceDetailViewModel FromEntity(Invoice invoice, ITimeProvider timeProvider)
     {
+        var createdLocal = timeProvider.ToLocal(invoice.CreatedAt);          // DateTimeOffset
+        var normalizedLocal = invoice.NormalizedAt is { } n
+            ? timeProvider.ToLocal(n)
+            : (DateTimeOffset?)null;
+
         var vm = new InvoiceDetailViewModel
         {
             InvoiceId = invoice.Id,
@@ -52,8 +61,8 @@ public partial class InvoiceDetailViewModel : ObservableObject
             Status = invoice.Status,
             StatusLabel = GetStatusLabel(invoice.Status),
             StatusColor = GetStatusColor(invoice.Status),
-            CreatedAt = invoice.CreatedAt,
-            CreatedAtDisplay = invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss"),
+            CreatedAt = createdLocal.DateTime,
+            CreatedAtDisplay = createdLocal.ToString(DateTimeFormat, CultureInfo.InvariantCulture),
             OperatorName = invoice.OperatorName,
             Isf = invoice.ISF,
             ClientName = invoice.ClientName ?? "—",
@@ -66,8 +75,8 @@ public partial class InvoiceDetailViewModel : ObservableObject
             Nim = invoice.NIM ?? "",
             Counters = invoice.Counters ?? "",
             QrCodeContent = invoice.QRCodeContent ?? "",
-            NormalizedAt = invoice.NormalizedAt,
-            NormalizedAtDisplay = invoice.NormalizedAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "—",
+            NormalizedAt = normalizedLocal?.DateTime,
+            NormalizedAtDisplay = normalizedLocal?.ToString(DateTimeFormat, CultureInfo.InvariantCulture) ?? "—",
             LineCount = invoice.Lines.Count
         };
 
@@ -109,10 +118,10 @@ public partial class InvoiceDetailViewModel : ObservableObject
     {
         InvoiceType.FV => "Facture de Vente",
         InvoiceType.FT => "Facture d'acompte",
-        InvoiceType.EV => "Facture de vente a l'exportation",
-        InvoiceType.ET => "Facture d'acompte a l'exportation",
-        InvoiceType.EA => "Facture d'avoir a l'exportation",
-        InvoiceType.FA => "Facture d'avaoir",
+        InvoiceType.EV => "Facture de vente à l'exportation",
+        InvoiceType.ET => "Facture d'acompte à l'exportation",
+        InvoiceType.EA => "Facture d'avoir à l'exportation",
+        InvoiceType.FA => "Facture d'avoir",
         _ => type.ToString()
     };
 

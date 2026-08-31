@@ -10,7 +10,7 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<Invoice?> GetByCodeDEFDGIAsync(string codeDEFDGI);
     Task<List<Invoice>> GetByDateRangeAsync(DateTime from, DateTime to);
     Task<List<Invoice>> GetByTypeAsync(InvoiceType type);
-    Task<string> GenerateNextInvoiceNumberAsync(InvoiceType type, int year);
+    Task<string> GenerateNextInvoiceNumberAsync(InvoiceType type, int year, int pointOfSaleId);
     Task<int> GetTodayCountAsync();
     Task<decimal> GetTodayTotalAsync();
     Task<List<Invoice>> GetCreditNotesForOriginalAsync(string originalCodeDEFDGI);
@@ -41,6 +41,20 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<Invoice?> GetByCodeDEFAsync(string codeDEF);
     Task<Invoice?> GetByNumberAsync(string invoiceNumber);
     Task<List<Invoice>> GetRecentAsync(int count);
+    // Add to IInvoiceRepository
+    Task<List<string>> GetDistinctOperatorNamesAsync();
+
+    /// <summary>
+    /// Generates the next proforma number per POS/year.
+    /// Format: "PR-{POSCODE}-{YEAR}/{NNNN}"
+    /// Note: PR sequence is INDEPENDENT from FV/FT sequences and never goes to MCF.
+    /// </summary>
+    Task<string> GenerateNextProformaNumberAsync(int year, int pointOfSaleId);
+
+    /// <summary>
+    /// Returns proformas not yet converted, optionally filtered by POS or expiration.
+    /// </summary>
+    Task<List<Invoice>> GetActiveProformasAsync(int? pointOfSaleId = null, bool excludeExpired = true);
 }
 
 /// <summary>
@@ -57,6 +71,8 @@ public class InvoiceSearchCriteria
     public string? OperatorName { get; set; }
     public decimal? MinAmount { get; set; }
     public decimal? MaxAmount { get; set; }
+
+    public string? Reference { get; set; }
 }
 
 /// <summary>
@@ -72,6 +88,8 @@ public class InvoicePeriodStats
     public int FTCount { get; set; }
     public int EVCount { get; set; }
     public int ETCount { get; set; }
+    public int FACount { get; set; }
+    public int EACount { get; set; }
     public decimal AverageAmount { get; set; }
     public decimal MaxInvoiceAmount { get; set; }
 }

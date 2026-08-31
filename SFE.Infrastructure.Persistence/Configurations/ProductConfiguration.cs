@@ -24,6 +24,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         // ══════════════════════════════════════
         builder.Property(p => p.ItemType).HasConversion<int>();
         builder.Property(p => p.TaxGroup).HasConversion<int>();
+        builder.Property(p => p.TaxGroupAType)
+               .HasConversion<int>()
+               .HasDefaultValue(SFE.Domain.Enums.TaxGroupAType.Exonere);   // ⇐ nouveau
         builder.Property(p => p.SpecificTaxValue).HasMaxLength(30);
         builder.Property(p => p.TaxSpecificMode).HasConversion<int>();
 
@@ -70,6 +73,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         //  PROPRIÉTÉS IGNORÉES (NotMapped)
         // ══════════════════════════════════════
         builder.Ignore(p => p.TaxGroupLabel);
+        builder.Ignore(p => p.TaxGroupDisplay);        // ⇐ nouveau (A / A-HC / B / C / D…)
         builder.Ignore(p => p.DisplayText);
         builder.Ignore(p => p.TaxSpecificModeShort);
         builder.Ignore(p => p.HasDefaultDiscount);

@@ -7,15 +7,22 @@ public static class ReceiptBuilder
 {
     private const int Width = 44;
 
-    public static string BuildTextReceipt(Invoice invoice)
+    /// <summary>
+    /// Builds the text receipt. Pass <paramref name="printedAt"/> (from
+    /// ITimeProvider.LocalNow) so the "Imprimé le …" line is deterministic
+    /// and testable. If omitted, falls back to <see cref="DateTime.Now"/>.
+    /// </summary>
+    public static string BuildTextReceipt(Invoice invoice, DateTimeOffset? printedAt = null)
     {
         var sb = new StringBuilder();
         var line = new string('═', Width);
         var thinLine = new string('─', Width);
 
+        var printStamp = printedAt ?? DateTimeOffset.Now;
+
         // ── EN-TÊTE ──
         sb.AppendLine(line);
-        sb.AppendLine(Center("GECOM2025 - Système de Facturation"));
+        sb.AppendLine(Center("iKWOOK SFE - Système de Facturation"));
         sb.AppendLine(Center("Électronique"));
         sb.AppendLine(line);
         sb.AppendLine();
@@ -40,7 +47,6 @@ public static class ReceiptBuilder
 
         foreach (var ln in invoice.Lines.OrderBy(l => l.LineNumber))
         {
-            // Nom sur la première ligne si trop long
             if (ln.Name.Length > 22)
             {
                 sb.AppendLine($"  {ln.Name}");
@@ -93,7 +99,7 @@ public static class ReceiptBuilder
         sb.AppendLine();
         sb.AppendLine(thinLine);
         sb.AppendLine(Center("Merci pour votre achat !"));
-        sb.AppendLine(Center($"Imprimé le {DateTime.Now:dd/MM/yyyy HH:mm}"));
+        sb.AppendLine(Center($"Imprimé le {printStamp:dd/MM/yyyy HH:mm}"));
         sb.AppendLine(thinLine);
 
         return sb.ToString();
@@ -110,10 +116,10 @@ public static class ReceiptBuilder
     {
         Domain.Enums.InvoiceType.FV => "Facture de Vente",
         Domain.Enums.InvoiceType.FT => "Facture d'acompte",
-        Domain.Enums.InvoiceType.EV => "Facture de vente a l'exportation",
-        Domain.Enums.InvoiceType.ET => "Facture d'acompte a l'exportation",
-        Domain.Enums.InvoiceType.EA => "Facture d'avoir a l'exportation",
-        Domain.Enums.InvoiceType.FA => "Facture d'avaoir",
+        Domain.Enums.InvoiceType.EV => "Facture de vente à l'exportation",
+        Domain.Enums.InvoiceType.ET => "Facture d'acompte à l'exportation",
+        Domain.Enums.InvoiceType.EA => "Facture d'avoir à l'exportation",
+        Domain.Enums.InvoiceType.FA => "Facture d'avoir",
         _ => type.ToString()
     };
 }

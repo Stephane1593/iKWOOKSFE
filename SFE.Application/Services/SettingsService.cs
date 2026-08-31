@@ -1,4 +1,5 @@
 ﻿using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -10,10 +11,12 @@ namespace SFE.Application.Services;
 public class SettingsService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITimeProvider _time;
 
-    public SettingsService(IUnitOfWork unitOfWork)
+    public SettingsService(IUnitOfWork unitOfWork, ITimeProvider time)
     {
         _unitOfWork = unitOfWork;
+        _time = time;
     }
 
     /// <summary>
@@ -72,6 +75,8 @@ public class SettingsService
             DiscountBeforeTax = appSettings?.DiscountBeforeTax ?? true,
             DefaultCurrency = appSettings?.DefaultCurrency ?? Currency.CDF,
             CurrentExchangeRate = appSettings?.CurrentExchangeRate ?? 2800m,
+            CurrentExchangeRateEUR = appSettings?.CurrentExchangeRateEUR ?? 3100m,
+            CurrentExchangeRateCNY = appSettings?.CurrentExchangeRateCNY ?? 385m,
             ExchangeRateMode = appSettings?.ExchangeRateMode ?? ExchangeRateMode.Manual,
 
             // POS actif
@@ -84,9 +89,14 @@ public class SettingsService
             EmcfNIM = activePos?.EmcfNIM ?? "",
             McfPortName = activePos?.McfPortName ?? "",
             McfBaudRate = activePos?.McfBaudRate ?? 115200,
+            DisableFallback = activePos?.DisableFallback ?? false,   // 🆕
 
             TotalPosCount = posList.Count,
-            ActivePosCount = posList.Count(p => p.IsActive)
+            ActivePosCount = posList.Count(p => p.IsActive),
+
+            SunmiEnabled = activePos?.SunmiEnabled ?? false,
+            SunmiTerminalUrl = activePos?.SunmiTerminalUrl ?? "",
+            SunmiTerminalId = activePos?.SunmiTerminalId ?? "",
         };
     }
 
@@ -118,6 +128,7 @@ public class SettingsService
             company.DeploymentMode = data.DeploymentMode;
             company.ISF = data.CompanyISF;
             company.Logo = data.CompanyLogo;
+            // (duplicate assignment removed — was assigning DefaultPriceMode twice)
 
             await _unitOfWork.Companies.UpdateAsync(company);
 
@@ -128,9 +139,12 @@ public class SettingsService
                 appSettings.DiscountBeforeTax = data.DiscountBeforeTax;
                 appSettings.DefaultCurrency = data.DefaultCurrency;
                 appSettings.CurrentExchangeRate = data.CurrentExchangeRate;
+                appSettings.CurrentExchangeRateEUR = data.CurrentExchangeRateEUR;
+                appSettings.CurrentExchangeRateCNY = data.CurrentExchangeRateCNY;
                 appSettings.ExchangeRateMode = data.ExchangeRateMode;
-                appSettings.UpdatedAt = DateTime.Now;
+                appSettings.UpdatedAt = _time.UtcNow.UtcDateTime;   // ← ITimeProvider
                 appSettings.CompanyIdNat = data.CompanyISF;
+                appSettings.DefaultPriceMode = data.DefaultPriceMode;
 
                 await _unitOfWork.AppSettings.UpdateAsync(appSettings);
             }
@@ -147,6 +161,10 @@ public class SettingsService
                     pos.EmcfNIM = data.EmcfNIM;
                     pos.McfPortName = data.McfPortName;
                     pos.McfBaudRate = data.McfBaudRate;
+                    pos.DisableFallback = data.DisableFallback;
+                    pos.SunmiEnabled = data.SunmiEnabled;
+                    pos.SunmiTerminalUrl = data.SunmiTerminalUrl;
+                    pos.SunmiTerminalId = data.SunmiTerminalId;
 
                     await _unitOfWork.PointsOfSale.UpdateAsync(pos);
                 }
@@ -189,8 +207,11 @@ public class SettingsData
     // 🆕 Paramètres de calcul (depuis AppSettings)
     public bool DiscountBeforeTax { get; set; } = true;
     public Currency DefaultCurrency { get; set; } = Currency.CDF;
-    public decimal CurrentExchangeRate { get; set; } = 2800m;
+    public decimal CurrentExchangeRate { get; set; } = 2800m;        // USD
+    public decimal CurrentExchangeRateEUR { get; set; } = 3100m;
+    public decimal CurrentExchangeRateCNY { get; set; } = 385m;
     public ExchangeRateMode ExchangeRateMode { get; set; } = ExchangeRateMode.Manual;
+    public DateTimeOffset? DgiExchangeRateDate { get; set; }
 
     // POS actif
     public int ActivePosId { get; set; }
@@ -202,8 +223,14 @@ public class SettingsData
     public string EmcfNIM { get; set; } = string.Empty;
     public string McfPortName { get; set; } = string.Empty;
     public int McfBaudRate { get; set; }
+    public bool McfPortValidated { get; set; } = false;
+    public bool DisableFallback { get; set; } = false;   // 🆕
 
     // Stats
     public int TotalPosCount { get; set; }
     public int ActivePosCount { get; set; }
+
+    public bool SunmiEnabled { get; set; }
+    public string SunmiTerminalUrl { get; set; } = string.Empty;
+    public string SunmiTerminalId { get; set; } = string.Empty;
 }

@@ -16,7 +16,7 @@ public class FiscalDevice
     // ── e-MCF (cloud) ──
     public string? ApiBaseUrl { get; set; }
     public string? ApiToken { get; set; }
-    public DateTime? TokenExpiry { get; set; }
+    public DateTimeOffset? TokenExpiry { get; set; }
 
     // ── Infos récupérées du dispositif ──
     public string? NIM { get; set; }
@@ -24,8 +24,8 @@ public class FiscalDevice
     public int TotalTransactions { get; set; }
     public int SaleInvoiceCount { get; set; }
     public int CreditNoteCount { get; set; }
-    public DateTime? LastConnectionToServer { get; set; }
-    public DateTime? LastUsedAt { get; set; }
+    public DateTimeOffset? LastConnectionToServer { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
 
     // ── Taux de taxation configurés ──
     public decimal TaxRateA { get; set; } = 0m;

@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Licensing.Domain\SFE.Licensing.Domain.csproj" />
+    <ProjectReference Include="..\SFE.Application\SFE.Application.csproj" />
+    <ProjectReference Include="..\SFE.Domain\SFE.Domain.csproj" />
+    <ProjectReference Include="..\SFE.Licensing.Local\SFE.Licensing.Local.csproj" />
+  </ItemGroup>
+</Project>

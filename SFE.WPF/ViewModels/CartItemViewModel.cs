@@ -1,12 +1,14 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using SFE.Application.Services;
 using SFE.Domain.Enums;
+using CommunityToolkit.Mvvm.Messaging;
+using SFE.WPF.Messages;
 
 namespace SFE.WPF.ViewModels;
 
 /// <summary>
 /// Représente un article dans le panier POS.
-/// Stocke les deux prix (HT + TTC) et gère la remise.
+/// V12: CalculateLineFull now applies TS on price directly (WinDev style).
 /// </summary>
 public partial class CartItemViewModel : ObservableObject
 {
@@ -16,6 +18,7 @@ public partial class CartItemViewModel : ObservableObject
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private ItemType _itemType = ItemType.BIE;
     [ObservableProperty] private TaxGroup _taxGroup = TaxGroup.B;
+    [ObservableProperty] private TaxGroupAType? _taxGroupAType;   // 🆕
     [ObservableProperty] private decimal _taxRate;
     [ObservableProperty] private string _unit = "pce";
 
@@ -31,13 +34,15 @@ public partial class CartItemViewModel : ObservableObject
     [ObservableProperty] private decimal _discountAmount;
     [ObservableProperty] private decimal _amountHTBeforeDiscount;
 
-    // ══════ TAXE SPÉCIFIQUE ══════
-    [ObservableProperty] private bool _hasSpecificTax;
+    // ══════ TAXE SPÉCIFIQUE — champs typés ══════
+    [ObservableProperty] private SpecificTaxType _specificTaxType = SpecificTaxType.None;
+    [ObservableProperty] private decimal _specificTaxValue;
     [ObservableProperty] private string _specificTaxName = "";
-    [ObservableProperty] private decimal _specificTaxRate;
-    [ObservableProperty] private string _taxSpecificValue = "";
     [ObservableProperty] private TaxApplicationMode _taxApplicationMode = TaxApplicationMode.PerArticle;
     [ObservableProperty] private decimal _taxSpecificAmount;
+
+    public bool HasSpecificTax =>
+        SpecificTaxType != SpecificTaxType.None && SpecificTaxValue > 0;
 
     // ══════ MONTANTS CALCULÉS ══════
     [ObservableProperty] private decimal _amountHT;
@@ -48,34 +53,95 @@ public partial class CartItemViewModel : ObservableObject
     [ObservableProperty] private decimal _stockQuantity;
     [ObservableProperty] private bool _trackStock;
 
-    // ══════ AFFICHAGE ══════
+    // ── ADD in the private-fields region of the class ──────────
+    // État mémorisé pour pouvoir recalculer la ligne depuis OnQuantityChanged
+    // (édition directe via TextBox du panier) sans que PosViewModel ait à
+    // repasser PriceMode/discountBeforeTax.
+    private bool _lastDiscountBeforeTax = true;
+    private bool _isInitialized;
 
-    /// <summary>Mode en cours — mis à jour par Recalculate.</summary>
+    // ══════ AFFICHAGE ══════
     private PriceMode _displayMode = PriceMode.TTC;
 
-    /// <summary>Prix unitaire affiché selon le mode actif.</summary>
-    public decimal DisplayUnitPrice => _displayMode == PriceMode.TTC ? UnitPriceTTC : UnitPriceHT;
+    public decimal DisplayUnitPrice =>
+        _displayMode == PriceMode.TTC ? UnitPriceTTC : UnitPriceHT;
 
-    public string QuantityDisplay => $"{Quantity:G} × {DisplayUnitPrice:N0}";
+    public string QuantityDisplay => $"{Quantity:0.###} × {DisplayUnitPrice:N2}";
     public string TaxGroupLabel => $"{(char)('A' + (int)TaxGroup)}";
 
-    public bool HasDiscount => DiscountType != DiscountType.None && DiscountValue > 0;
+    public bool HasDiscount =>
+        DiscountType != DiscountType.None && DiscountValue > 0;
 
     public string DiscountDisplay => DiscountType switch
     {
-        DiscountType.Percentage => $"-{DiscountValue:G}%",
-        DiscountType.FixedAmount => $"-{DiscountAmount:N0}",
+        DiscountType.Percentage => $"-{DiscountValue:0.##}%",
+        DiscountType.FixedAmount => $"-{DiscountAmount:N2}",
         _ => ""
     };
 
-    // ══════ CALCUL ══════
+    public string SpecificTaxDisplay => SpecificTaxType switch
+    {
+        SpecificTaxType.Percentage => $"TS {SpecificTaxValue:G}%",
+        SpecificTaxType.FixedPerUnit => $"TS {SpecificTaxValue:N2}/u",
+        _ => ""
+    };
+
+    // ══════ PARTIAL CHANGE HANDLERS ══════
+
+    partial void OnSpecificTaxTypeChanged(SpecificTaxType value)
+    {
+        OnPropertyChanged(nameof(HasSpecificTax));
+        OnPropertyChanged(nameof(SpecificTaxDisplay));
+    }
+
+    partial void OnSpecificTaxValueChanged(decimal value)
+    {
+        OnPropertyChanged(nameof(HasSpecificTax));
+        OnPropertyChanged(nameof(SpecificTaxDisplay));
+    }
+
+    partial void OnTaxGroupChanged(TaxGroup value)
+    {
+        OnPropertyChanged(nameof(TaxGroupLabel));
+    }
+
+    partial void OnQuantityChanged(decimal value)
+    {
+        // DGI-spec: la quantité est tolérée jusqu'à 3 décimales (ex. 3.587, 3.45).
+        // On tronque l'éventuel surplus pour éviter des arrondis invisibles
+        // qui provoqueraient des écarts de ±1 FC sur le total TTC.
+        var rounded = Math.Round(value, 3, MidpointRounding.AwayFromZero);
+        if (rounded != value)
+        {
+            Quantity = rounded;   // réentrance — le 2ᵉ appel passera par le else
+            return;
+        }
+
+        OnPropertyChanged(nameof(QuantityDisplay));
+
+        // Pendant la construction (object-initializer `new CartItemViewModel { ... }`)
+        // les prix unitaires ne sont pas encore affectés : on saute l'auto-recalcul
+        // et on laisse l'appelant déclencher le premier Recalculate explicite.
+        if (!_isInitialized) return;
+
+        // Édition directe depuis l'UI (TextBox) — on recalcule la ligne avec
+        // le dernier couple (PriceMode, discountBeforeTax) connu, puis on
+        // notifie le PosViewModel pour qu'il rafraîchisse les totaux globaux.
+        Recalculate(_displayMode, _lastDiscountBeforeTax);
+        WeakReferenceMessenger.Default.Send(new CartLineRecalculatedMessage(this));
+    }
+
+    // ══════ CALCUL — V12: WinDev-aligned ══════
 
     /// <summary>
-    /// Recalcule tous les montants de la ligne via TaxCalculator.CalculateLineFull.
+    /// Recalcule tous les montants via TaxCalculator.CalculateLineFull.
+    /// V12: TS applied on price directly, R2 standard rounding.
     /// </summary>
     public void Recalculate(PriceMode mode, bool discountBeforeTax = true)
     {
         _displayMode = mode;
+        _lastDiscountBeforeTax = discountBeforeTax;   // 🆕 mémorisé pour auto-recalc
+        _isInitialized = true;                        // 🆕 débloque OnQuantityChanged
         TaxRate = TaxCalculator.GetDefaultRate(TaxGroup);
 
         var input = new LineCalculationInput
@@ -89,9 +155,8 @@ public partial class CartItemViewModel : ObservableObject
             DiscountType = DiscountType,
             DiscountValue = DiscountValue,
             DiscountBeforeTax = discountBeforeTax,
-            HasSpecificTax = HasSpecificTax,
-            SpecificTaxRate = SpecificTaxRate,
-            TaxSpecificValue = TaxSpecificValue,
+            SpecificTaxType = SpecificTaxType,
+            SpecificTaxValue = SpecificTaxValue,
             TaxApplicationMode = TaxApplicationMode
         };
 
@@ -99,16 +164,16 @@ public partial class CartItemViewModel : ObservableObject
 
         AmountHTBeforeDiscount = result.AmountHTBeforeDiscount;
         DiscountAmount = result.DiscountAmount;
+        TaxSpecificAmount = result.TaxSpecificAmount;
         AmountHT = result.AmountHT;
         AmountTVA = result.AmountTVA;
-        TaxSpecificAmount = result.TaxSpecificAmount;
         AmountTTC = result.AmountTTC;
 
         OnPropertyChanged(nameof(DisplayUnitPrice));
         OnPropertyChanged(nameof(QuantityDisplay));
         OnPropertyChanged(nameof(HasDiscount));
         OnPropertyChanged(nameof(DiscountDisplay));
+        OnPropertyChanged(nameof(HasSpecificTax));
+        OnPropertyChanged(nameof(SpecificTaxDisplay));
     }
-
-    partial void OnQuantityChanged(decimal value) { }
 }

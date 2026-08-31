@@ -22,6 +22,10 @@ public class AppSettingsConfiguration : IEntityTypeConfiguration<AppSettings>
 
         builder.Property(x => x.CurrentExchangeRate)
             .HasColumnType("decimal(18,4)");
+        builder.Property(x => x.CurrentExchangeRateEUR)
+            .HasColumnType("decimal(18,4)");
+        builder.Property(x => x.CurrentExchangeRateCNY)
+            .HasColumnType("decimal(18,4)");
 
         // Stocker les enums en string pour lisibilité en DB
         builder.Property(x => x.ExchangeRateMode).HasConversion<string>();
@@ -34,6 +38,8 @@ public class AppSettingsConfiguration : IEntityTypeConfiguration<AppSettings>
             Id = 1,
             ExchangeRateMode = Domain.Enums.ExchangeRateMode.Manual,
             CurrentExchangeRate = 2800m,
+            CurrentExchangeRateEUR = 3100m,     // ← NEW
+            CurrentExchangeRateCNY = 385m,      // ← NEW
             ExchangeRateUpdatedAt = new DateTime(2026, 1, 1),
             DefaultCurrency = Domain.Enums.Currency.CDF,
             DefaultPriceMode = Domain.Enums.PriceMode.TTC,

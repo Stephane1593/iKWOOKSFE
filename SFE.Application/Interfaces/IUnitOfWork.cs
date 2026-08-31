@@ -17,6 +17,8 @@ public interface IUnitOfWork : IDisposable
     IInvoiceRepository Invoices { get; }
     IProductCategoryRepository ProductCategories { get; }
 
+    IAuditLogRepository AuditLogs { get; }
+
     // 🆕 Stock Multi-POS
     IPosStockRepository PosStocks { get; }
     IStockMovementRepository StockMovements { get; }

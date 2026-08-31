@@ -33,6 +33,20 @@ public interface IFiscalDeviceService
     /// e-MCF: POST /api/invoice/{uid}/CANCEL
     /// </summary>
     Task<bool> CancelPendingInvoiceAsync(string uid);
+
+    /// <summary>
+    /// Checks MCF's connection to DGI server (MCF command C2h).
+    /// For e-MCF, uses the status endpoint.
+    /// Returns last successful connection date + status.
+    /// </summary>
+    Task<FiscalServerConnectionResult> GetServerConnectionStatusAsync();
+
+    /// <summary>
+    /// Returns comprehensive device info for Dashboard/Settings display.
+    /// MCF: combines C1h + C2h + 2Bh responses
+    /// e-MCF: combines GET /api/invoice/ + GET /api/info/status + GET /api/info/taxGroups + GET /api/info/currencyRates
+    /// </summary>
+    Task<FiscalDeviceDetailedInfo> GetDetailedInfoAsync();
 }
 
 // ═══════════════════════════════════
@@ -53,7 +67,7 @@ public class FiscalInvoiceRequest
     // Devise
     public string CurrencyCode { get; set; } = "CDF";
     public decimal? CurrencyRate { get; set; }
-    public DateTime? CurrencyDate { get; set; }
+    public DateTimeOffset? CurrencyDate { get; set; }   // 🆕 DateTime → DateTimeOffset
 
     // Référence (factures d'avoir FA/EA)
     public string? Reference { get; set; }
@@ -101,6 +115,9 @@ public class FiscalItemInfo
     public decimal? TaxSpecificAmount { get; set; }
     public decimal? OriginalPrice { get; set; }
     public string? PriceModification { get; set; }
+    
+    public decimal TTC { get; set; }
+    public decimal HT { get; set; }
 }
 
 public class FiscalPaymentInfo
@@ -130,11 +147,11 @@ public class FiscalSubmitResult
     public decimal TotalTTC { get; set; }
     public decimal TotalTVA { get; set; }
     public decimal TotalTS { get; set; }   // taxe spécifique
-    public decimal TotalUSD { get; set; }   // MCUR
+    public decimal TotalUSD { get; set; }  // MCUR
 
     // Ventilation par groupe fiscal (A–P)
     public Dictionary<string, decimal> GroupAmounts { get; set; } = new();  // MVA…MVP
-    public Dictionary<string, decimal> GroupTVA { get; set; } = new();  // MTA…MTP
+    public Dictionary<string, decimal> GroupTVA { get; set; } = new();      // MTA…MTP
 }
 
 /// <summary>
@@ -176,6 +193,196 @@ public class FiscalStatusResult
 public class PendingInvoiceInfo
 {
     public string Uid { get; set; } = "";
-    public DateTime Date { get; set; }
+    public DateTimeOffset Date { get; set; }
     public string DateDisplay => Date == default ? "—" : Date.ToString("dd/MM/yyyy HH:mm");
+}
+
+/// <summary>
+/// Result of server connection check (MCF C2h / e-MCF status).
+/// Used for 7-day disconnect notification per DGI spec §1.6.1.
+/// </summary>
+public class FiscalServerConnectionResult
+{
+    public bool Success { get; set; }
+    public DateTimeOffset? LastServerConnection { get; set; }
+    public string ConnectionStatus { get; set; } = "DIS"; // DIS/CON/TRA/RES
+    public int TransactionsSent { get; set; }
+    public int TransactionsPending { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? LastError { get; set; }
+
+    /// <summary>True if last server connection was more than 7 days ago.</summary>
+    public bool IsOverSevenDays =>
+        LastServerConnection.HasValue &&
+        (DateTimeOffset.Now - LastServerConnection.Value).TotalDays > 7;
+}
+
+// ═══════════════════════════════════════════════════════════
+// NEW RESULT CLASS — unified model for Dashboard + Settings
+// ═══════════════════════════════════════════════════════════
+
+/// <summary>
+/// Comprehensive fiscal device information — unified across MCF and e-MCF.
+/// Used by DashboardViewModel (operational fields) and SettingsViewModel (configuration fields).
+/// </summary>
+public class FiscalDeviceDetailedInfo
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+
+    // ── Identity ─────────────────────────────────────────
+    /// <summary>Machine ID (MCF: NID-ACNT, e-MCF: NIM)</summary>
+    public string NIM { get; set; } = "";
+    /// <summary>Taxpayer NIF</summary>
+    public string NIF { get; set; } = "";
+    /// <summary>Device type label: "MCF", "e-MCF", "Hybrid"</summary>
+    public string DeviceTypeLabel { get; set; } = "";
+
+    // ── Connection / Server Status ───────────────────────
+    /// <summary>MCF: C2h STA (DIS/CON/TRA/RES), e-MCF: "CON" if status=true</summary>
+    public string ConnectionStatus { get; set; } = "DIS";
+    /// <summary>Display-friendly connection label</summary>
+    public string ConnectionStatusDisplay => ConnectionStatus switch
+    {
+        "CON" => "Connecté",
+        "TRA" => "Transmission en cours",
+        "RES" => "Redémarrage",
+        "DIS" => "Déconnecté",
+        _ => ConnectionStatus
+    };
+    /// <summary>MCF C2h: last successful DGI connection. e-MCF: serverDateTime</summary>
+    public DateTimeOffset? LastServerConnection { get; set; }   // 🆕
+    /// <summary>True if last connection > 1 day ago (DGI spec alert)</summary>
+    public bool IsConnectionStale =>
+        LastServerConnection.HasValue &&
+        (DateTimeOffset.Now - LastServerConnection.Value).TotalDays > 1;   // 🆕
+    /// <summary>MCF C2h: last error description</summary>
+    public string? LastError { get; set; }
+
+    // ── Counters (DASHBOARD) ─────────────────────────────
+    /// <summary>Total transaction counter (MCF: TC)</summary>
+    public int TotalTransactions { get; set; }
+    /// <summary>Sales invoice counter (MCF: FVC)</summary>
+    public int SalesInvoiceCount { get; set; }
+    /// <summary>Credit note counter (MCF: FRC)</summary>
+    public int CreditNoteCount { get; set; }
+    /// <summary>MCF C2h: transactions sent to DGI server</summary>
+    public int TransactionsSent { get; set; }
+    /// <summary>MCF C2h: transactions pending in device memory</summary>
+    public int TransactionsInDevice { get; set; }
+    /// <summary>e-MCF: pending (non-finalized) requests count</summary>
+    public int PendingRequestsCount { get; set; }
+
+    // ── Last Invoice (DASHBOARD) ─────────────────────────
+    /// <summary>MCF C1h: DFDT — date/time of last invoice</summary>
+    public DateTimeOffset? LastInvoiceDate { get; set; }   // 🆕
+    /// <summary>MCF C1h: DFT — type of last invoice (FV, FA, etc.)</summary>
+    public string? LastInvoiceType { get; set; }
+    /// <summary>MCF C1h: DFS — Code DEF/DGI of last invoice</summary>
+    public string? LastInvoiceCodeDEF { get; set; }
+    /// <summary>MCF C1h: DFN — SFE invoice number of last invoice</summary>
+    public string? LastInvoiceNumber { get; set; }
+    /// <summary>MCF C1h: DMV — TTC amount of last invoice</summary>
+    public decimal? LastInvoiceAmount { get; set; }
+
+    // ── Tax Rates (SETTINGS) ─────────────────────────────
+    /// <summary>Tax rates for groups A-P (16 values)</summary>
+    public decimal[] TaxRates { get; set; } = new decimal[16];
+    /// <summary>Helper: get rate by letter A-P</summary>
+    public decimal GetTaxRate(char group) =>
+        group >= 'A' && group <= 'P' ? TaxRates[group - 'A'] : 0;
+
+    // ── Taxpayer Info (SETTINGS) ─────────────────────────
+    /// <summary>MCF 2Bh I0 / e-MCF EmcfInfoDto.ShopName</summary>
+    public string TaxpayerName { get; set; } = "";
+    /// <summary>MCF 2Bh I1 / e-MCF EmcfInfoDto.Address1</summary>
+    public string TaxpayerAddress { get; set; } = "";
+    /// <summary>MCF 2Bh I2 / e-MCF EmcfInfoDto.Address3 (city)</summary>
+    public string TaxpayerCity { get; set; } = "";
+    /// <summary>MCF 2Bh I3 / e-MCF EmcfInfoDto.Contact1</summary>
+    public string TaxpayerPhone { get; set; } = "";
+    /// <summary>MCF 2Bh I4 / e-MCF EmcfInfoDto.Contact2</summary>
+    public string TaxpayerEmail { get; set; } = "";
+
+    // ── e-MCF Specific (SETTINGS) ────────────────────────
+    /// <summary>API version (e-MCF only)</summary>
+    public string? ApiVersion { get; set; }
+    /// <summary>Token validity date (e-MCF only)</summary>
+    public DateTimeOffset? TokenValidUntil { get; set; }   // 🆕
+    /// <summary>Server date/time (e-MCF only)</summary>
+    public DateTimeOffset? ServerDateTime { get; set; }    // 🆕
+    /// <summary>e-MCF status: "Actif", "Enregistré", "Désactivé"</summary>
+    public string? EmcfStatus { get; set; }
+    /// <summary>Full list of e-MCF devices (e-MCF only)</summary>
+    public List<EmcfDeviceInfo> EmcfDevices { get; set; } = new();
+
+    // ── Currency (SETTINGS) ──────────────────────────────
+    /// <summary>Current exchange rates from DGI</summary>
+    public List<CurrencyRateInfo> CurrencyRates { get; set; } = new();
+
+    // ── Current DateTime ─────────────────────────────────
+    /// <summary>MCF C1h DT / e-MCF serverDateTime</summary>
+    public DateTimeOffset? DeviceDateTime { get; set; }    // 🆕
+
+
+
+    // ── Routing diagnostics (set by resolver, NOT by individual clients) ──
+    public RespondingDevice RespondingDevice { get; set; } = RespondingDevice.None;
+    public FiscalDeviceKind RespondingDeviceKind { get; set; } = FiscalDeviceKind.Unknown;
+
+    /// <summary>True when the resolver had to use the fallback device.</summary>
+    public bool UsedFallback => RespondingDevice == RespondingDevice.Fallback;
+
+    /// <summary>Human-readable badge: "Primaire (e-MCF)", "Secours (MCF)"…</summary>
+    public string RespondingDeviceBadge =>
+        RespondingDevice switch
+        {
+            RespondingDevice.Primary => $"Primaire ({KindLabel(RespondingDeviceKind)})",
+            RespondingDevice.Fallback => $"Secours ({KindLabel(RespondingDeviceKind)})",
+            _ => "—"
+        };
+
+    private static string KindLabel(FiscalDeviceKind k) => k switch
+    {
+        FiscalDeviceKind.MCF => "MCF",
+        FiscalDeviceKind.EMcf => "e-MCF",
+        _ => "?"
+    };
+}
+
+/// <summary>Which device produced the response.</summary>
+public enum RespondingDevice
+{
+    None,
+    Primary,
+    Fallback
+}
+
+/// <summary>Concrete device kind that produced the response.</summary>
+public enum FiscalDeviceKind
+{
+    Unknown,
+    MCF,
+    EMcf
+}
+
+/// <summary>e-MCF device info (from info/status emcfList)</summary>
+public class EmcfDeviceInfo
+{
+    public string NIM { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string ShopName { get; set; } = "";
+    public string Address { get; set; } = "";
+    public string City { get; set; } = "";
+    public string Phone { get; set; } = "";
+    public string Email { get; set; } = "";
+}
+
+/// <summary>Currency rate info from DGI</summary>
+public class CurrencyRateInfo
+{
+    public string Code { get; set; } = "";
+    public string Description { get; set; } = "";
+    public DateTimeOffset Date { get; set; }   // 🆕
+    public decimal Rate { get; set; }
 }

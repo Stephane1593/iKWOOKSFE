@@ -9,18 +9,31 @@ using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Messages;
+using SFE.WPF.Helpers;
+using SFE.Domain.Abstractions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using SFE.WPF.Services;
 
 namespace SFE.WPF.ViewModels;
 
 public partial class InvoicingViewModel : BaseViewModel,
     IRecipient<PriceModeChangedMessage>,
     IRecipient<DiscountBeforeTaxChangedMessage>,
+    IRecipient<ExchangeRateChangedMessage>,
     IActivatable
 {
     private readonly InvoiceService _invoiceService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ProductService _productService;
+    private readonly ClientService _clientService;
+    private readonly IFiscalDeviceService _fiscalDevice;
+    private readonly IAuthService _auth;
+    private readonly ITimeProvider _timeProvider;
+    private readonly ManagerGate _gate;
     private bool _isFirstActivation = true;
+
+    // ══════ OPERATORS ══════
+    public ObservableCollection<string> AvailableOperators { get; } = new();
 
     // ══════ PARAMÈTRE GLOBAL ══════
     private bool _discountBeforeTax = true;
@@ -29,9 +42,11 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private InvoiceType _selectedInvoiceType = InvoiceType.FV;
     [ObservableProperty] private PriceMode _selectedPriceMode = PriceMode.TTC;
     [ObservableProperty] private string _invoiceNumber = "";
-    [ObservableProperty] private string _operatorName = "Admin";
+    [ObservableProperty] private string _operatorName = "Opérateur";
     [ObservableProperty] private string _isf = "";
-    [ObservableProperty] private string _currentDateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+    // ⚠️ Ne PAS initialiser depuis DateTime.Now dans un initialiseur de champ.
+    //    La valeur est fixée par le constructeur via _timeProvider.
+    [ObservableProperty] private string _currentDateTime = "";
 
     // ══════ CLIENT ══════
     [ObservableProperty] private ClientType _selectedClientType = ClientType.PP;
@@ -43,18 +58,13 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private string _clientRCCM = "";
     [ObservableProperty] private bool _showClientDetails = false;
 
-    // ══════ CLIENT — Recherche & sélection ══════
     public ObservableCollection<Client> ClientSearchResults { get; } = new();
     [ObservableProperty] private bool _isClientSearchOpen;
     [ObservableProperty] private string _clientSearchText = "";
-    [ObservableProperty] private int? _selectedClientId; // ID du client sélectionné (optionnel)
+    [ObservableProperty] private int? _selectedClientId;
 
-    // ══════ CLIENT — Propriétés dérivées (validation DGI) ══════
-    /// <summary>NIF obligatoire pour PM, PC, PL</summary>
     public bool IsClientNifRequired => SelectedClientType is ClientType.PM or ClientType.PC or ClientType.PL;
-    /// <summary>Nom obligatoire pour PM, PC, PL, AO</summary>
     public bool IsClientNameRequired => SelectedClientType != ClientType.PP;
-    /// <summary>Mention type sur facture</summary>
     public string ClientTypeMention => ClientService.GetTypeMention(SelectedClientType);
 
     // ══════ AVOIR ══════
@@ -67,20 +77,16 @@ public partial class InvoicingViewModel : BaseViewModel,
     private Invoice? _loadedOriginalInvoice;
     private Dictionary<string, decimal> _cumulativeRefunded = new();
     public ObservableCollection<CreditNoteLineSelection> CreditNoteSelections { get; } = new();
-    /// <summary>True when nature is RRR → free article entry, reference = "RRR".</summary>
     public bool IsRRR => IsCreditNote && SelectedCreditNoteNature == CreditNoteNature.RRR;
-
-    /// <summary>True when credit note requires lookup of original invoice.</summary>
     public bool RequiresOriginalLookup => IsCreditNote && !IsRRR;
 
-    // ══════ 🆕 ACOMPTE — Groupe d'avances ══════
+    // ══════ ACOMPTE ══════
     [ObservableProperty] private bool _isAdvanceInvoice;
     [ObservableProperty] private string _advanceGroupId = "";
     [ObservableProperty] private decimal _advancesTotalPaid;
     [ObservableProperty] private bool _showAdvanceSection;
-
     public ObservableCollection<AdvanceInvoiceSummary> PreviousAdvances { get; } = new();
-
+    [ObservableProperty] private string _advanceAmountInput = "";
 
     // ══════ SAISIE ARTICLE ══════
     [ObservableProperty] private string _articleSearch = "";
@@ -88,22 +94,21 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private string _articleName = "";
     [ObservableProperty] private ItemType _articleItemType = ItemType.BIE;
     [ObservableProperty] private TaxGroup _articleTaxGroup = TaxGroup.B;
+    [ObservableProperty] private TaxGroupAType? _articleTaxGroupAType;   // 🆕
+
     [ObservableProperty] private string _articleUnitPrice = "";
     [ObservableProperty] private string _articleQuantity = "1";
     [ObservableProperty] private string _articleUnit = "pce";
 
-    // Remise par ligne
     [ObservableProperty] private DiscountType _articleDiscountType = DiscountType.None;
     [ObservableProperty] private string _articleDiscountValue = "";
 
-    // Taxe spécifique — TYPÉE
     [ObservableProperty] private SpecificTaxType _articleSpecificTaxType = SpecificTaxType.None;
     [ObservableProperty] private string _articleSpecificTaxValue = "";
     [ObservableProperty] private string _articleSpecificTaxName = "";
     [ObservableProperty] private TaxApplicationMode _articleTaxApplicationMode = TaxApplicationMode.PerArticle;
     [ObservableProperty] private bool _showArticleSpecificTaxFields;
 
-    // Devise
     [ObservableProperty] private Currency _selectedCurrency = Currency.CDF;
     [ObservableProperty] private decimal _exchangeRate = 2800m;
     [ObservableProperty] private decimal _totalInAlternateCurrency;
@@ -140,10 +145,7 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private string _grandTotalLabel = "TOTAL TTC";
 
     public bool HasAnyDiscount => TotalDiscount > 0;
-
-    // Propriété dérivée pour la UI : article a-t-il une TS ?
-    public bool ArticleHasSpecificTax =>
-        ArticleSpecificTaxType != SpecificTaxType.None;
+    public bool ArticleHasSpecificTax => ArticleSpecificTaxType != SpecificTaxType.None;
 
     // ══════ SÉCURITÉ ══════
     [ObservableProperty] private string _codeDEFDGI = "";
@@ -160,7 +162,6 @@ public partial class InvoicingViewModel : BaseViewModel,
 
     // ══════ COMMENTAIRES ══════
     [ObservableProperty] private string _commentA = "";
-    // ══════ COMMENTAIRES — Lignes B à H ══════
     [ObservableProperty] private string _commentB = "";
     [ObservableProperty] private string _commentC = "";
     [ObservableProperty] private string _commentD = "";
@@ -178,20 +179,20 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private bool _showPendingError;
     [ObservableProperty] private bool _showPendingSection;
 
-    public ObservableCollection<PendingInvoiceItem> PendingInvoices { get; } = new();
+    // ══════ PROFORMA ══════
+    [ObservableProperty] private bool _isProforma;
+    // ⚠️ Fixé par le constructeur via _timeProvider.
+    [ObservableProperty] private DateTime? _proformaValidUntil;
+    [ObservableProperty] private bool _showProformaSection;
 
+    public bool IsFiscalInvoice => !IsProforma;
+    public ObservableCollection<PendingInvoiceItem> PendingInvoices { get; } = new();
     public bool HasPendingInvoices => PendingInvoiceCount > 0;
 
-    /// <summary>
-    /// Commentaire Ligne A obligatoire si :
-    ///   1. Client type AO (réf. certificat exonération)
-    ///   2. Article avec groupe D (réf. document dérogation)
-    /// </summary>
     public bool IsCommentARequired =>
         SelectedClientType == ClientType.AO ||
         InvoiceLines.Any(l => l.TaxGroup == TaxGroup.D);
 
-    /// <summary>Label contextuel de la Ligne A</summary>
     public string CommentALabel => SelectedClientType == ClientType.AO
         ? "Réf. certificat d'exonération *"
         : InvoiceLines.Any(l => l.TaxGroup == TaxGroup.D)
@@ -218,8 +219,27 @@ public partial class InvoicingViewModel : BaseViewModel,
 
     public bool IsHtMode => SelectedPriceMode == PriceMode.HT;
     public string PriceModeDisplay => SelectedPriceMode == PriceMode.TTC ? "Prix TTC" : "Prix HT";
-    // ══════ Ajouter le champ ══════
-    private readonly ClientService _clientService;
+
+    // ══════ RECHERCHE PRODUIT ══════
+    public ObservableCollection<Product> ProductSearchResults { get; } = new();
+    [ObservableProperty] private bool _isSearchPopupOpen;
+
+    // ══════ PROPRIÉTÉS CALCULÉES — T.S. détaillées ══════
+    public bool HasAnySpecificTax => TotalSpecificTax > 0;
+    public bool HasFixedSpecificTax => InvoiceLines
+        .Any(l => l.SpecificTaxType == SpecificTaxType.FixedPerUnit && l.TaxSpecificAmount > 0);
+    public decimal TotalFixedSpecificTax => InvoiceLines
+        .Where(l => l.SpecificTaxType == SpecificTaxType.FixedPerUnit)
+        .Sum(l => l.TaxSpecificAmount);
+    public bool HasPercentSpecificTax => InvoiceLines
+        .Any(l => l.SpecificTaxType == SpecificTaxType.Percentage && l.TaxSpecificAmount > 0);
+    public decimal TotalPercentSpecificTax => InvoiceLines
+        .Where(l => l.SpecificTaxType == SpecificTaxType.Percentage)
+        .Sum(l => l.TaxSpecificAmount);
+
+    // ══════════════════════════════════════════════════════════
+    //  PARTIAL CHANGE HANDLERS
+    // ══════════════════════════════════════════════════════════
 
     partial void OnSelectedPriceModeChanged(PriceMode value)
     {
@@ -234,28 +254,6 @@ public partial class InvoicingViewModel : BaseViewModel,
         ShowArticleSpecificTaxFields = value != SpecificTaxType.None;
         OnPropertyChanged(nameof(ArticleHasSpecificTax));
     }
-
-    // ══════ RECHERCHE PRODUIT ══════
-    public ObservableCollection<Product> ProductSearchResults { get; } = new();
-    [ObservableProperty] private bool _isSearchPopupOpen;
-
-    // ══════ PROPRIÉTÉS CALCULÉES — T.S. détaillées ══════
-
-    public bool HasAnySpecificTax => TotalSpecificTax > 0;
-
-    public bool HasFixedSpecificTax => InvoiceLines
-        .Any(l => l.SpecificTaxType == SpecificTaxType.FixedPerUnit && l.TaxSpecificAmount > 0);
-
-    public decimal TotalFixedSpecificTax => InvoiceLines
-        .Where(l => l.SpecificTaxType == SpecificTaxType.FixedPerUnit)
-        .Sum(l => l.TaxSpecificAmount);
-
-    public bool HasPercentSpecificTax => InvoiceLines
-        .Any(l => l.SpecificTaxType == SpecificTaxType.Percentage && l.TaxSpecificAmount > 0);
-
-    public decimal TotalPercentSpecificTax => InvoiceLines
-        .Where(l => l.SpecificTaxType == SpecificTaxType.Percentage)
-        .Sum(l => l.TaxSpecificAmount);
 
     partial void OnArticleNameChanged(string value) => _ = SearchProductsAsync(value);
 
@@ -294,6 +292,10 @@ public partial class InvoicingViewModel : BaseViewModel,
         if (value.ManagesStock) parts.Add("📦 Stock");
 
         SelectedPosInfo = string.Join(" · ", parts);
+
+        // 🆕 Régénérer le numéro avec le préfixe du nouveau POS
+        if (!IsNormalized && InvoiceLines.Count == 0)
+            _ = GenerateNewInvoiceNumber();
     }
 
     [RelayCommand]
@@ -305,18 +307,19 @@ public partial class InvoicingViewModel : BaseViewModel,
         ArticleName = product.Name;
         ArticleItemType = product.ItemType;
         ArticleTaxGroup = product.TaxGroup;
+        ArticleTaxGroupAType = product.TaxGroupAType;   // 🆕
 
         if (SelectedPriceMode == PriceMode.TTC)
         {
             ArticleUnitPrice = SelectedCurrency == Currency.CDF
                 ? product.UnitPriceTtcCdf.ToString("F2")
-                : product.UnitPriceTtcUsd.ToString("F4");
+                : product.UnitPriceTtcUsd.ToString("F2");
         }
         else
         {
             ArticleUnitPrice = SelectedCurrency == Currency.CDF
                 ? product.UnitPriceHtCdf.ToString("F2")
-                : product.UnitPriceHtUsd.ToString("F4");
+                : product.UnitPriceTtcUsd.ToString("F2");
         }
 
         ArticleUnit = product.Unit;
@@ -337,99 +340,15 @@ public partial class InvoicingViewModel : BaseViewModel,
         ProductSearchResults.Clear();
         IsSearchPopupOpen = false;
     }
-    private readonly IFiscalDeviceService _fiscalDevice;
-    // ══════════════════════════════════════════════════════════
-    //  CONSTRUCTEUR
-    // ══════════════════════════════════════════════════════════
-
-    public InvoicingViewModel(InvoiceService invoiceService, IUnitOfWork unitOfWork, ProductService productService, ClientService clientService, IFiscalDeviceService fiscalDevice)
-    {
-        _invoiceService = invoiceService;
-        _unitOfWork = unitOfWork;
-        _productService = productService;
-        _clientService = clientService;
-        _fiscalDevice = fiscalDevice;
-        PageTitle = "Facturation";
-
-        WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
-        WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
-
-        _ = InitializeAsync();
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  MESSAGES
-    // ══════════════════════════════════════════════════════════
-
-    public void Receive(PriceModeChangedMessage message) => SelectedPriceMode = message.Value;
-
-    public void Receive(DiscountBeforeTaxChangedMessage message)
-    {
-        _discountBeforeTax = message.Value;
-        if (!IsNormalized) RecalculateAllLines();
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  INITIALISATION
-    // ══════════════════════════════════════════════════════════
-
-    private async Task InitializeAsync()
-    {
-        try
-        {
-            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
-            if (company != null)
-            {
-                var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
-                Isf = company.ISF;
-                SelectedPriceMode = company.DefaultPriceMode;
-
-                // ── Load all active Points of Sale ──
-                AvailablePointsOfSale.Clear();
-                if (companyWithPos?.PointsOfSale != null)
-                {
-                    var activePosList = companyWithPos.PointsOfSale
-                        .Where(p => p.IsActive)
-                        .OrderBy(p => p.Code)
-                        .ToList();
-
-                    foreach (var pos in activePosList)
-                        AvailablePointsOfSale.Add(pos);
-
-                    HasMultiplePos = activePosList.Count > 1;
-
-                    // Auto-select first active POS
-                    SelectedPointOfSale = activePosList.FirstOrDefault();
-                }
-            }
-
-            try
-            {
-                var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
-                if (appSettings != null)
-                {
-                    _discountBeforeTax = appSettings.DiscountBeforeTax;
-                    SelectedCurrency = appSettings.DefaultCurrency;
-                    ExchangeRate = appSettings.CurrentExchangeRate;
-                }
-            }
-            catch { _discountBeforeTax = true; }
-
-            await GenerateNewInvoiceNumber();
-        }
-        catch { }
-    }
-
-    private async Task GenerateNewInvoiceNumber() =>
-        InvoiceNumber = await _invoiceService.GenerateInvoiceNumberAsync(SelectedInvoiceType);
 
     partial void OnSelectedInvoiceTypeChanged(InvoiceType value)
     {
         IsCreditNote = value == InvoiceType.FA || value == InvoiceType.EA;
         IsAdvanceInvoice = value == InvoiceType.FT || value == InvoiceType.ET;
+        IsProforma = value == InvoiceType.PRO;
         ShowAdvanceSection = IsAdvanceInvoice;
+        ShowProformaSection = IsProforma;
 
-        // Reset credit note state
         if (!IsCreditNote)
         {
             IsOriginalLoaded = false;
@@ -440,6 +359,7 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         OnPropertyChanged(nameof(IsRRR));
         OnPropertyChanged(nameof(RequiresOriginalLookup));
+        OnPropertyChanged(nameof(IsFiscalInvoice));
 
         _ = GenerateNewInvoiceNumber();
     }
@@ -472,6 +392,149 @@ public partial class InvoicingViewModel : BaseViewModel,
         OnPropertyChanged(nameof(ClientTypeMention));
         OnPropertyChanged(nameof(IsCommentARequired));
         OnPropertyChanged(nameof(CommentALabel));
+    }
+
+    partial void OnSelectedCurrencyChanged(Currency value) => UpdateAlternateCurrency();
+    partial void OnExchangeRateChanged(decimal value) => UpdateAlternateCurrency();
+    partial void OnClientSearchTextChanged(string value) => _ = SearchClientsAsync(value);
+
+    // ══════════════════════════════════════════════════════════
+    //  CONSTRUCTEUR
+    // ══════════════════════════════════════════════════════════
+
+    public InvoicingViewModel(
+        InvoiceService invoiceService, IUnitOfWork unitOfWork,
+        ProductService productService, ClientService clientService,
+        IFiscalDeviceService fiscalDevice,
+        IAuthService auth,
+        ManagerGate gate,
+        ITimeProvider timeProvider)
+    {
+        _invoiceService = invoiceService;
+        _unitOfWork = unitOfWork;
+        _productService = productService;
+        _clientService = clientService;
+        _fiscalDevice = fiscalDevice;
+        _auth = auth;
+        _timeProvider = timeProvider;
+        _gate = gate; 
+        PageTitle = "Facturation";
+
+        // 🆕 Initialisation temporelle via ITimeProvider (plus de DateTime.Now direct)
+        var nowLocal = _timeProvider.LocalNow;
+        CurrentDateTime = nowLocal.ToString("dd/MM/yyyy HH:mm");
+        ProformaValidUntil = nowLocal.Date.AddDays(30);
+
+        // 🆕 Set operator name from logged-in user
+        OperatorName = _auth.CurrentUser?.FullName ?? "Opérateur";
+
+        WeakReferenceMessenger.Default.Register<PriceModeChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
+        WeakReferenceMessenger.Default.Register<ExchangeRateChangedMessage>(this);
+
+        _ = InitializeAsync();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  MESSAGES
+    // ══════════════════════════════════════════════════════════
+
+    public void Receive(PriceModeChangedMessage message) => SelectedPriceMode = message.Value;
+
+    public void Receive(DiscountBeforeTaxChangedMessage message)
+    {
+        _discountBeforeTax = message.Value;
+        if (!IsNormalized) RecalculateAllLines();
+    }
+
+    public void Receive(ExchangeRateChangedMessage message)
+    {
+        ExchangeRate = message.Value.UsdRate;
+        UpdateAlternateCurrency();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  INITIALISATION
+    // ══════════════════════════════════════════════════════════
+
+    private async Task InitializeAsync()
+    {
+        try
+        {
+            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+            if (company != null)
+            {
+                var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
+                Isf = company.ISF;
+                SelectedPriceMode = company.DefaultPriceMode;
+
+                AvailablePointsOfSale.Clear();
+                if (companyWithPos?.PointsOfSale != null)
+                {
+                    var activePosList = companyWithPos.PointsOfSale
+                        .Where(p => p.IsActive)
+                        .OrderBy(p => p.Code)
+                        .ToList();
+
+                    foreach (var pos in activePosList)
+                        AvailablePointsOfSale.Add(pos);
+
+                    HasMultiplePos = activePosList.Count > 1;
+
+                    SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
+                        activePosList, _auth.CurrentUser?.PointOfSaleId);
+                }
+            }
+
+            try
+            {
+                var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
+                if (appSettings != null)
+                {
+                    _discountBeforeTax = appSettings.DiscountBeforeTax;
+                    SelectedPriceMode = appSettings.DefaultPriceMode;
+                    SelectedCurrency = appSettings.DefaultCurrency;
+                    ExchangeRate = appSettings.CurrentExchangeRate;
+                }
+            }
+            catch { _discountBeforeTax = true; }
+
+            await GenerateNewInvoiceNumber();
+            await LoadOperatorsAsync();
+        }
+        catch { }
+    }
+
+    private async Task LoadOperatorsAsync()
+    {
+        try
+        {
+            var operators = await _unitOfWork.Invoices.GetDistinctOperatorNamesAsync();
+
+            AvailableOperators.Clear();
+            foreach (var name in operators.OrderBy(n => n))
+                AvailableOperators.Add(name);
+
+            if (!string.IsNullOrEmpty(OperatorName) && !AvailableOperators.Contains(OperatorName))
+                AvailableOperators.Insert(0, OperatorName);
+
+            if (string.IsNullOrEmpty(OperatorName) && AvailableOperators.Count > 0)
+                OperatorName = AvailableOperators[0];
+        }
+        catch { }
+    }
+
+    private async Task GenerateNewInvoiceNumber()
+    {
+        if (SelectedPointOfSale == null)
+        {
+            InvoiceNumber = "";
+            return;
+        }
+
+        InvoiceNumber = SelectedInvoiceType == InvoiceType.PRO
+            ? await _invoiceService.GenerateProformaNumberAsync(SelectedPointOfSale.Id)
+            : await _invoiceService.GenerateInvoiceNumberAsync(SelectedInvoiceType, SelectedPointOfSale.Id);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -507,12 +570,20 @@ public partial class InvoicingViewModel : BaseViewModel,
             return;
         }
 
-        unitPrice = Math.Round(unitPrice, 2);
-        quantity = Math.Round(quantity, 3);
+        if (!TaxCalculator.IsItemTypeValidForGroup(ArticleItemType, ArticleTaxGroup))
+        {
+            StatusMessage = ArticleTaxGroup == TaxGroup.N
+                ? "Le groupe N (Taxes et redevances) exige le type d'article TAX."
+                : "Le type d'article TAX est réservé au groupe N (Taxes et redevances).";
+            ShowError = true;
+            return;
+        }
+
+        unitPrice = Math.Round(unitPrice, 2, MidpointRounding.AwayFromZero);
+        quantity = Math.Round(quantity, 3, MidpointRounding.AwayFromZero);
 
         var taxRate = TaxCalculator.GetDefaultRate(ArticleTaxGroup);
 
-        // ── Parser la valeur numérique de la TS ──
         decimal specificTaxVal = 0m;
         var specificTaxType = ArticleSpecificTaxType;
         if (specificTaxType != SpecificTaxType.None)
@@ -527,8 +598,6 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         bool hasSpecificTax = specificTaxType != SpecificTaxType.None && specificTaxVal > 0;
 
-        // ── EnsureDualPrices ──
-        // Pour OnTotal, on passe None pour que le prix unitaire ne contienne pas la TS
         var tsTypeForPricing = hasSpecificTax && ArticleTaxApplicationMode != TaxApplicationMode.OnTotal
             ? specificTaxType
             : SpecificTaxType.None;
@@ -540,7 +609,6 @@ public partial class InvoicingViewModel : BaseViewModel,
             unitPrice, SelectedPriceMode, taxRate,
             tsTypeForPricing, tsValForPricing);
 
-        // ── Parser la remise ──
         var discountType = ArticleDiscountType;
         decimal discountValue = 0;
         if (discountType != DiscountType.None
@@ -553,7 +621,6 @@ public partial class InvoicingViewModel : BaseViewModel,
             discountType = DiscountType.None;
         }
 
-        // ── Calcul de la ligne ──
         var input = new LineCalculationInput
         {
             UnitPriceHT = ht,
@@ -572,6 +639,13 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         var calc = TaxCalculator.CalculateLineFull(input);
 
+        if (calc.AmountTTC <= 0m)
+        {
+            StatusMessage = "Le montant TTC de l'article doit être strictement positif (spec DGI art. 20-21).";
+            ShowError = true;
+            return;
+        }
+
         var lineVm = new InvoiceLineViewModel
         {
             LineNumber = InvoiceLines.Count + 1,
@@ -579,6 +653,7 @@ public partial class InvoicingViewModel : BaseViewModel,
             Name = ArticleName,
             ItemType = ArticleItemType,
             TaxGroup = ArticleTaxGroup,
+            TaxGroupAType = ArticleTaxGroup == TaxGroup.A ? ArticleTaxGroupAType : null,  // 🆕
             TaxRate = taxRate,
             UnitPriceHT = ht,
             UnitPriceTTC = ttc,
@@ -673,33 +748,41 @@ public partial class InvoicingViewModel : BaseViewModel,
         RecalculateTotals();
     }
 
-    /// <summary>
-    /// Recalcule tous les totaux de la facture.
-    ///
-    /// ★ FIX : calcule et distribue les T.S. « OnTotal » au niveau facture,
-    ///   puis les écrit dans chaque ligne pour que les propriétés dérivées
-    ///   (HasAnySpecificTax, HasFixedSpecificTax, HasPercentSpecificTax, etc.)
-    ///   reflètent correctement l'état.
-    /// </summary>
     private void RecalculateTotals()
     {
-        // ────────────────────────────────────────────────────
-        //  ÉTAPE 1 — Remettre à zéro la T.S. des lignes OnTotal
-        //            (évite l'accumulation lors d'appels successifs)
-        // ────────────────────────────────────────────────────
+        bool isTTC = SelectedPriceMode == PriceMode.TTC;
+
+        // 1. Remettre les lignes OnTotal à leur état de base
         foreach (var line in InvoiceLines)
         {
             if (line.TaxApplicationMode == TaxApplicationMode.OnTotal)
             {
-                // Retirer la T.S. précédemment distribuée du TTC de la ligne
-                line.AmountTTC -= line.TaxSpecificAmount;
+                var input = new LineCalculationInput
+                {
+                    UnitPriceHT = line.UnitPriceHT,
+                    UnitPriceTTC = line.UnitPriceTTC,
+                    Quantity = line.Quantity,
+                    TaxGroup = line.TaxGroup,
+                    TaxRate = line.TaxRate,
+                    PriceMode = SelectedPriceMode,
+                    DiscountType = line.DiscountType,
+                    DiscountValue = line.DiscountValue,
+                    DiscountBeforeTax = _discountBeforeTax,
+                    SpecificTaxType = line.SpecificTaxType,
+                    SpecificTaxValue = line.SpecificTaxValue,
+                    TaxApplicationMode = TaxApplicationMode.OnTotal
+                };
+                var calc = TaxCalculator.CalculateLineFull(input);
+                line.AmountHTBeforeDiscount = calc.AmountHTBeforeDiscount;
+                line.DiscountAmount = calc.DiscountAmount;
+                line.AmountHT = calc.AmountHT;
+                line.AmountTVA = calc.AmountTVA;
+                line.AmountTTC = calc.AmountTTC;
                 line.TaxSpecificAmount = 0m;
             }
         }
 
-        // ────────────────────────────────────────────────────
-        //  ÉTAPE 2 — Calculer et distribuer les T.S. OnTotal
-        // ────────────────────────────────────────────────────
+        // 2. Distribuer la TS OnTotal
         var onTotalGroups = InvoiceLines
             .Where(l => l.TaxApplicationMode == TaxApplicationMode.OnTotal
                       && l.SpecificTaxType != SpecificTaxType.None
@@ -708,43 +791,152 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         foreach (var grp in onTotalGroups)
         {
-            decimal groupHT = grp.Sum(l => l.AmountHT);
-            decimal groupQty = grp.Sum(l => l.Quantity);
-
-            decimal tsForGroup = TaxCalculator.ComputeOnTotalSpecificTax(
-                grp.Key.SpecificTaxType,
-                grp.Key.SpecificTaxValue,
-                groupHT,
-                groupQty);
-
-            // ── Distribuer proportionnellement à chaque ligne du groupe ──
             var lines = grp.ToList();
-            decimal distributed = 0m;
 
-            for (int i = 0; i < lines.Count; i++)
+            if (grp.Key.SpecificTaxType == SpecificTaxType.Percentage)
             {
-                decimal share;
-                if (i < lines.Count - 1)
-                {
-                    share = groupHT > 0
-                        ? Math.Round(tsForGroup * lines[i].AmountHT / groupHT, 2)
-                        : Math.Round(tsForGroup / lines.Count, 2);
-                    distributed += share;
-                }
-                else
-                {
-                    // Dernière ligne récupère le reste (évite l'écart d'arrondi)
-                    share = tsForGroup - distributed;
-                }
+                decimal tsRate = grp.Key.SpecificTaxValue / 100m;
 
-                lines[i].TaxSpecificAmount = share;
-                lines[i].AmountTTC += share;
+                foreach (var line in lines)
+                {
+                    decimal vatRate = line.TaxRate / 100m;
+
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = line.AmountTTC;
+                        decimal goodsHT = line.AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
+
+                        decimal ts = TaxCalculator.R2(goodsTTC * tsRate);
+                        decimal tvaTS = TaxCalculator.R2(ts * vatRate);
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = goodsHT + ts;
+                        line.AmountTVA = tvaGoods + tvaTS;
+                        line.AmountTTC = line.AmountHT + line.AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = line.AmountHT;
+                        decimal ts = TaxCalculator.R2(goodsHT * tsRate);
+                        decimal ht = goodsHT + ts;
+                        decimal tva = TaxCalculator.R2(ht * vatRate);
+                        decimal ttc = ht + tva;
+
+                        line.TaxSpecificAmount = ts;
+                        line.AmountHT = ht;
+                        line.AmountTVA = tva;
+                        line.AmountTTC = ttc;
+                    }
+
+                    if (line.AmountHT + line.AmountTVA != line.AmountTTC)
+                        line.AmountTVA = line.AmountTTC - line.AmountHT;
+                }
+            }
+            else
+            {
+                decimal groupQty = lines.Sum(l => l.Quantity);
+                decimal tsForGroup = TaxCalculator.ComputeOnTotalSpecificTax(
+                    grp.Key.SpecificTaxType, grp.Key.SpecificTaxValue, 0m, groupQty);
+
+                decimal distributionBase = isTTC
+                    ? lines.Sum(l => l.AmountTTC)
+                    : lines.Sum(l => l.AmountHT);
+
+                decimal distributed = 0m;
+
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    decimal share;
+                    if (i < lines.Count - 1)
+                    {
+                        decimal lineBase = isTTC ? lines[i].AmountTTC : lines[i].AmountHT;
+                        share = distributionBase > 0
+                            ? TaxCalculator.R2(tsForGroup * lineBase / distributionBase)
+                            : TaxCalculator.R2(tsForGroup / lines.Count);
+                        distributed += share;
+                    }
+                    else
+                    {
+                        share = tsForGroup - distributed;
+                    }
+
+                    decimal vatRate = lines[i].TaxRate / 100m;
+                    lines[i].TaxSpecificAmount = share;
+
+                    if (isTTC)
+                    {
+                        decimal goodsTTC = lines[i].AmountTTC;
+                        decimal goodsHT = lines[i].AmountHT;
+                        decimal tvaGoods = goodsTTC - goodsHT;
+                        decimal tvaTS = TaxCalculator.R2(share * vatRate);
+
+                        lines[i].AmountHT = goodsHT + share;
+                        lines[i].AmountTVA = tvaGoods + tvaTS;
+                        lines[i].AmountTTC = lines[i].AmountHT + lines[i].AmountTVA;
+                    }
+                    else
+                    {
+                        decimal goodsHT = lines[i].AmountHT;
+                        decimal newBase = goodsHT + share;
+                        decimal newTTC = TaxCalculator.R2(newBase * (1m + vatRate));
+                        decimal newTVA = newTTC - newBase;
+
+                        lines[i].AmountHT = newBase;
+                        lines[i].AmountTVA = newTVA;
+                        lines[i].AmountTTC = newTTC;
+                    }
+
+                    if (lines[i].AmountHT + lines[i].AmountTVA != lines[i].AmountTTC)
+                        lines[i].AmountTVA = lines[i].AmountTTC - lines[i].AmountHT;
+                }
             }
         }
 
-        // ────────────────────────────────────────────────────
-        //  ÉTAPE 3 — Sommer les totaux (T.S. OnTotal maintenant incluses)
-        // ────────────────────────────────────────────────────
+        // 3. Group-level DGI rounding alignment
+        var taxGroups = InvoiceLines
+            .Where(l => l.TaxGroup != TaxGroup.N && l.TaxRate > 0)
+            .GroupBy(l => l.TaxGroup);
+
+        foreach (var group in taxGroups)
+        {
+            var groupLines = group.ToList();
+            if (groupLines.Count == 0) continue;
+
+            decimal rate = groupLines.First().TaxRate / 100m;
+
+            if (isTTC)
+            {
+                decimal groupTTC = groupLines.Sum(l => l.AmountTTC);
+                decimal expectedHT = TaxCalculator.R2(groupTTC / (1m + rate));
+                decimal expectedTVA = groupTTC - expectedHT;
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountHT -= diff;
+                }
+            }
+            else
+            {
+                decimal groupHT = groupLines.Sum(l => l.AmountHT);
+                decimal expectedTVA = TaxCalculator.R2(groupHT * rate);
+                decimal actualTVA = groupLines.Sum(l => l.AmountTVA);
+                decimal diff = expectedTVA - actualTVA;
+
+                if (diff != 0m)
+                {
+                    var lastLine = groupLines.Last();
+                    lastLine.AmountTVA += diff;
+                    lastLine.AmountTTC += diff;
+                }
+            }
+        }
+
+        // 4. Totaux
         TotalHTBeforeDiscount = InvoiceLines.Sum(l => l.AmountHTBeforeDiscount);
         TotalDiscount = InvoiceLines.Sum(l => l.DiscountAmount);
         TotalHT = InvoiceLines.Sum(l => l.AmountHT);
@@ -755,7 +947,6 @@ public partial class InvoicingViewModel : BaseViewModel,
         GrandTotal = SelectedPriceMode == PriceMode.TTC ? TotalTTC : TotalHT;
         GrandTotalLabel = SelectedPriceMode == PriceMode.TTC ? "TOTAL TTC" : "TOTAL HT";
 
-        // ── Notifier les propriétés dérivées ──
         OnPropertyChanged(nameof(HasAnyDiscount));
         OnPropertyChanged(nameof(HasAnySpecificTax));
         OnPropertyChanged(nameof(HasFixedSpecificTax));
@@ -765,7 +956,6 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         UpdateAlternateCurrency();
 
-        // ── Résumé par groupe de taxation ──
         TaxGroupSummaries.Clear();
         var groups = InvoiceLines
             .GroupBy(l => l.TaxGroup)
@@ -773,12 +963,12 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         foreach (var g in groups)
         {
-            var rate = g.First().TaxRate;
+            var rate2 = g.First().TaxRate;
             TaxGroupSummaries.Add(new TaxGroupSummary
             {
                 Group = g.Key,
                 Label = $"{(char)('A' + (int)g.Key)} - {TaxCalculator.GetGroupLabel(g.Key)}",
-                Rate = rate,
+                Rate = rate2,
                 TotalHT = g.Sum(l => l.AmountHT),
                 TotalTVA = g.Sum(l => l.AmountTVA),
                 TotalTTC = g.Sum(l => l.AmountTTC)
@@ -786,7 +976,6 @@ public partial class InvoicingViewModel : BaseViewModel,
         }
 
         RecalculatePayments();
-        // ── Notifier les propriétés de commentaires ──
         OnPropertyChanged(nameof(IsCommentARequired));
         OnPropertyChanged(nameof(CommentALabel));
     }
@@ -794,9 +983,6 @@ public partial class InvoicingViewModel : BaseViewModel,
     // ══════════════════════════════════════════════════════════
     //  DEVISE
     // ══════════════════════════════════════════════════════════
-
-    partial void OnSelectedCurrencyChanged(Currency value) => UpdateAlternateCurrency();
-    partial void OnExchangeRateChanged(decimal value) => UpdateAlternateCurrency();
 
     private void UpdateAlternateCurrency()
     {
@@ -823,15 +1009,19 @@ public partial class InvoicingViewModel : BaseViewModel,
     {
         decimal amount;
         if (string.IsNullOrWhiteSpace(PaymentAmount))
-            amount = Remaining;
-        else if (!decimal.TryParse(PaymentAmount, out amount) || amount <= 0)
         {
-            StatusMessage = "Le montant du paiement doit être positif.";
+            amount = Remaining;
+        }
+        else if (!DecimalParsingHelper.TryParseFlexible(PaymentAmount, out amount) || amount <= 0)
+        {
+            StatusMessage = "Le montant du paiement doit être un nombre positif.";
             ShowError = true;
             return;
         }
 
         if (amount <= 0) return;
+
+        amount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
 
         PaymentItems.Add(new PaymentDisplayItem
         {
@@ -867,7 +1057,6 @@ public partial class InvoicingViewModel : BaseViewModel,
     {
         if (IsNormalized) return;
 
-        // ── Validate POS ──
         if (SelectedPointOfSale == null)
         {
             StatusMessage = "Veuillez sélectionner un point de vente.";
@@ -878,25 +1067,122 @@ public partial class InvoicingViewModel : BaseViewModel,
         IsBusy = true;
         ShowError = false;
         ShowSuccess = false;
-        StatusMessage = "Normalisation en cours...";
 
         try
         {
-            if (PaymentItems.Count == 0 || Remaining > 0)
+            // ─── BRANCHE PROFORMA ───
+            if (IsProforma)
             {
-                if (Remaining > 0)
+                StatusMessage = "Sauvegarde de la proforma…";
+
+                var proforma = BuildInvoiceEntity();
+                proforma.ProformaValidUntil = ProformaValidUntil;
+
+                var proResult = await _invoiceService.SaveProformaAsync(proforma);
+
+                if (proResult.Success)
                 {
-                    PaymentItems.Add(new PaymentDisplayItem
+                    IsNormalized = true;
+                    StatusMessage = $"✓ Proforma enregistrée — {proforma.InvoiceNumber}";
+                    ShowSuccess = true;
+                }
+                else
+                {
+                    StatusMessage = proResult.ErrorMessage ?? "Erreur inconnue";
+                    ShowError = true;
+                }
+                return;
+            }
+
+            if (IsCreditNote)
+            {
+                var ok = await _gate.RequireAsync(
+                    ManagerAction.IssueCreditNote,
+                    new AuthorizationContext
                     {
-                        PaymentType = PaymentType.Especes,
-                        Amount = Remaining,
-                        Label = "Espèces"
+                        InvoiceNumber = InvoiceNumber,
+                        Amount = TotalTTC,
+                        Reason = $"{SelectedCreditNoteNature} — Réf: {OriginalReference}",
+                        RequestingUserId = _auth.CurrentUser?.Id,
+                        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
                     });
-                    RecalculatePayments();
+
+                if (!ok)
+                {
+                    StatusMessage = "Avoir refusé — autorisation manager requise.";
+                    ShowError = true;
+                    return;                    // finally { IsBusy = false; } will run
+                }
+            }
+            if (IsCreditNote)
+            {
+                var ok = await _gate.RequireAsync(
+                    ManagerAction.IssueCreditNote,
+                    new AuthorizationContext
+                    {
+                        InvoiceNumber = InvoiceNumber,
+                        Amount = TotalTTC,
+                        Reason = $"{SelectedCreditNoteNature} — Réf: {OriginalReference}",
+                        RequestingUserId = _auth.CurrentUser?.Id,
+                        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
+                    });
+
+                if (!ok)
+                {
+                    StatusMessage = "Avoir refusé — autorisation manager requise.";
+                    ShowError = true;
+                    return;                    // finally { IsBusy = false; } will run
                 }
             }
 
-            var invoice = BuildInvoiceEntity();
+            StatusMessage = "Normalisation en cours...";
+
+            decimal advanceAmount = 0m;
+            if (IsAdvanceInvoice)
+            {
+                if (!DecimalParsingHelper.TryParseFlexible(AdvanceAmountInput, out advanceAmount) || advanceAmount <= 0)
+                {
+                    StatusMessage = "Veuillez saisir le montant de l'acompte reçu.";
+                    ShowError = true;
+                    IsBusy = false;
+                    return;
+                }
+
+                if (advanceAmount > TotalTTC + 0.01m)
+                {
+                    StatusMessage = $"L'acompte ({advanceAmount:N2}) ne peut pas dépasser le total commandé ({TotalTTC:N2}).";
+                    ShowError = true;
+                    IsBusy = false;
+                    return;
+                }
+
+                PaymentItems.Clear();
+                PaymentItems.Add(new PaymentDisplayItem
+                {
+                    PaymentType = SelectedPaymentType,
+                    Amount = advanceAmount,
+                    Label = GetPaymentLabel(SelectedPaymentType)
+                });
+                RecalculatePayments();
+            }
+            else
+            {
+                if (PaymentItems.Count == 0 || Remaining > 0)
+                {
+                    if (Remaining > 0)
+                    {
+                        PaymentItems.Add(new PaymentDisplayItem
+                        {
+                            PaymentType = PaymentType.Especes,
+                            Amount = Remaining,
+                            Label = "Espèces"
+                        });
+                        RecalculatePayments();
+                    }
+                }
+            }
+
+            var invoice = BuildInvoiceEntity(advanceAmount);
             var result = await _invoiceService.NormalizeInvoiceAsync(invoice);
 
             if (result.Success)
@@ -915,6 +1201,17 @@ public partial class InvoicingViewModel : BaseViewModel,
 
                 StatusMessage = $"✓ Facture normalisée — {result.CodeDEFDGI}";
                 ShowSuccess = true;
+
+                bool printed = await PrintNormalizedInvoiceAsync(result.InvoiceId);
+                if (printed)
+                {
+                    StatusMessage = $"✓ Facture normalisée et imprimée — {result.CodeDEFDGI}";
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        "[Normalize] Auto-print failed; user can reprint from history.");
+                }
             }
             else
             {
@@ -964,16 +1261,14 @@ public partial class InvoicingViewModel : BaseViewModel,
         PreviousAdvances.Clear();
         AdvanceGroupId = "";
         AdvancesTotalPaid = 0;
+        AdvanceAmountInput = "";
 
-        // Clear client
         SelectedClientId = null;
         ClientSearchText = "";
 
-        // Clear tous les commentaires
         CommentA = ""; CommentB = ""; CommentC = ""; CommentD = "";
         CommentE = ""; CommentF = ""; CommentG = ""; CommentH = "";
 
-        // Clear pending section
         PendingInvoices.Clear();
         PendingInvoiceCount = 0;
         PendingStatusMessage = "";
@@ -982,18 +1277,85 @@ public partial class InvoicingViewModel : BaseViewModel,
         ShowPendingSection = false;
         CancelUid = "";
 
-        // 🆕 POS: keep selection, don't reset
-        // SelectedPointOfSale stays as-is (user keeps working on same POS)
-
         await GenerateNewInvoiceNumber();
-        CurrentDateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+
+        var nowLocal = _timeProvider.LocalNow;
+        CurrentDateTime = nowLocal.ToString("dd/MM/yyyy HH:mm");
+        ProformaValidUntil = nowLocal.Date.AddDays(30);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  IMPRESSION AUTOMATIQUE
+    // ══════════════════════════════════════════════════════════
+
+    private async Task<bool> PrintNormalizedInvoiceAsync(int invoiceId)
+    {
+        try
+        {
+            int printNo;
+            var time = _timeProvider;
+            try
+            {
+                printNo = await _invoiceService.RegisterPrintAsync(invoiceId);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AutoPrint] RegisterPrint failed: {ex.Message}");
+                printNo = 1;
+            }
+
+            var invoice = await _unitOfWork.Invoices.GetWithDetailsAsync(invoiceId);
+            if (invoice == null) return false;
+
+            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+
+            PointOfSale? pos = null;
+            if (invoice.PointOfSaleId > 0)
+                pos = await _unitOfWork.GetRepository<PointOfSale>()
+                    .GetByIdAsync(invoice.PointOfSaleId);
+
+            decimal exchangeRate = ExchangeRate;
+            try
+            {
+                var settings = await _unitOfWork.AppSettings.GetCurrentAsync();
+                if (settings != null && settings.CurrentExchangeRate > 0)
+                    exchangeRate = settings.CurrentExchangeRate;
+            }
+            catch { }
+
+            byte[]? logoBytes = company?.Logo;
+
+            var vm = InvoiceDocumentViewModel.Create(
+                invoice,
+                company,
+                _timeProvider,
+                pos: pos,
+                exchangeRate: exchangeRate);
+            if (vm == null) return false;
+
+            vm.SourceInvoice = invoice;
+            vm.SourceCompany = company;
+            vm.SourcePos = pos;
+            vm.SourceExchangeRate = exchangeRate;
+            vm.SourceLogoBytes = logoBytes;
+            vm.PrintNumber = printNo;
+
+            InvoicePrintHelper.Print(vm, time);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AutoPrint] Failed: {ex.Message}");
+            return false;
+        }
     }
 
     // ══════════════════════════════════════════════════════════
     //  CONSTRUCTION DE L'ENTITÉ
     // ══════════════════════════════════════════════════════════
 
-    private Invoice BuildInvoiceEntity()
+    private Invoice BuildInvoiceEntity(decimal advanceAmount = 0m)
     {
         var invoice = new Invoice
         {
@@ -1023,10 +1385,6 @@ public partial class InvoicingViewModel : BaseViewModel,
             CurrencyRate = ExchangeRate,
             TotalHTBeforeDiscount = TotalHTBeforeDiscount,
             TotalDiscount = TotalDiscount,
-            TotalHT = TotalHT,
-            TotalTVA = TotalTVA,
-            TotalTTC = TotalTTC,
-            TotalSpecificTax = TotalSpecificTax,
             PointOfSaleId = SelectedPointOfSale?.Id ?? 1
         };
 
@@ -1038,9 +1396,14 @@ public partial class InvoicingViewModel : BaseViewModel,
             invoice.ReferenceDesc = GetCreditNoteDesc(SelectedCreditNoteNature);
         }
 
-        if (IsAdvanceInvoice && !string.IsNullOrWhiteSpace(AdvanceGroupId))
+        if (IsAdvanceInvoice)
         {
-            invoice.AdvanceGroupId = AdvanceGroupId;
+            if (!string.IsNullOrWhiteSpace(AdvanceGroupId))
+                invoice.AdvanceGroupId = AdvanceGroupId;
+
+            invoice.OrderTotal = TotalTTC;
+            invoice.AdvanceAmount = advanceAmount;
+            invoice.PreviousAdvancesTotal = AdvancesTotalPaid;
         }
 
         int lineNum = 1;
@@ -1053,6 +1416,7 @@ public partial class InvoicingViewModel : BaseViewModel,
                 Name = lineVm.Name,
                 ItemType = lineVm.ItemType,
                 TaxGroup = lineVm.TaxGroup,
+                TaxGroupAType = lineVm.TaxGroup == TaxGroup.A ? lineVm.TaxGroupAType : null,  // 🆕
                 TaxRate = lineVm.TaxRate,
                 UnitPriceHT = lineVm.UnitPriceHT,
                 UnitPriceTTC = lineVm.UnitPriceTTC,
@@ -1062,17 +1426,24 @@ public partial class InvoicingViewModel : BaseViewModel,
                 DiscountValue = lineVm.DiscountValue,
                 DiscountAmount = lineVm.DiscountAmount,
                 AmountHTBeforeDiscount = lineVm.AmountHTBeforeDiscount,
+
                 HasSpecificTax = lineVm.HasSpecificTax,
                 SpecificTaxName = lineVm.SpecificTaxName,
                 SpecificTaxType = lineVm.SpecificTaxType,
                 SpecificTaxValue = lineVm.SpecificTaxValue,
                 TaxApplicationMode = lineVm.TaxApplicationMode,
-                TaxSpecificAmount = lineVm.TaxSpecificAmount,
+
                 AmountHT = lineVm.AmountHT,
                 AmountTVA = lineVm.AmountTVA,
-                AmountTTC = lineVm.AmountTTC
+                AmountTTC = lineVm.AmountTTC,
+                TaxSpecificAmount = lineVm.TaxSpecificAmount,
             });
         }
+
+        invoice.TotalHT = TotalHT;
+        invoice.TotalTVA = TotalTVA;
+        invoice.TotalTTC = TotalTTC;
+        invoice.TotalSpecificTax = TotalSpecificTax;
 
         foreach (var pay in PaymentItems)
         {
@@ -1112,8 +1483,6 @@ public partial class InvoicingViewModel : BaseViewModel,
     };
 
     // ══════ RECHERCHE CLIENT ══════
-
-    partial void OnClientSearchTextChanged(string value) => _ = SearchClientsAsync(value);
 
     private async Task SearchClientsAsync(string query)
     {
@@ -1164,9 +1533,6 @@ public partial class InvoicingViewModel : BaseViewModel,
         ClientSearchText = "";
     }
 
-    /// <summary>
-    /// Sauvegarde rapide du client actuel dans la base (inline depuis la facturation).
-    /// </summary>
     [RelayCommand]
     private async Task SaveClientInline()
     {
@@ -1200,7 +1566,7 @@ public partial class InvoicingViewModel : BaseViewModel,
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 AVOIR — Recherche facture originale
+    //  AVOIR — Recherche facture originale
     // ══════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -1229,23 +1595,21 @@ public partial class InvoicingViewModel : BaseViewModel,
 
             _loadedOriginalInvoice = original;
 
-            // Load cumulative refunded quantities
             _cumulativeRefunded = await _invoiceService.GetCumulativeRefundedQuantitiesAsync(
                 OriginalReference.Trim());
 
-            // Build summary
+            // 🆕 CreatedAt est DateTimeOffset → on formatte en heure locale
             OriginalInvoiceSummary =
                 $"{original.InvoiceNumber} — {original.ClientName} — " +
-                $"{original.TotalTTC:N0} CDF — {original.CreatedAt:dd/MM/yyyy}";
+                $"{original.TotalTTC:N0} CDF — {original.CreatedAt.LocalDateTime:dd/MM/yyyy}";
 
-            // Build line selections
             CreditNoteSelections.Clear();
             foreach (var line in original.Lines.OrderBy(l => l.LineNumber))
             {
                 decimal alreadyRefunded = _cumulativeRefunded.GetValueOrDefault(line.Code, 0m);
                 decimal maxQty = line.Quantity - alreadyRefunded;
 
-                if (maxQty <= 0) continue; // Fully refunded already
+                if (maxQty <= 0) continue;
 
                 CreditNoteSelections.Add(new CreditNoteLineSelection
                 {
@@ -1253,7 +1617,7 @@ public partial class InvoicingViewModel : BaseViewModel,
                     OriginalQuantity = line.Quantity,
                     AlreadyRefunded = alreadyRefunded,
                     MaxQuantity = maxQty,
-                    SelectedQuantity = maxQty, // Default to max
+                    SelectedQuantity = maxQty,
                     IsSelected = false
                 });
             }
@@ -1282,10 +1646,6 @@ public partial class InvoicingViewModel : BaseViewModel,
         }
     }
 
-    /// <summary>
-    /// Ajoute un article sélectionné de la facture originale comme ligne de l'avoir.
-    /// Le prix est verrouillé (§25e), seule la quantité est modifiable (≤ max).
-    /// </summary>
     [RelayCommand]
     private void AddCreditNoteLine(CreditNoteLineSelection? selection)
     {
@@ -1307,6 +1667,7 @@ public partial class InvoicingViewModel : BaseViewModel,
             UnitPriceTTC = ol.UnitPriceTTC,
             Quantity = selection.SelectedQuantity,
             TaxGroup = ol.TaxGroup,
+            TaxGroupAType = ol.TaxGroupAType,   // 🆕 preserve
             TaxRate = taxRate,
             PriceMode = SelectedPriceMode,
             DiscountType = ol.DiscountType,
@@ -1348,7 +1709,6 @@ public partial class InvoicingViewModel : BaseViewModel,
         InvoiceLines.Add(lineVm);
         RecalculateTotals();
 
-        // Update remaining available
         selection.MaxQuantity -= selection.SelectedQuantity;
         selection.AlreadyRefunded += selection.SelectedQuantity;
         selection.IsSelected = false;
@@ -1358,9 +1718,6 @@ public partial class InvoicingViewModel : BaseViewModel,
             CreditNoteSelections.Remove(selection);
     }
 
-    /// <summary>
-    /// Ajoute tous les articles sélectionnés de la facture originale en une fois.
-    /// </summary>
     [RelayCommand]
     private void AddAllSelectedCreditNoteLines()
     {
@@ -1370,7 +1727,7 @@ public partial class InvoicingViewModel : BaseViewModel,
     }
 
     // ══════════════════════════════════════════════════════════
-    //  🆕 ACOMPTE — Gestion du groupe d'avances
+    //  ACOMPTE
     // ══════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -1396,6 +1753,7 @@ public partial class InvoicingViewModel : BaseViewModel,
                 PreviousAdvances.Add(new AdvanceInvoiceSummary
                 {
                     InvoiceNumber = adv.InvoiceNumber,
+                    // 🆕 CreatedAt est DateTimeOffset — on le conserve tel quel
                     Date = adv.CreatedAt,
                     Amount = adv.TotalTTC,
                     CodeDEFDGI = adv.CodeDEFDGI
@@ -1412,7 +1770,7 @@ public partial class InvoicingViewModel : BaseViewModel,
     }
 
     // ══════════════════════════════════════════════════════════
-    //  FACTURES EN ATTENTE — Vérifier & Annuler
+    //  FACTURES EN ATTENTE
     // ══════════════════════════════════════════════════════════
 
     [RelayCommand]
@@ -1474,8 +1832,6 @@ public partial class InvoicingViewModel : BaseViewModel,
     [RelayCommand]
     private async Task CancelPendingInvoice(string? uid)
     {
-        // If called from list item, uid comes from CommandParameter
-        // If called from manual input, use CancelUid
         string targetUid = uid ?? CancelUid;
 
         if (string.IsNullOrWhiteSpace(targetUid))
@@ -1499,7 +1855,6 @@ public partial class InvoicingViewModel : BaseViewModel,
                 PendingStatusMessage = $"✓ Facture « {targetUid} » annulée avec succès.";
                 ShowPendingSuccess = true;
 
-                // Remove from local list
                 var item = PendingInvoices.FirstOrDefault(p => p.Uid == targetUid);
                 if (item != null)
                     PendingInvoices.Remove(item);
@@ -1571,74 +1926,43 @@ public partial class InvoicingViewModel : BaseViewModel,
         }
     }
 
-    // ══════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
     //  IActivatable
-    // ══════════════════════════════════════════════
-    public async Task ActivateAsync()                                  // 🆕
-    {
-        // Skip first call — InitializeAsync already ran from constructor
-        if (_isFirstActivation)
-        {
-            _isFirstActivation = false;
-            return;
-        }
+    // ══════════════════════════════════════════════════════════
 
-        // Don't touch anything if the invoice is already normalized
-        // or if the user has lines in progress
+    public async Task ActivateAsync()
+    {
+        if (_isFirstActivation) { _isFirstActivation = false; return; }
         if (IsNormalized || InvoiceLines.Count > 0) return;
 
         try
         {
-            // ── Refresh company + POS list ──
             var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
             if (company != null)
             {
                 var companyWithPos = await _unitOfWork.Companies.GetWithPointsOfSaleAsync(company.Id);
                 Isf = company.ISF;
-                SelectedPriceMode = company.DefaultPriceMode;
 
                 if (companyWithPos?.PointsOfSale != null)
                 {
                     var activePosList = companyWithPos.PointsOfSale
-                        .Where(p => p.IsActive)
-                        .OrderBy(p => p.Code)
-                        .ToList();
-
+                        .Where(p => p.IsActive).OrderBy(p => p.Code).ToList();
                     var previousPosId = SelectedPointOfSale?.Id;
-
                     AvailablePointsOfSale.Clear();
-                    foreach (var pos in activePosList)
-                        AvailablePointsOfSale.Add(pos);
-
+                    foreach (var pos in activePosList) AvailablePointsOfSale.Add(pos);
                     HasMultiplePos = activePosList.Count > 1;
-
-                    // Keep previous selection if still valid, otherwise pick first
-                    SelectedPointOfSale = activePosList.FirstOrDefault(p => p.Id == previousPosId)
-                                          ?? activePosList.FirstOrDefault();
+                    SelectedPointOfSale = PosSelectionHelper.SelectBestPos(
+                        activePosList, _auth.CurrentUser?.PointOfSaleId, previousPosId);
                 }
             }
 
-            // ── Refresh app settings (currency, exchange rate, discount mode) ──
-            try
-            {
-                var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
-                if (appSettings != null)
-                {
-                    _discountBeforeTax = appSettings.DiscountBeforeTax;
-                    SelectedCurrency = appSettings.DefaultCurrency;
-                    ExchangeRate = appSettings.CurrentExchangeRate;
-                }
-            }
-            catch { }
-
-            // ── Refresh invoice number & timestamp ──
             await GenerateNewInvoiceNumber();
-            CurrentDateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+            // 🆕 Via ITimeProvider plutôt que DateTime.Now
+            CurrentDateTime = _timeProvider.LocalNow.ToString("dd/MM/yyyy HH:mm");
+            await LoadOperatorsAsync();
         }
         catch { }
     }
-
-
 }
 
 // ══════ HELPER CLASSES ══════
@@ -1681,14 +2005,15 @@ public partial class CreditNoteLineSelection : ObservableObject
 
 /// <summary>
 /// Résumé d'une facture d'acompte dans un groupe d'avances.
+/// 🆕 Date est DateTimeOffset pour rester aligné sur Invoice.CreatedAt.
 /// </summary>
 public class AdvanceInvoiceSummary
 {
     public string InvoiceNumber { get; set; } = "";
-    public DateTime Date { get; set; }
+    public DateTimeOffset Date { get; set; }
     public decimal Amount { get; set; }
     public string CodeDEFDGI { get; set; } = "";
-    public string DateDisplay => Date.ToString("dd/MM/yyyy");
+    public string DateDisplay => Date.LocalDateTime.ToString("dd/MM/yyyy");
 }
 
 /// <summary>

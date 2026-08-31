@@ -3,25 +3,30 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Domain", "SFE.Domain\SFE.Domain.csproj", "{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Domain", "SFE.Domain\SFE.Domain.csproj", "{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Application", "SFE.Application\SFE.Application.csproj", "{C82411BF-945A-422A-AC19-6EBCBB63F4EF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Application", "SFE.Application\SFE.Application.csproj", "{C82411BF-945A-422A-AC19-6EBCBB63F4EF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Infrastructure.Persistence", "SFE.Infrastructure.Persistence\SFE.Infrastructure.Persistence.csproj", "{528E2169-0332-48F8-A093-20E21F192765}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Infrastructure.Persistence", "SFE.Infrastructure.Persistence\SFE.Infrastructure.Persistence.csproj", "{528E2169-0332-48F8-A093-20E21F192765}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Infrastructure.EMcf", "SFE.Infrastructure.EMcf\SFE.Infrastructure.EMcf.csproj", "{CC75B12C-CA9A-415E-BB61-2AF311E32747}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Infrastructure.EMcf", "SFE.Infrastructure.EMcf\SFE.Infrastructure.EMcf.csproj", "{CC75B12C-CA9A-415E-BB61-2AF311E32747}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.Infrastructure.Mcf", "SFE.Infrastructure.Mcf\SFE.Infrastructure.Mcf.csproj", "{136EB681-7475-408D-8CA2-AD3C1D07AF45}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Infrastructure.Mcf", "SFE.Infrastructure.Mcf\SFE.Infrastructure.Mcf.csproj", "{136EB681-7475-408D-8CA2-AD3C1D07AF45}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.WPF", "SFE.WPF\SFE.WPF.csproj", "{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.WPF", "SFE.WPF\SFE.WPF.csproj", "{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Api", "SFE.Api\SFE.Api.csproj", "{13E58A64-F1FD-43C0-8976-ED6217CAF6D9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Licensing.Domain", "Licensing.Domain\SFE.Licensing.Domain.csproj", "{2D1192BA-D413-48CB-A26D-094D5F7E3D6A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SFE.Licensing.Local", "SFE.Licensing.Local\SFE.Licensing.Local.csproj", "{0AD7B292-D660-4BE3-A3BD-621420964BDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SFE.LicenseMinter", "SFE.LicenseMinter\SFE.LicenseMinter.csproj", "{E8A6578A-07B7-4487-8A1B-FB1E090EEA5E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8B250D99-E987-4EBE-B0F4-62DC4CB208CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -48,5 +53,27 @@ Global
 		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D731A668-DCD4-4991-BCD8-1DA2495CB9B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{13E58A64-F1FD-43C0-8976-ED6217CAF6D9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13E58A64-F1FD-43C0-8976-ED6217CAF6D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13E58A64-F1FD-43C0-8976-ED6217CAF6D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13E58A64-F1FD-43C0-8976-ED6217CAF6D9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2D1192BA-D413-48CB-A26D-094D5F7E3D6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D1192BA-D413-48CB-A26D-094D5F7E3D6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D1192BA-D413-48CB-A26D-094D5F7E3D6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D1192BA-D413-48CB-A26D-094D5F7E3D6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0AD7B292-D660-4BE3-A3BD-621420964BDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0AD7B292-D660-4BE3-A3BD-621420964BDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0AD7B292-D660-4BE3-A3BD-621420964BDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0AD7B292-D660-4BE3-A3BD-621420964BDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8A6578A-07B7-4487-8A1B-FB1E090EEA5E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8A6578A-07B7-4487-8A1B-FB1E090EEA5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8A6578A-07B7-4487-8A1B-FB1E090EEA5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8A6578A-07B7-4487-8A1B-FB1E090EEA5E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2E532708-5B08-42FF-9DCD-CFEE18885F74}
 	EndGlobalSection
 EndGlobal

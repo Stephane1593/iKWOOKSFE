@@ -13,6 +13,7 @@ public partial class InvoiceLineViewModel : ObservableObject
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private ItemType _itemType = ItemType.BIE;
     [ObservableProperty] private TaxGroup _taxGroup = TaxGroup.B;
+    [ObservableProperty] private TaxGroupAType? _taxGroupAType;
     [ObservableProperty] private decimal _taxRate;
 
     // ══════ DUAL PRICE ══════
@@ -48,23 +49,23 @@ public partial class InvoiceLineViewModel : ObservableObject
 
     public string DiscountDisplay => DiscountType switch
     {
-        DiscountType.Percentage => $"-{DiscountValue:G}%",
-        DiscountType.FixedAmount => $"-{DiscountAmount:N0}",
+        DiscountType.Percentage => $"-{DiscountValue:0.##}%",
+        DiscountType.FixedAmount => $"-{DiscountAmount:N2}",
         _ => ""
     };
 
     public string SpecificTaxDisplay => SpecificTaxType switch
     {
-        SpecificTaxType.Percentage => $"TS {SpecificTaxValue:G}%",
-        SpecificTaxType.FixedPerUnit => $"TS {SpecificTaxValue:N0}/u",
+        SpecificTaxType.Percentage => $"TS {SpecificTaxValue:0.##}%",
+        SpecificTaxType.FixedPerUnit => $"TS {SpecificTaxValue:N2}/u",
         _ => ""
     };
 
     public string TaxGroupDisplay =>
-        $"{(char)('A' + (int)TaxGroup)} ({TaxRate}%)";
+        $"{TaxGroup.DisplayCode(TaxGroupAType)} ({TaxRate}%)";
 
     public string LineAmountDisplay =>
         HasDiscount
-            ? $"{AmountHTBeforeDiscount:N0} → {AmountHT:N0}"
-            : $"{AmountHT:N0}";
+            ? $"{AmountHTBeforeDiscount:N2} → {AmountHT:N2}"
+            : $"{AmountHT:N2}";
 }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 
 namespace SFE.Infrastructure.Persistence.Repositories;
@@ -7,10 +8,12 @@ namespace SFE.Infrastructure.Persistence.Repositories;
 public class AppSettingsRepository : IAppSettingsRepository
 {
     private readonly AppDbContext _context;
+    private readonly ITimeProvider _time;
 
-    public AppSettingsRepository(AppDbContext context)
+    public AppSettingsRepository(AppDbContext context, ITimeProvider time)
     {
         _context = context;
+        _time = time;
     }
 
     public async Task<AppSettings?> GetCurrentAsync()
@@ -26,13 +29,15 @@ public class AppSettingsRepository : IAppSettingsRepository
 
         if (existing == null)
         {
-            settings.UpdatedAt = DateTime.Now;
+            settings.UpdatedAt = _time.UtcNow;
             await _context.AppSettings.AddAsync(settings);
         }
         else
         {
             existing.ExchangeRateMode = settings.ExchangeRateMode;
             existing.CurrentExchangeRate = settings.CurrentExchangeRate;
+            existing.CurrentExchangeRateEUR = settings.CurrentExchangeRateEUR;   
+            existing.CurrentExchangeRateCNY = settings.CurrentExchangeRateCNY;
             existing.ExchangeRateUpdatedAt = settings.ExchangeRateUpdatedAt;
             existing.DefaultCurrency = settings.DefaultCurrency;
             existing.DefaultPriceMode = settings.DefaultPriceMode;
@@ -44,7 +49,7 @@ public class AppSettingsRepository : IAppSettingsRepository
             existing.CompanyAddress = settings.CompanyAddress;
             existing.CompanyPhone = settings.CompanyPhone;
             existing.CompanyEmail = settings.CompanyEmail;
-            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedAt = _time.UtcNow;
         }
 
         await _context.SaveChangesAsync();

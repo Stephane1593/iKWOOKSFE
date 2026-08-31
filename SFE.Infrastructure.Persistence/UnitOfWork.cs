@@ -2,14 +2,17 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using SFE.Application.Events;
 using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
 using SFE.Domain.Entities;
 using SFE.Infrastructure.Persistence.Repositories;
+using System.Diagnostics;
 
 namespace SFE.Infrastructure.Persistence;
 
 public class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
+    private readonly ITimeProvider _time;
     private IDbContextTransaction? _transaction;
 
     // 🔒 Un seul writer à la fois pour SQLite
@@ -29,24 +32,38 @@ public class UnitOfWork : IUnitOfWork
     private IInvoiceRepository? _invoices;
     private IProductCategoryRepository? _productCategories;
     private IAppSettingsRepository? _appSettings;
+    private IAuditLogRepository? _auditLogs;
 
     // 🆕 Stock Multi-POS
     public IPosStockRepository PosStocks { get; }
     public IStockMovementRepository StockMovements { get; }
     public IStockTransferRepository StockTransfers { get; }
 
-    public UnitOfWork(AppDbContext context)
+    private static int _instanceCounter;
+    public int InstanceId { get; }
+
+    public UnitOfWork(AppDbContext context, ITimeProvider time)
     {
         _context = context;
+        _time = time;
 
+        InstanceId = Interlocked.Increment(ref _instanceCounter);
+        Debug.WriteLine($"[UoW #{InstanceId}] Created — ctx hash={context.GetHashCode()}");
+
+        // Stock repos — no timestamping today, but pass _time if they ever need it
         PosStocks = new PosStockRepository(context);
         StockMovements = new StockMovementRepository(context);
         StockTransfers = new StockTransferRepository(context);
     }
 
+    // ── Repos that timestamp entities go through ITimeProvider ──
     public IInvoiceRepository Invoices =>
-        _invoices ??= new InvoiceRepository(_context);
+        _invoices ??= new InvoiceRepository(_context, _time);
 
+    public IAppSettingsRepository AppSettings =>
+        _appSettings ??= new AppSettingsRepository(_context, _time);
+
+    // ── Repos that don't touch timestamps ──
     public ICompanyRepository Companies =>
         _companies ??= new CompanyRepository(_context);
 
@@ -68,18 +85,16 @@ public class UnitOfWork : IUnitOfWork
     public ILoyaltyAccountRepository LoyaltyAccounts =>
         _loyaltyAccounts ??= new LoyaltyAccountRepository(_context);
 
-    public IAppSettingsRepository AppSettings =>
-        _appSettings ??= new AppSettingsRepository(_context);
+    public IAuditLogRepository AuditLogs =>
+        _auditLogs ??= new AuditLogRepository(_context);
 
     // ── Enqueue events (services call this instead of publishing directly) ──
-
     public void EnqueueEvent(AppEvent evt, string? entityId = null)
     {
         _pendingEvents.Add(new AppEventArgs { Event = evt, EntityId = entityId });
     }
 
     // ── SaveChanges — auto-clears tracker & fires events ──────────
-
     public async Task<int> SaveChangesAsync()
     {
         if (_holdingLock)
@@ -109,7 +124,6 @@ public class UnitOfWork : IUnitOfWork
     }
 
     // ── Transaction avec verrouillage global ──────────────────────
-
     public async Task BeginTransactionAsync()
     {
         await _writeLock.WaitAsync();
@@ -166,7 +180,6 @@ public class UnitOfWork : IUnitOfWork
     }
 
     // ── Flush events ──────────────────────────────────────────────
-
     public async Task FlushEventsAsync()
     {
         if (_pendingEvents.Count == 0) return;
@@ -182,10 +195,9 @@ public class UnitOfWork : IUnitOfWork
             await AppEventBus.PublishAsync(e);
     }
 
-    // ── Dispose ───────────────────────────────────────────────────
-
     public void ClearEvents() => _pendingEvents.Clear();
 
+    // ── Dispose ───────────────────────────────────────────────────
     public void Dispose()
     {
         _pendingEvents.Clear();

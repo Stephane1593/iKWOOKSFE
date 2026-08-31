@@ -16,6 +16,7 @@ public class InvoiceLine
     public string Name { get; set; } = string.Empty;
     public ItemType ItemType { get; set; } = ItemType.BIE;
     public TaxGroup TaxGroup { get; set; } = TaxGroup.B;
+    public TaxGroupAType? TaxGroupAType { get; set; }
     public decimal TaxRate { get; set; }          // Taux TVA du groupe (ex: 16.00)
 
     // ══════════════════════════════════════════════
@@ -57,12 +58,17 @@ public class InvoiceLine
     public decimal TaxSpecificAmount { get; set; }
     public SpecificTaxType SpecificTaxType { get; set; } = SpecificTaxType.None;
     public decimal SpecificTaxValue { get; set; }
- 
+
 
     // ══════════════════════════════════════════════
     // MONTANTS CALCULÉS — Chaîne complète
     // Ordre par défaut: HT → Remise → HT remisé → TVA + T.S. → TTC
     // ══════════════════════════════════════════════
+
+    public decimal GrossAmount { get; set; }        // dans le mode saisi (HT ou TTC)
+    public decimal GrossAmountHT { get; set; }      // Qty × PU_HT
+    public decimal GrossAmountTTC { get; set; }     // Qty × PU_TTC
+
     public decimal AmountHTBeforeDiscount { get; set; }  // Qty × UnitPriceHT
     public decimal AmountHT { get; set; }                // HT après remise
     public decimal AmountTVA { get; set; }               // Montant TVA

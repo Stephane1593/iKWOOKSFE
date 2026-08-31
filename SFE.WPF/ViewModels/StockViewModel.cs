@@ -1,4 +1,4 @@
-﻿// File: SFE.WPF/ViewModels/StockViewModel.cs
+﻿using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Events;
@@ -14,12 +14,32 @@ public partial class StockViewModel : BaseViewModel
 {
     private readonly StockService _stockService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuthService _authService;
 
-    public StockViewModel(StockService stockService, IUnitOfWork unitOfWork)
+    // ── Concurrency guards (single-threaded UI, but async reentrancy is real) ──
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
+
+    // ── Debounce tokens ──
+    private CancellationTokenSource? _productSearchCts;
+    private CancellationTokenSource? _filterCts;
+
+    // Reentrancy guard for OnSelectedPosChanged — prevents the command
+    // and the setter both triggering LoadPosStockAsync.
+    private bool _suppressPosChange;
+
+    public StockViewModel(
+        StockService stockService,
+        IUnitOfWork unitOfWork,
+        IAuthService authService)
     {
         _stockService = stockService;
         _unitOfWork = unitOfWork;
+        _authService = authService;
         PageTitle = "📦 Gestion du stock";
+
+        MovementOperator = _authService.CurrentUser?.FullName
+                        ?? _authService.CurrentUser?.Username
+                        ?? "Système";
 
         MovementTypes = new ObservableCollection<StockMovementType>(
             Enum.GetValues<StockMovementType>()
@@ -38,6 +58,8 @@ public partial class StockViewModel : BaseViewModel
 
     private async Task OnStockOrProductChangedAsync()
     {
+        // Product CRUD can change names/categories/units of items we display —
+        // so reload both the POS list (in case a new POS was added) and the stock.
         await LoadPosStockAsync();
     }
 
@@ -53,6 +75,16 @@ public partial class StockViewModel : BaseViewModel
     private PointOfSale? _selectedPos;
 
     public bool HasSelectedPos => SelectedPos != null;
+
+    /// <summary>
+    /// Fires when the combobox selection changes OR when we rebind the reference
+    /// after a reload (by Id). In both cases we want to refresh the stock view.
+    /// </summary>
+    partial void OnSelectedPosChanged(PointOfSale? value)
+    {
+        if (_suppressPosChange) return;
+        _ = LoadPosStockAsync();
+    }
 
     [ObservableProperty]
     private ObservableCollection<PosStockItem> _stockItems = new();
@@ -76,7 +108,7 @@ public partial class StockViewModel : BaseViewModel
     private string _searchText = "";
 
     partial void OnSearchTextChanged(string value)
-        => ApplyFilter(ActiveFilter);
+        => DebouncedApplyFilter();
 
     [ObservableProperty]
     private string _activeFilter = "all";
@@ -124,13 +156,13 @@ public partial class StockViewModel : BaseViewModel
     private string _movementReference = "";
 
     [ObservableProperty]
-    private string _movementOperator = "Admin";
+    private string _movementOperator = "";
 
     [ObservableProperty]
     private string _productSearchText = "";
 
     partial void OnProductSearchTextChanged(string value)
-        => _ = SearchProductsAsync();
+        => DebouncedSearchProducts();
 
     [ObservableProperty]
     private ObservableCollection<Product> _productSearchResults = new();
@@ -178,10 +210,38 @@ public partial class StockViewModel : BaseViewModel
         try
         {
             var posList = await _unitOfWork.PointsOfSale.GetActiveAsync();
+            var previousPosId = SelectedPos?.Id;
+
             PointsOfSale = new ObservableCollection<PointOfSale>(posList);
 
-            if (SelectedPos == null && posList.Count > 0)
-                await SelectPosAsync(posList[0]);
+            // Rebind SelectedPos by Id (reference may have changed after reload).
+            PointOfSale? target = null;
+            if (previousPosId.HasValue)
+                target = posList.FirstOrDefault(p => p.Id == previousPosId.Value);
+            target ??= posList.FirstOrDefault();
+
+            if (target != null)
+            {
+                // Only change the reference if it's actually different (avoids
+                // spurious OnSelectedPosChanged → LoadPosStockAsync on every refresh).
+                if (!ReferenceEquals(target, SelectedPos))
+                {
+                    SelectedPos = target;                // triggers OnSelectedPosChanged → LoadPosStockAsync
+                }
+                else
+                {
+                    // Same reference but underlying data may have changed; reload manually.
+                    await LoadPosStockAsync();
+                }
+            }
+            else
+            {
+                SelectedPos = null;
+                StockItems.Clear();
+                FilteredStockItems.Clear();
+                TotalProducts = LowStockCount = OutOfStockCount = 0;
+                TotalStockValue = 0;
+            }
         }
         finally { IsBusy = false; }
     }
@@ -189,21 +249,38 @@ public partial class StockViewModel : BaseViewModel
     [RelayCommand]
     private async Task RefreshAsync() => await LoadAsync();
 
+    /// <summary>
+    /// Kept for XAML compatibility. Setting SelectedPos alone is enough
+    /// (OnSelectedPosChanged triggers the reload), but if the view binds
+    /// a command we keep this path working.
+    /// </summary>
     [RelayCommand]
-    private async Task SelectPosAsync(PointOfSale pos)
+    private Task SelectPosAsync(PointOfSale pos)
     {
-        SelectedPos = pos;
-        await LoadPosStockAsync();
+        if (pos == null || ReferenceEquals(pos, SelectedPos))
+            return Task.CompletedTask;
+
+        SelectedPos = pos;   // triggers OnSelectedPosChanged → LoadPosStockAsync
+        return Task.CompletedTask;
     }
 
     private async Task LoadPosStockAsync()
     {
         if (SelectedPos == null) return;
+
+        // Prevent overlapping reloads (event burst + manual refresh + selection change).
+        if (!await _loadLock.WaitAsync(0))
+            return;
+
         IsBusy = true;
+        var posId = SelectedPos.Id;
 
         try
         {
-            var stocks = await _stockService.GetPosStocksAsync(SelectedPos.Id);
+            var stocks = await _stockService.GetPosStocksAsync(posId);
+
+            // If user changed POS while we were loading, bail out — newer call will win.
+            if (SelectedPos?.Id != posId) return;
 
             var items = stocks.Select(s => new PosStockItem
             {
@@ -223,7 +300,7 @@ public partial class StockViewModel : BaseViewModel
                 IsOutOfStock = s.IsOutOfStock,
                 StatusColor = s.StockStatusColor,
                 StatusText = s.StockStatusDisplay,
-                LastMovementAt = s.LastMovementAt
+                LastMovementAt = s.LastMovementAt.LocalDateTime
             }).ToList();
 
             StockItems = new ObservableCollection<PosStockItem>(items);
@@ -235,7 +312,11 @@ public partial class StockViewModel : BaseViewModel
 
             ApplyFilter(ActiveFilter);
         }
-        finally { IsBusy = false; }
+        finally
+        {
+            IsBusy = false;
+            _loadLock.Release();
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -251,6 +332,26 @@ public partial class StockViewModel : BaseViewModel
     [RelayCommand]
     private void FilterOutOfStock() => ApplyFilter("out");
 
+    private void DebouncedApplyFilter()
+    {
+        _filterCts?.Cancel();
+        _filterCts = new CancellationTokenSource();
+        var token = _filterCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(200, token);
+                if (token.IsCancellationRequested) return;
+
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => ApplyFilter(ActiveFilter));
+            }
+            catch (TaskCanceledException) { /* expected */ }
+        });
+    }
+
     private void ApplyFilter(string filter)
     {
         ActiveFilter = filter;
@@ -258,10 +359,10 @@ public partial class StockViewModel : BaseViewModel
 
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
-            var q = SearchText.ToLower();
+            var q = SearchText.Trim();
             filtered = filtered.Where(i =>
-                i.ProductName.ToLower().Contains(q) ||
-                i.ProductCode.ToLower().Contains(q));
+                (i.ProductName?.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                (i.ProductCode?.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0));
         }
 
         filtered = filter switch
@@ -301,21 +402,58 @@ public partial class StockViewModel : BaseViewModel
         MovementReference = "";
         ProductSearchText = "";
         MovementProduct = null;
+
+        // Refresh operator in case session changed.
+        MovementOperator = _authService.CurrentUser?.FullName
+                        ?? _authService.CurrentUser?.Username
+                        ?? "Système";
+
         IsMovementFormVisible = true;
         ClearStatus();
     }
 
-    private async Task SearchProductsAsync()
+    private void DebouncedSearchProducts()
+    {
+        _productSearchCts?.Cancel();
+        _productSearchCts = new CancellationTokenSource();
+        var token = _productSearchCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(250, token);
+                if (token.IsCancellationRequested) return;
+
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    async () => await SearchProductsAsync(token));
+            }
+            catch (TaskCanceledException) { /* expected */ }
+        });
+    }
+
+    private async Task SearchProductsAsync(CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(ProductSearchText) || ProductSearchText.Length < 2)
         {
             IsProductSearchOpen = false;
+            ProductSearchResults.Clear();
             return;
         }
 
-        var results = await _unitOfWork.Products.SearchAsync(ProductSearchText, 15);
-        ProductSearchResults = new ObservableCollection<Product>(results);
-        IsProductSearchOpen = results.Count > 0;
+        try
+        {
+            var results = await _unitOfWork.Products.SearchAsync(ProductSearchText, 15);
+            if (token.IsCancellationRequested) return;
+
+            ProductSearchResults = new ObservableCollection<Product>(results);
+            IsProductSearchOpen = results.Count > 0;
+        }
+        catch
+        {
+            // Silent: search typos shouldn't break the form.
+            IsProductSearchOpen = false;
+        }
     }
 
     [RelayCommand]
@@ -335,7 +473,30 @@ public partial class StockViewModel : BaseViewModel
         };
 
         IsProductSearchOpen = false;
+
+        // Cancel any pending debounced search so the setter below doesn't retrigger it.
+        _productSearchCts?.Cancel();
         ProductSearchText = product.DisplayText;
+    }
+
+    /// <summary>
+    /// Culture-tolerant decimal parse: accepts "12,5" and "12.5" regardless
+    /// of the thread's current culture (FR-CD uses "," as separator).
+    /// </summary>
+    private static bool TryParseQuantity(string input, out decimal value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(input)) return false;
+
+        var s = input.Trim();
+
+        // Try current culture first (respects user's locale).
+        if (decimal.TryParse(s, NumberStyles.Number, CultureInfo.CurrentCulture, out value))
+            return true;
+
+        // Fallback: normalize decimal separator and parse as Invariant.
+        var normalized = s.Replace(',', '.');
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     }
 
     [RelayCommand]
@@ -347,61 +508,63 @@ public partial class StockViewModel : BaseViewModel
             return;
         }
 
-        if (!decimal.TryParse(MovementQuantity, out var qty) || qty <= 0)
+        if (!TryParseQuantity(MovementQuantity, out var qty))
         {
             ShowErrorMessage("Quantité invalide.");
+            return;
+        }
+
+        // For non-adjustment movements, reject zero/negative.
+        // For adjustment/inventory, zero is a legit value (set stock to 0).
+        if (!IsAdjustmentMode && qty <= 0)
+        {
+            ShowErrorMessage("La quantité doit être strictement positive.");
+            return;
+        }
+        if (IsAdjustmentMode && qty < 0)
+        {
+            ShowErrorMessage("La quantité ne peut pas être négative.");
             return;
         }
 
         IsBusy = true;
         try
         {
-            StockOperationResult result;
-
-            switch (MovementType)
+            StockOperationResult result = MovementType switch
             {
-                case StockMovementType.Entry:
-                    result = await _stockService.AddStockEntryAsync(
-                        MovementProduct.ProductId, SelectedPos.Id, qty,
-                        MovementOperator, MovementNotes, MovementReference);
-                    break;
+                StockMovementType.Entry => await _stockService.AddStockEntryAsync(
+                    MovementProduct.ProductId, SelectedPos.Id, qty,
+                    MovementOperator, MovementNotes, MovementReference),
 
-                case StockMovementType.Exit:
-                    result = await _stockService.AddStockExitAsync(
-                        MovementProduct.ProductId, SelectedPos.Id, qty,
-                        MovementOperator, MovementNotes, MovementReference);
-                    break;
+                StockMovementType.Exit => await _stockService.AddStockExitAsync(
+                    MovementProduct.ProductId, SelectedPos.Id, qty,
+                    MovementOperator, MovementNotes, MovementReference),
 
-                case StockMovementType.Adjustment:
-                    result = await _stockService.AdjustStockAsync(
-                        MovementProduct.ProductId, SelectedPos.Id, qty,
-                        MovementOperator, MovementNotes);
-                    break;
+                StockMovementType.Adjustment => await _stockService.AdjustStockAsync(
+                    MovementProduct.ProductId, SelectedPos.Id, qty,
+                    MovementOperator, MovementNotes),
 
-                case StockMovementType.PhysicalCount:
-                    result = await _stockService.SetPhysicalCountAsync(
-                        MovementProduct.ProductId, SelectedPos.Id, qty,
-                        MovementOperator, MovementNotes);
-                    break;
+                StockMovementType.PhysicalCount => await _stockService.SetPhysicalCountAsync(
+                    MovementProduct.ProductId, SelectedPos.Id, qty,
+                    MovementOperator, MovementNotes),
 
-                case StockMovementType.Initial:
-                    result = await _stockService.SetInitialStockAsync(
-                        MovementProduct.ProductId, SelectedPos.Id, qty,
-                        MovementOperator, MovementNotes);
-                    break;
+                StockMovementType.Initial => await _stockService.SetInitialStockAsync(
+                    MovementProduct.ProductId, SelectedPos.Id, qty,
+                    MovementOperator, MovementNotes),
 
-                default:
-                    result = StockOperationResult.Fail("Type non supporté.");
-                    break;
-            }
+                _ => StockOperationResult.Fail("Type non supporté.")
+            };
 
             if (result.Success)
             {
                 IsMovementFormVisible = false;
-                // NOTE: LoadPosStockAsync will also be triggered by the StockUpdated event,
-                // but the explicit call here gives immediate feedback.
-                await LoadPosStockAsync();
-                _ = ShowSuccessAsync($"✅ {MovementFormTitle} — Nouveau stock: {result.NewQuantity:G}");
+
+                // No explicit LoadPosStockAsync() here — the StockService now publishes
+                // StockUpdated *after* commit, and OnStockOrProductChangedAsync will
+                // trigger the reload. This removes the double-load we had before.
+
+                _ = ShowSuccessAsync(
+                    $"✅ {MovementFormTitle} — Nouveau stock: {result.NewQuantity.ToString("G", CultureInfo.CurrentCulture)}");
             }
             else
             {
@@ -420,25 +583,34 @@ public partial class StockViewModel : BaseViewModel
     // ══════════════════════════════════════════════════════════
 
     [RelayCommand]
-    private async Task ViewProductStockAsync(PosStockItem item)
+    private async Task ViewProductStockAsync(PosStockItem? item)
     {
-        var stocks = await _stockService.GetProductStocksAsync(item.ProductId);
+        if (item == null) return;
 
-        DetailProductName = item.ProductName;
-        DetailTotalStock = stocks.Sum(s => s.Quantity);
-        ProductPosStocks = new ObservableCollection<PosStockDetailItem>(
-            stocks.Select(s => new PosStockDetailItem
-            {
-                PosCode = s.PointOfSale?.Code ?? "",
-                PosName = s.PointOfSale?.Name ?? "",
-                Quantity = s.Quantity,
-                MinStock = s.EffectiveMinStock,
-                StatusColor = s.StockStatusColor,
-                StatusText = s.StockStatusDisplay,
-                IsCurrentPos = s.PointOfSaleId == SelectedPos?.Id
-            }));
+        try
+        {
+            var stocks = await _stockService.GetProductStocksAsync(item.ProductId);
 
-        ShowProductDetail = true;
+            DetailProductName = item.ProductName;
+            DetailTotalStock = stocks.Sum(s => s.Quantity);
+            ProductPosStocks = new ObservableCollection<PosStockDetailItem>(
+                stocks.Select(s => new PosStockDetailItem
+                {
+                    PosCode = s.PointOfSale?.Code ?? "",
+                    PosName = s.PointOfSale?.Name ?? "",
+                    Quantity = s.Quantity,
+                    MinStock = s.EffectiveMinStock,
+                    StatusColor = s.StockStatusColor,
+                    StatusText = s.StockStatusDisplay,
+                    IsCurrentPos = s.PointOfSaleId == SelectedPos?.Id
+                }));
+
+            ShowProductDetail = true;
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur chargement détail: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -449,16 +621,23 @@ public partial class StockViewModel : BaseViewModel
     // ══════════════════════════════════════════════════════════
 
     [RelayCommand]
-    private async Task ViewHistoryAsync(PosStockItem item)
+    private async Task ViewHistoryAsync(PosStockItem? item)
     {
-        if (SelectedPos == null) return;
+        if (item == null || SelectedPos == null) return;
 
-        var movements = await _stockService.GetMovementHistoryAsync(
-            item.ProductId, SelectedPos.Id, 100);
+        try
+        {
+            var movements = await _stockService.GetMovementHistoryAsync(
+                item.ProductId, SelectedPos.Id, 100);
 
-        HistoryTitle = $"Historique — {item.ProductName} @ {SelectedPos.Code}";
-        HistoryItems = new ObservableCollection<StockMovement>(movements);
-        ShowHistory = true;
+            HistoryTitle = $"Historique — {item.ProductName} @ {SelectedPos.Code}";
+            HistoryItems = new ObservableCollection<StockMovement>(movements);
+            ShowHistory = true;
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur chargement historique: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -487,7 +666,7 @@ public class PosStockItem
     public bool IsOutOfStock { get; set; }
     public string StatusColor { get; set; } = "#10B981";
     public string StatusText { get; set; } = "OK";
-    public DateTime LastMovementAt { get; set; }
+    public DateTimeOffset LastMovementAt { get; set; }
 
     public string QuantityDisplay => $"{Quantity:G} {Unit}";
     public string ValueDisplay => $"{(Quantity * UnitPriceTtcCdf):N0} CDF";

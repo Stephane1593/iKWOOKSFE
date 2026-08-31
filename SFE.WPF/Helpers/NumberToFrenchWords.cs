@@ -11,7 +11,8 @@ public static class NumberToFrenchWords
 
     private static readonly string[] TensNames =
     {
-        "", "", "vingt", "trente", "quarante", "cinquante", "soixante"
+    "", "", "vingt", "trente", "quarante", "cinquante", "soixante",
+    "septante", "", "nonante"
     };
 
     public static string Convert(decimal amount, string currency = "francs congolais toutes taxes comprises")
@@ -89,22 +90,14 @@ public static class NumberToFrenchWords
     {
         if (n < 20) return Units[n];
 
-        // 80-99 : quatre-vingt(s)
-        if (n >= 80)
+        // 80-99 : quatre-vingt(s) — unchanged in Belgian French
+        if (n >= 80 && n < 90)
         {
             if (n == 80) return "quatre-vingts";
-            return $"quatre-vingt-{ConvertUnder100(n - 80)}";
+            return $"quatre-vingt-{Units[n - 80]}";
         }
 
-        // 70-79 : soixante-dix...
-        if (n >= 70)
-        {
-            long r = n - 60;
-            if (r == 11) return "soixante et onze";
-            return $"soixante-{ConvertUnder100(r)}";
-        }
-
-        // 20-69
+        // 20-79 and 90-99 : all regular, incl. septante / nonante
         long ten = n / 10;
         long unit = n % 10;
 

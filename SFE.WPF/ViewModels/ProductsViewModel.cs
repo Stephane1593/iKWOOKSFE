@@ -1,12 +1,13 @@
-﻿// File: SFE.WPF/ViewModels/ProductsViewModel.cs
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Events;
 using SFE.Application.Helpers;
+using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
+using SFE.WPF.Services;
 
 namespace SFE.WPF.ViewModels;
 
@@ -14,13 +15,14 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
 {
     private readonly ProductService _productService;
     private readonly SettingsService _settingsService;
+    private readonly IAuthService _authService;
 
     // ══════════════════════════════════════════════
     //  LISTE
     // ══════════════════════════════════════════════
     public ObservableCollection<Product> Products { get; } = new();
     public ObservableCollection<ProductCategory> Categories { get; } = new();
-    private bool _isFirstActivation = true;   // 
+    private bool _isFirstActivation = true;
 
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private ProductCategory? _selectedCategoryFilter;
@@ -33,7 +35,6 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     [ObservableProperty] private bool _isHtMode;
     [ObservableProperty] private string _activeCurrency = "CDF";
     [ObservableProperty] private decimal _exchangeRate = 2800m;
-    [ObservableProperty] private string _activeField = "HT_CDF";
 
     // ══════════════════════════════════════════════
     //  FORMULAIRE
@@ -57,8 +58,11 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     [ObservableProperty] private TaxSpecificMode _editTaxSpecificMode = TaxSpecificMode.PerArticle;
     [ObservableProperty] private bool _showSpecificTaxFields;
 
-    [ObservableProperty] private string _editPriceInput = "";
-    [ObservableProperty] private string _editPriceLabel = "Prix unitaire HT (CDF) *";
+    // ── TWO PRICE INPUT FIELDS (HT ↔ TTC cross-computation) ──
+    [ObservableProperty] private string _editPriceHtInput = "";
+    [ObservableProperty] private string _editPriceTtcInput = "";
+    private bool _isUpdatingPrices;   // prevents infinite HT↔TTC loop
+
     [ObservableProperty] private decimal _calcHtCdf;
     [ObservableProperty] private decimal _calcTtcCdf;
     [ObservableProperty] private decimal _calcHtUsd;
@@ -93,6 +97,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     public TaxGroup[] TaxGroups { get; } = Enum.GetValues<TaxGroup>();
     public SpecificTaxType[] SpecificTaxTypes { get; } = Enum.GetValues<SpecificTaxType>();
     public TaxSpecificMode[] TaxSpecificModes { get; } = Enum.GetValues<TaxSpecificMode>();
+
     public DiscountType[] DiscountTypes { get; } = Enum.GetValues<DiscountType>();
     public string[] CommonUnits { get; } =
     {
@@ -100,35 +105,49 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         "h", "j", "lot", "crt", "bte", "btle", "sac"
     };
 
+    // ── NEW ──
+    [ObservableProperty] private TaxGroupAType _editTaxGroupAType = TaxGroupAType.Exonere;
+    [ObservableProperty] private bool _showTaxGroupAVariant;
+
+    public TaxGroupAType[] TaxGroupATypes { get; } = Enum.GetValues<TaxGroupAType>();
+
     // ══════════════════════════════════════════════
     //  CONSTRUCTOR
     // ══════════════════════════════════════════════
-    public ProductsViewModel(ProductService productService, SettingsService settingsService)
+    public ProductsViewModel(ProductService productService, SettingsService settingsService, IAuthService authService)
     {
         _productService = productService;
         _settingsService = settingsService;
+        _authService = authService;
         PageTitle = "Catalogue Produits";
 
-        // ── EVENT SUBSCRIPTIONS ──
-        // Reload products when stock changes (Product.StockQuantity is updated
-        // by StockService.UpdateProductGlobalStockAsync)
         Subscribe(OnStockOrProductChangedAsync,
             AppEvent.StockUpdated,
             AppEvent.ProductCreated,
             AppEvent.ProductUpdated,
             AppEvent.ProductDeleted);
 
+        Subscribe(OnCategoryChangedAsync,
+            AppEvent.CategoryCreated,
+            AppEvent.CategoryUpdated,
+            AppEvent.CategoryDeleted);
+
         _ = InitializeAsync();
     }
 
+    public bool CanDeleteProducts => _authService.HasPermission("authorize.deleteProduct");
+
     private async Task OnStockOrProductChangedAsync()
     {
-        // Only reload the list if we're NOT currently editing
-        // (avoids losing unsaved form data due to background refresh)
         if (!IsEditing)
-        {
             await LoadProductsAsync();
-        }
+    }
+
+    private async Task OnCategoryChangedAsync()
+    {
+        var cats = await _productService.GetCategoriesAsync();
+        Categories.Clear();
+        foreach (var c in cats) Categories.Add(c);
     }
 
     private async Task InitializeAsync()
@@ -143,7 +162,6 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             ActiveCurrency = settings.DefaultCurrency.ToString();
             ExchangeRate = settings.CurrentExchangeRate > 0
                 ? settings.CurrentExchangeRate : 2800m;
-            UpdatePriceLabel();
 
             var cats = await _productService.GetCategoriesAsync();
             Categories.Clear();
@@ -160,114 +178,200 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     }
 
     // ══════════════════════════════════════════════
-    //  PRICE LABEL + ACTIVE FIELD
+    //  PRICE CROSS-COMPUTATION (HT ↔ TTC)
     // ══════════════════════════════════════════════
-    private void UpdatePriceLabel()
-    {
-        ActiveField = (IsHtMode, ActiveCurrency) switch
-        {
-            (true, "CDF") => "HT_CDF",
-            (false, "CDF") => "TTC_CDF",
-            (true, "USD") => "HT_USD",
-            (false, "USD") => "TTC_USD",
-            _ => "HT_CDF"
-        };
 
-        EditPriceLabel = ActiveField switch
-        {
-            "HT_CDF" => "Prix unitaire HT (CDF) *",
-            "TTC_CDF" => "Prix unitaire TTC (CDF) *",
-            "HT_USD" => "Prix unitaire HT (USD) *",
-            "TTC_USD" => "Prix unitaire TTC (USD) *",
-            _ => "Prix unitaire *"
-        };
+    /// <summary>User typed in the HT field → compute TTC + refresh card.</summary>
+    partial void OnEditPriceHtInputChanged(string value)
+    {
+        if (_isUpdatingPrices) return;
+        ComputeFromHt();
     }
 
-    // ══════════════════════════════════════════════
-    //  MULTI-CURRENCY AUTO-CALCULATION
-    // ══════════════════════════════════════════════
-    partial void OnEditPriceInputChanged(string value) => RecalculatePrices();
+    /// <summary>User typed in the TTC field → compute HT + refresh card.</summary>
+    partial void OnEditPriceTtcInputChanged(string value)
+    {
+        if (_isUpdatingPrices) return;
+        ComputeFromTtc();
+    }
 
     partial void OnEditTaxGroupChanged(TaxGroup value)
     {
+        ShowTaxGroupAVariant = value == TaxGroup.A;
+        if (value != TaxGroup.A)
+            EditTaxGroupAType = TaxGroupAType.Exonere;   // reset when leaving A
+
         UpdateTaxRateDisplay();
-        RecalculatePrices();
+        RecomputeFromBestInput();
     }
 
     partial void OnEditSpecificTaxTypeChanged(SpecificTaxType value)
     {
         ShowSpecificTaxFields = value != SpecificTaxType.None;
-        RecalculatePrices();
+        RecomputeFromBestInput();
     }
 
-    partial void OnEditSpecificTaxValueChanged(string value) => RecalculatePrices();
+    partial void OnEditSpecificTaxValueChanged(string value) => RecomputeFromBestInput();
+
+    /// <summary>Re-derive prices from whichever field has a valid value (prefer HT).</summary>
+    private void RecomputeFromBestInput()
+    {
+        if (DecimalParsingHelper.TryParseFlexible(EditPriceHtInput, out var ht) && ht > 0)
+            ComputeFromHt();
+        else if (DecimalParsingHelper.TryParseFlexible(EditPriceTtcInput, out var ttc) && ttc > 0)
+            ComputeFromTtc();
+    }
 
     private void UpdateTaxRateDisplay()
     {
         var rate = TaxCalculator.GetDefaultRate(EditTaxGroup);
-        ActiveTaxRateDisplay = $"TVA {EditTaxGroup} — {rate}%  ({TaxCalculator.GetGroupLabel(EditTaxGroup)})";
+        var code = EditTaxGroup.DisplayCode(
+            EditTaxGroup == TaxGroup.A ? EditTaxGroupAType : null);
+        ActiveTaxRateDisplay =
+            $"TVA [{code}] — {rate}%  ({EditTaxGroup.GetGroupLabel(EditTaxGroupAType)})";
     }
 
-    private void RecalculatePrices()
+    // Re-run the display line when the user flips Exonéré ↔ Hors champ
+    partial void OnEditTaxGroupATypeChanged(TaxGroupAType value) => UpdateTaxRateDisplay();
+
+    /// <summary>
+    /// User entered HT (CDF) → derive TTC, fill TTC input field + 4-price card.
+    /// </summary>
+    private void ComputeFromHt()
     {
-        if (!DecimalParsingHelper.TryParseFlexible(EditPriceInput, out var input) || input < 0)
+        if (!DecimalParsingHelper.TryParseFlexible(EditPriceHtInput, out var htCdf) || htCdf < 0)
         {
-            HasPriceCalculation = false;
-            CalcHtCdf = CalcTtcCdf = CalcHtUsd = CalcTtcUsd = 0;
+            ClearPrices();
             return;
         }
 
-        decimal tvaRate = TaxCalculator.GetDefaultRate(EditTaxGroup);
-        decimal xRate = ExchangeRate > 0 ? ExchangeRate : 1m;
-
-        decimal tsValue = 0m;
-        if (EditSpecificTaxType != SpecificTaxType.None)
-            DecimalParsingHelper.TryParseFlexible(EditSpecificTaxValue, out tsValue);
-
-        decimal htCdf, ttcCdf;
-
-        switch (ActiveField)
+        _isUpdatingPrices = true;
+        try
         {
-            case "HT_CDF":
-                htCdf = input;
-                (_, ttcCdf) = TaxCalculator.EnsureDualPrices(
-                    htCdf, PriceMode.HT, tvaRate,
-                    EditSpecificTaxType, tsValue);
-                break;
+            decimal tvaRate = TaxCalculator.GetDefaultRate(EditTaxGroup);
+            decimal xRate = ExchangeRate > 0 ? ExchangeRate : 1m;
+            decimal tsValue = 0m;
+            if (EditSpecificTaxType != SpecificTaxType.None)
+                DecimalParsingHelper.TryParseFlexible(EditSpecificTaxValue, out tsValue);
 
-            case "TTC_CDF":
-                ttcCdf = input;
-                (htCdf, _) = TaxCalculator.EnsureDualPrices(
-                    ttcCdf, PriceMode.TTC, tvaRate,
-                    EditSpecificTaxType, tsValue);
-                break;
+            var (_, ttcCdf) = TaxCalculator.EnsureDualPrices(
+                htCdf, PriceMode.HT, tvaRate,
+                EditSpecificTaxType, tsValue);
 
-            case "HT_USD":
-                htCdf = input * xRate;
-                (_, ttcCdf) = TaxCalculator.EnsureDualPrices(
-                    htCdf, PriceMode.HT, tvaRate,
-                    EditSpecificTaxType, tsValue);
-                break;
+            htCdf = Math.Max(0, Math.Round(htCdf, 4));
+            ttcCdf = Math.Max(0, Math.Round(ttcCdf, 2));
 
-            case "TTC_USD":
-                ttcCdf = input * xRate;
-                (htCdf, _) = TaxCalculator.EnsureDualPrices(
-                    ttcCdf, PriceMode.TTC, tvaRate,
-                    EditSpecificTaxType, tsValue);
-                break;
+            // Auto-fill the TTC input field
+            EditPriceTtcInput = ttcCdf.ToString("F2");
 
-            default:
-                return;
+            RefreshPriceCard(htCdf, ttcCdf, xRate);
+        }
+        finally
+        {
+            _isUpdatingPrices = false;
+        }
+    }
+
+    /// <summary>
+    /// User entered TTC (CDF) → derive HT, fill HT input field + 4-price card.
+    /// </summary>
+    private void ComputeFromTtc()
+    {
+        if (!DecimalParsingHelper.TryParseFlexible(EditPriceTtcInput, out var ttcCdf) || ttcCdf < 0)
+        {
+            ClearPrices();
+            return;
         }
 
-        htCdf = Math.Max(0, Math.Round(htCdf, 4));
-        ttcCdf = Math.Max(0, Math.Round(ttcCdf, 4));
+        _isUpdatingPrices = true;
+        try
+        {
+            decimal tvaRate = TaxCalculator.GetDefaultRate(EditTaxGroup);
+            decimal xRate = ExchangeRate > 0 ? ExchangeRate : 1m;
+            decimal tsValue = 0m;
+            if (EditSpecificTaxType != SpecificTaxType.None)
+                DecimalParsingHelper.TryParseFlexible(EditSpecificTaxValue, out tsValue);
 
+            var (htCdf, _) = TaxCalculator.EnsureDualPrices(
+                ttcCdf, PriceMode.TTC, tvaRate,
+                EditSpecificTaxType, tsValue);
+
+            htCdf = Math.Max(0, Math.Round(htCdf, 4));
+            ttcCdf = Math.Max(0, Math.Round(ttcCdf, 2));
+
+            // Auto-fill the HT input field
+            EditPriceHtInput = htCdf.ToString("F2");
+
+            RefreshPriceCard(htCdf, ttcCdf, xRate);
+        }
+        finally
+        {
+            _isUpdatingPrices = false;
+        }
+    }
+
+    private void RefreshPriceCard(decimal htCdf, decimal ttcCdf, decimal xRate)
+    {
         CalcHtCdf = htCdf;
         CalcTtcCdf = ttcCdf;
         CalcHtUsd = xRate > 0 ? Math.Round(htCdf / xRate, 4) : 0;
         CalcTtcUsd = xRate > 0 ? Math.Round(ttcCdf / xRate, 4) : 0;
         HasPriceCalculation = true;
+    }
+
+    private void ClearPrices()
+    {
+        HasPriceCalculation = false;
+        CalcHtCdf = CalcTtcCdf = CalcHtUsd = CalcTtcUsd = 0;
+    }
+
+    [RelayCommand]
+    private async Task PrintBarcode(Product? product)
+    {
+        if (product == null) return;
+
+        try
+        {
+            // Default: print 1 thermal copy. You can change copies or choose non-thermal by updating parameters.
+            // If you want to use a configured copy count or prefer full-label printing, adapt here.
+            await Task.Run(() =>
+            {
+                // Print on UI thread - PrintDialog requires STA/UI thread.
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    // Use thermal layout by default (80mm). Pass copies if you want more.
+                    BarcodePrinter.PrintProductBarcode(product, copies: 1, thermal: true);
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur impression : {ex.Message}";
+            ShowError = true;
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  AUTO-GENERATE PRODUCT CODE
+    // ══════════════════════════════════════════════
+    partial void OnEditCategoryChanged(ProductCategory? value)
+    {
+        // Only auto-generate code for NEW products when a category is selected
+        if (IsNewProduct && value != null)
+            _ = GenerateCodeAsync(value.Id);
+    }
+
+    private async Task GenerateCodeAsync(int categoryId)
+    {
+        try
+        {
+            var code = await _productService.GenerateNextCodeAsync(categoryId);
+            EditCode = code;
+        }
+        catch
+        {
+            // Silently fail — user can still type a code manually
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -317,16 +421,23 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         FormTitle = "Nouveau produit";
 
         EditId = 0;
-        EditCode = "";
+        EditCode = "";              // auto-generated when category is selected
         EditBarcode = "";
         EditName = "";
         EditDescription = "";
         EditItemType = ItemType.BIE;
         EditTaxGroup = TaxGroup.B;
+        EditTaxGroupAType = TaxGroupAType.Exonere;    // NEW
+        ShowTaxGroupAVariant = false;                  // NEW
         EditSpecificTaxType = SpecificTaxType.None;
         EditSpecificTaxValue = "";
         EditTaxSpecificMode = TaxSpecificMode.PerArticle;
-        EditPriceInput = "";
+
+        _isUpdatingPrices = true;   // prevent cross-compute during reset
+        EditPriceHtInput = "";
+        EditPriceTtcInput = "";
+        _isUpdatingPrices = false;
+
         EditUnit = "pce";
         EditDefaultDiscountType = DiscountType.None;
         EditDefaultDiscountValue = "";
@@ -337,9 +448,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         EditIsFavorite = false;
         EditIsActive = true;
 
-        HasPriceCalculation = false;
-        CalcHtCdf = CalcTtcCdf = CalcHtUsd = CalcTtcUsd = 0;
-
+        ClearPrices();
         UpdateTaxRateDisplay();
     }
 
@@ -365,6 +474,8 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         EditDescription = product.Description;
         EditItemType = product.ItemType;
         EditTaxGroup = product.TaxGroup;
+        EditTaxGroupAType = product.TaxGroupAType ?? TaxGroupAType.Exonere;   // NEW
+        ShowTaxGroupAVariant = product.TaxGroup == TaxGroup.A;
         EditSpecificTaxType = product.SpecificTaxType;
         EditSpecificTaxValue = product.SpecificTaxValue > 0
             ? product.SpecificTaxValue.ToString("G") : "";
@@ -380,14 +491,26 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         EditIsFavorite = product.IsFavorite;
         EditIsActive = product.IsActive;
 
-        EditPriceInput = ActiveField switch
+
+
+        // ── Populate BOTH price fields without triggering cross-compute ──
+        _isUpdatingPrices = true;
+        try
         {
-            "HT_CDF" => product.UnitPriceHtCdf.ToString("F2"),
-            "TTC_CDF" => product.UnitPriceTtcCdf.ToString("F2"),
-            "HT_USD" => product.UnitPriceHtUsd.ToString("F4"),
-            "TTC_USD" => product.UnitPriceTtcUsd.ToString("F4"),
-            _ => product.UnitPriceHtCdf.ToString("F2")
-        };
+            EditPriceHtInput = product.UnitPriceHtCdf.ToString("F2");
+            EditPriceTtcInput = product.UnitPriceTtcCdf.ToString("F2");
+
+            decimal xRate = ExchangeRate > 0 ? ExchangeRate : 1m;
+            CalcHtCdf = product.UnitPriceHtCdf;
+            CalcTtcCdf = product.UnitPriceTtcCdf;
+            CalcHtUsd = xRate > 0 ? Math.Round(product.UnitPriceHtCdf / xRate, 4) : 0;
+            CalcTtcUsd = xRate > 0 ? Math.Round(product.UnitPriceTtcCdf / xRate, 4) : 0;
+            HasPriceCalculation = true;
+        }
+        finally
+        {
+            _isUpdatingPrices = false;
+        }
 
         UpdateTaxRateDisplay();
     }
@@ -456,6 +579,13 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             }
         }
 
+        // ── Auto-generate code if still empty on save ──
+        if (IsNewProduct && string.IsNullOrWhiteSpace(EditCode) && EditCategory != null)
+        {
+            try { EditCode = await _productService.GenerateNextCodeAsync(EditCategory.Id); }
+            catch { /* service validation will catch duplicates */ }
+        }
+
         if (IsNewProduct)
         {
             var product = new Product
@@ -466,6 +596,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
                 Description = EditDescription.Trim(),
                 ItemType = EditItemType,
                 TaxGroup = EditTaxGroup,
+                TaxGroupAType = EditTaxGroup == TaxGroup.A ? EditTaxGroupAType : (TaxGroupAType?)null,
                 SpecificTaxType = EditSpecificTaxType,
                 SpecificTaxValue = specificTaxVal,
                 TaxSpecificMode = EditTaxSpecificMode,
@@ -484,7 +615,6 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
                 IsFavorite = EditIsFavorite,
                 IsActive = EditIsActive
             };
-
             var result = await _productService.CreateAsync(product);
             if (!result.Success) { StatusMessage = result.ErrorMessage; ShowError = true; return; }
             StatusMessage = $"✓ Produit « {product.Name} » créé avec succès.";
@@ -500,6 +630,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             product.Description = EditDescription.Trim();
             product.ItemType = EditItemType;
             product.TaxGroup = EditTaxGroup;
+            product.TaxGroupAType = EditTaxGroup == TaxGroup.A ? EditTaxGroupAType : null;
             product.SpecificTaxType = EditSpecificTaxType;
             product.SpecificTaxValue = specificTaxVal;
             product.TaxSpecificMode = EditTaxSpecificMode;
@@ -525,9 +656,6 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
 
         ShowSuccess = true;
         IsEditing = false;
-        // NOTE: LoadProductsAsync will also be triggered by the
-        // ProductCreated/ProductUpdated event, but the explicit call
-        // gives immediate feedback.
         await LoadProductsAsync();
     }
 
@@ -542,11 +670,30 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
         ShowSuccess = false;
     }
 
+    // ── guarded command
     [RelayCommand]
     private async Task DeleteProduct(Product? product)
     {
         if (product == null) return;
-        await _productService.DeleteAsync(product.Id);
+
+        if (!_authService.HasPermission("authorize.deleteProduct"))
+        {
+            StatusMessage = "Vous n'avez pas l'autorisation de supprimer un produit. " +
+                            "Contactez un administrateur.";
+            ShowError = true;
+            ShowSuccess = false;
+            return;
+        }
+
+        var result = await _productService.DeleteAsync(product.Id);
+        if (!result.Success)
+        {
+            StatusMessage = result.ErrorMessage;
+            ShowError = true;
+            ShowSuccess = false;
+            return;
+        }
+
         StatusMessage = $"✓ Produit « {product.Name} » supprimé.";
         ShowSuccess = true;
         ShowError = false;
@@ -566,35 +713,29 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     // ══════════════════════════════════════════════
     //  IActivatable
     // ══════════════════════════════════════════════
-    public async Task ActivateAsync()                                  // 🆕
+    public async Task ActivateAsync()
     {
-        // Skip first call — InitializeAsync already ran from constructor
         if (_isFirstActivation)
         {
             _isFirstActivation = false;
             return;
         }
 
-        // Don't blow away unsaved form data
         if (IsEditing) return;
 
         IsBusy = true;
         try
         {
-            // ── Refresh settings (price mode / currency / rate may have changed) ──
             var settings = await _settingsService.LoadSettingsAsync();
             IsHtMode = settings.DefaultPriceMode != PriceMode.TTC;
             ActiveCurrency = settings.DefaultCurrency.ToString();
             ExchangeRate = settings.CurrentExchangeRate > 0
                 ? settings.CurrentExchangeRate : 2800m;
-            UpdatePriceLabel();
 
-            // ── Refresh categories ──
             var cats = await _productService.GetCategoriesAsync();
             Categories.Clear();
             foreach (var c in cats) Categories.Add(c);
 
-            // ── Refresh product list ──
             await LoadProductsAsync();
         }
         catch (Exception ex)

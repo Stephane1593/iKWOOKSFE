@@ -8,7 +8,7 @@ public class LoyaltyTransaction
     public string Type { get; set; } = "EARN"; // EARN or REDEEM
     public int Points { get; set; }
     public string? Description { get; set; }
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset Timestamp { get; set; }
 
     // Navigation
     public LoyaltyAccount? LoyaltyAccount { get; set; }

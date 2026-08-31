@@ -1,12 +1,15 @@
 ﻿using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Media;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using SFE.Application.Interfaces;
-using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 
@@ -14,13 +17,31 @@ namespace SFE.WPF.ViewModels;
 
 public partial class ReportViewModel : BaseViewModel
 {
-    private readonly ReportService _reportService;
     private readonly IUnitOfWork _unitOfWork;
+
+    // Debounce pour la recherche
+    private readonly DispatcherTimer _searchDebounce;
 
     // ══════ LIST ══════
     public ObservableCollection<ReportListItemViewModel> Reports { get; } = new();
 
     [ObservableProperty] private ReportListItemViewModel? _selectedReport;
+
+    // ══════ FILTER ══════
+    [ObservableProperty] private string _selectedFilter = "Tous";
+    public string[] FilterOptions { get; } =
+        { "Tous", "Z-Rapport", "X-Rapport", "A-Rapport" };
+
+    [ObservableProperty] private string _searchText = "";
+
+    // ══════ STATS ══════
+    [ObservableProperty] private int _zCount;
+    [ObservableProperty] private int _xCount;
+    [ObservableProperty] private int _aCount;
+    [ObservableProperty] private int _totalCount;
+    [ObservableProperty] private string _lastZInfo = "Aucun";
+    [ObservableProperty] private string _lastXInfo = "Aucun";
+    [ObservableProperty] private string _lastAInfo = "Aucun";
 
     // ══════ PREVIEW ══════
     [ObservableProperty] private string _reportPreview = "";
@@ -28,201 +49,66 @@ public partial class ReportViewModel : BaseViewModel
     [ObservableProperty] private string _previewTitle = "";
     [ObservableProperty] private string _previewSubtitle = "";
 
-    // ══════ PERIODIC X ══════
-    [ObservableProperty] private DateTime _periodicFrom = DateTime.Today;
-    [ObservableProperty] private DateTime _periodicTo = DateTime.Today;
-
-    // ══════ FILTER ══════
-    [ObservableProperty] private string _selectedFilter = "Tous";
-    public string[] FilterOptions { get; } =
-        { "Tous", "Z-Rapport", "X-Rapport", "A-Rapport" };
-
-    // ══════ STATS ══════
-    [ObservableProperty] private string _lastZInfo = "Aucun";
-    [ObservableProperty] private string _lastXInfo = "Aucun";
-    [ObservableProperty] private string _lastAInfo = "Aucun";
-    [ObservableProperty] private int _zCount;
-    [ObservableProperty] private int _xCount;
-    [ObservableProperty] private int _aCount;
-
-    // ══════ STATUS ══════
+    // ══════ STATE ══════
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool _showSuccess;
     [ObservableProperty] private bool _showError;
     [ObservableProperty] private bool _noResults;
 
-    // ══════ CONFIRMATION ══════
-    [ObservableProperty] private bool _showConfirmation;
-    [ObservableProperty] private string _confirmTitle = "";
-    [ObservableProperty] private string _confirmMessage = "";
-    [ObservableProperty] private string _confirmButtonText = "Confirmer";
-    private Func<Task>? _pendingAction;
+    // 🆕 Évite que NoResults soit true avant le premier chargement
+    private bool _initialLoadCompleted;
 
-    // TODO: inject from authentication / session service
-    private string OperatorName => "Opérateur";
+    /// <summary>All reports — source of truth for filtering.</summary>
+    private List<ReportListItemViewModel> _allReports = new();
 
-    public ReportViewModel(IUnitOfWork unitOfWork, ReportService reportService)
+    // Limite raisonnable pour éviter de charger toute la table
+    private const int MaxReportsToLoad = 1000;
+
+    public ReportViewModel(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
-        _reportService = reportService;
-        PageTitle = "Rapports fiscaux";
+        PageTitle = "Historique des rapports";
 
-        _ = InitializeAsync();
-    }
+        _searchDebounce = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _searchDebounce.Tick += (_, _) =>
+        {
+            _searchDebounce.Stop();
+            ApplyFilter();
+        };
 
-    private async Task InitializeAsync()
-    {
-        await LoadReportsAsync();
-        await LoadStatsAsync();
+        _ = LoadAsync();
     }
 
     // ══════════════════════════════════════════════
-    // DATA LOADING
+    //  LOAD
     // ══════════════════════════════════════════════
 
-    private async Task LoadReportsAsync()
-    {
-        IsBusy = true;
-        try
-        {
-            ReportType? typeFilter = SelectedFilter switch
-            {
-                "Z-Rapport" => ReportType.Z,
-                "X-Rapport" => ReportType.X,
-                "A-Rapport" => ReportType.A,
-                _ => null
-            };
-
-            var all = await _unitOfWork.GetRepository<DailyReport>()
-                .FindAsync(r => typeFilter == null || r.Type == typeFilter);
-
-            var sorted = all
-                .OrderByDescending(r => r.GeneratedAt)
-                .Take(200)
-                .ToList();
-
-            Reports.Clear();
-            foreach (var r in sorted)
-                Reports.Add(ReportListItemViewModel.FromEntity(r));
-
-            NoResults = Reports.Count == 0;
-        }
-        catch (Exception ex)
-        {
-            ShowStatus($"Erreur chargement : {ex.Message}", true);
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    private async Task LoadStatsAsync()
-    {
-        try
-        {
-            var all = (await _unitOfWork.GetRepository<DailyReport>()
-                .FindAsync(r => true)).ToList();
-
-            var lastZ = all.Where(r => r.Type == ReportType.Z)
-                .OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
-            var lastX = all.Where(r => r.Type == ReportType.X)
-                .OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
-            var lastA = all.Where(r => r.Type == ReportType.A)
-                .OrderByDescending(r => r.GeneratedAt).FirstOrDefault();
-
-            ZCount = all.Count(r => r.Type == ReportType.Z);
-            XCount = all.Count(r => r.Type == ReportType.X);
-            ACount = all.Count(r => r.Type == ReportType.A);
-
-            LastZInfo = lastZ != null
-                ? $"N°{lastZ.ReportNumber} — {lastZ.GeneratedAt:dd/MM/yyyy HH:mm}"
-                : "Aucun";
-            LastXInfo = lastX != null
-                ? $"N°{lastX.ReportNumber} — {lastX.GeneratedAt:dd/MM/yyyy HH:mm}"
-                : "Aucun";
-            LastAInfo = lastA != null
-                ? $"N°{lastA.ReportNumber} — {lastA.GeneratedAt:dd/MM/yyyy HH:mm}"
-                : "Aucun";
-        }
-        catch { /* stats are non-critical */ }
-    }
-
-    // ══════════════════════════════════════════════
-    // GENERATE COMMANDS
-    // ══════════════════════════════════════════════
-
-    [RelayCommand]
-    private async Task GenerateXDaily()
-    {
-        await RunGenerationAsync("X-Rapport quotidien", async () =>
-            await _reportService.GenerateReportXAsync(OperatorName));
-    }
-
-    [RelayCommand]
-    private async Task GenerateXPeriodic()
-    {
-        if (PeriodicFrom > PeriodicTo)
-        {
-            ShowStatus("La date de début doit être antérieure à la date de fin.", true);
-            return;
-        }
-
-        var end = PeriodicTo.Date.AddDays(1).AddSeconds(-1);
-        await RunGenerationAsync("X-Rapport périodique", async () =>
-            await _reportService.GenerateReportXPeriodicAsync(OperatorName, PeriodicFrom, end));
-    }
-
-    [RelayCommand]
-    private void RequestGenerateZ()
-    {
-        ConfirmTitle = "⚠ Clôture — Z-Rapport";
-        ConfirmMessage =
-            "Le Z-Rapport effectue la clôture de la session.\n\n" +
-            "Cette action :\n" +
-            "  • Agrège toutes les transactions depuis le dernier Z\n" +
-            "  • Marque la fin de la période comptable\n" +
-            "  • Démarre une nouvelle session\n\n" +
-            "Voulez-vous continuer ?";
-        ConfirmButtonText = "Générer Z-Rapport";
-        _pendingAction = async () =>
-            await RunGenerationAsync("Z-Rapport", async () =>
-                await _reportService.GenerateReportZAsync(OperatorName));
-        ShowConfirmation = true;
-    }
-
-    [RelayCommand]
-    private async Task GenerateA()
-    {
-        await RunGenerationAsync("A-Rapport", async () =>
-            await _reportService.GenerateReportAAsync(OperatorName));
-    }
-
-    private async Task RunGenerationAsync(string label, Func<Task<DailyReport>> generate)
+    private async Task LoadAsync()
     {
         IsBusy = true;
         ClearStatus();
 
         try
         {
-            var report = await generate();
+            var entities = await _unitOfWork.GetRepository<DailyReport>()
+                .FindAsync(r => true);
 
-            await LoadReportsAsync();
-            await LoadStatsAsync();
+            _allReports = entities
+                .OrderByDescending(r => r.GeneratedAt)
+                .Take(MaxReportsToLoad)
+                .Select(ReportListItemViewModel.FromEntity)
+                .ToList();
 
-            // Auto-select newly created report
-            var item = Reports.FirstOrDefault(r => r.ReportId == report.Id);
-            if (item != null)
-            {
-                SelectedReport = item;
-                ShowPreviewFor(item);
-            }
-
-            ShowStatus($"✓ {label} N°{report.ReportNumber} généré avec succès", false);
+            UpdateStats();
+            _initialLoadCompleted = true;
+            ApplyFilter();
         }
         catch (Exception ex)
         {
-            ShowStatus($"Erreur {label} : {ex.Message}", true);
+            ShowStatus($"Erreur de chargement : {ex.Message}", true);
         }
         finally
         {
@@ -231,93 +117,105 @@ public partial class ReportViewModel : BaseViewModel
     }
 
     // ══════════════════════════════════════════════
-    // CONFIRMATION
+    //  STATS
     // ══════════════════════════════════════════════
 
-    [RelayCommand]
-    private async Task ConfirmAction()
+    private void UpdateStats()
     {
-        ShowConfirmation = false;
-        if (_pendingAction != null)
+        ZCount = _allReports.Count(r => r.Type == ReportType.Z);
+        XCount = _allReports.Count(r => r.Type == ReportType.X);
+        ACount = _allReports.Count(r => r.Type == ReportType.A);
+        TotalCount = _allReports.Count;
+
+        var lastZ = _allReports.FirstOrDefault(r => r.Type == ReportType.Z);
+        var lastX = _allReports.FirstOrDefault(r => r.Type == ReportType.X);
+        var lastA = _allReports.FirstOrDefault(r => r.Type == ReportType.A);
+
+        LastZInfo = FormatLastInfo(lastZ);
+        LastXInfo = FormatLastInfo(lastX);
+        LastAInfo = FormatLastInfo(lastA);
+    }
+
+    // 🔧 FIX : .LocalDateTime pour cohérence avec ReportListItemViewModel.DateLabel
+    private static string FormatLastInfo(ReportListItemViewModel? r)
+        => r != null
+            ? $"N°{r.ReportNumber} — {r.GeneratedAt.LocalDateTime:dd/MM/yyyy HH:mm}"
+            : "Aucun rapport";
+
+    // ══════════════════════════════════════════════
+    //  FILTER & SEARCH
+    // ══════════════════════════════════════════════
+
+    partial void OnSelectedFilterChanged(string value) => ApplyFilter();
+
+    // 🆕 Debounce : évite de filtrer à chaque frappe
+    partial void OnSearchTextChanged(string value)
+    {
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
+
+    private void ApplyFilter()
+    {
+        IEnumerable<ReportListItemViewModel> filtered = SelectedFilter switch
         {
-            var action = _pendingAction;
-            _pendingAction = null;
-            await action();
-        }
-    }
+            "Z-Rapport" => _allReports.Where(r => r.Type == ReportType.Z),
+            "X-Rapport" => _allReports.Where(r => r.Type == ReportType.X),
+            "A-Rapport" => _allReports.Where(r => r.Type == ReportType.A),
+            _ => _allReports
+        };
 
-    [RelayCommand]
-    private void CancelConfirmation()
-    {
-        ShowConfirmation = false;
-        _pendingAction = null;
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var q = SearchText.Trim();
+            filtered = filtered.Where(r =>
+                r.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.OperatorName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.ReportNumber.ToString().Contains(q) ||
+                r.DateLabel.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+
+        Reports.Clear();
+        foreach (var r in filtered)
+            Reports.Add(r);
+
+        // 🔧 FIX : n'affiche "aucun résultat" qu'après le premier load
+        NoResults = _initialLoadCompleted && Reports.Count == 0;
     }
 
     // ══════════════════════════════════════════════
-    // SELECTION & PREVIEW
+    //  SELECTION & PREVIEW
     // ══════════════════════════════════════════════
 
     partial void OnSelectedReportChanged(ReportListItemViewModel? value)
     {
-        if (value != null)
-            ShowPreviewFor(value);
+        if (value?.PrintContent is not null)
+        {
+            ReportPreview = value.PrintContent;
+            PreviewTitle = value.Title;
+            PreviewSubtitle = $"{value.DateLabel}  •  {value.PeriodLabel}  •  {value.OperatorName}";
+            ShowPreview = true;
+        }
+        else
+        {
+            ShowPreview = false;
+            ReportPreview = "";
+            PreviewTitle = "";
+            PreviewSubtitle = "";
+        }
     }
 
-    private void ShowPreviewFor(ReportListItemViewModel item)
-    {
-        ReportPreview = item.PrintContent ?? "(Contenu non disponible)";
-        PreviewTitle = item.Title;
-        PreviewSubtitle = $"{item.DateLabel}  •  {item.PeriodLabel}  •  {item.InvoiceCountLabel}";
-        ShowPreview = true;
-    }
+    // ══════════════════════════════════════════════
+    //  COMMANDS
+    // ══════════════════════════════════════════════
 
     [RelayCommand]
-    private void ClosePreview()
+    private async Task Refresh()
     {
-        ShowPreview = false;
-        ReportPreview = "";
-        PreviewTitle = "";
-        PreviewSubtitle = "";
+        ClearStatus();
         SelectedReport = null;
-    }
-
-    // ══════════════════════════════════════════════
-    // PRINT / COPY
-    // ══════════════════════════════════════════════
-
-    [RelayCommand]
-    private void PrintReport()
-    {
-        if (string.IsNullOrEmpty(ReportPreview)) return;
-
-        try
-        {
-            var dlg = new PrintDialog();
-            if (dlg.ShowDialog() != true) return;
-
-            var doc = new FlowDocument
-            {
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 10,
-                PagePadding = new Thickness(40, 30, 40, 30),
-                ColumnWidth = double.MaxValue
-            };
-
-            doc.Blocks.Add(new Paragraph(new Run(ReportPreview))
-            {
-                LineHeight = 14
-            });
-
-            var paginator = ((IDocumentPaginatorSource)doc).DocumentPaginator;
-            paginator.PageSize = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-            dlg.PrintDocument(paginator, PreviewTitle);
-
-            ShowStatus($"✓ {PreviewTitle} envoyé à l'imprimante", false);
-        }
-        catch (Exception ex)
-        {
-            ShowStatus($"Erreur impression : {ex.Message}", true);
-        }
+        await LoadAsync();
+        ShowStatus("✓ Données actualisées", false);
     }
 
     [RelayCommand]
@@ -335,26 +233,158 @@ public partial class ReportViewModel : BaseViewModel
         }
     }
 
-    // ══════════════════════════════════════════════
-    // FILTER
-    // ══════════════════════════════════════════════
-
-    partial void OnSelectedFilterChanged(string value)
-    {
-        _ = LoadReportsAsync();
-    }
-
+    /// <summary>
+    /// Generates a temp PDF and opens it in the system viewer for preview + print.
+    /// </summary>
     [RelayCommand]
-    private async Task Refresh()
+    private void PrintReport()
     {
-        ClearStatus();
-        await LoadReportsAsync();
-        await LoadStatsAsync();
-        ShowStatus("✓ Données actualisées", false);
+        if (SelectedReport?.PrintContent is null)
+        {
+            ShowStatus("Sélectionnez un rapport à imprimer.", true);
+            return;
+        }
+
+        try
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "SFE_Reports");
+            Directory.CreateDirectory(tempDir);
+            CleanOldTempFiles(tempDir, TimeSpan.FromDays(1));
+
+            string tempPath = Path.Combine(tempDir,
+                SanitizeFileName($"{PreviewTitle}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
+
+            GenerateReportPdf(
+                SelectedReport.PrintContent,
+                PreviewTitle,
+                PreviewSubtitle,
+                tempPath);
+
+            Process.Start(new ProcessStartInfo(tempPath) { UseShellExecute = true });
+            ShowStatus($"✓ {PreviewTitle} ouvert pour impression", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Erreur impression : {ex.Message}", true);
+        }
+    }
+
+    /// <summary>
+    /// Save dialog → PDF (default) or TXT, then auto-opens the file.
+    /// </summary>
+    [RelayCommand]
+    private void ExportReport()
+    {
+        if (SelectedReport?.PrintContent is null)
+        {
+            ShowStatus("Sélectionnez un rapport à exporter.", true);
+            return;
+        }
+
+        try
+        {
+            // 🔧 FIX : .LocalDateTime pour cohérence avec l'UI
+            string baseName = SanitizeFileName(
+                $"{SelectedReport.TypeBadge}-Rapport-{SelectedReport.ReportNumber}" +
+                $"_{SelectedReport.GeneratedAt.LocalDateTime:yyyyMMdd_HHmm}");
+
+            var dlg = new SaveFileDialog
+            {
+                FileName = baseName,
+                DefaultExt = ".pdf",
+                Filter = "Document PDF (*.pdf)|*.pdf|Fichier texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            string ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+
+            if (ext == ".txt")
+            {
+                File.WriteAllText(dlg.FileName, SelectedReport.PrintContent);
+            }
+            else
+            {
+                GenerateReportPdf(
+                    SelectedReport.PrintContent,
+                    PreviewTitle,
+                    PreviewSubtitle,
+                    dlg.FileName);
+            }
+
+            Process.Start(new ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+            ShowStatus($"✓ Exporté : {Path.GetFileName(dlg.FileName)}", false);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Erreur export : {ex.Message}", true);
+        }
     }
 
     // ══════════════════════════════════════════════
-    // STATUS
+    //  PDF GENERATION (QuestPDF)
+    // ══════════════════════════════════════════════
+
+    private static void GenerateReportPdf(
+        string textContent,
+        string title,
+        string subtitle,
+        string outputPath)
+    {
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.MarginVertical(30);
+                page.MarginHorizontal(35);
+
+                page.DefaultTextStyle(ts => ts.FontSize(8));
+
+                // ── Header ──
+                page.Header().Column(col =>
+                {
+                    col.Item().Text(title)
+                        .FontSize(13)
+                        .Bold()
+                        .FontColor(Colors.Grey.Darken3);
+
+                    if (!string.IsNullOrEmpty(subtitle))
+                    {
+                        col.Item().PaddingTop(2).Text(subtitle)
+                            .FontSize(8)
+                            .FontColor(Colors.Grey.Medium);
+                    }
+
+                    col.Item().PaddingTop(6)
+                        .LineHorizontal(0.5f)
+                        .LineColor(Colors.Grey.Lighten2);
+
+                    col.Item().PaddingBottom(8);
+                });
+
+                // ── Content — monospaced report text ──
+                page.Content().Text(textContent)
+                    .FontFamily("Courier New")
+                    .FontSize(8)
+                    .LineHeight(1.35f);
+
+                // ── Footer — page numbers ──
+                page.Footer().AlignCenter().Text(text =>
+                {
+                    text.DefaultTextStyle(ts => ts.FontSize(7).FontColor(Colors.Grey.Medium));
+                    text.Span("Page ");
+                    text.CurrentPageNumber();
+                    text.Span(" / ");
+                    text.TotalPages();
+                });
+            });
+        })
+        .GeneratePdf(outputPath);
+    }
+
+    // ══════════════════════════════════════════════
+    //  STATUS
     // ══════════════════════════════════════════════
 
     private void ShowStatus(string msg, bool isError)
@@ -369,5 +399,30 @@ public partial class ReportViewModel : BaseViewModel
         StatusMessage = "";
         ShowSuccess = false;
         ShowError = false;
+    }
+
+    // ══════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (char c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+        return name;
+    }
+
+    private static void CleanOldTempFiles(string directory, TimeSpan maxAge)
+    {
+        try
+        {
+            var cutoff = DateTime.Now - maxAge;
+            foreach (var file in Directory.GetFiles(directory, "*.pdf"))
+            {
+                if (File.GetCreationTime(file) < cutoff)
+                    File.Delete(file);
+            }
+        }
+        catch { /* non-critical */ }
     }
 }

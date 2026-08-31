@@ -21,6 +21,7 @@ public class UserRepository : Repository<User>, IUserRepository
     {
         return await _dbSet
             .Include(u => u.Role)
+            .Include(u => u.PointOfSale)
             .FirstOrDefaultAsync(u => u.Username == username
                                    && u.PasswordHash == passwordHash
                                    && u.IsActive);
@@ -34,4 +35,45 @@ public class UserRepository : Repository<User>, IUserRepository
             .OrderBy(u => u.FullName)
             .ToListAsync();
     }
+
+    public async Task<List<User>> GetAllWithRolesAsync()
+    {
+        return await _dbSet
+            .Include(u => u.Role)
+            .OrderBy(u => u.FullName)
+            .ToListAsync();
+    }
+
+    // 🆕
+    public async Task<User?> GetWithPosAndRoleAsync(int userId)
+    {
+        return await _dbSet
+            .Include(u => u.Role)
+            .Include(u => u.PointOfSale)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+    }
+
+    // 🆕
+    public async Task<List<User>> GetByPointOfSaleAsync(int posId)
+    {
+        return await _dbSet
+            .Include(u => u.Role)
+            .Where(u => u.PointOfSaleId == posId && u.IsActive)
+            .OrderBy(u => u.FullName)
+            .ToListAsync();
+    }
+
+    public Task<User?> FindByManagerBarcodeHashAsync(string barcodeHash) =>
+    _context.Users.Include(u => u.Role)
+        .FirstOrDefaultAsync(u => u.IsActive && u.ManagerBarcodeHash == barcodeHash);
+
+    public Task<User?> FindByManagerPinHashAsync(string pinHash) =>
+        _context.Users.Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.IsActive && u.ManagerPinHash == pinHash);
+
+    public Task<User?> FindByUsernameAndPinHashAsync(string username, string pinHash) =>
+        _context.Users.Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.IsActive
+                                   && u.Username == username
+                                   && u.ManagerPinHash == pinHash);
 }
