@@ -19,6 +19,9 @@ using Microsoft.Extensions.DependencyInjection;
 using SFE.WPF.Views.Pages;
 using SFE.Application.Payments;
 using System.Windows.Input;
+using System.Media;
+using System.Windows.Controls;
+using System.Windows;
 
 namespace SFE.WPF.ViewModels;
 
@@ -27,7 +30,7 @@ public partial class PosViewModel : BaseViewModel,
     IRecipient<DiscountBeforeTaxChangedMessage>,
     IRecipient<ExchangeRateChangedMessage>,
     IRecipient<CartLineRecalculatedMessage>,
-    IActivatable
+    IActivatable, IDisposable
 {
     private readonly InvoiceService _invoiceService;
     private readonly ProductService _productService;
@@ -41,6 +44,7 @@ public partial class PosViewModel : BaseViewModel,
     private readonly DispatcherTimer _clockTimer;
     private readonly InMemoryPendingOrderStore _pendingOrderStore;
     private readonly ManagerGate _gate;
+    private readonly IBarcodeScannerService? _barcodeScanner;
     private bool _isFirstActivation = true;
 
     private Company? _currentCompany;
@@ -285,8 +289,10 @@ public partial class PosViewModel : BaseViewModel,
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => UpdateClock();
         _clockTimer.Start();
-        UpdateClock();
-        _ = InitializeAsync();
+        UpdateClock();_ = InitializeAsync();
+
+        // Start keyboard barcode scanner (keyboard-emulating scanners)
+        try { _barcodeScanner = new KeyboardBarcodeScanner(); _barcodeScanner.CodeScanned += BarcodeScanner_CodeScanned; _barcodeScanner.Start(); } catch { }
     }
 
     private AuthorizationContext BuildAuthContext(decimal amount = 0m, string? reason = null) => new()
@@ -2100,6 +2106,106 @@ public partial class PosViewModel : BaseViewModel,
     // ══════════════════════════════════════════════════════════
 
 
+    private async void BarcodeScanner_CodeScanned(string code)
+    {
+        // If a manager/auth dialog is showing, that dialog owns the scan.
+        if (IsAnyOwnedDialogOpen()) return;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(code)) return;
+            if (IsNormalized) return;
+
+            ClearStatus();
+
+            var scanned = code.Trim();
+            var product = await FindProductByBarcodeAsync(scanned);
+            if (product == null)
+            {
+                StatusMessage = $"Produit introuvable pour le code : '{scanned}'.";
+                ShowError = true;
+                try { System.Media.SystemSounds.Hand.Play(); } catch { }
+                return;
+            }
+
+            await AddToCart(product);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur lecture code-barres : {ex.Message}";
+            ShowError = true;
+        }
+    }
+
+    private static bool IsAnyOwnedDialogOpen()
+    {
+        var app = System.Windows.Application.Current;
+        if (app == null) return false;
+
+        foreach (System.Windows.Window w in app.Windows)
+        {
+            // Owner-modal dialogs (ManagerAuthorizationDialog, ManagerGate, …)
+            if (w.Owner != null && w.IsVisible) return true;
+        }
+        return false;
+    }
+
+    private async Task<Product?> FindProductByBarcodeAsync(string barcode)
+    {
+        if (string.IsNullOrWhiteSpace(barcode)) return null;
+        // 1) Try direct method GetByBarcodeAsync(string) via reflection (if available)
+        try
+        {
+            var svcType = _productService?.GetType();
+            var method = svcType?.GetMethod("GetByBarcodeAsync", new Type[] { typeof(string) });
+            if (method != null)
+            {
+                var task = method.Invoke(_productService, new object[] { barcode }) as Task;
+                if (task != null)
+                {
+                    await task.ConfigureAwait(false);
+                    var resultProp = task.GetType().GetProperty("Result");
+                    var prod = resultProp?.GetValue(task) as Product;
+                    if (prod != null) return prod;
+                }
+            }
+        }
+        catch
+        {
+            // ignore and fallback to search
+        }
+
+        // 2) Fallback: use SearchAsync and try to pick an exact barcode/code match
+        try
+        {
+            var results = await _product_service_search_wrapper(barcode);
+            // prefer exact barcode, then exact code, then first result
+            var exactByBarcode = results.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p.Barcode) && p.Barcode.Trim() == barcode);
+            if (exactByBarcode != null) return exactByBarcode;
+            var exactByCode = results.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p.Code) && p.Code.Trim() == barcode);
+            if (exactByCode != null) return exactByCode;
+            return results.FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+
+        // local helper to call SearchAsync safely
+        async Task<List<Product>> _product_service_search_wrapper(string q)
+        {
+            try { return await _product_service_search_call(q); }
+            catch { return new List<Product>(); }
+        }
+
+        // wrapper to call the actual SearchAsync on _productService
+        async Task<List<Product>> _product_service_search_call(string q)
+        {
+            // productService in this class is _productService (field). Call its SearchAsync
+            return await _productService.SearchAsync(q, 10);
+        }
+    }
+
 
     private static string GetPaymentLabel(PaymentType type) => type switch
     {
@@ -2157,4 +2263,6 @@ public partial class PosViewModel : BaseViewModel,
         }
         catch { }
     }
+
+        public void Dispose() { try { if (_barcodeScanner is IDisposable d) d.Dispose(); } catch { /* swallow */ } }
 }

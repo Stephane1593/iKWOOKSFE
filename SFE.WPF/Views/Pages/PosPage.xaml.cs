@@ -3,6 +3,7 @@ using System.Windows.Input;
 using SFE.WPF.ViewModels;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
+using System.Windows;
 
 namespace SFE.WPF.Views.Pages;
 
@@ -16,12 +17,18 @@ public partial class PosPage : UserControl
         this.KeyDown += PosPage_KeyDown;
         this.Focusable = true;
         this.Loaded += (_, _) => this.Focus();
-
+        Unloaded += OnUnloaded;
         if (DataContext is PosViewModel vm)
         {
             vm.CartPulseRequested += AnimateCartBadge;
             vm.TotalPulseRequested += AnimateTotal;
         }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is IDisposable disposable)
+            disposable.Dispose();
     }
 
     private void AnimateCartBadge()

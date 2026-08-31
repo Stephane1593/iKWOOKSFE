@@ -7,6 +7,7 @@ using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
+using SFE.WPF.Services;
 
 namespace SFE.WPF.ViewModels;
 
@@ -322,6 +323,32 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     {
         HasPriceCalculation = false;
         CalcHtCdf = CalcTtcCdf = CalcHtUsd = CalcTtcUsd = 0;
+    }
+
+    [RelayCommand]
+    private async Task PrintBarcode(Product? product)
+    {
+        if (product == null) return;
+
+        try
+        {
+            // Default: print 1 thermal copy. You can change copies or choose non-thermal by updating parameters.
+            // If you want to use a configured copy count or prefer full-label printing, adapt here.
+            await Task.Run(() =>
+            {
+                // Print on UI thread - PrintDialog requires STA/UI thread.
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    // Use thermal layout by default (80mm). Pass copies if you want more.
+                    BarcodePrinter.PrintProductBarcode(product, copies: 1, thermal: true);
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur impression : {ex.Message}";
+            ShowError = true;
+        }
     }
 
     // ══════════════════════════════════════════════

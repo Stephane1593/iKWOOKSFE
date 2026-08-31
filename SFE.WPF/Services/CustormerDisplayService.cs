@@ -68,7 +68,9 @@ public class CustomerDisplayService : IDisposable
             _window = new CustomerDisplayWindow
             {
                 DataContext = _viewModel,
-                WindowStartupLocation = WindowStartupLocation.Manual
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                ShowActivated = false,   // don't steal focus from the cashier's MainWindow
+                Focusable = false,    // window itself can never grab keyboard focus
             };
 
             _window.Closed += (_, _) => { _window = null; _viewModel = null; };

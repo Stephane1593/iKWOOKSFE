@@ -5,6 +5,8 @@
         Title="Autorisation Manager"
         Width="560" Height="480"
         WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        SizeToContent="WidthAndHeight"
         ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent">
@@ -69,7 +71,7 @@
                         <Button Content="Valider PIN" Margin="0,16,0,0"
                                 Command="{Binding SubmitPinCommand}"
                                 Background="#3B82F6" Foreground="White"
-                                Padding="14,10" BorderThickness="0"/>
+                                BorderThickness="0"/>
                     </StackPanel>
                 </TabItem>
 
@@ -88,7 +90,7 @@
                         <Button Content="Valider identifiants" Margin="0,16,0,0"
                                 Command="{Binding SubmitCredentialsCommand}"
                                 Background="#3B82F6" Foreground="White"
-                                Padding="14,10" BorderThickness="0"/>
+                                BorderThickness="0"/>
                     </StackPanel>
                 </TabItem>
             </TabControl>
@@ -103,10 +105,10 @@
                     <TextBlock Text="{Binding ErrorMessage}" Foreground="#EF4444"
                                VerticalAlignment="Center"
                                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                    <Button Grid.Column="1" Content="Annuler"
+                    <Button Content="Annuler"
                             Command="{Binding CancelCommand}"
                             Background="#334155" Foreground="White"
-                            Padding="16,10" BorderThickness="0"/>
+                            BorderThickness="0" Margin="435,0,0,0"/>
                 </Grid>
             </Border>
         </Grid>

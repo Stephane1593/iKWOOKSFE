@@ -1498,15 +1498,16 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
 
-                        <!-- Middle cart row -->
+                        <!--  Middle cart row  -->
                         <RowDefinition>
                             <RowDefinition.Style>
                                 <Style TargetType="RowDefinition">
                                     <Setter Property="Height" Value="*" />
 
                                     <Style.Triggers>
-                                        <!-- When payment step is shown, hide middle row -->
-                                        <DataTrigger Binding="{Binding ShowPaymentStep}" Value="True">
+                                        <!--  When payment step is shown, hide middle row  -->
+                                        <DataTrigger Binding="{Binding ShowPaymentStep}"
+                                                     Value="True">
                                             <Setter Property="Height" Value="0" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -1514,15 +1515,16 @@
                             </RowDefinition.Style>
                         </RowDefinition>
 
-                        <!-- Footer / wizard row -->
+                        <!--  Footer / wizard row  -->
                         <RowDefinition>
                             <RowDefinition.Style>
                                 <Style TargetType="RowDefinition">
                                     <Setter Property="Height" Value="1.8*" />
 
                                     <Style.Triggers>
-                                        <!-- When payment step is shown, give footer all available space -->
-                                        <DataTrigger Binding="{Binding ShowPaymentStep}" Value="True">
+                                        <!--  When payment step is shown, give footer all available space  -->
+                                        <DataTrigger Binding="{Binding ShowPaymentStep}"
+                                                     Value="True">
                                             <Setter Property="Height" Value="*" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -1592,6 +1594,27 @@
                                 <StackPanel Grid.Column="2"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
+                                    <!--  Simple "Open drawer (no sale)" button: paste inside the header StackPanel  -->
+                                    <Button Command="{Binding OpenCashDrawerCommand}"
+                                            Style="{StaticResource PosIconBtn}"
+                                            ToolTip="Ouvrir le tiroir (sans vente)"
+                                            Visibility="{Binding HasThermalPrinter, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Grid>
+                                            <materialDesign:PackIcon Width="18"
+                                                                     Height="18"
+                                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                                     Kind="CashRegister" />
+                                            <!--  Tiny badge shown when current POS has a cash drawer  -->
+                                            <Border Width="10"
+                                                    Height="10"
+                                                    Margin="0,-6,-6,0"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Top"
+                                                    Background="#10B981"
+                                                    CornerRadius="5"
+                                                    Visibility="{Binding SelectedPointOfSale.EnableCashDrawer, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Button>
                                     <Button Command="{Binding ToggleClientPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
                                             ToolTip="Sélectionner ou gérer le client">
@@ -1801,9 +1824,9 @@
                              Background="Transparent"
                              BorderThickness="0"
                              ItemsSource="{Binding CartItems}"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"                            
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectedItem="{Binding SelectedCartItem}">
-                        
+
                         <ListBox.Template>
                             <ControlTemplate TargetType="ListBox">
                                 <Border Padding="{TemplateBinding Padding}"
@@ -2108,8 +2131,8 @@
                                             </Button.Template>
                                         </Button>
                                         <Button Grid.Column="1"
-                                                Background="Transparent"
                                                 MinHeight="35"
+                                                Background="Transparent"
                                                 BorderThickness="0"
                                                 Command="{Binding GoToPaymentStepCommand}"
                                                 Cursor="Hand">
@@ -2454,10 +2477,10 @@
                                             <ColumnDefinition Width="10" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <Button BorderThickness="0"
+                                        <Button MinHeight="50"
+                                                BorderThickness="0"
                                                 Command="{Binding SelectPaymentChannelCommand}"
                                                 CommandParameter="{x:Static enums:PaymentChannel.LocalPos}"
-                                                MinHeight="50"
                                                 Cursor="Hand">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
@@ -2491,10 +2514,10 @@
                                             </Button.Template>
                                         </Button>
                                         <Button Grid.Column="2"
+                                                MinHeight="50"
                                                 BorderThickness="0"
                                                 Command="{Binding SelectPaymentChannelCommand}"
                                                 CommandParameter="{x:Static enums:PaymentChannel.SunmiTerminal}"
-                                                MinHeight="50"
                                                 Cursor="Hand">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
@@ -2540,10 +2563,10 @@
                                                 <ColumnDefinition Width="10" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Button BorderThickness="0"
+                                            <Button MinHeight="50"
+                                                    BorderThickness="0"
                                                     Command="{Binding SelectSunmiHandoffCommand}"
                                                     CommandParameter="{x:Static enums:SunmiHandoff.ShowQr}"
-                                                    MinHeight="50"
                                                     Cursor="Hand">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
@@ -2570,10 +2593,10 @@
                                                 </Button.Template>
                                             </Button>
                                             <Button Grid.Column="2"
+                                                    MinHeight="50"
                                                     BorderThickness="0"
                                                     Command="{Binding SelectSunmiHandoffCommand}"
                                                     CommandParameter="{x:Static enums:SunmiHandoff.LanDevice}"
-                                                    MinHeight="50"
                                                     Cursor="Hand">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">

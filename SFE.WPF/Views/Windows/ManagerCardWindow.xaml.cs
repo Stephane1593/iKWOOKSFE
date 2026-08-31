@@ -137,7 +137,7 @@ public partial class ManagerCardWindow : Window
                 Value = _plainCode,
                 ModuleWidth = 1.2,        // ⬅ very thin bars
                 QuietZoneModules = 10,
-                BarHeight = 80,           // ⬅ shorter too (~10mm)
+                BarHeight = 60,           // ⬅ shorter too (~10mm)
                 HorizontalAlignment = HorizontalAlignment.Center,
                 SnapsToDevicePixels = true,
                 UseLayoutRounding = true
