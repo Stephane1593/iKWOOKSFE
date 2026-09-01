@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using System.Security.Cryptography;
@@ -35,7 +35,8 @@ public static class DatabaseSeeder
                         "reports": true,
                         "cash": true,
                         "settings": true,
-                        "users": true
+                        "users": true,
+                        "restaurant": true
                     }
                     """
                 },
@@ -52,7 +53,8 @@ public static class DatabaseSeeder
                         "reports": false,
                         "cash": true,
                         "settings": false,
-                        "users": false
+                        "users": false,
+                        "restaurant": true
                     }
                     """
                 },
@@ -69,7 +71,8 @@ public static class DatabaseSeeder
                         "reports": true,
                         "cash": false,
                         "settings": false,
-                        "users": false
+                        "users": false,
+                        "restaurant": true
                     }
                     """
                 }
@@ -139,15 +142,67 @@ public static class DatabaseSeeder
             //await context.PointsOfSale.AddAsync(pos);
             //await context.SaveChangesAsync();
         }
-    }
 
-    /// <summary>
-    /// Hash simple SHA256 pour le mot de passe.
-    /// En production, utiliser BCrypt ou Argon2.
-    /// </summary>
-    private static string HashPassword(string password)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
-        return Convert.ToHexString(bytes).ToLower();
-    }
-}
++        // --- Kitchen printer sample (disabled by default) ---
++        if (!await context.KitchenPrinters.AnyAsync())
++        {
++            var samplePrinter = new KitchenPrinter
++            {
++                Name = "Kitchen (sample)",
++                Type = "ESC_POS_TCP",
++                ConnectionString = "192.168.0.50:9100",
++                Enabled = false,
++                Routing = null
++            };
++
++            await context.KitchenPrinters.AddAsync(samplePrinter);
++            await context.SaveChangesAsync();
++        }
++
++        // ⭐ Runs on every startup — idempotent. Adds missing authorize.* keys
++        // to existing roles without touching any pre-existing values.
++        await BackfillAuthorizationPermissionsAsync(context);
++
+     }
+ 
+     /// <summary>
+     /// Hash simple SHA256 pour le mot de passe.
+     /// En production, utiliser BCrypt ou Argon2.
+     /// </summary>
+     private static string HashPassword(string password)
+     {
+         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
+         return Convert.ToHexString(bytes).ToLower();
+     }
++
++    // Backfill helper (keeps roles stable while adding new keys)
++    public static async Task BackfillAuthorizationPermissionsAsync(AppDbContext context)
++    {
++        var roles = await context.Roles.ToListAsync();
++        bool anyChanged = false;
++
++        foreach (var role in roles)
++        {
++            Dictionary<string, bool> current;
++            try
++            {
++                current = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(role.Permissions ?? "{}") ?? new();
++            }
++            catch
++            {
++                current = new();
++            }
++
++            if (!current.ContainsKey("restaurant"))
++            {
++                // Default granting: Admin/Gestionnaire/Caissier -> true, others false
++                bool grant = role.Name == "Administrateur" || role.Name == "Gestionnaire" || role.Name == "Caissier";
++                current["restaurant"] = grant;
++                role.Permissions = System.Text.Json.JsonSerializer.Serialize(current);
++                anyChanged = true;
++            }
++        }
++
++        if (anyChanged) await context.SaveChangesAsync();
++    }
+ }
