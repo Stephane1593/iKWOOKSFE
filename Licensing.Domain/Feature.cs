@@ -14,7 +14,8 @@ public enum Feature
     SunmiTerminal,
     EmcfFallback,
     AdvancedReports,
-    RemoteSupport
+    RemoteSupport,
+    Restaurant
 }
 
 public static class FeatureTokens
@@ -29,7 +30,8 @@ public static class FeatureTokens
         [Feature.SunmiTerminal] = "sunmi_terminal",
         [Feature.EmcfFallback] = "emcf_fallback",
         [Feature.AdvancedReports] = "advanced_reports",
-        [Feature.RemoteSupport] = "remote_support"
+        [Feature.RemoteSupport] = "remote_support",
+        [Feature.Restaurant] = "restaurant"
     };
 
     private static readonly Dictionary<string, Feature> _fromToken =

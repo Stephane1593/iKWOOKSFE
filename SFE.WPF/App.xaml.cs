@@ -19,6 +19,7 @@ using SFE.Licensing.Domain;
 using SFE.Licensing.Local;
 using SFE.WPF.Licensing;
 using Microsoft.Extensions.Logging;
+using SFE.Infrastructure.Repositories;
 
 namespace SFE.WPF;
 
@@ -386,6 +387,10 @@ public partial class App : System.Windows.Application
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
         services.AddScoped<PaymentService>();
         services.AddScoped<IPendingOrderProvider, InvoicePendingOrderProvider>();
+        services.AddScoped<IRestaurantRepository, RestaurantRepository>();
+        services.AddScoped<IMenuRepository, MenuRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IPrinterProfileRepository, PrinterProfileRepository>();
         services.AddSingleton<InMemoryPendingOrderStore>();
 
         services.Configure<PaymentReconciliationOptions>(o =>

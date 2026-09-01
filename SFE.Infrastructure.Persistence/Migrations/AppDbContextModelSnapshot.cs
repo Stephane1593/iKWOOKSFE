@@ -1148,6 +1148,237 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("LoyaltyTransactions", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.Menu", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("OriginPointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginPointOfSaleSyncId")
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SyncId")
+                        .IsRequired()
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId");
+
+                    b.HasIndex("RestaurantId", "Name");
+
+                    b.ToTable("Menus", (string)null);
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.MenuItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsAvailable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("MenuId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("OriginPointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginPointOfSaleSyncId")
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SyncId")
+                        .IsRequired()
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuId");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("MenuId", "Code");
+
+                    b.ToTable("MenuItems", (string)null);
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.Order", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OperatorId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("OriginPointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginPointOfSaleSyncId")
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SyncId")
+                        .IsRequired()
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TableId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalHT")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TotalTTC")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TotalTVA")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId");
+
+                    b.HasIndex("TableId");
+
+                    b.ToTable("Orders", (string)null);
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.OrderItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MenuItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuItemId");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("OrderItems", (string)null);
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.PaymentTransaction", b =>
                 {
                     b.Property<string>("IdempotencyKey")
@@ -1412,6 +1643,75 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("PosStocks", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.PrinterProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConnectionString")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDefaultKitchen")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsDefaultReceipt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("OriginPointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginPointOfSaleSyncId")
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SyncId")
+                        .IsRequired()
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDefaultKitchen");
+
+                    b.HasIndex("IsDefaultReceipt");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("PrinterProfiles", (string)null);
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
@@ -1667,6 +1967,64 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("ReportTaxGroupDetails", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.Restaurant", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("OriginPointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginPointOfSaleSyncId")
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SyncId")
+                        .IsRequired()
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("Restaurants", (string)null);
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -1866,6 +2224,65 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.ToTable("StockTransferLines", (string)null);
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.Table", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OriginPointOfSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginPointOfSaleSyncId")
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Seats")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SyncId")
+                        .IsRequired()
+                        .HasMaxLength(26)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("RestaurantId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("Tables", (string)null);
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -1886,6 +2303,9 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<string>("ManagerBarcodeHash")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
+
+                    b.Property<long?>("ManagerBarcodeIssuedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ManagerPinHash")
                         .HasMaxLength(128)
@@ -2005,6 +2425,56 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("LoyaltyAccount");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.Menu", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.Restaurant", "Restaurant")
+                        .WithMany("Menus")
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.MenuItem", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.Menu", "Menu")
+                        .WithMany("Items")
+                        .HasForeignKey("MenuId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Menu");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.Order", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SFE.Domain.Entities.Table", "Table")
+                        .WithMany()
+                        .HasForeignKey("TableId");
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("Table");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.OrderItem", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.Order", "Order")
+                        .WithMany("Items")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
                 });
 
             modelBuilder.Entity("SFE.Domain.Entities.PointOfSale", b =>
@@ -2141,6 +2611,17 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Navigation("StockTransfer");
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.Table", b =>
+                {
+                    b.HasOne("SFE.Domain.Entities.Restaurant", "Restaurant")
+                        .WithMany("Tables")
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.User", b =>
                 {
                     b.HasOne("SFE.Domain.Entities.PointOfSale", "PointOfSale")
@@ -2194,6 +2675,16 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("SFE.Domain.Entities.Menu", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.Order", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("SFE.Domain.Entities.PointOfSale", b =>
                 {
                     b.Navigation("Operators");
@@ -2211,6 +2702,13 @@ namespace SFE.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SFE.Domain.Entities.ProductCategory", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("SFE.Domain.Entities.Restaurant", b =>
+                {
+                    b.Navigation("Menus");
+
+                    b.Navigation("Tables");
                 });
 
             modelBuilder.Entity("SFE.Domain.Entities.Role", b =>

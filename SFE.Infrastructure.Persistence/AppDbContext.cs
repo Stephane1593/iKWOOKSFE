@@ -36,6 +36,14 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
 
+    public DbSet<Restaurant> Restaurants => Set<Restaurant>();
+    public DbSet<Menu> Menus => Set<Menu>();
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<Table> Tables => Set<Table>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<PrinterProfile> PrinterProfiles => Set<PrinterProfile>();
+
     private readonly ITimeProvider _time;
     private readonly ITenantProvider _tenant;
 
@@ -47,6 +55,16 @@ public sealed class AppDbContext : DbContext
     {
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _tenant = tenant ?? throw new ArgumentNullException(nameof(tenant));
+    }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+
+        configurationBuilder
+        .Properties<Ulid>()
+        .HaveConversion<UlidToStringConverter>()
+        .HaveMaxLength(26);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
