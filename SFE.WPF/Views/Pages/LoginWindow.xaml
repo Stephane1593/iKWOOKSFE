@@ -604,7 +604,7 @@
                     <materialDesign:PackIcon Kind="ShieldCheckOutline" Width="13" Height="13"
                                              Foreground="#1A3D55" Margin="0,0,5,0"
                                              VerticalAlignment="Center"/>
-                    <TextBlock Text="SFE v2.0 · Conforme DGI-RDC"
+                    <TextBlock Text="SFE v1.0.0 · Conforme DGI-RDC"
                                Foreground="#1A3D55" FontSize="11"
                                VerticalAlignment="Center"
                                FontFamily="{StaticResource AppFont}"/>

@@ -1814,7 +1814,7 @@
                                FontFamily="{StaticResource AppFont}"
                                FontSize="11"
                                Foreground="#94A3B8">
-                        <Run Text="iKWOOK SFE v2.0" />
+                        <Run Text="iKWOOK SFE v1.0.0" />
                         <Run Text=" — " />
                         <Run Text="Système de Facturation" />
                     </TextBlock>
