@@ -387,7 +387,7 @@ public partial class MainViewModel : BaseViewModel
     private void ShowAbout()
     {
         System.Windows.MessageBox.Show(
-            "iKWOOK SFE v2.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par Assium Group.\nTous droits réservés.",
+            "iKWOOK SFE v1.0.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par Assium Group.\nTous droits réservés.",
             "À propos de iKWOOK SFE",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Information);

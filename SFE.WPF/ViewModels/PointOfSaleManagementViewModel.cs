@@ -955,7 +955,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         Write(0x1B, 0x61, 0x01);
         Write(0x1B, 0x45, 0x01);
         Write(0x1D, 0x21, 0x11);
-        PrintLine("SFE GECOM");
+        PrintLine("SFE iKWOOK");
         Write(0x1D, 0x21, 0x00);
         Write(0x1B, 0x45, 0x00);
         PrintLine("");
