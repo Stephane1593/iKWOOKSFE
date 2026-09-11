@@ -951,6 +951,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -1035,8 +1036,56 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-
-                        <Border Grid.Column="2"
+                        <!-- 🆕 INDICATEUR DE TABLE (Grid.Column="2") -->
+                        <Border Grid.Column="2" 
+                                    Margin="16,0,0,0"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="8"
+                                    ToolTip="Table actuellement en cours d'édition">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#EFF6FF"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TableLabel}" Value="Vente Comptoir">
+                                            <Setter Property="Background" Value="#F3F4F6"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center">
+                                    <materialDesign:PackIcon.Style>
+                                        <Style TargetType="materialDesign:PackIcon">
+                                            <Setter Property="Foreground" Value="#1D4ED8"/>
+                                            <Setter Property="Kind" Value="TableFurniture"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TableLabel}" Value="Vente Comptoir">
+                                                    <Setter Property="Foreground" Value="#6B7280"/>
+                                                    <Setter Property="Kind" Value="StorefrontOutline"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </materialDesign:PackIcon.Style>
+                                </materialDesign:PackIcon>
+                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                               FontSize="13"
+                                               FontWeight="Bold"
+                                               Text="{Binding TableLabel}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#1D4ED8"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TableLabel}" Value="Vente Comptoir">
+                                                    <Setter Property="Foreground" Value="#4B5563"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="3"
                                 MinHeight="44"
                                 Margin="18,0"
                                 Padding="14,0"
@@ -1138,7 +1187,7 @@
                             </Grid>
                         </Border>
 
-                        <StackPanel Grid.Column="3"
+                        <StackPanel Grid.Column="4"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
                                     ToolTip="Résumé des ventes du jour">
@@ -1587,8 +1636,8 @@
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Text="Panier"
-                                                   ToolTip="Panier de la vente en cours" />
+                                                   Text="{Binding TableLabel}"
+                                                   ToolTip="Commande en cours" />
                                     </StackPanel>
                                 </Grid>
                                 <StackPanel Grid.Column="2"

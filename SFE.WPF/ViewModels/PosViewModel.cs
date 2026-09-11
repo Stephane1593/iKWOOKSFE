@@ -30,6 +30,7 @@ public partial class PosViewModel : BaseViewModel,
     IRecipient<DiscountBeforeTaxChangedMessage>,
     IRecipient<ExchangeRateChangedMessage>,
     IRecipient<CartLineRecalculatedMessage>,
+    IRecipient<OpenTableMessage>,
     IActivatable, IDisposable
 {
     private readonly InvoiceService _invoiceService;
@@ -50,6 +51,10 @@ public partial class PosViewModel : BaseViewModel,
     private Company? _currentCompany;
     private PointOfSale? _currentPos;
     private decimal _currentExchangeRate;
+
+    // 🆕 Ajoutez ces propriétés pour suivre la table en cours (dans la section // ═══ CONFIG ═══)
+    [ObservableProperty] private int? _currentTableId;
+    [ObservableProperty] private string _tableLabel = "Vente Comptoir";
 
     [ObservableProperty] private string _thermalPrinterName = "";
     [ObservableProperty] private bool _hasThermalPrinter;
@@ -285,6 +290,7 @@ public partial class PosViewModel : BaseViewModel,
         WeakReferenceMessenger.Default.Register<DiscountBeforeTaxChangedMessage>(this);
         WeakReferenceMessenger.Default.Register<ExchangeRateChangedMessage>(this);
         WeakReferenceMessenger.Default.Register<CartLineRecalculatedMessage>(this);   // 🆕
+        WeakReferenceMessenger.Default.Register<OpenTableMessage>(this);
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => UpdateClock();
@@ -293,6 +299,157 @@ public partial class PosViewModel : BaseViewModel,
 
         // Start keyboard barcode scanner (keyboard-emulating scanners)
         try { _barcodeScanner = new KeyboardBarcodeScanner(); _barcodeScanner.CodeScanned += BarcodeScanner_CodeScanned; _barcodeScanner.Start(); } catch { }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  GESTION DES TABLES (RESTAURANT)
+    // ══════════════════════════════════════════════════════════
+
+    public async void Receive(OpenTableMessage message)
+    {
+        CurrentTableId = message.Value.TableId;
+        TableLabel = $"Table n° {CurrentTableId}";
+
+        await ClearCart();
+
+        if (message.Value.OrderId == null)
+            return;
+
+        IsBusy = true;
+        try
+        {
+            var orderRepo = _unitOfWork.GetRepository<Order>();
+            var productRepo = _unitOfWork.GetRepository<Product>();
+
+            var orders = await orderRepo.FindAsync(o => o.Id == message.Value.OrderId.Value);
+            var order = orders.FirstOrDefault();
+
+            if (order == null) return;
+
+            // Reconstruire le panier à partir de la commande sauvegardée
+            foreach (var orderItem in order.Items)
+            {
+                if (orderItem.ProductId == null) continue;
+
+                var product = await productRepo.GetByIdAsync(orderItem.ProductId.Value);
+                if (product == null) continue;
+
+                var cartItem = new CartItemViewModel
+                {
+                    ProductId = product.Id,
+                    Code = product.Code,
+                    Name = orderItem.Name, // On garde le nom de l'OrderItem (au cas où il a été modifié)
+                    ItemType = product.ItemType,
+                    TaxGroup = product.TaxGroup,
+                    TaxGroupAType = product.TaxGroupAType,
+                    UnitPriceHT = product.UnitPriceHtCdf, // Ajustez selon la devise si nécessaire
+                    UnitPriceTTC = orderItem.UnitPrice,
+                    Unit = product.Unit,
+                    Quantity = orderItem.Quantity,
+                    StockQuantity = product.StockQuantity,
+                    TrackStock = product.TrackStock,
+                    SpecificTaxType = product.SpecificTaxType,
+                    SpecificTaxValue = product.SpecificTaxValue,
+                    SpecificTaxName = product.HasSpecificTax ? $"TS {product.SpecificTaxDisplay}" : "",
+                    TaxApplicationMode = product.TaxSpecificMode == TaxSpecificMode.OnTotal
+                        ? TaxApplicationMode.OnTotal
+                        : TaxApplicationMode.PerArticle
+                };
+
+                cartItem.Recalculate(PriceMode, _discountBeforeTax);
+                CartItems.Add(cartItem);
+            }
+
+            RecalculateTotals();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur lors du chargement de la table : {ex.Message}";
+            ShowError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveTableOrder()
+    {
+        if (CurrentTableId == null)
+        {
+            // Si aucune table n'est sélectionnée, comportement POS classique (Hold local)
+            RequestHold();
+            return;
+        }
+
+        if (CartItems.Count == 0)
+        {
+            StatusMessage = "Le panier est vide.";
+            ShowError = true;
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var orderRepo = _unitOfWork.GetRepository<Order>();
+            var tableRepo = _unitOfWork.GetRepository<Table>();
+
+            // 1. Récupérer ou créer la commande
+            var tableService = App.ServiceProvider.GetRequiredService<ITableService>();
+            var activeOrder = await tableService.GetActiveOrderAsync(CurrentTableId.Value)
+                              ?? new Order
+                              {
+                                  TableId = CurrentTableId.Value,
+                                  CreatedAtUtc = _time.UtcNow
+                              };
+
+            activeOrder.UpdatedAtUtc = _time.UtcNow;
+            activeOrder.OperatorId = _auth.CurrentUser?.Id.ToString() ?? "0";
+            activeOrder.Status = OrderStatus.InKitchen; // Change le statut pour indiquer que c'est envoyé
+            activeOrder.TotalHT = TotalHT;
+            activeOrder.TotalTVA = TotalTVA;
+            activeOrder.TotalTTC = TotalTTC;
+
+            // 2. Mettre à jour les lignes (remplacement simple pour cet exemple)
+            activeOrder.Items.Clear();
+            foreach (var item in CartItems)
+            {
+                activeOrder.Items.Add(new OrderItem
+                {
+                    ProductId = item.ProductId,
+                    Name = item.Name,
+                    UnitPrice = item.UnitPriceTTC,
+                    Quantity = (int)item.Quantity,
+                    LineTotal = item.AmountTTC
+                });
+            }
+
+            if (activeOrder.Id == 0)
+                await orderRepo.AddAsync(activeOrder);
+            else
+                await orderRepo.UpdateAsync(activeOrder);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            // 3. Vider le panier et l'écran
+            await ClearCart();
+            CurrentTableId = null;
+            TableLabel = "Vente Comptoir";
+
+            StatusMessage = "✓ Commande envoyée en cuisine.";
+            ShowSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur lors de la sauvegarde : {ex.Message}";
+            ShowError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private AuthorizationContext BuildAuthContext(decimal amount = 0m, string? reason = null) => new()
@@ -1553,6 +1710,26 @@ public partial class PosViewModel : BaseViewModel,
                 ShowReceiptOverlay = true;
                 StatusMessage = $"✓ Vente normalisée — {result.CodeDEFDGI}";
                 ShowSuccess = true;
+
+                // ── Libérer la table après l'encaissement
+                if (CurrentTableId.HasValue)
+                {
+                    var tableService = App.ServiceProvider.GetRequiredService<ITableService>();
+                    await tableService.ChangeStatusAsync(CurrentTableId.Value, TableStatus.Cleaning);
+
+                    var orderRepo = _unitOfWork.GetRepository<Order>();
+                    var activeOrder = await tableService.GetActiveOrderAsync(CurrentTableId.Value);
+                    if (activeOrder != null)
+                    {
+                        activeOrder.Status = OrderStatus.Paid;
+                        await orderRepo.UpdateAsync(activeOrder);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                }
+                CurrentTableId = null;
+                TableLabel = "Vente Comptoir";
+
+
                 await RefreshDailyStatsAsync();
             }
             else
@@ -1774,6 +1951,7 @@ public partial class PosViewModel : BaseViewModel,
         ShowPendingSuccess = false; ShowPendingError = false;
         GrandTotal = 0; GrandTotalLabel = PriceMode == PriceMode.TTC ? "TOTAL TTC" : "TOTAL HT";
         TaxGroupSummaries.Clear(); TotalInAlternateCurrency = 0;
+        CurrentTableId = null;TableLabel = "Vente Comptoir";
         RecalculateTotals(); ClearStatus(); CloseAllOverlays();
         InvoiceType = InvoiceType.FV; await GenerateNewNumber();
         ShowFavoritesOnly = true; SelectedCategory = null;

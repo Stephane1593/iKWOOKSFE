@@ -551,7 +551,40 @@
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Button>
-
+                                            <!--  ═══ Plan de Salle ═══  -->
+                                            <Button Click="CloseDropdowns"
+                                                    Command="{Binding NavigateToPageCommand}"
+                                                    CommandParameter="Tables"
+                                                    IsEnabled="{Binding CanAccessTables}"
+                                                    Style="{StaticResource NavSubBtn}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="32"
+                                                            Height="32"
+                                                            Margin="0,0,10,0"
+                                                            VerticalAlignment="Center"
+                                                            CornerRadius="8">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                <GradientStop Offset="0" Color="#FFF7ED" />
+                                                                <GradientStop Offset="1" Color="#FFEDD5" />
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                        <materialDesign:PackIcon Width="16"
+                                                                                 Height="16"
+                                                                                 HorizontalAlignment="Center"
+                                                                                 VerticalAlignment="Center"
+                                                                                 Foreground="#C2410C"
+                                                                                 Kind="TableFurniture" />
+                                                    </Border>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock FontWeight="Medium"
+                                                                   Text="Plan de Salle" />
+                                                        <TextBlock FontSize="10"
+                                                                   Foreground="#94A3B8"
+                                                                   Text="Gestion des tables" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
                                             <!--  ═══ Facture ═══  -->
                                             <Button Click="CloseDropdowns"
                                                     Command="{Binding NavigateToPageCommand}"

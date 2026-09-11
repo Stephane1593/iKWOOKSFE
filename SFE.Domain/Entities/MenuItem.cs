@@ -8,9 +8,14 @@ public class MenuItem : SyncableEntity
     public int MenuId { get; set; }
     public Menu? Menu { get; set; }
 
-    public string Code { get; set; } = string.Empty; // optional product mapping
+    // 🆕 Lien direct vers le catalogue (obligatoire ou optionnel)
+    public int? ProductId { get; set; }
+    public Product? Product { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+
+    // Le prix ici peut surcharger le prix du catalogue (ex: Happy Hour)
     public decimal UnitPrice { get; set; }
     public bool IsAvailable { get; set; } = true;
 }

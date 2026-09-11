@@ -11,10 +11,12 @@ using SFE.Application.Events;
 using SFE.Domain.Abstractions;
 using SFE.Licensing.Local;
 using SFE.Licensing.Domain;
+using CommunityToolkit.Mvvm.Messaging;
+using SFE.WPF.Messages;
 
 namespace SFE.WPF.ViewModels;
 
-public partial class MainViewModel : BaseViewModel
+public partial class MainViewModel : BaseViewModel, IRecipient<OpenTableMessage>
 {
     private readonly IAuthService _authService;
     private readonly CashSessionState _sessionState;
@@ -66,7 +68,7 @@ public partial class MainViewModel : BaseViewModel
                                        && _sessionState.IsSessionOpen
                                        && !_sessionState.IsSetupMode
                                        && (_guard?.Current.HasFeature(Feature.BulkInvoicing) ?? false);
-
+    public bool CanAccessTables => _authService.HasPermission("tables") && _sessionState.IsSessionOpen;
     public bool CanAccessClients => _authService.HasPermission("clients");
     public bool CanAccessSalesHistory => _authService.HasPermission("salesHistory");
     public bool CanAccessProducts => _authService.HasPermission("products");
@@ -157,9 +159,13 @@ public partial class MainViewModel : BaseViewModel
             _deviceCheckTimer.Start();
         }
 
-
+        WeakReferenceMessenger.Default.Register<OpenTableMessage>(this);
     }
-
+    public void Receive(OpenTableMessage message)
+    {
+        // Naviguer automatiquement vers la caisse lorsqu'une table est sélectionnée
+        NavigateToPage("Cash");
+    }
     private async Task OnAppEvent(AppEventArgs args)
     {
         if (args.Event == AppEvent.FiscalDeviceStatusChanged)
@@ -286,6 +292,7 @@ public partial class MainViewModel : BaseViewModel
             {
                 "Dashboard" => CreatePage<DashboardPage, DashboardViewModel>(),
                 "Cash" => CreatePage<PosPage, PosViewModel>(),
+                "Tables" => CreatePage<TablesPage, TablesViewModel>(),
                 "Invoicing" => CreatePage<InvoicingPage, InvoicingViewModel>(),
                 "BulkInvoicing" => CreateBulkInvoicingPage(),  // 🆕
                 "Articles" => CreatePage<ProductsPage, ProductsViewModel>(),

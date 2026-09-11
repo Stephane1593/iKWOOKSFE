@@ -12,32 +12,33 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 
         builder.HasKey(mi => mi.Id);
 
-        builder.Property(mi => mi.Code)
-        .HasMaxLength(100);
 
         builder.Property(mi => mi.Name)
-        .IsRequired()
-        .HasMaxLength(200);
+            .IsRequired()
+            .HasMaxLength(200);
 
         builder.Property(mi => mi.Description)
-        .HasMaxLength(1000);
+            .HasMaxLength(1000);
 
         builder.Property(mi => mi.UnitPrice)
-        .HasPrecision(18, 2);
+            .HasPrecision(18, 2);
 
         builder.Property(mi => mi.IsAvailable)
-        .HasDefaultValue(true);
+            .HasDefaultValue(true);
 
         builder.HasOne(mi => mi.Menu)
-        .WithMany(m => m.Items)
-        .HasForeignKey(mi => mi.MenuId)
-        .OnDelete(DeleteBehavior.Cascade);
+            .WithMany(m => m.Items)
+            .HasForeignKey(mi => mi.MenuId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // 🆕 Relation avec le Produit du catalogue
+        builder.HasOne(mi => mi.Product)
+            .WithMany()
+            .HasForeignKey(mi => mi.ProductId)
+            .OnDelete(DeleteBehavior.SetNull); // Si le produit catalogue est supprimé, le MenuItem devient orphelin mais n'est pas détruit.
 
         builder.HasIndex(mi => mi.MenuId);
-
-        // Product code lookups
-        builder.HasIndex(mi => new { mi.MenuId, mi.Code });
-
+        builder.HasIndex(mi => mi.ProductId); // 🆕 Optimisation des requêtes
         builder.HasIndex(mi => mi.Name);
     }
 }

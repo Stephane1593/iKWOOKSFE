@@ -1,0 +1,217 @@
+﻿<UserControl x:Class="SFE.WPF.Views.Pages.TablesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:domain="clr-namespace:SFE.Domain.Entities;assembly=SFE.Domain"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <!-- ══════════ TABLE CARD BUTTON STYLE ══════════ -->
+        <Style x:Key="TableCardBtn" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Margin" Value="8"/>
+            <Setter Property="Width" Value="160"/>
+            <Setter Property="Height" Value="140"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="16" 
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                Padding="16">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="2" BlurRadius="12" Opacity="0.06" Color="#0D2B3E"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <!-- On remplace l'effet entier au lieu de cibler son nom -->
+                                <Setter TargetName="Bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect ShadowDepth="2" BlurRadius="16" Opacity="0.15" Color="#0D2B3E"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel Margin="28,24,28,24">
+
+        <!-- ── HEADER CARD ── -->
+        <Border DockPanel.Dock="Top" Margin="0,0,0,24"
+                Background="{StaticResource CardBrush}"
+                CornerRadius="14" Padding="24,18">
+            <Border.Effect>
+                <DropShadowEffect ShadowDepth="2" BlurRadius="14" Opacity="0.06" Color="#0D2B3E"/>
+            </Border.Effect>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Titre de la page -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border CornerRadius="10" Padding="10" Margin="0,0,16,0" VerticalAlignment="Center">
+                        <Border.Background>
+                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                        </Border.Background>
+                        <materialDesign:PackIcon Kind="TableFurniture" Width="24" Height="24" Foreground="{StaticResource PrimaryBrush}"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Plan de Salle" Style="{StaticResource PageTitleStyle}" Margin="0,0,0,2"/>
+                        <TextBlock Text="Gérez l'occupation des tables et les commandes en cours" 
+                                   Style="{StaticResource PageSubtitleStyle}" Margin="0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Légende des couleurs -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessBrush}" Margin="0,0,6,0"/>
+                        <TextBlock Text="Libre" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <Ellipse Width="12" Height="12" Fill="{StaticResource ErrorBrush}" Margin="0,0,6,0"/>
+                        <TextBlock Text="Occupée" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0"/>
+                        <TextBlock Text="Nettoyage" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── STATUS MESSAGES ── -->
+        <Border DockPanel.Dock="Top" Margin="0,0,0,16" CornerRadius="10" Padding="14,10"
+                Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
+                BorderThickness="1">
+            <Border.Background>
+                <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.06"/>
+            </Border.Background>
+            <Border.BorderBrush>
+                <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.2"/>
+            </Border.BorderBrush>
+            <StackPanel Orientation="Horizontal">
+                <materialDesign:PackIcon Kind="CheckCircleOutline" Width="18" Height="18"
+                                         Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                           FontFamily="{StaticResource AppFont}" FontSize="13" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Margin="0,0,0,16" CornerRadius="10" Padding="14,10"
+                Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
+                BorderThickness="1">
+            <Border.Background>
+                <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.06"/>
+            </Border.Background>
+            <Border.BorderBrush>
+                <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.2"/>
+            </Border.BorderBrush>
+            <StackPanel Orientation="Horizontal">
+                <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18"
+                                         Foreground="{StaticResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
+                           FontFamily="{StaticResource AppFont}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── MAIN FLOOR PLAN (TABLES) ── -->
+        <ScrollViewer Style="{StaticResource FadeScrollViewerStyle}">
+            <ItemsControl ItemsSource="{Binding Tables}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <!-- Utilisation de WrapPanel pour que les tables s'affichent sous forme de grille fluide -->
+                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Style="{StaticResource TableCardBtn}"
+                                Command="{Binding DataContext.TableTappedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}">
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Icône de statut dynamique -->
+                                <materialDesign:PackIcon x:Name="StatusIcon" Kind="CheckCircle" 
+                                                         Width="20" Height="20" HorizontalAlignment="Right"/>
+
+                                <!-- Numéro de la Table -->
+                                <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="TABLE" FontFamily="{StaticResource AppFont}" FontSize="12" 
+                                               FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Number}" FontFamily="{StaticResource AppFont}" FontSize="36" 
+                                               FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,-4,0,0"/>
+                                </StackPanel>
+
+                                <!-- Couverts / Infos -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <materialDesign:PackIcon Kind="AccountGroupOutline" Width="14" Height="14" 
+                                                             Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <TextBlock Text="{Binding Seats}" FontFamily="{StaticResource AppFont}" FontSize="13" 
+                                               FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <DataTemplate.Triggers>
+                            <!-- SI TABLE LIBRE -->
+                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Free}">
+                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                <Setter TargetName="StatusIcon" Property="Kind" Value="CheckCircle"/>
+                            </DataTrigger>
+
+                            <!-- SI TABLE OCCUPÉE -->
+                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Occupied}">
+                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                <Setter TargetName="StatusIcon" Property="Kind" Value="ClockOutline"/>
+                            </DataTrigger>
+
+                            <!-- SI TABLE EN NETTOYAGE -->
+                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Cleaning}">
+                                <Setter TargetName="StatusIcon" Property="Foreground" Value="#F59E0B"/>
+                                <!-- Orange -->
+                                <Setter TargetName="StatusIcon" Property="Kind" Value="SprayBottle"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

@@ -1,6 +1,4 @@
-﻿
-
-namespace SFE.Domain.Entities
+﻿namespace SFE.Domain.Entities
 {
     public class OrderItem
     {
@@ -8,11 +6,17 @@ namespace SFE.Domain.Entities
         public int OrderId { get; set; }
         public Order? Order { get; set; }
 
-        public int? MenuItemId { get; set; }    // optional link to MenuItem
+        public int? MenuItemId { get; set; }    // Pour savoir de quel menu ça vient
+        public MenuItem? MenuItem { get; set; }
+
+        // 🆕 Lien vital pour la DGI et le Stock
+        public int? ProductId { get; set; }
+        public Product? Product { get; set; }
+
         public string Name { get; set; } = string.Empty;
         public decimal UnitPrice { get; set; }
         public int Quantity { get; set; } = 1;
-        public decimal LineTotal { get; set; }  // UnitPrice * Quantity minus discounts
-        public string? Notes { get; set; }      // e.g. "no onions"
+        public decimal LineTotal { get; set; }
+        public string? Notes { get; set; }
     }
 }

@@ -8,18 +8,13 @@ namespace SFE.Infrastructure.Persistence;
 
 public static class DatabaseSeeder
 {
-    // ══════════════════════════════════════════════════════════════════
-    //  DEFAULT PERMISSION MATRIX
-    //  Every role's JSON must include ALL keys (module access + authorize.*)
-    //  so the role editor UI shows every checkbox with its correct state.
-    // ══════════════════════════════════════════════════════════════════
-
     private const string SuperAdminPermissionsJson = """
         {
             "dashboard": true, "pos": true, "invoicing": true, "clients": true,
             "salesHistory": true, "products": true, "stock": true, "transfers": true,
             "loyalty": true, "reports": true, "closeZ": true, "settings": true,
             "users": true, "audit": true, "bypassPosCheck": true,
+            "tables": true, "menus": true, "kitchen": true,
 
             "authorize.removeCartLine": true,
             "authorize.clearCart": true,
@@ -32,7 +27,9 @@ public static class DatabaseSeeder
             "authorize.negativeStockSale": true,
             "authorize.deleteProduct": true,
             "authorize.changeExchangeRate": true,
-            "authorize.reprintFiscalReceipt": true
+            "authorize.reprintFiscalReceipt": true,
+            "authorize.transferTable": true,
+            "authorize.splitBill": true
         }
         """;
 
@@ -42,6 +39,7 @@ public static class DatabaseSeeder
             "salesHistory": true, "products": true, "stock": true, "transfers": true,
             "loyalty": true, "reports": true, "closeZ": true, "settings": true,
             "users": true, "audit": true, "bypassPosCheck": false,
+            "tables": true, "menus": true, "kitchen": true,
 
             "authorize.removeCartLine": true,
             "authorize.clearCart": true,
@@ -54,7 +52,9 @@ public static class DatabaseSeeder
             "authorize.negativeStockSale": true,
             "authorize.deleteProduct": true,
             "authorize.changeExchangeRate": true,
-            "authorize.reprintFiscalReceipt": true
+            "authorize.reprintFiscalReceipt": true,
+            "authorize.transferTable": true,
+            "authorize.splitBill": true
         }
         """;
 
@@ -64,6 +64,7 @@ public static class DatabaseSeeder
             "salesHistory": true, "products": true, "stock": true, "transfers": true,
             "loyalty": true, "reports": true, "closeZ": true, "settings": false,
             "users": false, "audit": false, "bypassPosCheck": false,
+            "tables": true, "menus": true, "kitchen": true,
 
             "authorize.removeCartLine": true,
             "authorize.clearCart": true,
@@ -76,7 +77,9 @@ public static class DatabaseSeeder
             "authorize.negativeStockSale": true,
             "authorize.deleteProduct": false,
             "authorize.changeExchangeRate": false,
-            "authorize.reprintFiscalReceipt": true
+            "authorize.reprintFiscalReceipt": true,
+            "authorize.transferTable": true,
+            "authorize.splitBill": true
         }
         """;
 
@@ -86,6 +89,7 @@ public static class DatabaseSeeder
             "salesHistory": false, "products": false, "stock": false, "transfers": false,
             "loyalty": true, "reports": false, "closeZ": true, "settings": false,
             "users": false, "audit": false, "bypassPosCheck": false,
+            "tables": true, "menus": false, "kitchen": false,
 
             "authorize.removeCartLine": false,
             "authorize.clearCart": false,
@@ -98,7 +102,9 @@ public static class DatabaseSeeder
             "authorize.negativeStockSale": false,
             "authorize.deleteProduct": false,
             "authorize.changeExchangeRate": false,
-            "authorize.reprintFiscalReceipt": false
+            "authorize.reprintFiscalReceipt": false,
+            "authorize.transferTable": false,
+            "authorize.splitBill": false
         }
         """;
 
@@ -108,6 +114,7 @@ public static class DatabaseSeeder
             "salesHistory": true, "products": false, "stock": false, "transfers": false,
             "loyalty": false, "reports": true, "closeZ": false, "settings": false,
             "users": false, "audit": true, "bypassPosCheck": false,
+            "tables": false, "menus": false, "kitchen": false,
 
             "authorize.removeCartLine": false,
             "authorize.clearCart": false,
@@ -120,7 +127,9 @@ public static class DatabaseSeeder
             "authorize.negativeStockSale": false,
             "authorize.deleteProduct": false,
             "authorize.changeExchangeRate": false,
-            "authorize.reprintFiscalReceipt": false
+            "authorize.reprintFiscalReceipt": false,
+            "authorize.transferTable": false,
+            "authorize.splitBill": false
         }
         """;
 
@@ -130,6 +139,7 @@ public static class DatabaseSeeder
             "salesHistory": false, "products": true, "stock": true, "transfers": false,
             "loyalty": false, "reports": false, "closeZ": false, "settings": true,
             "users": true, "audit": true, "bypassPosCheck": true,
+            "tables": false, "menus": false, "kitchen": false,
 
             "authorize.removeCartLine": false,
             "authorize.clearCart": false,
@@ -142,11 +152,12 @@ public static class DatabaseSeeder
             "authorize.negativeStockSale": false,
             "authorize.deleteProduct": false,
             "authorize.changeExchangeRate": false,
-            "authorize.reprintFiscalReceipt": false
+            "authorize.reprintFiscalReceipt": false,
+            "authorize.transferTable": false,
+            "authorize.splitBill": false
         }
         """;
 
-    // Which authorize.* keys exist. Used by the backfill to know what to add.
     private static readonly (string Key, bool DefaultValue)[] AuthorizeKeys = new[]
     {
         ("authorize.removeCartLine",       false),
@@ -161,10 +172,10 @@ public static class DatabaseSeeder
         ("authorize.deleteProduct",        false),
         ("authorize.changeExchangeRate",   false),
         ("authorize.reprintFiscalReceipt", false),
+        ("authorize.transferTable",        false),
+        ("authorize.splitBill",            false),
     };
 
-    // Per-role default for the backfill (role name → dict of authorize.* → bool).
-    // Only used to seed keys that don't yet exist on an existing role.
     private static readonly Dictionary<string, Dictionary<string, bool>> AuthorizeDefaultsByRole =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -184,20 +195,17 @@ public static class DatabaseSeeder
                 ["authorize.deleteProduct"] = false,
                 ["authorize.changeExchangeRate"] = false,
                 ["authorize.reprintFiscalReceipt"] = true,
+                ["authorize.transferTable"] = true,
+                ["authorize.splitBill"] = true,
             },
         };
 
     private static Dictionary<string, bool> AllTrue()
         => AuthorizeKeys.ToDictionary(k => k.Key, _ => true);
 
-    // ══════════════════════════════════════════════════════════════════
-    //  SEED (public entry)
-    // ══════════════════════════════════════════════════════════════════
-
     public static async Task SeedAsync(AppDbContext context)
     {
         await context.Database.EnsureCreatedAsync();
-
         await EnsureSuperAdminAsync(context);
 
         if (!await context.Roles.AnyAsync(r => r.Name != UserService.SuperAdminRoleName))
@@ -239,15 +247,45 @@ public static class DatabaseSeeder
 
         await EnsureDefaultUsersAsync(context);
 
-        // ⭐ Runs on every startup — idempotent. Adds missing authorize.* keys
-        // to existing roles without touching any pre-existing values.
+
+        // ── AJOUT DES TABLES PAR DÉFAUT ──
+        // Si aucune table n'existe, on en crée 15 pour le restaurant principal
+        var tableSet = context.Set<Table>();
+        if (!await tableSet.AnyAsync())
+        {
+            var firstRestaurant = await context.Set<Restaurant>().FirstOrDefaultAsync();
+            int restaurantId = firstRestaurant?.Id ?? 1;
+
+            // Si le restaurant n'existe pas encore, on le crée
+            if (firstRestaurant == null)
+            {
+                firstRestaurant = new Restaurant { Name = "Mon Restaurant", IsActive = true };
+                await context.Set<Restaurant>().AddAsync(firstRestaurant);
+                await context.SaveChangesAsync();
+                restaurantId = firstRestaurant.Id;
+            }
+
+            var defaultTables = new List<Table>();
+
+            // Création de 15 tables (les 5 premières ont 4 places, les 5 suivantes 2 places, les 5 dernières 6 places)
+            for (int i = 1; i <= 15; i++)
+            {
+                defaultTables.Add(new Table
+                {
+                    RestaurantId = restaurantId,
+                    Number = i,
+                    Seats = i <= 5 ? 4 : (i <= 10 ? 2 : 6),
+                    Status = TableStatus.Free
+                });
+            }
+
+            await tableSet.AddRangeAsync(defaultTables);
+            await context.SaveChangesAsync();
+        }
+
+
         await BackfillAuthorizationPermissionsAsync(context);
     }
-
-    // ══════════════════════════════════════════════════════════════════
-    //  BACKFILL — adds authorize.* keys to existing roles in prod DBs
-    //  without overwriting any value the operator has already set.
-    // ══════════════════════════════════════════════════════════════════
 
     public static async Task BackfillAuthorizationPermissionsAsync(AppDbContext context)
     {
@@ -259,26 +297,40 @@ public static class DatabaseSeeder
             Dictionary<string, bool> current;
             try
             {
-                current = JsonSerializer.Deserialize<Dictionary<string, bool>>(
-                              role.Permissions ?? "{}")
-                          ?? new();
+                current = JsonSerializer.Deserialize<Dictionary<string, bool>>(role.Permissions ?? "{}") ?? new();
             }
             catch { current = new(); }
 
-            // Pick the right defaults for this role — fall back to "all false"
-            // for unknown role names (safest for custom roles the operator created).
+            var baseKeys = new[] { "tables", "menus", "kitchen" };
+            foreach (var bk in baseKeys)
+            {
+                if (!current.ContainsKey(bk))
+                {
+                    // L'Opérateur a besoin d'accéder au module tables pour la caisse
+                    if (bk == "tables")
+                    {
+                        current[bk] = role.Name == "Admin" || role.Name == "Gestionnaire" || role.Name == "Opérateur" || role.Name == UserService.SuperAdminRoleName;
+                    }
+                    else
+                    {
+                        current[bk] = role.Name == "Admin" || role.Name == "Gestionnaire" || role.Name == UserService.SuperAdminRoleName;
+                    }
+                    anyChanged = true;
+                }
+            }
+
             AuthorizeDefaultsByRole.TryGetValue(role.Name, out var defaults);
             defaults ??= AuthorizeKeys.ToDictionary(k => k.Key, k => k.DefaultValue);
 
             bool roleChanged = false;
             foreach (var (key, _) in AuthorizeKeys)
             {
-                if (current.ContainsKey(key)) continue;      // never overwrite
+                if (current.ContainsKey(key)) continue;
                 current[key] = defaults.TryGetValue(key, out var d) && d;
                 roleChanged = true;
             }
 
-            if (roleChanged)
+            if (roleChanged || anyChanged)
             {
                 role.Permissions = JsonSerializer.Serialize(current);
                 anyChanged = true;
@@ -287,10 +339,6 @@ public static class DatabaseSeeder
 
         if (anyChanged) await context.SaveChangesAsync();
     }
-
-    // ══════════════════════════════════════════════════════════════════
-    //  SUPERADMIN — unchanged logic, just uses the new JSON constant.
-    // ══════════════════════════════════════════════════════════════════
 
     public static async Task EnsureSuperAdminAsync(AppDbContext context)
     {

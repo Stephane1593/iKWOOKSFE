@@ -343,6 +343,8 @@ public partial class App : System.Windows.Application
         services.AddTransient<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 
+        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+
         // ═══ AUTH ═══
         services.AddSingleton<IAuthService, AuthService>();
 
@@ -372,6 +374,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
         services.AddSingleton<IBarcodeScannerService, KeyboardBarcodeScanner>();
         services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
+        services.AddSingleton<InMemoryPendingOrderStore>();
 
         // ═══ Fiscal Device ═══
         services.AddSingleton<FiscalDeviceResolver>();
@@ -386,12 +389,13 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<MockPaymentProvider>());
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
         services.AddScoped<PaymentService>();
+        services.AddScoped<ITableService, TableService>();
         services.AddScoped<IPendingOrderProvider, InvoicePendingOrderProvider>();
         services.AddScoped<IRestaurantRepository, RestaurantRepository>();
         services.AddScoped<IMenuRepository, MenuRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IPrinterProfileRepository, PrinterProfileRepository>();
-        services.AddSingleton<InMemoryPendingOrderStore>();
+
 
         services.Configure<PaymentReconciliationOptions>(o =>
         {
@@ -434,6 +438,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<UsersViewModel>();
         services.AddTransient<CategoriesViewModel>();
         services.AddTransient<BulkInvoicingViewModel>();
+        services.AddTransient<TablesViewModel>();
 
         // ── Audit ──
         services.AddSingleton<IAuditWriter, AuditWriter>();
