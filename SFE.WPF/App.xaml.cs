@@ -439,6 +439,8 @@ public partial class App : System.Windows.Application
         services.AddTransient<CategoriesViewModel>();
         services.AddTransient<BulkInvoicingViewModel>();
         services.AddTransient<TablesViewModel>();
+        services.AddTransient<RestaurantConfigViewModel>();
+        services.AddTransient<RestaurantConfigPage>();
 
         // ── Audit ──
         services.AddSingleton<IAuditWriter, AuditWriter>();

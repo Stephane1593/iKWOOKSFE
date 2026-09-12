@@ -1,0 +1,919 @@
+﻿<UserControl x:Class="SFE.WPF.Views.Pages.RestaurantConfigPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:vm="clr-namespace:SFE.WPF.ViewModels"
+             xmlns:domain="clr-namespace:SFE.Domain.Entities;assembly=SFE.Domain"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <!--  ── Thin round scrollbar ──  -->
+        <Style x:Key="SlimScrollThumb" TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Margin="1" Background="{StaticResource BorderBrush}" CornerRadius="3" Opacity="0.45" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SlimVerticalScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="MinWidth" Value="8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border Background="Transparent" CornerRadius="4" />
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource SlimScrollThumb}" />
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TouchScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="PanningMode" Value="VerticalOnly" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <ScrollContentPresenter Margin="36,32,36,32" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Margin="0,8,2,8" HorizontalAlignment="Right"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       Style="{StaticResource SlimVerticalScrollBar}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                                       Value="{TemplateBinding VerticalOffset}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Gradient Brushes ──  -->
+        <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Offset="0" Color="#9A3412" />
+            <GradientStop Offset="0.5" Color="#C2410C" />
+            <GradientStop Offset="1" Color="#EA580C" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#EA580C" />
+            <GradientStop Offset="0.5" Color="#F97316" />
+            <GradientStop Offset="1" Color="#FB923C" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GlassOverlay" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Offset="0" Color="#20FFFFFF" />
+            <GradientStop Offset="1" Color="#08FFFFFF" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="CardGlow" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Offset="0" Color="#FFFFFF" />
+            <GradientStop Offset="0.4" Color="#FAFBFD" />
+            <GradientStop Offset="1" Color="#F5F7FA" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SeparatorGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="Transparent" />
+            <GradientStop Offset="0.2" Color="#E2E8F0" />
+            <GradientStop Offset="0.5" Color="#CBD5E1" />
+            <GradientStop Offset="0.8" Color="#E2E8F0" />
+            <GradientStop Offset="1" Color="Transparent" />
+        </LinearGradientBrush>
+
+        <!--  ── Premium card ──  -->
+        <Style x:Key="PremiumCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardGlow}" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="20" Direction="270" Opacity="0.06" ShadowDepth="4" Color="#1E3A5F" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Tab button ──  -->
+        <Style x:Key="TabBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FDBA74" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Padding="22,14" Background="{TemplateBinding Background}" BorderThickness="0" CornerRadius="12,12,0,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#10FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Grid action icon button ──  -->
+        <Style x:Key="GridIconBtn" TargetType="Button">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="10" ToolTip="{TemplateBinding ToolTip}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#F1F5F9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Close icon button ──  -->
+        <Style x:Key="CloseIconBtn" TargetType="Button">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#15000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Field label ──  -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="2,0,0,8" />
+        </Style>
+
+        <!--  ── Form TextBox ──  -->
+        <Style x:Key="FormInput" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Background" Value="#F8FAFC" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="bd" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#EA580C" />
+                                <Setter TargetName="bd" Property="Background" Value="White" />
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="12" Opacity="0.12" ShadowDepth="0" Color="#EA580C" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Form ComboBox ──  -->
+        <Style x:Key="FormCombo" BasedOn="{StaticResource {x:Type ComboBox}}" TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="MinHeight" Value="44" />
+        </Style>
+
+        <!--  ── Primary gradient button ──  -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Padding="22,13" Background="{StaticResource PrimaryGradient}" CornerRadius="12">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" Direction="270" Opacity="0.2" ShadowDepth="3" Color="#EA580C" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="24" Direction="270" Opacity="0.3" ShadowDepth="5" Color="#EA580C" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.97" ScaleY="0.97" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Ghost / secondary button ──  -->
+        <Style x:Key="BtnGhost" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Padding="20,13" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E2E8F0" />
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#CBD5E1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--  ═══════════════════════════════════════════════  -->
+        <!--  HEADER  +  TAB BAR  (gradient)  -->
+        <!--  ═══════════════════════════════════════════════  -->
+        <Border Grid.Row="0" Margin="0,0,0,20" Background="{StaticResource HeaderGradient}" CornerRadius="18">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="30" Direction="270" Opacity="0.18" ShadowDepth="6" Color="#1E3A5F" />
+            </Border.Effect>
+
+            <Border Background="{StaticResource GlassOverlay}" CornerRadius="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!--  ── Title row ──  -->
+                    <StackPanel Margin="28,24,28,0" Orientation="Horizontal">
+                        <Border Width="48" Height="48" Background="#18FFFFFF" CornerRadius="14">
+                            <md:PackIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" Kind="StoreCogOutline" />
+                        </Border>
+                        <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="18" FontWeight="Bold" Foreground="White" Text="Configuration Restaurant" />
+                            <TextBlock Margin="0,3,0,0" FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="#FDBA74" Text="Gérez votre plan de salle, vos tables et configurez les menus et cuisines" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Rectangle Grid.Row="0" Height="1" Margin="28,18,28,0" VerticalAlignment="Bottom" Fill="White" Opacity="0.2" />
+
+                    <!--  ── Tab bar ──  -->
+                    <StackPanel Grid.Row="1" Margin="20,10,20,0" Orientation="Horizontal">
+
+                        <!--  Tables tab  -->
+                        <Button Command="{Binding SwitchToTablesTabCommand}">
+                            <Button.Style>
+                                <Style BasedOn="{StaticResource TabBtn}" TargetType="Button">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTablesTab}" Value="True">
+                                            <Setter Property="Foreground" Value="White" />
+                                            <Setter Property="Background" Value="#20FFFFFF" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="TableFurniture" />
+                                <TextBlock VerticalAlignment="Center" Text="Plan de salle &amp; Tables" />
+                                <Border Margin="10,0,0,0" Padding="9,4" VerticalAlignment="Center" CornerRadius="10">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#15FFFFFF" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTablesTab}" Value="True">
+                                                    <Setter Property="Background" Value="#25FFFFFF" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="Bold" Foreground="White" Text="{Binding TableCount}" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Categories tab  -->
+                        <Button Margin="4,0,0,0" Command="{Binding SwitchToCategoriesTabCommand}">
+                            <Button.Style>
+                                <Style BasedOn="{StaticResource TabBtn}" TargetType="Button">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCategoriesTab}" Value="True">
+                                            <Setter Property="Foreground" Value="White" />
+                                            <Setter Property="Background" Value="#20FFFFFF" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="TagMultipleOutline" />
+                                <TextBlock VerticalAlignment="Center" Text="Catégories" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Menus tab  -->
+                        <Button Margin="4,0,0,0" Command="{Binding SwitchToMenusTabCommand}">
+                            <Button.Style>
+                                <Style BasedOn="{StaticResource TabBtn}" TargetType="Button">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMenusTab}" Value="True">
+                                            <Setter Property="Foreground" Value="White" />
+                                            <Setter Property="Background" Value="#20FFFFFF" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="SilverwareForkKnife" />
+                                <TextBlock VerticalAlignment="Center" Text="Menus &amp; Routage" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!--  Active tab indicator line  -->
+                    <Border Grid.Row="1" Width="180" Height="3" VerticalAlignment="Bottom" Background="White" CornerRadius="2,2,0,0" Opacity="0.9">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="HorizontalAlignment" Value="Left" />
+                                <Setter Property="Margin" Value="24,0,0,0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCategoriesTab}" Value="True">
+                                        <Setter Property="Margin" Value="210,0,0,0" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsMenusTab}" Value="True">
+                                        <Setter Property="Margin" Value="365,0,0,0" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!--  ═══════════════════════════════════════════════  -->
+        <!--  TAB CONTENT  -->
+        <!--  ═══════════════════════════════════════════════  -->
+        <Grid Grid.Row="1">
+
+            <!--  1. TABLES TAB  -->
+            <Grid Visibility="{Binding IsTablesTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="480" />
+                    <ColumnDefinition Width="400" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0" Margin="0,0,20,0">
+                    <Border Margin="0,0,0,16" Padding="10" DockPanel.Dock="Top" Style="{StaticResource PremiumCard}">
+                        <Grid>
+                            <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Gérez l'agencement de votre restaurant" />
+                            </StackPanel>
+                            <Button Grid.Column="1" HorizontalAlignment="Right" Command="{Binding NewTableCommand}" Style="{StaticResource BtnPrimary}">
+                                <StackPanel Orientation="Horizontal">
+                                    <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="Plus" />
+                                    <TextBlock VerticalAlignment="Center" Text="Nouvelle table" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Border Padding="0" ClipToBounds="True" Style="{StaticResource PremiumCard}">
+                        <DataGrid AutoGenerateColumns="False" Background="Transparent" BorderThickness="0"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" ColumnHeaderHeight="46"
+                                  FontFamily="{StaticResource AppFont}" FontSize="13" GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column" HorizontalGridLinesBrush="#F1F5F9" IsReadOnly="True"
+                                  ItemsSource="{Binding Tables}" RowHeight="54" SelectionMode="Single">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Command="{Binding EditTableCommand}" CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=DataGrid}}" Gesture="LeftDoubleClick" />
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Width="*" Binding="{Binding Number, StringFormat='Table n° {0}'}" Header="IDENTIFIANT">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="Foreground" Value="{StaticResource PrimaryDarkBrush}" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTemplateColumn Width="130" Header="COUVERTS">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <md:PackIcon Kind="AccountGroupOutline" Width="16" Height="16" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding Seats}" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="120" Header="STATUT">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border Padding="10,5" HorizontalAlignment="Left" VerticalAlignment="Center" CornerRadius="8">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#D1FAE5" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Occupied}">
+                                                                <Setter Property="Background" Value="#FEE2E2" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Cleaning}">
+                                                                <Setter Property="Background" Value="#FEF3C7" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="Bold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="#059669" />
+                                                            <Setter Property="Text" Value="Libre" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Occupied}">
+                                                                    <Setter Property="Foreground" Value="#DC2626" />
+                                                                    <Setter Property="Text" Value="Occupée" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Cleaning}">
+                                                                    <Setter Property="Foreground" Value="#D97706" />
+                                                                    <Setter Property="Text" Value="Nettoyage" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+                                                <Button Command="{Binding DataContext.EditTableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" Style="{StaticResource GridIconBtn}" ToolTip="Modifier">
+                                                    <md:PackIcon Width="18" Height="18" Foreground="#EA580C" Kind="PencilOutline" />
+                                                </Button>
+                                                <Button Margin="4,0,0,0" Command="{Binding DataContext.DeleteTableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" Style="{StaticResource GridIconBtn}" ToolTip="Supprimer">
+                                                    <md:PackIcon Width="18" Height="18" Foreground="#EF4444" Kind="TrashCanOutline" />
+                                                </Button>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </DockPanel>
+
+                <ScrollViewer Grid.Column="1" Padding="0,0,4,0" Style="{StaticResource TouchScrollViewer}">
+                    <Grid>
+                        <StackPanel Margin="0,80,0,0" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsEditingTable, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                            <Border Width="80" Height="80" HorizontalAlignment="Center" CornerRadius="24">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Offset="0" Color="#FFF7ED" />
+                                        <GradientStop Offset="1" Color="#FFEDD5" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <md:PackIcon Width="38" Height="38" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#F97316" Kind="TableFurniture" />
+                            </Border>
+                            <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="#94A3B8" LineHeight="22" Text="Sélectionnez une table&#x0a;ou créez-en une nouvelle" TextAlignment="Center" />
+                        </StackPanel>
+
+                        <Border Padding="0" Style="{StaticResource PremiumCard}" Visibility="{Binding IsEditingTable, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <Border Padding="24,18" CornerRadius="16,16,0,0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFF7ED" />
+                                            <GradientStop Offset="1" Color="#FFEDD5" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="40" Height="40" Background="{StaticResource PrimaryGradient}" CornerRadius="12">
+                                                <md:PackIcon Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" Kind="Pencil" />
+                                            </Border>
+                                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding TableFormTitle}" />
+                                                <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="#C2410C" Text="Informations de la table" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Command="{Binding CancelTableEditCommand}" Style="{StaticResource CloseIconBtn}">
+                                            <md:PackIcon Width="18" Height="18" Foreground="#92400E" Kind="Close" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" />
+
+                                <StackPanel Margin="24,20,24,24">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Numéro de table *" />
+                                        <TextBox Style="{StaticResource FormInput}" Text="{Binding FormTableNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Nombre de couverts (chaises) *" />
+                                        <TextBox Style="{StaticResource FormInput}" Text="{Binding FormTableSeats, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <Rectangle Height="1" Margin="0,24,0,0" Fill="{StaticResource SeparatorGradient}" />
+
+                                    <Grid Margin="0,20,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Command="{Binding CancelTableEditCommand}" Content="Annuler" Style="{StaticResource BtnGhost}" />
+                                        <Button Grid.Column="2" Command="{Binding SaveTableCommand}" Style="{StaticResource BtnPrimary}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="ContentSave" />
+                                                <TextBlock VerticalAlignment="Center" Text="Enregistrer" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+
+            <!--  2. CATEGORIES TAB  -->
+            <Grid Visibility="{Binding IsCategoriesTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="480" />
+                    <ColumnDefinition Width="400" />
+                </Grid.ColumnDefinitions>
+
+                <!-- LEFT — Categories List & DataGrid -->
+                <DockPanel Grid.Column="0" Margin="0,0,20,0">
+                    <Border Margin="0,0,0,16" Padding="10" DockPanel.Dock="Top" Style="{StaticResource PremiumCard}">
+                        <Grid>
+                            <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Gérez vos familles de produits (ex: Boissons, Plats)" />
+                            </StackPanel>
+                            <Button HorizontalAlignment="Right" Command="{Binding NewCategoryCommand}" Style="{StaticResource BtnPrimary}">
+                                <StackPanel Orientation="Horizontal">
+                                    <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="Plus" />
+                                    <TextBlock VerticalAlignment="Center" Text="Nouvelle catégorie" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Border Padding="0" ClipToBounds="True" Style="{StaticResource PremiumCard}">
+                        <DataGrid AutoGenerateColumns="False" Background="Transparent" BorderThickness="0"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" ColumnHeaderHeight="46"
+                                  FontFamily="{StaticResource AppFont}" FontSize="13" GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column" HorizontalGridLinesBrush="#F1F5F9" IsReadOnly="True"
+                                  ItemsSource="{Binding Menus}" RowHeight="54" SelectionMode="Single">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Command="{Binding EditCategoryCommand}" CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=DataGrid}}" Gesture="LeftDoubleClick" />
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Width="*" Binding="{Binding Name}" Header="NOM DE LA CATÉGORIE">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="Foreground" Value="{StaticResource PrimaryDarkBrush}" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTemplateColumn Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+                                                <Button Command="{Binding DataContext.EditCategoryCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" Style="{StaticResource GridIconBtn}">
+                                                    <md:PackIcon Width="18" Height="18" Foreground="#EA580C" Kind="PencilOutline" />
+                                                </Button>
+                                                <Button Margin="4,0,0,0" Command="{Binding DataContext.DeleteCategoryCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" Style="{StaticResource GridIconBtn}">
+                                                    <md:PackIcon Width="18" Height="18" Foreground="#EF4444" Kind="TrashCanOutline" />
+                                                </Button>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </DockPanel>
+
+                <!-- RIGHT — Category Form -->
+                <ScrollViewer Grid.Column="1" Padding="0,0,4,0" Style="{StaticResource TouchScrollViewer}">
+                    <Grid>
+                        <StackPanel Margin="0,80,0,0" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsEditingCategory, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                            <Border Width="80" Height="80" HorizontalAlignment="Center" CornerRadius="24">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Offset="0" Color="#FFF7ED" />
+                                        <GradientStop Offset="1" Color="#FFEDD5" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <md:PackIcon Width="38" Height="38" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#F97316" Kind="TagMultipleOutline" />
+                            </Border>
+                            <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="#94A3B8" LineHeight="22" Text="Sélectionnez une catégorie&#x0a;ou créez-en une nouvelle" TextAlignment="Center" />
+                        </StackPanel>
+
+                        <Border Padding="0" Style="{StaticResource PremiumCard}" Visibility="{Binding IsEditingCategory, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <Border Padding="24,18" CornerRadius="16,16,0,0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFF7ED" />
+                                            <GradientStop Offset="1" Color="#FFEDD5" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="40" Height="40" Background="{StaticResource PrimaryGradient}" CornerRadius="12">
+                                                <md:PackIcon Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" Kind="Pencil" />
+                                            </Border>
+                                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding CategoryFormTitle}" />
+                                                <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="#C2410C" Text="Famille de produits" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Command="{Binding CancelCategoryEditCommand}" Style="{StaticResource CloseIconBtn}">
+                                            <md:PackIcon Width="18" Height="18" Foreground="#92400E" Kind="Close" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" />
+
+                                <StackPanel Margin="24,20,24,24">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Nom de la catégorie *" />
+                                        <TextBox Style="{StaticResource FormInput}" Text="{Binding FormCategoryName, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <Rectangle Height="1" Margin="0,24,0,0" Fill="{StaticResource SeparatorGradient}" />
+
+                                    <Grid Margin="0,20,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Command="{Binding CancelCategoryEditCommand}" Content="Annuler" Style="{StaticResource BtnGhost}" />
+                                        <Button Grid.Column="2" Command="{Binding SaveCategoryCommand}" Style="{StaticResource BtnPrimary}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="ContentSave" />
+                                                <TextBlock VerticalAlignment="Center" Text="Enregistrer" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+
+            <!--  3. MENUS & ROUTAGE TAB  -->
+            <Grid Visibility="{Binding IsMenusTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTablesTab}" Value="False">
+                                <DataTrigger.Setters>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger.Setters>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="480" />
+                    <ColumnDefinition Width="400" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0" Margin="0,0,20,0">
+                    <Border Margin="0,0,0,16" Padding="14,10" DockPanel.Dock="Top" Style="{StaticResource PremiumCard}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Style="{StaticResource FieldLabel}" Text="Carte :" />
+                            <ComboBox Grid.Column="1" MinHeight="40" Margin="0,0,20,0" DisplayMemberPath="Name" ItemsSource="{Binding Menus}" SelectedItem="{Binding SelectedMenu}" Style="{StaticResource FormCombo}" />
+                            <Button Grid.Column="2" MinHeight="40" Padding="16,8" Command="{Binding NewMenuItemCommand}" Style="{StaticResource BtnPrimary}">
+                                <StackPanel Orientation="Horizontal">
+                                    <md:PackIcon Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" Kind="Plus" />
+                                    <TextBlock VerticalAlignment="Center" Text="Ajouter un plat" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Border Padding="0" ClipToBounds="True" Style="{StaticResource PremiumCard}">
+                        <DataGrid AutoGenerateColumns="False" Background="Transparent" BorderThickness="0"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" ColumnHeaderHeight="46"
+                                  FontFamily="{StaticResource AppFont}" FontSize="13" GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column" HorizontalGridLinesBrush="#F1F5F9" IsReadOnly="True"
+                                  ItemsSource="{Binding MenuItems}" RowHeight="54" SelectionMode="Single">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Command="{Binding EditMenuItemCommand}" CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=DataGrid}}" Gesture="LeftDoubleClick" />
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Width="*" Binding="{Binding Name}" Header="NOM DU PLAT SUR LE POS">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="Foreground" Value="{StaticResource PrimaryDarkBrush}" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTemplateColumn Width="150" Header="ROUTAGE IMPRESSION">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                                <md:PackIcon Width="14" Height="14" Margin="0,0,6,0" Foreground="#94A3B8" Kind="Printer" />
+                                                <TextBlock FontSize="12" Foreground="#64748B" Text="Cuisine / Bar" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="70">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Command="{Binding DataContext.EditMenuItemCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" Style="{StaticResource GridIconBtn}">
+                                                <md:PackIcon Width="18" Height="18" Foreground="#EA580C" Kind="PencilOutline" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </DockPanel>
+
+                <ScrollViewer Grid.Column="1" Padding="0,0,4,0" Style="{StaticResource TouchScrollViewer}">
+                    <Grid>
+                        <StackPanel Margin="0,80,0,0" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsEditingMenuItem, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                            <Border Width="80" Height="80" HorizontalAlignment="Center" CornerRadius="24">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Offset="0" Color="#FFF7ED" />
+                                        <GradientStop Offset="1" Color="#FFEDD5" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <md:PackIcon Width="38" Height="38" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#F97316" Kind="SilverwareForkKnife" />
+                            </Border>
+                            <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="#94A3B8" LineHeight="22" Text="Sélectionnez un plat&#x0a;pour modifier son routage" TextAlignment="Center" />
+                        </StackPanel>
+
+                        <Border Padding="0" Style="{StaticResource PremiumCard}" Visibility="{Binding IsEditingMenuItem, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel>
+                                <Border Padding="24,18" CornerRadius="16,16,0,0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFF7ED" />
+                                            <GradientStop Offset="1" Color="#FFEDD5" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="40" Height="40" Background="{StaticResource PrimaryGradient}" CornerRadius="12">
+                                                <md:PackIcon Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" Kind="Pencil" />
+                                            </Border>
+                                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding MenuItemFormTitle}" />
+                                                <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="#C2410C" Text="Liaison produit &amp; impression" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Command="{Binding CancelMenuItemEditCommand}" Style="{StaticResource CloseIconBtn}">
+                                            <md:PackIcon Width="18" Height="18" Foreground="#92400E" Kind="Close" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <Rectangle Height="1" Fill="{StaticResource SeparatorGradient}" />
+
+                                <StackPanel Margin="24,20,24,24">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Produit du catalogue (Fiscalité) *" />
+                                        <ComboBox DisplayMemberPath="Name" ItemsSource="{Binding AvailableProducts}" SelectedItem="{Binding FormLinkedProduct}" Style="{StaticResource FormCombo}" ToolTip="Ce produit sera utilisé pour déduire le stock et générer la facture DGI." />
+                                    </StackPanel>
+
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Nom affiché sur la caisse (Optionnel)" />
+                                        <TextBox Style="{StaticResource FormInput}" Text="{Binding FormMenuName, UpdateSourceTrigger=PropertyChanged}" ToolTip="Laissez vide pour utiliser le nom du catalogue." />
+                                    </StackPanel>
+                                    
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Prix de vente en salle (CDF) *" />
+                                        <TextBox Style="{StaticResource FormInput}" Text="{Binding FormUnitPrice, UpdateSourceTrigger=PropertyChanged}" ToolTip="Saisissez le prix de vente spécifique pour ce plat au restaurant." />
+                                    </StackPanel>
+                                    
+                                    <StackPanel Margin="0,16,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Imprimante cible (KOT)" />
+                                        <ComboBox DisplayMemberPath="Name" ItemsSource="{Binding AvailablePrinters}" SelectedItem="{Binding FormPrinterProfile}" Style="{StaticResource FormCombo}" ToolTip="Où ce plat doit-il s'imprimer en cuisine ?" />
+                                    </StackPanel>
+
+                                    <Rectangle Height="1" Margin="0,24,0,0" Fill="{StaticResource SeparatorGradient}" />
+
+                                    <Grid Margin="0,20,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Command="{Binding CancelMenuItemEditCommand}" Content="Annuler" Style="{StaticResource BtnGhost}" />
+                                        <Button Grid.Column="2" Command="{Binding SaveMenuItemCommand}" Style="{StaticResource BtnPrimary}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <md:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="ContentSave" />
+                                                <TextBlock VerticalAlignment="Center" Text="Enregistrer" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <Border Margin="0,18,0,0" Padding="16,14" CornerRadius="12" ToolTip="{Binding StatusMessage}" Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Border.Background>
+                                            <SolidColorBrush Opacity="0.1" Color="#EF4444" />
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Width="20" Height="20" Margin="0,0,12,0" VerticalAlignment="Top" Foreground="#DC2626" Kind="AlertCircle" />
+                                            <TextBlock MaxWidth="300" VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="Medium" Foreground="#DC2626" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

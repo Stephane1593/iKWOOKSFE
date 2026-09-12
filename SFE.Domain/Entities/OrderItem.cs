@@ -16,6 +16,7 @@
         public string Name { get; set; } = string.Empty;
         public decimal UnitPrice { get; set; }
         public int Quantity { get; set; } = 1;
+        public int SentQuantity { get; set; } = 0;
         public decimal LineTotal { get; set; }
         public string? Notes { get; set; }
     }

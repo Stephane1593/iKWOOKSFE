@@ -1,0 +1,1688 @@
+==========================================================
+ LICENSING REVIEW BUNDLE #2
+ Focus     : feature tokens + MaxUsers enforcement
+ Generated : 2026-09-12 08:54:03
+ Repo root : C:\iKwook
+ File count: 7 requested
+==========================================================
+
+
+==========================================================
+FILE: SFE.Api\SfeApiHost.cs
+SIZE: 17536 bytes
+==========================================================
+using Makaretu.Dns;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SFE.Application.Interfaces;
+using SFE.Application.Payments;
+using SFE.Application.Services;
+using SFE.Domain.Abstractions;
+using SFE.Licensing.Local;
+using SFE.Domain.Enums;
+
+namespace SFE.Api;
+
+public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
+{
+    private WebApplication? _app;
+    private ServiceDiscovery? _sd;
+    private MulticastService? _mdns;
+
+    public async Task StartAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.ConfigureKestrel(k => k.ListenAnyIP(port));
+
+        builder.Services.ConfigureHttpJsonOptions(o =>
+        {
+            o.SerializerOptions.Converters.Add(
+                new System.Text.Json.Serialization.JsonStringEnumConverter());
+        });
+
+        _app = builder.Build();
+
+        // -- Global error ? JSON --
+        _app.Use(async (ctx, next) =>
+        {
+            try { await next(); }
+            catch (Exception ex)
+            {
+                var log = ctx.RequestServices.GetRequiredService<ILogger<SfeApiHost>>();
+                log.LogError(ex, "Unhandled exception in {Method} {Path}",
+                    ctx.Request.Method, ctx.Request.Path);
+
+                if (!ctx.Response.HasStarted)
+                {
+                    ctx.Response.Clear();
+                    ctx.Response.StatusCode = 500;
+                    ctx.Response.ContentType = "application/json";
+                    await ctx.Response.WriteAsJsonAsync(new
+                    {
+                        error = ex.GetType().Name,
+                        message = ex.Message,
+                        inner = ex.InnerException?.Message,
+                        path = ctx.Request.Path.Value
+                    });
+                }
+            }
+        });
+
+        // -- Pairing gate --
+        _app.Use(async (ctx, next) =>
+        {
+            // These endpoints are available before terminal pairing.
+            if (ctx.Request.Path.StartsWithSegments("/health") ||
+                ctx.Request.Path.StartsWithSegments("/license/status"))
+            {
+                await next();
+                return;
+            }
+
+            using var scope = appServices.CreateScope();
+            var settings = scope.ServiceProvider.GetRequiredService<SettingsService>();
+            var s = await settings.LoadSettingsAsync();
+
+            if (!s.SunmiEnabled || string.IsNullOrWhiteSpace(s.SunmiTerminalId))
+            {
+                ctx.Response.StatusCode = 503;
+                await ctx.Response.WriteAsync("no_terminal_paired");
+                return;
+            }
+
+            var provided = ctx.Request.Headers["X-Terminal-Id"].ToString();
+            if (!string.Equals(provided, s.SunmiTerminalId, StringComparison.Ordinal))
+            {
+                ctx.Response.StatusCode = 401;
+                await ctx.Response.WriteAsync("unpaired_terminal");
+                return;
+            }
+
+            await next();
+        });
+
+        _app.MapGet("/health", () => Results.Ok(new { ok = true }));
+
+        _app.MapGet("/license/status", () =>
+        {
+            var guard = appServices.GetRequiredService<ILicenseGuard>();
+            var s = guard.Current;
+            return Results.Ok(new
+            {
+                status = s.Status.ToString(),
+                allowsInvoicing = s.AllowsInvoicing,
+                reason = s.Reason,
+                expiresAt = s.Claims?.ExpiresAt,
+                daysUntilExpiry = s.DaysUntilExpiry,
+                edition = s.Claims?.Edition,
+                features = s.Claims?.Features
+            });
+        });
+
+        _app.MapGet("/orders", async (CancellationToken ct) =>
+        {
+            using var scope = appServices.CreateScope();
+            var orders = await scope.ServiceProvider
+                .GetRequiredService<IPendingOrderProvider>().GetPendingAsync(ct);
+            return Results.Ok(orders);
+        });
+
+        _app.MapDelete("/orders/{orderId}", async (string orderId, CancellationToken ct) =>
+        {
+            using var scope = appServices.CreateScope();
+            var pending = scope.ServiceProvider.GetRequiredService<IPendingOrderProvider>();
+            var removed = await pending.RemoveAsync(orderId, ct);
+            return removed ? Results.NoContent() : Results.NotFound();
+        });
+
+        // ------------------------------------------------------
+        //  RECEIPT ENDPOINTS  (Sunmi optimised)
+        // ------------------------------------------------------
+        const int SUNMI_PAPER_WIDTH_MM = 58; // <-- Set to 80 if your Sunmi uses 80 mm rolls
+
+        // {**id} catch-all MUST be the last segment, so type comes first.
+        _app.MapGet("/receipts/proforma/{**id}", async (
+            string id,
+            CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+
+            using var scope = appServices.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<InMemoryPendingOrderStore>();
+            var draft = store.GetDraftFor(id);
+            if (draft is null)
+                return Results.NotFound(new { error = "no_draft", orderId = id });
+
+            var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var time = scope.ServiceProvider.GetRequiredService<ITimeProvider>();
+
+            var company = await uow.Companies.GetCurrentCompanyAsync();
+            if (company is null)
+                return Results.Problem("Company not configured.");
+
+            var pos = draft.PointOfSaleId > 0
+                ? await uow.PointsOfSale.GetByIdAsync(draft.PointOfSaleId)
+                : null;
+
+            var bytes = EscPosReceiptBuilder.Build(
+                invoice: draft,
+                company: company,
+                pos: pos,
+                time: time,
+                exchangeRate: draft.CurrencyRate,
+                isDuplicate: false,
+                asProforma: true,
+                overridePaperWidthMm: SUNMI_PAPER_WIDTH_MM);
+
+            return Results.File(bytes, "application/vnd.escpos");
+        });
+
+        _app.MapGet("/receipts/fiscal/{**id}", async (
+            string id,
+            CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+
+            using var scope = appServices.CreateScope();
+            var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var time = scope.ServiceProvider.GetRequiredService<ITimeProvider>();
+
+            var inv = await uow.Invoices.GetByInvoiceNumberAsync(id);
+            if (inv is null || string.IsNullOrEmpty(inv.CodeDEFDGI))
+                return Results.NotFound(new { error = "not_fiscalized_yet", orderId = id });
+
+            var company = await uow.Companies.GetCurrentCompanyAsync();
+            if (company is null)
+                return Results.Problem("Company not configured.");
+
+            var pos = inv.PointOfSaleId > 0
+                ? await uow.PointsOfSale.GetByIdAsync(inv.PointOfSaleId)
+                : null;
+
+            var bytes = EscPosReceiptBuilder.Build(
+                invoice: inv,
+                company: company,
+                pos: pos,
+                time: time,
+                exchangeRate: inv.CurrencyRate,
+                isDuplicate: false,
+                asProforma: false,
+                overridePaperWidthMm: SUNMI_PAPER_WIDTH_MM);
+
+            return Results.File(bytes, "application/vnd.escpos");
+        });
+
+        // ------------------------------------------------------
+        //  RECEIPT JSON (Sunmi terminal rendering)
+        // ------------------------------------------------------
+
+        _app.MapGet("/receipts/json/proforma/{**id}", async (
+            string id,
+            int? copies,
+            CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+
+            using var scope = appServices.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<InMemoryPendingOrderStore>();
+            var draft = store.GetDraftFor(id);
+            if (draft is null)
+                return Results.NotFound(new { error = "no_draft", orderId = id });
+
+            var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var time = scope.ServiceProvider.GetRequiredService<ITimeProvider>();
+
+            var company = await uow.Companies.GetCurrentCompanyAsync();
+            if (company is null)
+                return Results.Problem("Company not configured.");
+
+            var pos = draft.PointOfSaleId > 0
+                ? await uow.PointsOfSale.GetByIdAsync(draft.PointOfSaleId)
+                : null;
+
+            var printCopies = copies ?? 1;
+            var docs = new List<object>();
+
+            // ORIGINAL
+            var docOriginal = ReceiptJsonBuilder.Build(
+                invoice: draft,
+                company: company,
+                pos: pos,
+                time: time,
+                exchangeRate: draft.CurrencyRate,
+                isDuplicate: false,
+                asProforma: true,
+                paperWidthMm: SUNMI_PAPER_WIDTH_MM);
+            docs.Add(docOriginal);
+
+            // DUPLICATA (if copies >= 2)
+            if (printCopies >= 2)
+            {
+                var docDuplicate = ReceiptJsonBuilder.Build(
+                    invoice: draft,
+                    company: company,
+                    pos: pos,
+                    time: time,
+                    exchangeRate: draft.CurrencyRate,
+                    isDuplicate: true,
+                    asProforma: true,
+                    paperWidthMm: SUNMI_PAPER_WIDTH_MM);
+                docs.Add(docDuplicate);
+            }
+
+            return Results.Ok(new { documents = docs });
+        });
+
+        _app.MapGet("/receipts/json/fiscal/{**id}", async (
+            string id,
+            int? copies,
+            CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+
+            using var scope = appServices.CreateScope();
+            var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var time = scope.ServiceProvider.GetRequiredService<ITimeProvider>();
+
+            var inv = await uow.Invoices.GetByInvoiceNumberAsync(id);
+            if (inv is null || string.IsNullOrEmpty(inv.CodeDEFDGI))
+                return Results.NotFound(new { error = "not_fiscalized_yet", orderId = id });
+
+            var company = await uow.Companies.GetCurrentCompanyAsync();
+            if (company is null)
+                return Results.Problem("Company not configured.");
+
+            var pos = inv.PointOfSaleId > 0
+                ? await uow.PointsOfSale.GetByIdAsync(inv.PointOfSaleId)
+                : null;
+
+            var printCopies = copies ?? 1;
+            var docs = new List<object>();
+
+            // ORIGINAL
+            var docOriginal = ReceiptJsonBuilder.Build(
+                invoice: inv,
+                company: company,
+                pos: pos,
+                time: time,
+                exchangeRate: inv.CurrencyRate,
+                isDuplicate: false,
+                asProforma: false,
+                paperWidthMm: SUNMI_PAPER_WIDTH_MM);
+            docs.Add(docOriginal);
+
+            // DUPLICATA (if copies >= 2)
+            if (printCopies >= 2)
+            {
+                var docDuplicate = ReceiptJsonBuilder.Build(
+                    invoice: inv,
+                    company: company,
+                    pos: pos,
+                    time: time,
+                    exchangeRate: inv.CurrencyRate,
+                    isDuplicate: true,
+                    asProforma: false,
+                    paperWidthMm: SUNMI_PAPER_WIDTH_MM);
+                docs.Add(docDuplicate);
+            }
+
+            return Results.Ok(new { documents = docs });
+        });
+
+        // ------------------------------------------------------
+        //  PAYMENTS (unchanged)
+        // ------------------------------------------------------
+
+        _app.MapPost("/payments", async (InitiatePaymentRequest req, CancellationToken ct) =>
+        {
+            using var scope = appServices.CreateScope();
+            var log = scope.ServiceProvider.GetRequiredService<ILogger<SfeApiHost>>();
+            log.LogInformation(
+                "POST /payments key={Key} order={Order} amount={Amount} method={Method}",
+                req.IdempotencyKey, req.OrderId, req.Amount, req.Method);
+
+            var svc = scope.ServiceProvider.GetRequiredService<PaymentService>();
+            var tx = await svc.InitiateAsync(req, ct);
+            return Results.Ok(PaymentService.ToDto(tx));
+        });
+
+        _app.MapGet("/payments/{id}", async (string id, CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+            using var scope = appServices.CreateScope();
+            var svc = scope.ServiceProvider.GetRequiredService<PaymentService>();
+            var tx = await svc.GetAsync(id, ct);
+            return tx is null ? Results.NotFound() : Results.Ok(PaymentService.ToDto(tx));
+        });
+
+        _app.MapPost("/payments/{id}/result", async (
+            string id,
+            PaymentResultReport report,
+            CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+            using var scope = appServices.CreateScope();
+            var log = scope.ServiceProvider.GetRequiredService<ILogger<SfeApiHost>>();
+            log.LogInformation("Result received for {Id}: {Status}", id, report.Status);
+
+            var svc = scope.ServiceProvider.GetRequiredService<PaymentService>();
+            var tx = await svc.ReportResultAsync(id, report, ct);
+
+            var provider = scope.ServiceProvider.GetRequiredService<IPaymentProvider>();
+            if (provider is MockPaymentProvider mock)
+                mock.ReportResult(id, report.Status, report.ProviderRef, report.Reason);
+
+            return Results.Ok(new
+            {
+                accepted = true,
+                orderId = id,
+                status = report.Status.ToString(),
+                echoed = tx is null ? null : PaymentService.ToDto(tx)
+            });
+        });
+
+        _app.MapPost("/payments/{id}/reconcile", async (string id, CancellationToken ct) =>
+        {
+            id = Uri.UnescapeDataString(id);
+            using var scope = appServices.CreateScope();
+            var svc = scope.ServiceProvider.GetRequiredService<PaymentService>();
+            var tx = await svc.ReconcileAsync(id, ct);
+            return tx is null ? Results.NotFound() : Results.Ok(PaymentService.ToDto(tx));
+        });
+
+        _app.MapGet("/orders/{orderId}/qr", async (string orderId, CancellationToken ct) =>
+        {
+            orderId = Uri.UnescapeDataString(orderId);
+
+            using var scope = appServices.CreateScope();
+            var resolver = scope.ServiceProvider.GetRequiredService<OfflineQrResolver>();
+
+            var result = await resolver.ResolveAsync(orderId, ct);
+
+            return result.Outcome switch
+            {
+                OfflineQrOutcome.Ok => Results.Ok(new
+                {
+                    token = result.Token,
+                    kind = result.Kind.ToString(),
+                    order = result.Order
+                }),
+
+                OfflineQrOutcome.NotFound => Results.NotFound(new
+                {
+                    error = "order_not_found",
+                    orderId
+                }),
+
+                OfflineQrOutcome.NothingDue => Results.Conflict(new
+                {
+                    error = "nothing_due",
+                    orderId
+                }),
+
+                _ => Results.Problem("Unable to generate QR.")
+            };
+        });
+
+        await _app.StartAsync();
+        AdvertiseMdns();
+    }
+
+    private void AdvertiseMdns()
+    {
+        _mdns = new MulticastService();
+        _sd = new ServiceDiscovery(_mdns);
+        var profile = new ServiceProfile("sfe-caisse", "_sfepay._tcp", (ushort)port);
+        profile.AddProperty("path", "/");
+        _sd.Advertise(profile);
+        _mdns.Start();
+    }
+
+    public async Task StopAsync()
+    {
+        _sd?.Dispose();
+        _mdns?.Dispose();
+        if (_app is not null) await _app.StopAsync();
+    }
+}
+
+
+==========================================================
+FILE: SFE.Application\Services\SettingsService.cs
+SIZE: 9985 bytes
+==========================================================
+using SFE.Application.Interfaces;
+using SFE.Domain.Abstractions;
+using SFE.Domain.Entities;
+using SFE.Domain.Enums;
+
+namespace SFE.Application.Services;
+
+/// <summary>
+/// Service pour charger et sauvegarder les paramètres.
+/// </summary>
+public class SettingsService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ITimeProvider _time;
+
+    public SettingsService(IUnitOfWork unitOfWork, ITimeProvider time)
+    {
+        _unitOfWork = unitOfWork;
+        _time = time;
+    }
+
+    /// <summary>
+    /// Charge les paramètres actuels (entreprise + POS actif + AppSettings).
+    /// </summary>
+    public async Task<SettingsData> LoadSettingsAsync()
+    {
+        var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
+        if (company == null)
+            throw new InvalidOperationException("Aucune entreprise configurée. Lancez le seeder.");
+
+        // --- FIX: Load POS with fallback ---
+        List<PointOfSale> posList;
+        try
+        {
+            var companyWithPos = await _unitOfWork.Companies
+                .GetWithPointsOfSaleAsync(company.Id);
+            posList = companyWithPos?.PointsOfSale?.ToList() ?? new();
+        }
+        catch
+        {
+            posList = new();
+        }
+
+        // ? FALLBACK: if Include didn't work, query POS directly
+        if (posList.Count == 0)
+        {
+            posList = await _unitOfWork.PointsOfSale
+                .GetByCompanyIdAsync(company.Id);
+        }
+
+        var activePos = posList.FirstOrDefault(p => p.IsActive);
+
+        // ?? Charger AppSettings pour les paramètres de calcul
+        var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
+
+        return new SettingsData
+        {
+            CompanyId = company.Id,
+            CompanyName = company.Name,
+            CompanyNIF = company.NIF,
+            CompanyRCCM = company.RCCM,
+            CompanyAddress = company.Address,
+            CompanyCity = company.City,
+            CompanyPhone = company.Phone,
+            CompanyEmail = company.Email,
+            DefaultPriceMode = company.DefaultPriceMode,
+            LoyaltyEnabled = company.LoyaltyEnabled,
+            LoyaltyEarnRate = company.LoyaltyEarnRate,
+            LoyaltyRedeemRate = company.LoyaltyRedeemRate,
+            DeploymentMode = company.DeploymentMode,
+            CompanyISF = company.ISF,
+            CompanyLogo = company.Logo,
+
+            // ?? Paramètres de calcul (depuis AppSettings)
+            DiscountBeforeTax = appSettings?.DiscountBeforeTax ?? true,
+            DefaultCurrency = appSettings?.DefaultCurrency ?? Currency.CDF,
+            CurrentExchangeRate = appSettings?.CurrentExchangeRate ?? 2800m,
+            CurrentExchangeRateEUR = appSettings?.CurrentExchangeRateEUR ?? 3100m,
+            CurrentExchangeRateCNY = appSettings?.CurrentExchangeRateCNY ?? 385m,
+            ExchangeRateMode = appSettings?.ExchangeRateMode ?? ExchangeRateMode.Manual,
+
+            // POS actif
+            ActivePosId = activePos?.Id ?? 0,
+            ActivePosCode = activePos?.Code ?? "",
+            ActivePosName = activePos?.Name ?? "",
+            DeviceType = activePos?.DeviceType ?? DeviceType.EMcf,
+            EmcfApiUrl = activePos?.EmcfApiUrl ?? "",
+            EmcfToken = activePos?.EmcfToken ?? "",
+            EmcfNIM = activePos?.EmcfNIM ?? "",
+            McfPortName = activePos?.McfPortName ?? "",
+            McfBaudRate = activePos?.McfBaudRate ?? 115200,
+            DisableFallback = activePos?.DisableFallback ?? false,   // ??
+
+            TotalPosCount = posList.Count,
+            ActivePosCount = posList.Count(p => p.IsActive),
+
+            SunmiEnabled = activePos?.SunmiEnabled ?? false,
+            SunmiTerminalUrl = activePos?.SunmiTerminalUrl ?? "",
+            SunmiTerminalId = activePos?.SunmiTerminalId ?? "",
+        };
+    }
+
+    /// <summary>
+    /// Sauvegarde les paramètres modifiés.
+    /// </summary>
+    public async Task SaveSettingsAsync(SettingsData data)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+
+        try
+        {
+            // --- Mettre à jour l'entreprise ---
+            var company = await _unitOfWork.Companies.GetByIdAsync(data.CompanyId);
+            if (company == null)
+                throw new InvalidOperationException("Entreprise introuvable.");
+
+            company.Name = data.CompanyName;
+            company.NIF = data.CompanyNIF;
+            company.RCCM = data.CompanyRCCM;
+            company.Address = data.CompanyAddress;
+            company.City = data.CompanyCity;
+            company.Phone = data.CompanyPhone;
+            company.Email = data.CompanyEmail;
+            company.DefaultPriceMode = data.DefaultPriceMode;
+            company.LoyaltyEnabled = data.LoyaltyEnabled;
+            company.LoyaltyEarnRate = data.LoyaltyEarnRate;
+            company.LoyaltyRedeemRate = data.LoyaltyRedeemRate;
+            company.DeploymentMode = data.DeploymentMode;
+            company.ISF = data.CompanyISF;
+            company.Logo = data.CompanyLogo;
+            // (duplicate assignment removed — was assigning DefaultPriceMode twice)
+
+            await _unitOfWork.Companies.UpdateAsync(company);
+
+            // ?? --- Mettre à jour AppSettings ---
+            var appSettings = await _unitOfWork.AppSettings.GetCurrentAsync();
+            if (appSettings != null)
+            {
+                appSettings.DiscountBeforeTax = data.DiscountBeforeTax;
+                appSettings.DefaultCurrency = data.DefaultCurrency;
+                appSettings.CurrentExchangeRate = data.CurrentExchangeRate;
+                appSettings.CurrentExchangeRateEUR = data.CurrentExchangeRateEUR;
+                appSettings.CurrentExchangeRateCNY = data.CurrentExchangeRateCNY;
+                appSettings.ExchangeRateMode = data.ExchangeRateMode;
+                appSettings.UpdatedAt = _time.UtcNow.UtcDateTime;   // ? ITimeProvider
+                appSettings.CompanyIdNat = data.CompanyISF;
+                appSettings.DefaultPriceMode = data.DefaultPriceMode;
+
+                await _unitOfWork.AppSettings.UpdateAsync(appSettings);
+            }
+
+            // --- Mettre à jour le POS actif ---
+            if (data.ActivePosId > 0)
+            {
+                var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(data.ActivePosId);
+                if (pos != null)
+                {
+                    pos.DeviceType = data.DeviceType;
+                    pos.EmcfApiUrl = data.EmcfApiUrl;
+                    pos.EmcfToken = data.EmcfToken;
+                    pos.EmcfNIM = data.EmcfNIM;
+                    pos.McfPortName = data.McfPortName;
+                    pos.McfBaudRate = data.McfBaudRate;
+                    pos.DisableFallback = data.DisableFallback;
+                    pos.SunmiEnabled = data.SunmiEnabled;
+                    pos.SunmiTerminalUrl = data.SunmiTerminalUrl;
+                    pos.SunmiTerminalId = data.SunmiTerminalId;
+
+                    await _unitOfWork.PointsOfSale.UpdateAsync(pos);
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+}
+
+/// <summary>
+/// DTO plat pour transporter les paramètres entre service et ViewModel.
+/// </summary>
+public class SettingsData
+{
+    // Entreprise
+    public int CompanyId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
+    public string CompanyNIF { get; set; } = string.Empty;
+    public string CompanyRCCM { get; set; } = string.Empty;
+    public string CompanyAddress { get; set; } = string.Empty;
+    public string CompanyCity { get; set; } = string.Empty;
+    public string CompanyPhone { get; set; } = string.Empty;
+    public string CompanyEmail { get; set; } = string.Empty;
+    public PriceMode DefaultPriceMode { get; set; }
+    public bool LoyaltyEnabled { get; set; }
+    public decimal LoyaltyEarnRate { get; set; }
+    public decimal LoyaltyRedeemRate { get; set; }
+    public decimal LoyaltyMinRedeemPoints { get; set; }
+    public DeploymentMode DeploymentMode { get; set; }
+    public string CompanyISF { get; set; } = string.Empty;
+    public byte[]? CompanyLogo { get; set; }
+
+    // ?? Paramètres de calcul (depuis AppSettings)
+    public bool DiscountBeforeTax { get; set; } = true;
+    public Currency DefaultCurrency { get; set; } = Currency.CDF;
+    public decimal CurrentExchangeRate { get; set; } = 2800m;        // USD
+    public decimal CurrentExchangeRateEUR { get; set; } = 3100m;
+    public decimal CurrentExchangeRateCNY { get; set; } = 385m;
+    public ExchangeRateMode ExchangeRateMode { get; set; } = ExchangeRateMode.Manual;
+    public DateTimeOffset? DgiExchangeRateDate { get; set; }
+
+    // POS actif
+    public int ActivePosId { get; set; }
+    public string ActivePosCode { get; set; } = string.Empty;
+    public string ActivePosName { get; set; } = string.Empty;
+    public DeviceType DeviceType { get; set; }
+    public string EmcfApiUrl { get; set; } = string.Empty;
+    public string EmcfToken { get; set; } = string.Empty;
+    public string EmcfNIM { get; set; } = string.Empty;
+    public string McfPortName { get; set; } = string.Empty;
+    public int McfBaudRate { get; set; }
+    public bool McfPortValidated { get; set; } = false;
+    public bool DisableFallback { get; set; } = false;   // ??
+
+    // Stats
+    public int TotalPosCount { get; set; }
+    public int ActivePosCount { get; set; }
+
+    public bool SunmiEnabled { get; set; }
+    public string SunmiTerminalUrl { get; set; } = string.Empty;
+    public string SunmiTerminalId { get; set; } = string.Empty;
+}
+
+
+==========================================================
+FILE: SFE.WPF\App.xaml.cs
+SIZE: 20436 bytes
+==========================================================
+using System.IO;
+using System.Windows;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SFE.Application.Interfaces;
+using SFE.Application.Services;
+using SFE.Infrastructure.Persistence;
+using SFE.Infrastructure.EMcf;
+using SFE.WPF.ViewModels;
+using SFE.WPF.Services;
+using SFE.WPF.Views;
+using SFE.WPF.Views.Pages;
+using QuestPDF.Infrastructure;
+using System.Text;
+using SFE.Domain.Abstractions;
+using SFE.Infrastructure.Persistence.Repositories;
+using SFE.Api;
+using SFE.Licensing.Domain;
+using SFE.Licensing.Local;
+using SFE.WPF.Licensing;
+using Microsoft.Extensions.Logging;
+using SFE.Infrastructure.Repositories;
+
+namespace SFE.WPF;
+
+public partial class App : System.Windows.Application
+{
+    public static IServiceProvider ServiceProvider { get; private set; } = null!;
+
+    private SfeApiHost? _api;
+    private PaymentReconciliationService? _reconciler;
+    private CancellationTokenSource? _reconcilerCts;
+
+    private async void Application_Startup(object sender, StartupEventArgs e)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var services = new ServiceCollection();
+        ConfigureServices(services);
+        ServiceProvider = services.BuildServiceProvider();
+
+        // -- Start the local HTTP + mDNS host --
+        _api = new SfeApiHost(ServiceProvider);
+        await _api.StartAsync();
+
+        // -- Start the payment reconciler (BackgroundService, started manually
+        //    because WPF isn't running under an IHost) --
+        _reconciler = ServiceProvider.GetRequiredService<PaymentReconciliationService>();
+        _reconcilerCts = new CancellationTokenSource();
+        await _reconciler.StartAsync(_reconcilerCts.Token);
+
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var context = ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseSeeder.SeedAsync(context);
+
+        // -- License bootstrap --
+        var guard = ServiceProvider.GetRequiredService<ILicenseGuard>();
+        await guard.InitializeAsync();
+
+        if (guard.Current.Status.IsFatal())
+        {
+            var blocker = new LicenseBlockedWindow(guard);
+            blocker.ShowDialog();
+
+            // If the user installed a valid license inside the blocker, guard.Current
+            // will have flipped to non-fatal and we can proceed. Otherwise, exit.
+            if (guard.Current.Status.IsFatal())
+            {
+                Shutdown();
+                return;
+            }
+        }
+
+        while (true)
+        {
+            var authService = ServiceProvider.GetRequiredService<IAuthService>();
+            var sessionState = ServiceProvider.GetRequiredService<CashSessionState>();
+
+            // -- 1. Show Login --
+            var loginVm = new LoginViewModel(authService);
+            var loginWindow = new LoginWindow { DataContext = loginVm };
+            loginVm.LoginSucceeded += () => loginWindow.DialogResult = true;
+
+            bool? loginResult = loginWindow.ShowDialog();
+            if (loginResult != true)
+            {
+                Shutdown();
+                return;
+            }
+
+            // -- 2. Determine session flow --
+            var sessionAction = ResolveSessionAction(authService, sessionState);
+
+            switch (sessionAction)
+            {
+                case SessionAction.JoinExisting:
+                    {
+                        var session = sessionState.Current!;
+                        MessageBox.Show(
+                            $"Une session de caisse est déjà ouverte.\n\n" +
+                            $"Point de vente : {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"Ouverte le : {session.OpenedAt:dd/MM/yyyy HH:mm}\n" +
+                            $"Par : {session.OperatorName}\n\n" +
+                            $"Vous reprenez cette session en tant que {authService.CurrentUser!.FullName}.\n" +
+                            $"Pour la clôturer, effectuez un Rapport Z.",
+                            "Reprise de session",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+
+                        sessionState.Current!.OperatorName = authService.CurrentUser!.FullName;
+                        break;
+                    }
+
+                case SessionAction.BlockedWrongPos:
+                    {
+                        var session = sessionState.Current!;
+                        var user = authService.CurrentUser!;
+                        var userPosId = user.PointOfSaleId;
+
+                        string userPosDisplay = "un autre point de vente";
+                        if (userPosId.HasValue)
+                        {
+                            try
+                            {
+                                var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+                                var userPos = await uow.PointsOfSale.GetByIdAsync(userPosId.Value);
+                                if (userPos != null)
+                                    userPosDisplay = $"{userPos.Code} — {userPos.Name}";
+                            }
+                            catch { /* fallback to generic message */ }
+                        }
+
+                        MessageBox.Show(
+                            $"Impossible de vous connecter.\n\n" +
+                            $"Une session est déjà ouverte sur :\n" +
+                            $"   ?? {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"   ?? Depuis le {session.OpenedAt:dd/MM/yyyy à HH:mm}\n" +
+                            $"   ?? Par : {session.OperatorName}\n\n" +
+                            $"Vous êtes assigné(e) à :\n" +
+                            $"   ?? {userPosDisplay}\n\n" +
+                            $"La session en cours doit d'abord être clôturée par un Rapport Z\n" +
+                            $"avant qu'un autre point de vente puisse être utilisé sur cette machine.",
+                            "Session en cours sur un autre POS",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+
+                        authService.Logout();
+                        continue;
+                    }
+
+                case SessionAction.BlockedNoPos:
+                    {
+                        var session = sessionState.Current!;
+
+                        MessageBox.Show(
+                            $"Impossible de vous connecter.\n\n" +
+                            $"Une session est ouverte sur {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"mais aucun point de vente ne vous est assigné.\n\n" +
+                            $"Contactez votre administrateur.",
+                            "Accès refusé",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+
+                        authService.Logout();
+                        continue;
+                    }
+
+                case SessionAction.BypassToSetup:
+                    {
+                        var session = sessionState.Current!;
+
+                        var choice = MessageBox.Show(
+                            $"Une session est ouverte sur {session.PointOfSaleCode} — {session.PointOfSaleName}.\n\n" +
+                            $"En tant que technicien, vous pouvez :\n" +
+                            $"• Accéder au mode configuration (paramètres, utilisateurs)\n" +
+                            $"• La caisse et la facturation restent indisponibles\n\n" +
+                            $"Continuer en mode configuration ?",
+                            "Mode Technicien",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+
+                        if (choice != MessageBoxResult.Yes)
+                        {
+                            authService.Logout();
+                            continue;
+                        }
+
+                        sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+                        break;
+                    }
+
+                case SessionAction.ShowDialog:
+                    {
+                        if (sessionState.IsSetupMode)
+                            sessionState.Close();
+
+                        var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+                        var settingsService = ServiceProvider.GetRequiredService<SettingsService>();
+                        var timeProvider = ServiceProvider.GetRequiredService<ITimeProvider>();
+                        var sessionVm = new SessionOpenViewModel(uow, authService, settingsService, timeProvider);
+                        var sessionDialog = new SessionOpenDialog { DataContext = sessionVm };
+
+                        sessionVm.SessionConfirmed += () => sessionDialog.DialogResult = true;
+                        sessionVm.SessionBypassed += () => sessionDialog.DialogResult = true;
+
+                        bool? sessionResult = sessionDialog.ShowDialog();
+                        if (sessionResult != true)
+                        {
+                            authService.Logout();
+                            continue;
+                        }
+
+                        if (sessionVm.IsBypass)
+                            sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+                        else
+                            sessionState.Open(sessionVm.Result!);
+
+                        break;
+                    }
+            }
+
+            // -- 3. Show Main Window --
+            var mainVm = ServiceProvider.GetRequiredService<MainViewModel>();
+            var mainWindow = new MainWindow(mainVm);
+            mainWindow.ShowDialog();
+
+            // -- 4. Handle close reason --
+            if (mainVm.Reason == MainViewModel.CloseReason.None)
+            {
+                Shutdown();
+                return;
+            }
+
+            if (mainVm.Reason == MainViewModel.CloseReason.ZClose)
+            {
+                sessionState.Close();
+            }
+            else if (mainVm.Reason == MainViewModel.CloseReason.Logout)
+            {
+                if (sessionState.IsSetupMode)
+                    sessionState.ExitSetupMode();
+            }
+
+            authService.Logout();
+        }
+    }
+
+    protected override async void OnExit(ExitEventArgs e)
+    {
+        if (_reconciler is not null)
+        {
+            _reconcilerCts?.Cancel();
+            try { await _reconciler.StopAsync(CancellationToken.None); } catch { /* shutting down */ }
+            _reconcilerCts?.Dispose();
+        }
+        if (_api is not null) await _api.StopAsync();
+        base.OnExit(e);
+    }
+
+    // -------------------------------------------------------
+    //  SESSION ACTION RESOLVER
+    // -------------------------------------------------------
+
+    private enum SessionAction
+    {
+        ShowDialog,
+        JoinExisting,
+        BlockedWrongPos,
+        BlockedNoPos,
+        BypassToSetup
+    }
+
+    private static SessionAction ResolveSessionAction(
+        IAuthService authService, CashSessionState sessionState)
+    {
+        if (!sessionState.IsSessionOpen)
+            return SessionAction.ShowDialog;
+
+        var user = authService.CurrentUser;
+        if (user == null)
+            return SessionAction.ShowDialog;
+
+        var openPosId = sessionState.Current!.PointOfSaleId;
+        var userPosId = user.PointOfSaleId;
+        bool canBypass = authService.HasPermission("bypassPosCheck");
+
+        if (userPosId.HasValue && userPosId.Value == openPosId)
+            return SessionAction.JoinExisting;
+
+        if (userPosId.HasValue && userPosId.Value != openPosId)
+        {
+            if (canBypass)
+                return SessionAction.BypassToSetup;
+            return SessionAction.BlockedWrongPos;
+        }
+
+        if (!userPosId.HasValue)
+        {
+            if (canBypass)
+                return SessionAction.BypassToSetup;
+            return SessionAction.BlockedNoPos;
+        }
+
+        return SessionAction.ShowDialog;
+    }
+
+    private static void ConfigureServices(IServiceCollection services)
+    {
+        // --- Base de données ---
+        var appDataPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SFE");
+        Directory.CreateDirectory(appDataPath);
+        var dbPath = Path.Combine(appDataPath, "sfe.db");
+
+        var walInterceptor = new SqliteWalInterceptor();
+
+        services.AddLogging(); // safe to call even if you never wire a provider
+
+        services.AddDbContext<AppDbContext>((sp, options) =>
+            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                   .AddInterceptors(walInterceptor),
+            ServiceLifetime.Transient);
+
+        services.AddDbContextFactory<AppDbContext>((sp, options) =>
+            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                   .AddInterceptors(walInterceptor));
+
+        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
+
+        // Cross-checks system clock against domain timestamps. Must be registered
+        // BEFORE AddSfeLicensingLocal because AntiClockTamper resolves it.
+        services.AddSingleton<IMonotonicClockAnchor, EfMonotonicClockAnchor>();
+
+        // --- Licensing ---
+        // No dev trial issuer registered here anymore. First-run without a .lic
+        // shows LicenseBlockedWindow; paste in a dev-minted .lic to proceed.
+        services.AddSfeLicensingLocal(
+            licensePublicKey: EmbeddedLicensePublicKey.GetBytes(),
+            pinnedPublicKeySha256Hex: EmbeddedLicensePublicKey.PublicKeySha256Hex);
+
+        // --- Repositories & Unit of Work ---
+        services.AddTransient<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+
+        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+
+        // --- AUTH ---
+        services.AddSingleton<IAuthService, AuthService>();
+
+        // --- Session State ---
+        services.AddSingleton<CashSessionState>();
+
+        // --- Services Application ---
+        services.AddTransient<SettingsService>();
+        services.AddTransient<DashboardService>();
+        services.AddTransient<InvoiceService>();
+        services.AddTransient<ProductService>();
+        services.AddTransient<ClientService>();
+        services.AddTransient<StockService>();
+        services.AddTransient<PointOfSaleService>();
+        services.AddTransient<ReportService>();
+        services.AddSingleton<CustomerDisplayService>();
+        services.AddTransient<UserService>();
+        services.AddTransient<CategoryService>();
+        services.AddScoped<IInvoiceAdvanceService, InvoiceAdvanceService>();
+        services.AddSingleton<TenantContext>();
+        services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddSingleton<ITenantProvider>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddSingleton<IExcelInvoiceParser, ExcelInvoiceParser>();
+        services.AddSingleton<IBulkInvoiceService, BulkInvoiceService>();
+        services.AddSingleton<ManagerGate>();
+        services.AddSingleton<IManagerAuthorizationService, ManagerAuthorizationService>();
+        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
+        services.AddSingleton<IBarcodeScannerService, KeyboardBarcodeScanner>();
+        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
+        services.AddSingleton<InMemoryPendingOrderStore>();
+
+        // --- Fiscal Device ---
+        services.AddSingleton<FiscalDeviceResolver>();
+        services.AddSingleton<IFiscalDeviceService>(sp =>
+            sp.GetRequiredService<FiscalDeviceResolver>());
+
+        // --- payment skeleton ---
+        services.AddSingleton<MockPaymentProvider>(_ => new MockPaymentProvider
+        {
+            Mode = MockPaymentProvider.Behaviour.ExternallyDriven
+        });
+        services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<MockPaymentProvider>());
+        services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
+        services.AddScoped<PaymentService>();
+        services.AddScoped<ITableService, TableService>();
+        services.AddScoped<IPendingOrderProvider, InvoicePendingOrderProvider>();
+        services.AddScoped<IRestaurantRepository, RestaurantRepository>();
+        services.AddScoped<IMenuRepository, MenuRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IPrinterProfileRepository, PrinterProfileRepository>();
+
+
+        services.Configure<PaymentReconciliationOptions>(o =>
+        {
+            o.PollInterval = TimeSpan.FromSeconds(2);
+            o.StuckAfter = TimeSpan.FromSeconds(2);
+            o.MaxAttempts = 30;
+        });
+        services.AddSingleton<PaymentReconciliationService>();
+
+        services.AddSingleton(sp =>
+        {
+            // TODO: replace this with a secret saved in SettingsService or pairing config.
+            var secretText = "ikwookQrcodebaby";
+            var secret = Encoding.UTF8.GetBytes(secretText);
+
+            return new OfflineQrService(
+                pairingSecret: secret,
+                caisseId: Environment.MachineName);
+        });
+        services.AddScoped<OfflineQrResolver>();
+
+        // --- ViewModels ---
+        services.AddTransient<MainViewModel>();
+        services.AddTransient<DashboardViewModel>();
+        services.AddTransient<PosViewModel>();
+        services.AddTransient<InvoicingViewModel>();
+        services.AddTransient<ProductsViewModel>();
+        services.AddTransient<ClientsViewModel>();
+        services.AddTransient<StockViewModel>();
+        services.AddTransient<StockTransferViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddTransient<SalesHistoryViewModel>();
+        services.AddTransient<PointOfSaleManagementViewModel>();
+        services.AddTransient<ReportViewModel>();
+        services.AddTransient<InvoiceDocumentView>();
+        services.AddTransient<SessionCloseViewModel>();
+        services.AddTransient<ReportZPageViewModel>();
+        services.AddTransient<ReportXPageViewModel>();
+        services.AddTransient<ReportAPageViewModel>();
+        services.AddTransient<UsersViewModel>();
+        services.AddTransient<CategoriesViewModel>();
+        services.AddTransient<BulkInvoicingViewModel>();
+        services.AddTransient<TablesViewModel>();
+        services.AddTransient<RestaurantConfigViewModel>();
+        services.AddTransient<RestaurantConfigPage>();
+
+        // -- Audit --
+        services.AddSingleton<IAuditWriter, AuditWriter>();
+        services.AddSingleton<IAuditService, AuditService>();
+        services.AddTransient<AuditLogViewModel>();
+
+        // --- Fenêtres & Pages ---
+        services.AddTransient<MainWindow>();
+        services.AddTransient<ClientsPage>();
+        services.AddTransient<ReportView>();
+        services.AddTransient<InvoiceDocumentView>();
+        services.AddTransient<PosManagementPage>();
+        services.AddTransient<Views.Pages.BulkInvoicingPage>();
+    }
+
+    private static async Task InitializeDatabaseAsync()
+    {
+        using var scope = ServiceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseSeeder.SeedAsync(context);
+    }
+}
+
+
+==========================================================
+FILE: SFE.WPF\MainWindow.xaml.cs
+SIZE: 1424 bytes
+==========================================================
+using System.Windows;
+using System.Windows.Controls.Primitives;
+using SFE.WPF.ViewModels;
+
+namespace SFE.WPF;
+
+public partial class MainWindow : Window
+{
+    public MainWindow(MainViewModel viewModel)
+    {
+        InitializeComponent();
+        DataContext = viewModel;
+
+        viewModel.RequestClose += () => Close();
+    }
+
+    /// <summary>
+    /// When any dropdown opens, close all others (only one open at a time).
+    /// </summary>
+    private void OnDropdownOpened(object sender, RoutedEventArgs e)
+    {
+        var opened = sender as ToggleButton;
+
+        foreach (var btn in new ToggleButton?[]
+        {
+            FichierDropdownBtn,
+            EditerDropdownBtn,
+            AffichageDropdownBtn,
+            OutilsDropdownBtn,
+            AideDropdownBtn,
+            UserDropdownBtn
+        })
+        {
+            if (btn != null && btn != opened)
+                btn.IsChecked = false;
+        }
+    }
+
+    /// <summary>
+    /// Close all dropdowns after a sub-item is clicked.
+    /// </summary>
+    private void CloseDropdowns(object sender, RoutedEventArgs e)
+    {
+        FichierDropdownBtn.IsChecked = false;
+        EditerDropdownBtn.IsChecked = false;
+        AffichageDropdownBtn.IsChecked = false;
+        OutilsDropdownBtn.IsChecked = false;
+        AideDropdownBtn.IsChecked = false;
+        UserDropdownBtn.IsChecked = false;
+    }
+}
+
+
+==========================================================
+FILE: SFE.Infrastructure.Persistence\AppDbContext.cs
+SIZE: 8470 bytes
+==========================================================
+using Microsoft.EntityFrameworkCore;
+using SFE.Application.Services;
+using SFE.Domain.Abstractions;
+using SFE.Domain.Common;
+using SFE.Domain.Entities;
+using SFE.Infrastructure.Persistence.Converters;
+
+namespace SFE.Infrastructure.Persistence;
+
+public sealed class AppDbContext : DbContext
+{
+    // --- DbSets ---
+    public DbSet<Company> Companies => Set<Company>();
+    public DbSet<PointOfSale> PointsOfSale => Set<PointOfSale>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<LoyaltyAccount> LoyaltyAccounts => Set<LoyaltyAccount>();
+    public DbSet<LoyaltyTransaction> LoyaltyTransactions => Set<LoyaltyTransaction>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<PosStock> PosStocks { get; set; } = null!;
+    public DbSet<StockMovement> StockMovements { get; set; } = null!;
+    public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
+    public DbSet<StockTransferLine> StockTransferLines { get; set; } = null!;
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
+    public DbSet<DailyReport> DailyReports { get; set; } = null!;
+    public DbSet<ReportInvoiceTypeSummary> ReportInvoiceTypeSummaries { get; set; } = null!;
+    public DbSet<ReportTaxGroupDetail> ReportTaxGroupDetails { get; set; } = null!;
+    public DbSet<ReportPaymentSummary> ReportPaymentSummaries { get; set; } = null!;
+    public DbSet<ArticleReportLine> ArticleReportLines { get; set; } = null!;
+    public DbSet<AuditLogEntry> AuditLogEntries { get; set; } = null!;
+
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+
+    public DbSet<Restaurant> Restaurants => Set<Restaurant>();
+    public DbSet<Menu> Menus => Set<Menu>();
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<Table> Tables => Set<Table>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<PrinterProfile> PrinterProfiles => Set<PrinterProfile>();
+
+    private readonly ITimeProvider _time;
+    private readonly ITenantProvider _tenant;
+
+    // -- DI constructor (runtime) --
+    public AppDbContext(
+        DbContextOptions<AppDbContext> options,
+        ITimeProvider time,
+        ITenantProvider tenant) : base(options)
+    {
+        _time = time ?? throw new ArgumentNullException(nameof(time));
+        _tenant = tenant ?? throw new ArgumentNullException(nameof(tenant));
+    }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+
+        configurationBuilder
+        .Properties<Ulid>()
+        .HaveConversion<UlidToStringConverter>()
+        .HaveMaxLength(26);
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // 1) Applique d'abord toutes les IEntityTypeConfiguration
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // 2) Conversion GLOBALE DateTimeOffset ? long pour SQLite
+        ApplyDateTimeOffsetConversions(modelBuilder);
+
+        // 3) Global query filters (tenant + soft-delete)
+        ApplyGlobalFilters(modelBuilder);
+    }
+
+    private static void ApplyDateTimeOffsetConversions(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.GetValueConverter() != null) continue;
+
+                if (property.ClrType == typeof(DateTimeOffset))
+                {
+                    property.SetValueConverter(DateTimeOffsetConverters.ToTicks);
+                    property.SetColumnType("INTEGER");
+                }
+                else if (property.ClrType == typeof(DateTimeOffset?))
+                {
+                    property.SetValueConverter(DateTimeOffsetConverters.ToNullableTicks);
+                    property.SetColumnType("INTEGER");
+                }
+            }
+        }
+    }
+
+    private void ApplyGlobalFilters(ModelBuilder modelBuilder)
+    {
+        foreach (var et in modelBuilder.Model.GetEntityTypes())
+        {
+            var clr = et.ClrType;
+
+            // ?? Ordre important : SyncableEntity hérite généralement de SyncableRootEntity
+            //    donc tester le plus spécifique d'abord.
+            if (typeof(SyncableEntity).IsAssignableFrom(clr))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(SetTenantFilter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .MakeGenericMethod(clr);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+            else if (typeof(SyncableRootEntity).IsAssignableFrom(clr))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(SetRootSoftDeleteFilter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .MakeGenericMethod(clr);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+        }
+    }
+
+    // Tenant + soft-delete filter
+    private void SetTenantFilter<T>(ModelBuilder mb) where T : SyncableEntity
+    {
+        mb.Entity<T>().HasQueryFilter(e =>
+            e.DeletedAtUtc == null &&
+            (_tenant.IsBootstrapMode || e.CompanyId == _tenant.CompanyId));
+    }
+
+    // Soft-delete filter only (root entities, non-tenant-scoped)
+    private void SetRootSoftDeleteFilter<T>(ModelBuilder mb) where T : SyncableRootEntity
+    {
+        mb.Entity<T>().HasQueryFilter(e => e.DeletedAtUtc == null);
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        ApplyAuditAndTenantStamps();
+        return await base.SaveChangesAsync(ct);
+    }
+
+    public override int SaveChanges()
+    {
+        ApplyAuditAndTenantStamps();
+        return base.SaveChanges();
+    }
+
+    private void ApplyAuditAndTenantStamps()
+    {
+        var now = _time.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<SyncableRootEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    if (entry.Entity.CreatedAtUtc == default)
+                        entry.Entity.CreatedAtUtc = now;
+                    entry.Entity.UpdatedAtUtc = now;
+                    if (entry.Entity.SyncId == default)
+                        entry.Entity.SyncId = Ulid.NewUlid();
+
+                    // Stamp origin POS automatically
+                    if (entry.Entity.OriginPointOfSaleSyncId is null &&
+                        _tenant.CurrentPointOfSaleSyncId is { } posSyncId)
+                    {
+                        entry.Entity.OriginPointOfSaleId = _tenant.CurrentPointOfSaleId;
+                        entry.Entity.OriginPointOfSaleSyncId = posSyncId;
+                    }
+
+                    // Stamp CompanyId on tenant-scoped entities
+                    if (entry.Entity is SyncableEntity scoped &&
+                        scoped.CompanyId == 0 &&
+                        !_tenant.IsBootstrapMode &&
+                        _tenant.IsAuthenticated)
+                    {
+                        scoped.CompanyId = _tenant.CompanyId;
+                    }
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.MarkUpdated(now);
+                    break;
+
+                case EntityState.Deleted:
+                    // Convert hard-delete to soft-delete
+                    entry.State = EntityState.Modified;
+                    entry.Entity.MarkDeleted(now);
+                    break;
+            }
+        }
+    }
+}
+
+
+==========================================================
+FILE: SFE.Domain\Enums\DeploymentMode.cs
+SIZE: 105 bytes
+==========================================================
+namespace SFE.Domain.Enums;
+
+public enum DeploymentMode
+{
+    Standalone = 0,
+    MultiPos = 1
+}
+
+
+==========================================================
+FILE: SFE.Application/Services/PointOfSaleService.cs
+SIZE: 8399 bytes
+==========================================================
+using SFE.Application.Interfaces;
+using SFE.Domain.Entities;
+using SFE.Domain.Enums;
+
+namespace SFE.Application.Services;
+
+/// <summary>
+/// CRUD complet pour les Points de Vente (jusqu'à 20+ par entreprise).
+/// </summary>
+public class PointOfSaleService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly StockService _stockService;
+    private readonly IAuditService _audit;
+
+    public PointOfSaleService(IUnitOfWork unitOfWork, StockService stockService, IAuditService audit)
+    {
+        _unitOfWork = unitOfWork;
+        _stockService = stockService;
+        _audit = audit;
+    }
+
+    public async Task<List<PointOfSale>> GetAllAsync(int companyId)
+    {
+        return await _unitOfWork.PointsOfSale.GetByCompanyIdAsync(companyId);
+    }
+
+    public async Task<List<PointOfSale>> GetActiveAsync()
+    {
+        return await _unitOfWork.PointsOfSale.GetActiveAsync();
+    }
+
+    public async Task<PointOfSale?> GetByIdAsync(int posId)
+    {
+        return await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
+    }
+
+    public async Task<PosSaveResult> CreateAsync(PointOfSale pos)
+    {
+        var validation = Validate(pos);
+        if (!validation.IsValid)
+            return new PosSaveResult { Success = false, ErrorMessage = validation.ErrorMessage };
+
+        // Vérifier unicité du code
+        var existing = await _unitOfWork.PointsOfSale.GetActiveByCodeAsync(pos.Code);
+        if (existing != null)
+            return new PosSaveResult
+            {
+                Success = false,
+                ErrorMessage = $"Le code « {pos.Code} » est déjà utilisé."
+            };
+
+        await _unitOfWork.PointsOfSale.AddAsync(pos);
+        await _unitOfWork.SaveChangesAsync();
+
+        // Initialiser les entrées PosStock pour tous les produits existants
+        if (pos.ManagesStock)
+        {
+            await _stockService.InitializeAllProductsInPosAsync(pos.Id, "Système");
+        }
+
+        // -- AUDIT -- (fixed argument order: description, entityType, entityId)
+        var description = $"{pos.Code} · « {pos.Name} » · Entreprise #{pos.CompanyId}"
+            + (pos.ManagesStock ? " · Gestion de stock activée" : "");
+
+        await _audit.LogAsync(
+            AuditAction.PosCreated,
+            AuditModule.PointOfSale,
+            description,
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
+        return new PosSaveResult { Success = true, PointOfSaleId = pos.Id };
+    }
+
+    public async Task<PosSaveResult> UpdateAsync(PointOfSale pos)
+    {
+        var validation = Validate(pos);
+        if (!validation.IsValid)
+            return new PosSaveResult { Success = false, ErrorMessage = validation.ErrorMessage };
+
+        // Vérifier unicité du code
+        var existing = await _unitOfWork.PointsOfSale.GetActiveByCodeAsync(pos.Code);
+        if (existing != null && existing.Id != pos.Id)
+            return new PosSaveResult
+            {
+                Success = false,
+                ErrorMessage = $"Le code « {pos.Code} » est déjà utilisé."
+            };
+
+        await _unitOfWork.PointsOfSale.UpdateAsync(pos);
+        await _unitOfWork.SaveChangesAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.PosUpdated,
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} »",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
+        return new PosSaveResult { Success = true, PointOfSaleId = pos.Id };
+    }
+
+    public async Task<PosSaveResult> DeactivateAsync(int posId)
+    {
+        var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
+        if (pos == null)
+            return new PosSaveResult { Success = false, ErrorMessage = "POS introuvable." };
+
+        // Vérifier qu'il n'y a pas de stock résiduel
+        var stocks = await _unitOfWork.PosStocks.GetByPosAsync(posId);
+        var totalStock = stocks.Sum(s => s.Quantity);
+
+        if (totalStock > 0)
+        {
+            return new PosSaveResult
+            {
+                Success = false,
+                ErrorMessage = $"Impossible de désactiver : il reste {totalStock:G} " +
+                    $"articles en stock. Transférez le stock vers un autre POS d'abord."
+            };
+        }
+
+        pos.IsActive = false;
+        await _unitOfWork.PointsOfSale.UpdateAsync(pos);
+        await _unitOfWork.SaveChangesAsync();
+
+        // -- AUDIT -- (fixed argument order)
+        await _audit.LogAsync(
+            AuditAction.PosDeactivated,
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} » · Désactivé",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
+        return new PosSaveResult { Success = true, PointOfSaleId = posId };
+    }
+
+    public async Task<PosSaveResult> ReactivateAsync(int posId)
+    {
+        var pos = await _unitOfWork.PointsOfSale.GetByIdAsync(posId);
+        if (pos == null)
+            return new PosSaveResult { Success = false, ErrorMessage = "POS introuvable." };
+
+        if (pos.IsActive)
+            return new PosSaveResult { Success = true, PointOfSaleId = posId };
+
+        // Le code doit rester unique parmi les POS actifs.
+        var clash = await _unitOfWork.PointsOfSale.GetActiveByCodeAsync(pos.Code);
+        if (clash != null && clash.Id != pos.Id)
+            return new PosSaveResult
+            {
+                Success = false,
+                ErrorMessage = $"Impossible de réactiver : le code « {pos.Code} » est " +
+                    "déjà utilisé par un autre POS actif. Renommez-le d'abord."
+            };
+
+        pos.IsActive = true;
+        await _unitOfWork.PointsOfSale.UpdateAsync(pos);
+        await _unitOfWork.SaveChangesAsync();
+
+        await _audit.LogAsync(
+            AuditAction.PosReactivated,   // ?? voir note ci-dessous
+            AuditModule.PointOfSale,
+            $"{pos.Code} · « {pos.Name} » · Réactivé",
+            entityType: "PointOfSale",
+            entityId: pos.Id.ToString());
+
+        return new PosSaveResult { Success = true, PointOfSaleId = posId };
+    }
+
+    /// <summary>Génère le prochain code POS (POS-001, POS-002, ...)</summary>
+    public async Task<string> GenerateNextCodeAsync(int companyId)
+    {
+        var allPos = await _unitOfWork.PointsOfSale.GetByCompanyIdAsync(companyId);
+        int maxNumber = 0;
+
+        foreach (var pos in allPos)
+        {
+            if (pos.Code.StartsWith("POS-") &&
+                int.TryParse(pos.Code.Replace("POS-", ""), out var num))
+            {
+                if (num > maxNumber) maxNumber = num;
+            }
+        }
+
+        return $"POS-{(maxNumber + 1):D3}";
+    }
+
+    private static ValidationResult Validate(PointOfSale pos)
+    {
+        if (string.IsNullOrWhiteSpace(pos.Code))
+            return new ValidationResult("Le code du POS est obligatoire.");
+        if (string.IsNullOrWhiteSpace(pos.Name))
+            return new ValidationResult("Le nom du POS est obligatoire.");
+        if (pos.CompanyId <= 0)
+            return new ValidationResult("L'entreprise n'est pas définie.");
+        return new ValidationResult { IsValid = true };
+    }
+
+    /// <summary>
+    /// Returns the POS assigned to the user if it exists and is active,
+    /// otherwise returns the first active POS, or null.
+    /// </summary>
+    public async Task<PointOfSale?> GetDefaultForUserAsync(int? userPointOfSaleId)
+    {
+        var activeList = await _unitOfWork.PointsOfSale.GetActiveAsync();
+
+        if (activeList.Count == 0)
+            return null;
+
+        // 1?? Try the POS assigned to the user
+        if (userPointOfSaleId.HasValue)
+        {
+            var userPos = activeList.FirstOrDefault(p => p.Id == userPointOfSaleId.Value);
+            if (userPos != null)
+                return userPos;
+        }
+
+        // 2?? Fallback: first active POS
+        return activeList.First();
+    }
+}
+
+public class PosSaveResult
+{
+    public bool Success { get; set; }
+    public int PointOfSaleId { get; set; }
+    public string ErrorMessage { get; set; } = "";
+}
+
+
+==========================================================
+ SUMMARY
+ Found  : 7 / 7
+ Missing: 0
+==========================================================

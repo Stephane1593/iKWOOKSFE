@@ -6,12 +6,12 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
-// N'oubliez pas l'using pour IActivatable si nécessaire (dépend de votre namespace)
+using SFE.WPF.Messages; 
 
 namespace SFE.WPF.ViewModels;
 
-// 🆕 Ajoutez IActivatable ici
-public partial class TablesViewModel : BaseViewModel, IActivatable
+// 🚨 Ajout de IRecipient<ReloadTablesMessage>
+public partial class TablesViewModel : BaseViewModel, IActivatable, IRecipient<ReloadTablesMessage>
 {
     private readonly ITableService _tableService;
 
@@ -25,12 +25,20 @@ public partial class TablesViewModel : BaseViewModel, IActivatable
     {
         _tableService = tableService ?? throw new ArgumentNullException(nameof(tableService));
         PageTitle = "Plan de Salle";
+
+        // 🚨 On s'abonne aux messages de rafraîchissement
+        WeakReferenceMessenger.Default.Register(this);
     }
 
-    // 🆕 Implémentez la méthode qui sera appelée automatiquement à l'ouverture de la page
     public async Task ActivateAsync()
     {
         await LoadTablesAsync();
+    }
+
+    // 🚨 Méthode déclenchée quand le PosViewModel envoie le message
+    public void Receive(ReloadTablesMessage message)
+    {
+        _ = LoadTablesAsync();
     }
 
     [RelayCommand]
@@ -43,6 +51,27 @@ public partial class TablesViewModel : BaseViewModel, IActivatable
         try
         {
             var tables = await _tableService.GetAllAsync();
+
+            // 🚨 AUTO-CORRECTION (Source de vérité) : 
+            // On vérifie s'il y a des commandes actives pour s'assurer que le statut visuel est correct.
+            foreach (var table in tables)
+            {
+                var activeOrder = await _tableService.GetActiveOrderAsync(table.Id);
+
+                if (activeOrder != null && table.Status == TableStatus.Free)
+                {
+                    // Une commande existe, mais la table est marquée "Libre" -> On corrige
+                    table.Status = TableStatus.Occupied;
+                    await _tableService.ChangeStatusAsync(table.Id, TableStatus.Occupied);
+                }
+                else if (activeOrder == null && table.Status == TableStatus.Occupied)
+                {
+                    // Aucune commande n'existe, mais la table est bloquée sur "Occupée" -> On libère
+                    table.Status = TableStatus.Free;
+                    await _tableService.ChangeStatusAsync(table.Id, TableStatus.Free);
+                }
+            }
+
             Tables = new ObservableCollection<Table>(tables);
         }
         catch (Exception ex)
@@ -65,12 +94,16 @@ public partial class TablesViewModel : BaseViewModel, IActivatable
             if (table.Status == TableStatus.Free)
             {
                 await _tableService.ChangeStatusAsync(table.Id, TableStatus.Occupied);
-                CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default.Send(new SFE.WPF.Messages.OpenTableMessage(table.Id, null));
+
+                // 🚨 Mise à jour instantanée de l'UI avant d'ouvrir la caisse
+                table.Status = TableStatus.Occupied;
+
+                WeakReferenceMessenger.Default.Send(new OpenTableMessage(table.Id, null));
             }
             else if (table.Status == TableStatus.Occupied)
             {
                 var activeOrder = await _tableService.GetActiveOrderAsync(table.Id);
-                CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default.Send(new SFE.WPF.Messages.OpenTableMessage(table.Id, activeOrder?.Id));
+                WeakReferenceMessenger.Default.Send(new OpenTableMessage(table.Id, activeOrder?.Id));
             }
             else if (table.Status == TableStatus.Cleaning)
             {

@@ -1185,7 +1185,34 @@
                                                                Text="Gestion des utilisateurs" />
                                                 </StackPanel>
                                             </Button>
-
+                                            <Button Click="CloseDropdowns"
+                                                    Command="{Binding NavigateToPageCommand}"
+                                                    CommandParameter="RestaurantConfig"
+                                                    IsEnabled="{Binding CanAccessSettings}"
+                                                    Style="{StaticResource NavSubBtn}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="30"
+                                                            Height="30"
+                                                            Margin="0,0,10,0"
+                                                            VerticalAlignment="Center"
+                                                            CornerRadius="8">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                <GradientStop Offset="0" Color="#FFF7ED" />
+                                                                <GradientStop Offset="1" Color="#FFEDD5" />
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                        <materialDesign:PackIcon Width="15"
+                                                                                 Height="15"
+                                                                                 HorizontalAlignment="Center"
+                                                                                 VerticalAlignment="Center"
+                                                                                 Foreground="#C2410C"
+                                                                                 Kind="SilverwareForkKnife" />
+                                                    </Border>
+                                                    <TextBlock VerticalAlignment="Center"
+                                                               Text="Configuration Restaurant" />
+                                                </StackPanel>
+                                            </Button>
                                             <Separator Style="{StaticResource PopupSep}" />
                                             <TextBlock Style="{StaticResource NavSectionHeader}"
                                                        Text="OUTILS D'AUDIT" />

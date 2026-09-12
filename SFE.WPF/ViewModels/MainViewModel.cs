@@ -294,7 +294,7 @@ public partial class MainViewModel : BaseViewModel, IRecipient<OpenTableMessage>
                 "Cash" => CreatePage<PosPage, PosViewModel>(),
                 "Tables" => CreatePage<TablesPage, TablesViewModel>(),
                 "Invoicing" => CreatePage<InvoicingPage, InvoicingViewModel>(),
-                "BulkInvoicing" => CreateBulkInvoicingPage(),  // 🆕
+                "BulkInvoicing" => CreateBulkInvoicingPage(),
                 "Articles" => CreatePage<ProductsPage, ProductsViewModel>(),
                 "Categories" => CreatePage<CategoriesPage, CategoriesViewModel>(),
                 "Clients" => CreateClientsPage(),
@@ -308,7 +308,7 @@ public partial class MainViewModel : BaseViewModel, IRecipient<OpenTableMessage>
                 "Users" => CreatePage<UsersPage, UsersViewModel>(),
                 "StockTransfer" => CreatePage<StockTransferPage, StockTransferViewModel>(),
                 "PosManagement" => CreatePage<PosManagementPage, PointOfSaleManagementViewModel>(),
-
+                "RestaurantConfig" => CreatePage<RestaurantConfigPage, RestaurantConfigViewModel>(),
                 "AuditLog" => CreatePage<AuditLogPage, AuditLogViewModel>(),
                 "UserManual" => new PlaceholderPage("Manuel d'utilisation",
                                         "Le manuel d'utilisation au format PDF sera intégré ici."),

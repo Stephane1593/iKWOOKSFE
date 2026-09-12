@@ -15,7 +15,13 @@ public class MenuItem : SyncableEntity
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
 
+    public decimal? CustomPrice { get; set; }
+
     // Le prix ici peut surcharger le prix du catalogue (ex: Happy Hour)
     public decimal UnitPrice { get; set; }
     public bool IsAvailable { get; set; } = true;
+
+    // Lien vers l'imprimante cuisine/bar
+    public int? PrinterProfileId { get; set; }
+    public PrinterProfile? PrinterProfile { get; set; }
 }

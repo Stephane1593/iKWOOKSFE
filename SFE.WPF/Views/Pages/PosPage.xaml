@@ -1326,213 +1326,156 @@
             </Border>
 
 
-            <!--  CATEGORIES  -->
-            <ScrollViewer Margin="0,0,0,16"
-                          ClipToBounds="False"
-                          DockPanel.Dock="Top"
-                          HorizontalScrollBarVisibility="Auto"
-                          PanningMode="HorizontalOnly"
-                          VerticalScrollBarVisibility="Disabled">
-                <StackPanel Margin="0,4,0,8"
-                            Orientation="Horizontal">
+            <!-- ══════════ DUAL CATALOGUE DISPLAY (COMPTOIR vs RESTAURANT) ══════════ -->
 
-                    <Button MinHeight="68"
-                            Margin="0,0,10,0"
-                            Padding="28,18"
-                            BorderThickness="0"
-                            Command="{Binding ShowFavoritesCommand}"
-                            Cursor="Hand"
-                            FontFamily="{StaticResource AppFont}"
-                            FontSize="15"
-                            FontWeight="SemiBold"
-                            ToolTip="Afficher uniquement les produits favoris">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Background" Value="{StaticResource CardBrush}" />
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="CatBd"
-                                                    Padding="{TemplateBinding Padding}"
-                                                    Background="{TemplateBinding Background}"
-                                                    BorderBrush="Transparent"
-                                                    BorderThickness="1.5"
-                                                    CornerRadius="10">
-                                                <Border.Effect>
-                                                    <DropShadowEffect BlurRadius="4"
-                                                                      Opacity="0.04"
-                                                                      ShadowDepth="1"
-                                                                      Color="#0D2B3E" />
-                                                </Border.Effect>
-                                                <ContentPresenter HorizontalAlignment="Center"
-                                                                  VerticalAlignment="Center" />
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="CatBd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ShowFavoritesOnly}"
-                                                 Value="True">
-                                        <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
-                                        <Setter Property="Foreground" Value="White" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Width="15"
-                                                     Height="15"
-                                                     Margin="0,0,6,0"
-                                                     VerticalAlignment="Center"
-                                                     Kind="StarOutline" />
-                            <TextBlock Text="Favoris" />
-                        </StackPanel>
-                    </Button>
+            <!-- AFFICHAGE 1 : MODE COMPTOIR (Inventaire standard) -->
+            <StackPanel Visibility="{Binding IsRestaurantMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                <!-- CATEGORIES INVENTAIRE -->
+                <ScrollViewer Margin="0,0,0,16" ClipToBounds="False" HorizontalScrollBarVisibility="Auto" PanningMode="HorizontalOnly" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,4,0,8" Orientation="Horizontal">
+                        <!-- Boutons Favoris et Tout (Vos boutons existants) -->
+                        <Button MinHeight="68" Margin="0,0,10,0" Padding="28,18" BorderThickness="0" Command="{Binding ShowFavoritesCommand}" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="SemiBold" ToolTip="Afficher uniquement les favoris">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="{StaticResource CardBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="CatBd" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1.5" CornerRadius="10">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowFavoritesOnly}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+                                            <Setter Property="Foreground" Value="White" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Width="15" Height="15" Margin="0,0,6,0" VerticalAlignment="Center" Kind="StarOutline" />
+                                <TextBlock Text="Favoris" />
+                            </StackPanel>
+                        </Button>
+                        <Button MinHeight="68" Margin="0,0,10,0" Padding="28,18" Background="{StaticResource CardBrush}" BorderThickness="0" Command="{Binding ShowAllProductsCommand}" Content="Tout" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="15" Foreground="{StaticResource TextPrimaryBrush}" />
 
-                    <Button MinHeight="68"
-                            Margin="0,0,10,0"
-                            Padding="28,18"
-                            Background="{StaticResource CardBrush}"
-                            BorderThickness="0"
-                            Command="{Binding ShowAllProductsCommand}"
-                            Content="Tout"
-                            Cursor="Hand"
-                            FontFamily="{StaticResource AppFont}"
-                            FontSize="15"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            ToolTip="Afficher tous les produits" />
+                        <!-- Liste des catégories d'inventaire -->
+                        <ItemsControl ItemsSource="{Binding Categories}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button MinHeight="68" Margin="0,0,10,0" Padding="28,18" Background="{StaticResource CardBrush}" BorderThickness="0" Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="15" Foreground="{StaticResource TextPrimaryBrush}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Margin="0,0,6,0" Text="{Binding Icon}" />
+                                            <TextBlock Text="{Binding Name}" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
 
-                    <ItemsControl ItemsSource="{Binding Categories}">
+                <!-- PRODUITS INVENTAIRE -->
+                <ScrollViewer PanningMode="VerticalOnly" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding DisplayProducts}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
+                                <WrapPanel />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button MinHeight="68"
-                                        Margin="0,0,10,0"
-                                        Padding="28,18"
-                                        Background="{StaticResource CardBrush}"
-                                        BorderThickness="0"
-                                        Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"
-                                        Cursor="Hand"
-                                        FontFamily="{StaticResource AppFont}"
-                                        FontSize="15"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        ToolTip="{Binding Name}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Margin="0,0,6,0"
-                                                   Text="{Binding Icon}" />
-                                        <TextBlock Text="{Binding Name}" />
-                                    </StackPanel>
+                                <Button Width="160" Height="118" Margin="0,0,12,12" BorderThickness="0" Command="{Binding DataContext.AddToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Style="{StaticResource ProductCardBorder}">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock MaxHeight="34" FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="Medium" Text="{Binding Name}" TextWrapping="Wrap" />
+                                                    <TextBlock Grid.Row="1" VerticalAlignment="Center" FontFamily="Consolas" FontSize="10" Foreground="{StaticResource TextMutedBrush}"><Run Text="{Binding Code, Mode=OneWay}" /></TextBlock>
+                                                    <Grid Grid.Row="2">
+                                                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"><Run Text="{Binding UnitPriceTtcCdf, StringFormat=N2, Mode=OneWay}" /></TextBlock>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </StackPanel>
-            </ScrollViewer>
+                </ScrollViewer>
+            </StackPanel>
 
-            <!--  PRODUCT GRID  -->
-            <ScrollViewer PanningMode="VerticalOnly"
-                          VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding DisplayProducts}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Button Width="160"
-                                    Height="118"
-                                    Margin="0,0,12,12"
-                                    BorderThickness="0"
-                                    Command="{Binding DataContext.AddToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}"
-                                    Cursor="Hand"
-                                    ToolTip="{Binding Name}">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="CardBorder"
-                                                Style="{StaticResource ProductCardBorder}">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="*" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-                                                <TextBlock MaxHeight="34"
-                                                           FontFamily="{StaticResource AppFont}"
-                                                           FontSize="12"
-                                                           FontWeight="Medium"
-                                                           Text="{Binding Name}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           TextWrapping="Wrap"
-                                                           ToolTip="{Binding Name}" />
-                                                <TextBlock Grid.Row="1"
-                                                           VerticalAlignment="Center"
-                                                           FontFamily="Consolas"
-                                                           FontSize="10"
-                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                           ToolTip="{Binding Code}">
-                                                    <Run Text="{Binding Code, Mode=OneWay}" />
-                                                </TextBlock>
-                                                <Grid Grid.Row="2">
-                                                    <TextBlock FontFamily="{StaticResource AppFont}"
-                                                               FontSize="15"
-                                                               FontWeight="Bold"
-                                                               Foreground="{StaticResource PrimaryBrush}"
-                                                               ToolTip="Prix unitaire TTC en CDF">
-                                                        <Run Text="{Binding UnitPriceTtcCdf, StringFormat=N2, Mode=OneWay}" />
-                                                    </TextBlock>
-                                                    <TextBlock HorizontalAlignment="Right"
-                                                               VerticalAlignment="Bottom"
-                                                               FontFamily="{StaticResource AppFont}"
-                                                               FontSize="10"
-                                                               Foreground="{StaticResource TextMutedBrush}"
-                                                               ToolTip="Groupe de taxe applicable">
-                                                        <Run Text="{Binding TaxGroup, Mode=OneWay}" />
-                                                    </TextBlock>
+            <!-- AFFICHAGE 2 : MODE RESTAURANT (Menus Tactiles) -->
+            <StackPanel Visibility="{Binding IsRestaurantMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                <!-- FAMILLES DE MENUS -->
+                <ScrollViewer Margin="0,0,0,16" ClipToBounds="False" HorizontalScrollBarVisibility="Auto" PanningMode="HorizontalOnly" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,4,0,8" Orientation="Horizontal">
+                        <ItemsControl ItemsSource="{Binding RestaurantMenus}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button MinHeight="68" Margin="0,0,10,0" Padding="32,18" Background="{StaticResource CardBrush}" BorderThickness="0" Command="{Binding DataContext.SelectRestaurantMenuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}">
+                                        <TextBlock Text="{Binding Name}" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- PLATS (MENU ITEMS) -->
+                <ScrollViewer PanningMode="VerticalOnly" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding RestaurantMenuItems}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="180" Height="128" Margin="0,0,14,14" BorderThickness="0" Command="{Binding DataContext.AddMenuItemToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="CardBorder" Background="White" CornerRadius="14" Padding="16" BorderThickness="1.5" BorderBrush="#E2E8F0">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="*" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Text="{Binding Name}" TextWrapping="Wrap" />
                                                 </Grid>
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
-                                                <Setter TargetName="CardBorder" Property="Background">
-                                                    <Setter.Value>
-                                                        <SolidColorBrush Opacity="0.06"
-                                                                         Color="{StaticResource PrimaryColor}" />
-                                                    </Setter.Value>
-                                                </Setter>
-                                            </Trigger>
-                                            <EventTrigger RoutedEvent="Button.Click">
-                                                <BeginStoryboard>
-                                                    <Storyboard>
-                                                        <ColorAnimation AutoReverse="True"
-                                                                        Storyboard.TargetName="CardBorder"
-                                                                        Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                        To="#37B1E4"
-                                                                        Duration="0:0:0.08" />
-                                                    </Storyboard>
-                                                </BeginStoryboard>
-                                            </EventTrigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
         </DockPanel>
 
         <!--  ══════════════════════════════════════════════════════  -->
@@ -2415,38 +2358,41 @@
                                         </Grid>
                                     </Border>
 
-                                    <!--  Review step buttons: Hold + Next  -->
+                                    <!--  Review step buttons: Hold + Save Table + Next  -->
                                     <Grid Margin="0,14,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <Button Margin="0,0,12,0"
+
+                                        <!-- 1. Bouton "Attente" (Pause) -->
+                                        <Button Grid.Column="0" Margin="0,0,12,0"
                                                 Command="{Binding RequestHoldCommand}"
                                                 Style="{StaticResource PosHoldBtn}"
-                                                ToolTip="Mettre cette vente en attente pour y revenir plus tard">
-                                            <materialDesign:PackIcon Width="22"
-                                                                     Height="22"
-                                                                     Foreground="White"
-                                                                     Kind="PauseCircleOutline" />
+                                                ToolTip="Mettre cette vente en attente pour y revenir plus tard"
+                                                Visibility="{Binding IsRestaurantMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <materialDesign:PackIcon Width="22" Height="22" Foreground="White" Kind="PauseCircleOutline" />
                                         </Button>
-                                        <Button Grid.Column="1"
+
+                                        <!-- 2. Bouton "Envoyer en Cuisine" (Visible UNIQUEMENT sur une Table) -->
+                                        <Button Grid.Column="1" Margin="0,0,12,0"
+                                                Command="{Binding SaveTableOrderCommand}"
+                                                Style="{StaticResource PosHoldBtn}"
+                                                ToolTip="Enregistrer la commande de la table / Envoyer en cuisine"
+                                                Visibility="{Binding IsRestaurantMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <materialDesign:PackIcon Width="22" Height="22" Foreground="White" Kind="SilverwareForkKnife" />
+                                        </Button>
+
+                                        <!-- 3. Bouton "PAIEMENT" -->
+                                        <Button Grid.Column="2"
                                                 HorizontalContentAlignment="Center"
                                                 Command="{Binding GoToPaymentStepCommand}"
                                                 Style="{StaticResource PosPrimaryBtn}"
                                                 ToolTip="Passer à l'étape de paiement">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock FontFamily="{StaticResource AppFont}"
-                                                           FontSize="15"
-                                                           FontWeight="Bold"
-                                                           Foreground="White"
-                                                           Text="PAIEMENT" />
-                                                <materialDesign:PackIcon Width="20"
-                                                                         Height="20"
-                                                                         Margin="10,0,0,0"
-                                                                         VerticalAlignment="Center"
-                                                                         Foreground="White"
-                                                                         Kind="ArrowRight" />
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="White" Text="PAIEMENT" />
+                                                <materialDesign:PackIcon Width="20" Height="20" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="White" Kind="ArrowRight" />
                                             </StackPanel>
                                         </Button>
                                     </Grid>

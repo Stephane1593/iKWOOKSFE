@@ -25,6 +25,9 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(oi => oi.Quantity)
             .IsRequired();
 
+        builder.Property(oi => oi.SentQuantity)
+               .IsRequired();
+
         builder.Property(oi => oi.Notes)
             .HasMaxLength(1000);
 

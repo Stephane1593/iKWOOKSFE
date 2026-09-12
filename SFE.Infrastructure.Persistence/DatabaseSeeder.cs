@@ -3,6 +3,9 @@ using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using System.Text.Json;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace SFE.Infrastructure.Persistence;
 
@@ -247,19 +250,19 @@ public static class DatabaseSeeder
 
         await EnsureDefaultUsersAsync(context);
 
-
         // ── AJOUT DES TABLES PAR DÉFAUT ──
-        // Si aucune table n'existe, on en crée 15 pour le restaurant principal
         var tableSet = context.Set<Table>();
         if (!await tableSet.AnyAsync())
         {
+            var firstCompany = await context.Companies.FirstOrDefaultAsync();
+            int companyId = firstCompany?.Id ?? 1;
+
             var firstRestaurant = await context.Set<Restaurant>().FirstOrDefaultAsync();
             int restaurantId = firstRestaurant?.Id ?? 1;
 
-            // Si le restaurant n'existe pas encore, on le crée
             if (firstRestaurant == null)
             {
-                firstRestaurant = new Restaurant { Name = "Mon Restaurant", IsActive = true };
+                firstRestaurant = new Restaurant { CompanyId = companyId, Name = "Mon Restaurant", IsActive = true };
                 await context.Set<Restaurant>().AddAsync(firstRestaurant);
                 await context.SaveChangesAsync();
                 restaurantId = firstRestaurant.Id;
@@ -267,12 +270,12 @@ public static class DatabaseSeeder
 
             var defaultTables = new List<Table>();
 
-            // Création de 15 tables (les 5 premières ont 4 places, les 5 suivantes 2 places, les 5 dernières 6 places)
             for (int i = 1; i <= 15; i++)
             {
                 defaultTables.Add(new Table
                 {
                     RestaurantId = restaurantId,
+                    CompanyId = companyId,
                     Number = i,
                     Seats = i <= 5 ? 4 : (i <= 10 ? 2 : 6),
                     Status = TableStatus.Free
@@ -283,6 +286,39 @@ public static class DatabaseSeeder
             await context.SaveChangesAsync();
         }
 
+        // ── AJOUT DES PROFILS D'IMPRESSION (KOT) PAR DÉFAUT ──
+        var printerSet = context.Set<PrinterProfile>();
+        if (!await printerSet.AnyAsync())
+        {
+            var firstCompany = await context.Companies.FirstOrDefaultAsync();
+            int companyId = firstCompany?.Id ?? 1;
+
+            await printerSet.AddRangeAsync(
+                new PrinterProfile { CompanyId = companyId, Name = "Bar (Boissons)" },
+                new PrinterProfile { CompanyId = companyId, Name = "Cuisine Chaude" },
+                new PrinterProfile { CompanyId = companyId, Name = "Cuisine Froide (Entrées/Desserts)" }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        // ── AJOUT DES CATÉGORIES DE MENUS PAR DÉFAUT ──
+        var menuSet = context.Set<Menu>();
+        if (!await menuSet.AnyAsync())
+        {
+            var firstCompany = await context.Companies.FirstOrDefaultAsync();
+            int companyId = firstCompany?.Id ?? 1;
+
+            var firstRestaurant = await context.Set<Restaurant>().FirstOrDefaultAsync();
+            int restaurantId = firstRestaurant?.Id ?? 1;
+
+            await menuSet.AddRangeAsync(
+                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Boissons" },
+                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Entrées" },
+                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Plats Principaux" },
+                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Desserts" }
+            );
+            await context.SaveChangesAsync();
+        }
 
         await BackfillAuthorizationPermissionsAsync(context);
     }
@@ -306,7 +342,6 @@ public static class DatabaseSeeder
             {
                 if (!current.ContainsKey(bk))
                 {
-                    // L'Opérateur a besoin d'accéder au module tables pour la caisse
                     if (bk == "tables")
                     {
                         current[bk] = role.Name == "Admin" || role.Name == "Gestionnaire" || role.Name == "Opérateur" || role.Name == UserService.SuperAdminRoleName;

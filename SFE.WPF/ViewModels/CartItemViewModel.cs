@@ -27,6 +27,10 @@ public partial class CartItemViewModel : ObservableObject
     [ObservableProperty] private decimal _unitPriceTTC;
 
     [ObservableProperty] private decimal _quantity = 1;
+    // 🆕 Quantité déjà envoyée en cuisine lors des commandes précédentes
+    [ObservableProperty] private decimal _sentQuantity = 0;
+    // Propriété calculée pour savoir combien il reste à envoyer
+    public decimal UnsentQuantity => Quantity - SentQuantity;
 
     // ══════ REMISE ══════
     [ObservableProperty] private DiscountType _discountType = DiscountType.None;

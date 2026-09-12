@@ -12,7 +12,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 
         builder.HasKey(mi => mi.Id);
 
-
         builder.Property(mi => mi.Name)
             .IsRequired()
             .HasMaxLength(200);
@@ -23,6 +22,11 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
         builder.Property(mi => mi.UnitPrice)
             .HasPrecision(18, 2);
 
+        // 🆕 Configuration du prix personnalisé
+        builder.Property(mi => mi.CustomPrice)
+            .HasPrecision(18, 2)
+            .IsRequired(false); // Le champ est optionnel (nullable)
+
         builder.Property(mi => mi.IsAvailable)
             .HasDefaultValue(true);
 
@@ -31,14 +35,13 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             .HasForeignKey(mi => mi.MenuId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // 🆕 Relation avec le Produit du catalogue
         builder.HasOne(mi => mi.Product)
             .WithMany()
             .HasForeignKey(mi => mi.ProductId)
-            .OnDelete(DeleteBehavior.SetNull); // Si le produit catalogue est supprimé, le MenuItem devient orphelin mais n'est pas détruit.
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(mi => mi.MenuId);
-        builder.HasIndex(mi => mi.ProductId); // 🆕 Optimisation des requêtes
+        builder.HasIndex(mi => mi.ProductId);
         builder.HasIndex(mi => mi.Name);
     }
 }
