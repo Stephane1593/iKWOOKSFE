@@ -208,27 +208,29 @@ public static class DatabaseSeeder
 
     public static async Task SeedAsync(AppDbContext context)
     {
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
         await EnsureSuperAdminAsync(context);
 
-        if (!await context.Roles.AnyAsync(r => r.Name != UserService.SuperAdminRoleName))
+        if (!await context.Roles.IgnoreQueryFilters().AnyAsync(r => r.Name != UserService.SuperAdminRoleName))
         {
             var roles = new List<Role>
-            {
-                new Role { Name = "Admin",          Permissions = AdminPermissionsJson         },
-                new Role { Name = "Gestionnaire",   Permissions = GestionnairePermissionsJson  },
-                new Role { Name = "Opérateur",      Permissions = OperateurPermissionsJson     },
-                new Role { Name = "Inspecteur DGI", Permissions = InspecteurDGIPermissionsJson },
-                new Role { Name = "IT Tech",        Permissions = ITTechPermissionsJson        },
-            };
+        {
+            new Role { Name = "Admin",          Permissions = AdminPermissionsJson         },
+            new Role { Name = "Gestionnaire",   Permissions = GestionnairePermissionsJson  },
+            new Role { Name = "Opérateur",      Permissions = OperateurPermissionsJson     },
+            new Role { Name = "Inspecteur DGI", Permissions = InspecteurDGIPermissionsJson },
+            new Role { Name = "IT Tech",        Permissions = ITTechPermissionsJson        },
+        };
 
             await context.Roles.AddRangeAsync(roles);
             await context.SaveChangesAsync();
         }
 
-        if (!await context.Companies.AnyAsync())
+        // ── AJOUT DE LA COMPAGNIE ──
+        var company = await context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync();
+        if (company == null)
         {
-            var company = new Company
+            company = new Company
             {
                 Name = "Assium",
                 NIF = "A1823910K",
@@ -250,32 +252,27 @@ public static class DatabaseSeeder
 
         await EnsureDefaultUsersAsync(context);
 
+        // ── AJOUT DU RESTAURANT ──
+        var restaurant = await context.Set<Restaurant>().IgnoreQueryFilters().FirstOrDefaultAsync();
+        if (restaurant == null)
+        {
+            restaurant = new Restaurant { CompanyId = company.Id, Name = "Mon Restaurant", IsActive = true };
+            await context.Set<Restaurant>().AddAsync(restaurant);
+            await context.SaveChangesAsync();
+        }
+
         // ── AJOUT DES TABLES PAR DÉFAUT ──
         var tableSet = context.Set<Table>();
-        if (!await tableSet.AnyAsync())
+        if (!await tableSet.IgnoreQueryFilters().AnyAsync())
         {
-            var firstCompany = await context.Companies.FirstOrDefaultAsync();
-            int companyId = firstCompany?.Id ?? 1;
-
-            var firstRestaurant = await context.Set<Restaurant>().FirstOrDefaultAsync();
-            int restaurantId = firstRestaurant?.Id ?? 1;
-
-            if (firstRestaurant == null)
-            {
-                firstRestaurant = new Restaurant { CompanyId = companyId, Name = "Mon Restaurant", IsActive = true };
-                await context.Set<Restaurant>().AddAsync(firstRestaurant);
-                await context.SaveChangesAsync();
-                restaurantId = firstRestaurant.Id;
-            }
-
             var defaultTables = new List<Table>();
 
             for (int i = 1; i <= 15; i++)
             {
                 defaultTables.Add(new Table
                 {
-                    RestaurantId = restaurantId,
-                    CompanyId = companyId,
+                    RestaurantId = restaurant.Id,
+                    CompanyId = company.Id,
                     Number = i,
                     Seats = i <= 5 ? 4 : (i <= 10 ? 2 : 6),
                     Status = TableStatus.Free
@@ -288,34 +285,25 @@ public static class DatabaseSeeder
 
         // ── AJOUT DES PROFILS D'IMPRESSION (KOT) PAR DÉFAUT ──
         var printerSet = context.Set<PrinterProfile>();
-        if (!await printerSet.AnyAsync())
+        if (!await printerSet.IgnoreQueryFilters().AnyAsync())
         {
-            var firstCompany = await context.Companies.FirstOrDefaultAsync();
-            int companyId = firstCompany?.Id ?? 1;
-
             await printerSet.AddRangeAsync(
-                new PrinterProfile { CompanyId = companyId, Name = "Bar (Boissons)" },
-                new PrinterProfile { CompanyId = companyId, Name = "Cuisine Chaude" },
-                new PrinterProfile { CompanyId = companyId, Name = "Cuisine Froide (Entrées/Desserts)" }
+                new PrinterProfile { CompanyId = company.Id, Name = "Bar (Boissons)" },
+                new PrinterProfile { CompanyId = company.Id, Name = "Cuisine Chaude" },
+                new PrinterProfile { CompanyId = company.Id, Name = "Cuisine Froide (Entrées/Desserts)" }
             );
             await context.SaveChangesAsync();
         }
 
         // ── AJOUT DES CATÉGORIES DE MENUS PAR DÉFAUT ──
         var menuSet = context.Set<Menu>();
-        if (!await menuSet.AnyAsync())
+        if (!await menuSet.IgnoreQueryFilters().AnyAsync())
         {
-            var firstCompany = await context.Companies.FirstOrDefaultAsync();
-            int companyId = firstCompany?.Id ?? 1;
-
-            var firstRestaurant = await context.Set<Restaurant>().FirstOrDefaultAsync();
-            int restaurantId = firstRestaurant?.Id ?? 1;
-
             await menuSet.AddRangeAsync(
-                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Boissons" },
-                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Entrées" },
-                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Plats Principaux" },
-                new Menu { RestaurantId = restaurantId, CompanyId = companyId, Name = "Desserts" }
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Boissons" },
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Entrées" },
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Plats Principaux" },
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Desserts" }
             );
             await context.SaveChangesAsync();
         }

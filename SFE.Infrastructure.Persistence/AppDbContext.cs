@@ -135,7 +135,7 @@ public sealed class AppDbContext : DbContext
     {
         mb.Entity<T>().HasQueryFilter(e =>
             e.DeletedAtUtc == null &&
-            (_tenant.IsBootstrapMode || e.CompanyId == _tenant.CompanyId));
+            (_tenant.IsBootstrapMode || _tenant.CompanyId == 0 || e.CompanyId == _tenant.CompanyId));
     }
 
     // Soft-delete filter only (root entities, non-tenant-scoped)

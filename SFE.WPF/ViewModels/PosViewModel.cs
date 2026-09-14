@@ -388,9 +388,10 @@ public partial class PosViewModel : BaseViewModel,
                     TaxGroup = product.TaxGroup,
                     TaxGroupAType = product.TaxGroupAType,
                     UnitPriceHT = product.UnitPriceHtCdf,
-                    UnitPriceTTC = orderItem.UnitPrice, // Le prix sauvegardé
+                    UnitPriceTTC = orderItem.UnitPrice,
                     Unit = product.Unit,
-                    Quantity = orderItem.Quantity,      // La quantité sauvegardée
+                    Quantity = orderItem.Quantity,
+                    SentQuantity = orderItem.SentQuantity, // 🚨 CRUCIAL : Mémorise ce qui est déjà en cuisine
                     StockQuantity = product.StockQuantity,
                     TrackStock = product.TrackStock,
                     SpecificTaxType = product.SpecificTaxType,
@@ -457,19 +458,19 @@ public partial class PosViewModel : BaseViewModel,
         }
     }
 
-    // Méthode silencieuse pour sauvegarder la table en arrière-plan
-    // Méthode silencieuse pour sauvegarder la table en arrière-plan
     private async Task SaveTableOrderInternalAsync(int tableId)
     {
         var orderRepo = _unitOfWork.GetRepository<Order>();
         var tableService = App.ServiceProvider.GetRequiredService<ITableService>();
+        var itemRepo = _unitOfWork.GetRepository<OrderItem>();
 
         var activeOrder = await tableService.GetActiveOrderAsync(tableId);
         bool isNewOrder = activeOrder == null;
 
+        Order orderToSave;
         if (isNewOrder)
         {
-            activeOrder = new Order
+            orderToSave = new Order
             {
                 TableId = tableId,
                 CreatedAtUtc = _time.UtcNow,
@@ -477,79 +478,89 @@ public partial class PosViewModel : BaseViewModel,
                 CompanyId = _currentCompany?.Id ?? 1,
                 OriginPointOfSaleId = SelectedPointOfSale?.Id
             };
+            await orderRepo.AddAsync(orderToSave);
         }
-
-        activeOrder.UpdatedAtUtc = _time.UtcNow;
-        activeOrder.OperatorId = _auth.CurrentUser?.Id.ToString() ?? "01";
-        activeOrder.Status = OrderStatus.InKitchen;
-        activeOrder.TotalHT = TotalHT;
-        activeOrder.TotalTVA = TotalTVA;
-        activeOrder.TotalTTC = TotalTTC;
-
-        if (!isNewOrder)
+        else
         {
-            // 🚨 On récupère et on supprime les anciens articles de la BDD
-            var itemRepo = _unitOfWork.GetRepository<OrderItem>();
-            var oldItems = await itemRepo.FindAsync(i => i.OrderId == activeOrder.Id);
-
-            foreach (var oldItem in oldItems)
-            {
-                await itemRepo.DeleteAsync(oldItem);
-            }
-
-            // 🚨 CRUCIAL : On force la base de données à exécuter les suppressions
-            // MAINTENANT, avant d'ajouter les nouveaux articles. Cela évite le crash SQL.
-            await _unitOfWork.SaveChangesAsync();
-
-            activeOrder.Items.Clear();
+            // 🚨 CRUCIAL: Fetch the exact tracked instance from memory to avoid the 
+            // "another instance with the same key is already being tracked" exception.
+            var trackedOrders = await orderRepo.FindAsync(o => o.Id == activeOrder.Id);
+            orderToSave = trackedOrders.FirstOrDefault() ?? activeOrder;
         }
 
-        // 1. Avant de sauvegarder, on isole les articles qui ont une "nouvelle" quantité à envoyer
-        var itemsToPrintForKitchen = CartItems.Where(item => item.UnsentQuantity > 0).ToList();
+        // Modifying properties on a tracked entity automatically flags it for UPDATE.
+        // No explicit orderRepo.UpdateAsync() is needed.
+        orderToSave.UpdatedAtUtc = _time.UtcNow;
+        orderToSave.OperatorId = _auth.CurrentUser?.Id.ToString() ?? "01";
+        orderToSave.Status = OrderStatus.InKitchen;
+        orderToSave.TotalHT = TotalHT;
+        orderToSave.TotalTVA = TotalTVA;
+        orderToSave.TotalTTC = TotalTTC;
 
-        // Ajout des nouveaux articles du panier
+        var itemsToPrintForKitchen = CartItems
+            .Where(item => ((int)item.Quantity - item.SentQuantity) > 0)
+            .ToList();
+
+        var existingItems = isNewOrder
+            ? new List<OrderItem>()
+            : (await itemRepo.FindAsync(i => i.OrderId == orderToSave.Id)).ToList();
+
+        var cartProductIds = CartItems.Select(c => c.ProductId).ToList();
+
+        // A. Remove items deleted from the cart
+        foreach (var existing in existingItems)
+        {
+            if (existing.ProductId.HasValue && !cartProductIds.Contains(existing.ProductId.Value))
+            {
+                await itemRepo.DeleteAsync(existing);
+            }
+        }
+
+        // B. Add or update items
         foreach (var item in CartItems)
         {
-            activeOrder.Items.Add(new OrderItem
+            var existing = existingItems.FirstOrDefault(i => i.ProductId == item.ProductId);
+            if (existing != null)
             {
-                ProductId = item.ProductId,
-                Name = item.Name,
-                UnitPrice = item.UnitPriceTTC,
-                Quantity = (int)item.Quantity,
-                // 🚨 On met à jour la base de données : tout le panier actuel est considéré comme envoyé
-                SentQuantity = (int)item.Quantity,
-                LineTotal = item.AmountTTC
-            });
-            // On met à jour le panier en mémoire au cas où on ne vide pas l'écran
-            item.SentQuantity = item.Quantity;
+                // EF Core detects these changes automatically. No need for itemRepo.UpdateAsync()
+                existing.Quantity = (int)item.Quantity;
+                existing.LineTotal = item.AmountTTC;
+                existing.SentQuantity = (int)item.Quantity;
+            }
+            else
+            {
+                await itemRepo.AddAsync(new OrderItem
+                {
+                    Order = orderToSave, // Use navigation property instead of ID for new, unsaved orders
+                    ProductId = item.ProductId,
+                    Name = item.Name,
+                    UnitPrice = item.UnitPriceTTC,
+                    Quantity = (int)item.Quantity,
+                    SentQuantity = (int)item.Quantity,
+                    LineTotal = item.AmountTTC
+                });
+            }
+
+            item.SentQuantity = (int)item.Quantity;
         }
 
-        if (isNewOrder)
-            await orderRepo.AddAsync(activeOrder);
-        else
-            await orderRepo.UpdateAsync(activeOrder);
-
         await tableService.ChangeStatusAsync(tableId, TableStatus.Occupied);
-        await _unitOfWork.SaveChangesAsync(); // Sauvegarde finale
 
-        await tableService.ChangeStatusAsync(tableId, TableStatus.Occupied);
-        await _unitOfWork.SaveChangesAsync(); // Sauvegarde finale
+        // This single SaveChanges applies the Order insertion/update AND all OrderItem updates safely.
+        await _unitOfWork.SaveChangesAsync();
+
         WeakReferenceMessenger.Default.Send(new SFE.WPF.Messages.ReloadTablesMessage());
-        // 🖨️ 3. IMPRESSION EN CUISINE / BAR
+
+        // 🖨️ IMPRESSION EN CUISINE / BAR
         if (itemsToPrintForKitchen.Any())
         {
-            // Exemple : on lance l'impression en tâche de fond pour ne pas bloquer l'UI
             _ = Task.Run(() =>
             {
                 try
                 {
-                    // Vous passerez ici `itemsToPrintForKitchen` à votre service d'impression
-                    // Ex: _kitchenPrinterService.PrintKot(TableLabel, itemsToPrintForKitchen, _time.LocalNow);
+                    // Send `itemsToPrintForKitchen` to kitchen printer
                 }
-                catch (Exception ex)
-                {
-                    // Log erreur impression
-                }
+                catch { }
             });
         }
     }
