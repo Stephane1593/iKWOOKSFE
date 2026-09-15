@@ -141,5 +141,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.PrintCount).HasDefaultValue(0);
         builder.Property(i => i.FirstPrintedAt).IsRequired(false);
         builder.Property(i => i.LastPrintedAt).IsRequired(false);
+
+        builder.Property(i => i.DiningOption).HasConversion<int>();
+        builder.Property(i => i.DeliveryAddress).HasMaxLength(300);
     }
 }

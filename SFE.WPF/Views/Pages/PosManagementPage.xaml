@@ -8,6 +8,120 @@
              Loaded="OnLoaded">
 
     <UserControl.Resources>
+
+        <!--  ── Gradient Brushes ──  -->
+        <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Offset="0" Color="#9A3412" />
+            <GradientStop Offset="0.5" Color="#C2410C" />
+            <GradientStop Offset="1" Color="#EA580C" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#EA580C" />
+            <GradientStop Offset="0.5" Color="#F97316" />
+            <GradientStop Offset="1" Color="#FB923C" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GlassOverlay" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Offset="0" Color="#20FFFFFF" />
+            <GradientStop Offset="1" Color="#08FFFFFF" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="CardGlow" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Offset="0" Color="#FFFFFF" />
+            <GradientStop Offset="0.4" Color="#FAFBFD" />
+            <GradientStop Offset="1" Color="#F5F7FA" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SeparatorGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="Transparent" />
+            <GradientStop Offset="0.2" Color="#E2E8F0" />
+            <GradientStop Offset="0.5" Color="#CBD5E1" />
+            <GradientStop Offset="0.8" Color="#E2E8F0" />
+            <GradientStop Offset="1" Color="Transparent" />
+        </LinearGradientBrush>
+        <!--  ── Primary gradient button ──  -->
+        <Style x:Key="BtnPrimary"
+               TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Padding="22,13"
+                                Background="{StaticResource PrimaryGradient}"
+                                CornerRadius="12">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16"
+                                                  Direction="270"
+                                                  Opacity="0.2"
+                                                  ShadowDepth="3"
+                                                  Color="#EA580C" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="24"
+                                                          Direction="270"
+                                                          Opacity="0.3"
+                                                          ShadowDepth="5"
+                                                          Color="#EA580C" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.97" ScaleY="0.97" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  ── Ghost / secondary button ──  -->
+        <Style x:Key="BtnGhost"
+               TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Padding="20,13"
+                                Background="#F1F5F9"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E2E8F0" />
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#CBD5E1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!--  ── Thin round scrollbar ──  -->
         <Style x:Key="SlimScrollThumb"
                TargetType="Thumb">
@@ -529,7 +643,114 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!--  ── SECTION 4 : IMPRIMANTES CUISINE & BAR ──  -->
+                    <Border Margin="0,32,0,10" Padding="14,10" Background="Transparent" CornerRadius="8">
+                        <Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Profils d'impression (Cuisine &amp; Bar)" />
+                                <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Text="Configurez les imprimantes réseau (IP) ou USB pour la préparation des commandes." />
+                            </StackPanel>
+                            <Button HorizontalAlignment="Right" Command="{Binding NewKitchenPrinterCommand}" Style="{StaticResource BtnPrimary}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="Plus" />
+                                    <TextBlock VerticalAlignment="Center" Text="Ajouter une imprimante" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
 
+                    <ItemsControl ItemsSource="{Binding KitchenPrinters}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,10" Padding="18,16" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="10" Height="10" Margin="0,0,14,0" VerticalAlignment="Center" Background="#3B82F6" CornerRadius="5" />
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding Name}" />
+                                                <TextBlock Margin="2,0" Foreground="{StaticResource TextMutedBrush}" Text=" — " />
+                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding Kind}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                                <materialDesign:PackIcon Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center" Foreground="#3B82F6" Kind="LanConnect" />
+                                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding ConnectionString}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="2" MinWidth="40" MinHeight="40" Margin="0,0,4,0" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Command="{Binding DataContext.EditKitchenPrinterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Cursor="Hand">
+                                            <materialDesign:PackIcon Width="18" Height="18" Foreground="{StaticResource TextSecondaryBrush}" Kind="PencilOutline" />
+                                        </Button>
+
+                                        <Button Grid.Column="3" MinWidth="40" MinHeight="40" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Command="{Binding DataContext.DeleteKitchenPrinterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Cursor="Hand">
+                                            <materialDesign:PackIcon Width="18" Height="18" Foreground="{StaticResource TextMutedBrush}" Kind="TrashCanOutline" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Margin="0,10,0,0" Padding="28" BorderThickness="1" CornerRadius="14" Visibility="{Binding IsEditingKitchenPrinter, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Border.Background>
+                            <SolidColorBrush Opacity="0.04" Color="#3B82F6" />
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Opacity="0.22" Color="#3B82F6" />
+                        </Border.BorderBrush>
+                        <StackPanel>
+                            <Grid Margin="0,0,0,20">
+                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding KitchenPrinterFormTitle}" />
+                                <Button MinWidth="40" MinHeight="40" HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Command="{Binding CancelKitchenPrinterEditCommand}" Cursor="Hand">
+                                    <materialDesign:PackIcon Width="20" Height="20" Foreground="{StaticResource TextMutedBrush}" Kind="Close" />
+                                </Button>
+                            </Grid>
+
+                            <UniformGrid Margin="0,0,0,14" Columns="2">
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="NOM DU PROFIL *" />
+                                    <TextBox MinHeight="42" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding EditKitchenPrinterName, UpdateSourceTrigger=PropertyChanged}" ToolTip="Ex: Bar, Cuisine Chaude..." />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="TYPE DE CONNEXION *" />
+                                    <ComboBox MinHeight="42" ItemsSource="{Binding PrinterKinds}" SelectedItem="{Binding EditKitchenPrinterKind}" Style="{StaticResource ModernComboBoxStyle}" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <UniformGrid Margin="0,0,0,24" Columns="2">
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="CONNEXION (IP ou NOM USB) *" />
+                                    <TextBox MinHeight="42" FontFamily="Consolas" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding EditKitchenPrinterConnection, UpdateSourceTrigger=PropertyChanged}" ToolTip="Ex: 192.168.1.100 ou POS-80C" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="PORT (IP UNIQUEMENT)" />
+                                    <TextBox MinHeight="42" FontFamily="Consolas" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding EditKitchenPrinterPort, UpdateSourceTrigger=PropertyChanged}" ToolTip="Généralement 9100 pour ESC/POS TCP" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <Grid Margin="0,20,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button Command="{Binding CancelKitchenPrinterEditCommand}" Content="Annuler" Style="{StaticResource BtnGhost}" />
+                                <Button Grid.Column="2" Command="{Binding SaveKitchenPrinterCommand}" Style="{StaticResource BtnPrimary}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="ContentSave" />
+                                        <TextBlock VerticalAlignment="Center" Text="Enregistrer" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                     <!--  ══════════════════ EDIT FORM ══════════════════  -->
                     <Border Margin="0,10,0,0"
                             Padding="28"

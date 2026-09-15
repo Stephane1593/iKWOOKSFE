@@ -31,5 +31,10 @@ public class MenuConfiguration : IEntityTypeConfiguration<Menu>
 
         builder.HasIndex(m => m.RestaurantId);
         builder.HasIndex(m => new { m.RestaurantId, m.Name });
+
+        builder.HasOne(m => m.PrinterProfile)
+           .WithMany()
+           .HasForeignKey(m => m.PrinterProfileId)
+           .OnDelete(DeleteBehavior.SetNull);
     }
 }

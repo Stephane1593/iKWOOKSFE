@@ -61,6 +61,10 @@ public class PointOfSale
     /// <summary>Ce POS gère-t-il du stock ? (false pour un POS de services purs)</summary>
     public bool ManagesStock { get; set; } = true;
 
+    // Add this below ManagesStock
+    /// <summary>Détermine si ce POS est un restaurant (active les modes Sur place, À emporter, Livraison).</summary>
+    public bool IsRestaurant { get; set; } = false;
+
     // ═══════════════════════════════════════════════════════
     //  🆕 PRINTER CONFIGURATION (per POS)
     // ═══════════════════════════════════════════════════════

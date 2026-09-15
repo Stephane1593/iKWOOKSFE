@@ -39,6 +39,7 @@ public partial class RestaurantConfigViewModel : BaseViewModel, IActivatable
     [ObservableProperty] private string _categoryFormTitle = "";
     private int _editingCategoryId;
     [ObservableProperty] private string _formCategoryName = "";
+    [ObservableProperty] private PrinterProfile? _formCategoryPrinter;
 
     // ═══════ MENUS & ROUTAGE ═══════
     public ObservableCollection<Menu> Menus { get; } = new();
@@ -278,6 +279,7 @@ public partial class RestaurantConfigViewModel : BaseViewModel, IActivatable
     {
         _editingCategoryId = 0;
         FormCategoryName = "";
+        FormCategoryPrinter = null; 
         CategoryFormTitle = "Nouvelle Catégorie";
         IsCreatingCategory = true;
         IsEditingCategory = true;
@@ -290,6 +292,7 @@ public partial class RestaurantConfigViewModel : BaseViewModel, IActivatable
         if (menu == null) return;
         _editingCategoryId = menu.Id;
         FormCategoryName = menu.Name;
+        FormCategoryPrinter = AvailablePrinters.FirstOrDefault(p => p.Id == menu.PrinterProfileId);
         CategoryFormTitle = $"Modifier — {menu.Name}";
         IsCreatingCategory = false;
         IsEditingCategory = true;
@@ -321,7 +324,8 @@ public partial class RestaurantConfigViewModel : BaseViewModel, IActivatable
                 {
                     RestaurantId = 1,
                     CompanyId = currentCompanyId,
-                    Name = FormCategoryName.Trim()
+                    Name = FormCategoryName.Trim(),
+                    PrinterProfileId = FormCategoryPrinter?.Id // 🆕 NEW
                 });
             }
             else
@@ -330,6 +334,7 @@ public partial class RestaurantConfigViewModel : BaseViewModel, IActivatable
                 if (existing != null)
                 {
                     existing.Name = FormCategoryName.Trim();
+                    existing.PrinterProfileId = FormCategoryPrinter?.Id; // 🆕 NEW
                     await menuRepo.UpdateAsync(existing);
                 }
             }

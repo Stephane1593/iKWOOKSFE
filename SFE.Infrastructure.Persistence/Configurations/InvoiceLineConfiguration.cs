@@ -64,5 +64,7 @@ public class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
         builder.HasIndex(l => new { l.InvoiceId, l.LineNumber }).IsUnique();
         builder.HasIndex(l => l.ArticleId);
         builder.HasIndex(l => l.ProductId);
+
+        builder.Property(l => l.Notes).HasMaxLength(1000);
     }
 }

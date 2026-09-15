@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SFE.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using SFE.Infrastructure.Persistence;
 namespace SFE.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914113018_addDingingOptions")]
+    partial class addDingingOptions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -934,10 +937,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
                     b.Property<decimal>("OriginalPrice")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
@@ -1190,9 +1189,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasMaxLength(26)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("PrinterProfileId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("RestaurantId")
                         .HasColumnType("INTEGER");
 
@@ -1208,8 +1204,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("PrinterProfileId");
 
                     b.HasIndex("RestaurantId");
 
@@ -1358,10 +1352,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("Version")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("WaiterName")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1734,9 +1724,6 @@ namespace SFE.Infrastructure.Persistence.Migrations
                     b.Property<string>("OriginPointOfSaleSyncId")
                         .HasMaxLength(26)
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("Port")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SyncId")
                         .IsRequired()
@@ -2477,18 +2464,11 @@ namespace SFE.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SFE.Domain.Entities.Menu", b =>
                 {
-                    b.HasOne("SFE.Domain.Entities.PrinterProfile", "PrinterProfile")
-                        .WithMany()
-                        .HasForeignKey("PrinterProfileId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("SFE.Domain.Entities.Restaurant", "Restaurant")
                         .WithMany("Menus")
                         .HasForeignKey("RestaurantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("PrinterProfile");
 
                     b.Navigation("Restaurant");
                 });

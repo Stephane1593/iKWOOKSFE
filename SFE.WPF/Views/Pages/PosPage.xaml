@@ -1036,48 +1036,54 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-                        <!-- 🆕 INDICATEUR DE TABLE (Grid.Column="2") -->
-                        <Border Grid.Column="2" 
-                                    Margin="16,0,0,0"
-                                    Padding="12,6"
-                                    VerticalAlignment="Center"
-                                    CornerRadius="8"
-                                    ToolTip="Table actuellement en cours d'édition">
+                        <!--  🆕 INDICATEUR DE TABLE (Grid.Column="2")  -->
+                        <Border Grid.Column="2"
+                                Margin="16,0,0,0"
+                                Padding="12,6"
+                                VerticalAlignment="Center"
+                                CornerRadius="8"
+                                ToolTip="Table actuellement en cours d'édition">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="Background" Value="#EFF6FF"/>
+                                    <Setter Property="Background" Value="#EFF6FF" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding TableLabel}" Value="Vente Comptoir">
-                                            <Setter Property="Background" Value="#F3F4F6"/>
+                                        <DataTrigger Binding="{Binding TableLabel}"
+                                                     Value="Vente Comptoir">
+                                            <Setter Property="Background" Value="#F3F4F6" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Width="16"
+                                                         Height="16"
+                                                         Margin="0,0,6,0"
+                                                         VerticalAlignment="Center">
                                     <materialDesign:PackIcon.Style>
                                         <Style TargetType="materialDesign:PackIcon">
-                                            <Setter Property="Foreground" Value="#1D4ED8"/>
-                                            <Setter Property="Kind" Value="TableFurniture"/>
+                                            <Setter Property="Foreground" Value="#1D4ED8" />
+                                            <Setter Property="Kind" Value="TableFurniture" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TableLabel}" Value="Vente Comptoir">
-                                                    <Setter Property="Foreground" Value="#6B7280"/>
-                                                    <Setter Property="Kind" Value="StorefrontOutline"/>
+                                                <DataTrigger Binding="{Binding TableLabel}"
+                                                             Value="Vente Comptoir">
+                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                    <Setter Property="Kind" Value="StorefrontOutline" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </materialDesign:PackIcon.Style>
                                 </materialDesign:PackIcon>
                                 <TextBlock FontFamily="{StaticResource AppFont}"
-                                               FontSize="13"
-                                               FontWeight="Bold"
-                                               Text="{Binding TableLabel}">
+                                           FontSize="13"
+                                           FontWeight="Bold"
+                                           Text="{Binding TableLabel}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#1D4ED8"/>
+                                            <Setter Property="Foreground" Value="#1D4ED8" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TableLabel}" Value="Vente Comptoir">
-                                                    <Setter Property="Foreground" Value="#4B5563"/>
+                                                <DataTrigger Binding="{Binding TableLabel}"
+                                                             Value="Vente Comptoir">
+                                                    <Setter Property="Foreground" Value="#4B5563" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1326,15 +1332,29 @@
             </Border>
 
 
-            <!-- ══════════ DUAL CATALOGUE DISPLAY (COMPTOIR vs RESTAURANT) ══════════ -->
+            <!--  ══════════ DUAL CATALOGUE DISPLAY (COMPTOIR vs RESTAURANT) ══════════  -->
 
-            <!-- AFFICHAGE 1 : MODE COMPTOIR (Inventaire standard) -->
+            <!--  AFFICHAGE 1 : MODE COMPTOIR (Inventaire standard)  -->
             <StackPanel Visibility="{Binding IsRestaurantMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                <!-- CATEGORIES INVENTAIRE -->
-                <ScrollViewer Margin="0,0,0,16" ClipToBounds="False" HorizontalScrollBarVisibility="Auto" PanningMode="HorizontalOnly" VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="0,4,0,8" Orientation="Horizontal">
-                        <!-- Boutons Favoris et Tout (Vos boutons existants) -->
-                        <Button MinHeight="68" Margin="0,0,10,0" Padding="28,18" BorderThickness="0" Command="{Binding ShowFavoritesCommand}" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="SemiBold" ToolTip="Afficher uniquement les favoris">
+                <!--  CATEGORIES INVENTAIRE  -->
+                <ScrollViewer Margin="0,0,0,16"
+                              ClipToBounds="False"
+                              HorizontalScrollBarVisibility="Auto"
+                              PanningMode="HorizontalOnly"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,4,0,8"
+                                Orientation="Horizontal">
+                        <!--  Boutons Favoris et Tout (Vos boutons existants)  -->
+                        <Button MinHeight="68"
+                                Margin="0,0,10,0"
+                                Padding="28,18"
+                                BorderThickness="0"
+                                Command="{Binding ShowFavoritesCommand}"
+                                Cursor="Hand"
+                                FontFamily="{StaticResource AppFont}"
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                ToolTip="Afficher uniquement les favoris">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Background" Value="{StaticResource CardBrush}" />
@@ -1342,14 +1362,21 @@
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border x:Name="CatBd" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1.5" CornerRadius="10">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Border x:Name="CatBd"
+                                                        Padding="{TemplateBinding Padding}"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="Transparent"
+                                                        BorderThickness="1.5"
+                                                        CornerRadius="10">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center" />
                                                 </Border>
                                             </ControlTemplate>
                                         </Setter.Value>
                                     </Setter>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ShowFavoritesOnly}" Value="True">
+                                        <DataTrigger Binding="{Binding ShowFavoritesOnly}"
+                                                     Value="True">
                                             <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
                                             <Setter Property="Foreground" Value="White" />
                                         </DataTrigger>
@@ -1357,13 +1384,27 @@
                                 </Style>
                             </Button.Style>
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Width="15" Height="15" Margin="0,0,6,0" VerticalAlignment="Center" Kind="StarOutline" />
+                                <materialDesign:PackIcon Width="15"
+                                                         Height="15"
+                                                         Margin="0,0,6,0"
+                                                         VerticalAlignment="Center"
+                                                         Kind="StarOutline" />
                                 <TextBlock Text="Favoris" />
                             </StackPanel>
                         </Button>
-                        <Button MinHeight="68" Margin="0,0,10,0" Padding="28,18" Background="{StaticResource CardBrush}" BorderThickness="0" Command="{Binding ShowAllProductsCommand}" Content="Tout" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="15" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <Button MinHeight="68"
+                                Margin="0,0,10,0"
+                                Padding="28,18"
+                                Background="{StaticResource CardBrush}"
+                                BorderThickness="0"
+                                Command="{Binding ShowAllProductsCommand}"
+                                Content="Tout"
+                                Cursor="Hand"
+                                FontFamily="{StaticResource AppFont}"
+                                FontSize="15"
+                                Foreground="{StaticResource TextPrimaryBrush}" />
 
-                        <!-- Liste des catégories d'inventaire -->
+                        <!--  Liste des catégories d'inventaire  -->
                         <ItemsControl ItemsSource="{Binding Categories}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -1372,9 +1413,20 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button MinHeight="68" Margin="0,0,10,0" Padding="28,18" Background="{StaticResource CardBrush}" BorderThickness="0" Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="15" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Button MinHeight="68"
+                                            Margin="0,0,10,0"
+                                            Padding="28,18"
+                                            Background="{StaticResource CardBrush}"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Cursor="Hand"
+                                            FontFamily="{StaticResource AppFont}"
+                                            FontSize="15"
+                                            Foreground="{StaticResource TextPrimaryBrush}">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Margin="0,0,6,0" Text="{Binding Icon}" />
+                                            <TextBlock Margin="0,0,6,0"
+                                                       Text="{Binding Icon}" />
                                             <TextBlock Text="{Binding Name}" />
                                         </StackPanel>
                                     </Button>
@@ -1384,8 +1436,9 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- PRODUITS INVENTAIRE -->
-                <ScrollViewer PanningMode="VerticalOnly" VerticalScrollBarVisibility="Auto">
+                <!--  PRODUITS INVENTAIRE  -->
+                <ScrollViewer PanningMode="VerticalOnly"
+                              VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding DisplayProducts}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -1394,7 +1447,13 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Width="160" Height="118" Margin="0,0,12,12" BorderThickness="0" Command="{Binding DataContext.AddToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand">
+                                <Button Width="160"
+                                        Height="118"
+                                        Margin="0,0,12,12"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.AddToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Style="{StaticResource ProductCardBorder}">
@@ -1404,10 +1463,22 @@
                                                         <RowDefinition Height="*" />
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
-                                                    <TextBlock MaxHeight="34" FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="Medium" Text="{Binding Name}" TextWrapping="Wrap" />
-                                                    <TextBlock Grid.Row="1" VerticalAlignment="Center" FontFamily="Consolas" FontSize="10" Foreground="{StaticResource TextMutedBrush}"><Run Text="{Binding Code, Mode=OneWay}" /></TextBlock>
+                                                    <TextBlock MaxHeight="34"
+                                                               FontFamily="{StaticResource AppFont}"
+                                                               FontSize="12"
+                                                               FontWeight="Medium"
+                                                               Text="{Binding Name}"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Grid.Row="1"
+                                                               VerticalAlignment="Center"
+                                                               FontFamily="Consolas"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextMutedBrush}"><Run Text="{Binding Code, Mode=OneWay}" /></TextBlock>
                                                     <Grid Grid.Row="2">
-                                                        <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"><Run Text="{Binding UnitPriceTtcCdf, StringFormat=N2, Mode=OneWay}" /></TextBlock>
+                                                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                                                   FontSize="15"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{StaticResource PrimaryBrush}"><Run Text="{Binding UnitPriceTtcCdf, StringFormat=N2, Mode=OneWay}" /></TextBlock>
                                                     </Grid>
                                                 </Grid>
                                             </Border>
@@ -1420,11 +1491,16 @@
                 </ScrollViewer>
             </StackPanel>
 
-            <!-- AFFICHAGE 2 : MODE RESTAURANT (Menus Tactiles) -->
+            <!--  AFFICHAGE 2 : MODE RESTAURANT (Menus Tactiles)  -->
             <StackPanel Visibility="{Binding IsRestaurantMode, Converter={StaticResource BoolToVisibilityConverter}}">
-                <!-- FAMILLES DE MENUS -->
-                <ScrollViewer Margin="0,0,0,16" ClipToBounds="False" HorizontalScrollBarVisibility="Auto" PanningMode="HorizontalOnly" VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="0,4,0,8" Orientation="Horizontal">
+                <!--  FAMILLES DE MENUS  -->
+                <ScrollViewer Margin="0,0,0,16"
+                              ClipToBounds="False"
+                              HorizontalScrollBarVisibility="Auto"
+                              PanningMode="HorizontalOnly"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,4,0,8"
+                                Orientation="Horizontal">
                         <ItemsControl ItemsSource="{Binding RestaurantMenus}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -1433,7 +1509,18 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button MinHeight="68" Margin="0,0,10,0" Padding="32,18" Background="{StaticResource CardBrush}" BorderThickness="0" Command="{Binding DataContext.SelectRestaurantMenuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Button MinHeight="68"
+                                            Margin="0,0,10,0"
+                                            Padding="32,18"
+                                            Background="{StaticResource CardBrush}"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.SelectRestaurantMenuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Cursor="Hand"
+                                            FontFamily="{StaticResource AppFont}"
+                                            FontSize="16"
+                                            FontWeight="Bold"
+                                            Foreground="{StaticResource TextPrimaryBrush}">
                                         <TextBlock Text="{Binding Name}" />
                                     </Button>
                                 </DataTemplate>
@@ -1442,8 +1529,9 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- PLATS (MENU ITEMS) -->
-                <ScrollViewer PanningMode="VerticalOnly" VerticalScrollBarVisibility="Auto">
+                <!--  PLATS (MENU ITEMS)  -->
+                <ScrollViewer PanningMode="VerticalOnly"
+                              VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding RestaurantMenuItems}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -1452,15 +1540,34 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Width="180" Height="128" Margin="0,0,14,14" BorderThickness="0" Command="{Binding DataContext.AddMenuItemToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Cursor="Hand">
+                                <Button Width="180"
+                                        Height="128"
+                                        Margin="0,0,14,14"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.AddMenuItemToCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
-                                            <Border x:Name="CardBorder" Background="White" CornerRadius="14" Padding="16" BorderThickness="1.5" BorderBrush="#E2E8F0">
+                                            <Border x:Name="CardBorder"
+                                                    Padding="16"
+                                                    Background="White"
+                                                    BorderBrush="#E2E8F0"
+                                                    BorderThickness="1.5"
+                                                    CornerRadius="14">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="*" />
                                                     </Grid.RowDefinitions>
-                                                    <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Text="{Binding Name}" TextWrapping="Wrap" />
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               FontFamily="{StaticResource AppFont}"
+                                                               FontSize="14"
+                                                               FontWeight="Bold"
+                                                               Foreground="#1E293B"
+                                                               Text="{Binding Name}"
+                                                               TextAlignment="Center"
+                                                               TextWrapping="Wrap" />
                                                 </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>
@@ -1532,6 +1639,7 @@
                         <Border.BorderBrush>
                             <SolidColorBrush Color="{StaticResource BorderLightColor}" />
                         </Border.BorderBrush>
+
                         <StackPanel>
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
@@ -1549,8 +1657,6 @@
                                                                      VerticalAlignment="Center"
                                                                      Foreground="{StaticResource PrimaryBrush}"
                                                                      Kind="CartOutline" />
-
-                                            <!--  Badge  -->
                                             <Border x:Name="CartBadge"
                                                     Height="18"
                                                     MinWidth="18"
@@ -1559,12 +1665,10 @@
                                                     VerticalAlignment="Top"
                                                     Background="#EF4444"
                                                     CornerRadius="10"
-                                                    RenderTransformOrigin="0.5,0.5"
                                                     Visibility="{Binding CartItemCount, Converter={StaticResource IntToVisibilityConverter}}">
                                                 <Border.RenderTransform>
                                                     <ScaleTransform x:Name="BadgeScale" ScaleX="1" ScaleY="1" />
                                                 </Border.RenderTransform>
-
                                                 <TextBlock HorizontalAlignment="Center"
                                                            VerticalAlignment="Center"
                                                            FontSize="10"
@@ -1573,20 +1677,17 @@
                                                            Text="{Binding CartItemCount}" />
                                             </Border>
                                         </Grid>
-
                                         <TextBlock Margin="12,0,0,0"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Text="{Binding TableLabel}"
-                                                   ToolTip="Commande en cours" />
+                                                   Text="{Binding TableLabel}" />
                                     </StackPanel>
                                 </Grid>
                                 <StackPanel Grid.Column="2"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
-                                    <!--  Simple "Open drawer (no sale)" button: paste inside the header StackPanel  -->
                                     <Button Command="{Binding OpenCashDrawerCommand}"
                                             Style="{StaticResource PosIconBtn}"
                                             ToolTip="Ouvrir le tiroir (sans vente)"
@@ -1596,7 +1697,6 @@
                                                                      Height="18"
                                                                      Foreground="{StaticResource TextSecondaryBrush}"
                                                                      Kind="CashRegister" />
-                                            <!--  Tiny badge shown when current POS has a cash drawer  -->
                                             <Border Width="10"
                                                     Height="10"
                                                     Margin="0,-6,-6,0"
@@ -1608,16 +1708,14 @@
                                         </Grid>
                                     </Button>
                                     <Button Command="{Binding ToggleClientPanelCommand}"
-                                            Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Sélectionner ou gérer le client">
+                                            Style="{StaticResource PosIconBtn}">
                                         <materialDesign:PackIcon Width="19"
                                                                  Height="19"
                                                                  Foreground="{StaticResource TextSecondaryBrush}"
                                                                  Kind="AccountOutline" />
                                     </Button>
                                     <Button Command="{Binding ToggleCommentPanelCommand}"
-                                            Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Ajouter des commentaires à la facture">
+                                            Style="{StaticResource PosIconBtn}">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
                                                                  Foreground="{StaticResource TextSecondaryBrush}"
@@ -1625,7 +1723,6 @@
                                     </Button>
                                     <Button Command="{Binding ToggleDiscountPanelCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Appliquer une remise sur l'article sélectionné"
                                             Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
@@ -1633,8 +1730,7 @@
                                                                  Kind="PercentOutline" />
                                     </Button>
                                     <Button Command="{Binding ToggleHeldPanelCommand}"
-                                            Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Voir les ventes mises en attente">
+                                            Style="{StaticResource PosIconBtn}">
                                         <Grid>
                                             <materialDesign:PackIcon Width="18"
                                                                      Height="18"
@@ -1659,8 +1755,7 @@
                                         </Grid>
                                     </Button>
                                     <Button Command="{Binding TogglePendingPanelCommand}"
-                                            Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Voir les factures en attente de normalisation">
+                                            Style="{StaticResource PosIconBtn}">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
                                                                  Foreground="{StaticResource TextSecondaryBrush}"
@@ -1668,7 +1763,6 @@
                                     </Button>
                                     <Button Command="{Binding ClearCartCommand}"
                                             Style="{StaticResource PosIconBtn}"
-                                            ToolTip="Vider tout le panier"
                                             Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}">
                                         <materialDesign:PackIcon Width="18"
                                                                  Height="18"
@@ -1695,7 +1789,6 @@
                                     Margin="0,12,0,0"
                                     Padding="14,10"
                                     CornerRadius="10"
-                                    ToolTip="Client associé à cette vente"
                                     Visibility="{Binding HasClientSelected, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <Border.Background>
                                     <SolidColorBrush Opacity="0.06"
@@ -1714,15 +1807,13 @@
                                                    FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   Text="{Binding ClientName}"
-                                                   ToolTip="{Binding ClientName}" />
+                                                   Text="{Binding ClientName}" />
                                         <TextBlock Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{StaticResource AppFont}"
                                                    FontSize="10"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   Text="{Binding ClientTypeMention}"
-                                                   ToolTip="{Binding ClientTypeMention}" />
+                                                   Text="{Binding ClientTypeMention}" />
                                     </StackPanel>
                                     <Button Width="36"
                                             Height="36"
@@ -1730,8 +1821,7 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Command="{Binding ClearClientCommand}"
-                                            Cursor="Hand"
-                                            ToolTip="Retirer le client de cette vente">
+                                            Cursor="Hand">
                                         <materialDesign:PackIcon Width="14"
                                                                  Height="14"
                                                                  Foreground="#DC2626"
@@ -1747,7 +1837,6 @@
                                         Margin="0,0,8,0"
                                         Padding="12,7"
                                         CornerRadius="8"
-                                        ToolTip="Cette vente est un avoir (note de crédit)"
                                         Visibility="{Binding IsCreditNote, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <Border.Background>
                                         <SolidColorBrush Opacity="0.08"
@@ -1757,8 +1846,7 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Command="{Binding ToggleCreditNotePanelCommand}"
-                                            Cursor="Hand"
-                                            ToolTip="Cliquer pour gérer les paramètres de l'avoir">
+                                            Cursor="Hand">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="14"
                                                                      Height="14"
@@ -1777,7 +1865,6 @@
                                 <Border MinHeight="36"
                                         Padding="12,7"
                                         CornerRadius="8"
-                                        ToolTip="Cette vente est un acompte"
                                         Visibility="{Binding IsAdvanceInvoice, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <Border.Background>
                                         <SolidColorBrush Opacity="0.08"
@@ -1787,8 +1874,7 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Command="{Binding ToggleAdvancePanelCommand}"
-                                            Cursor="Hand"
-                                            ToolTip="Cliquer pour gérer les paramètres de l'acompte">
+                                            Cursor="Hand">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="14"
                                                                      Height="14"
@@ -1805,9 +1891,124 @@
                                     </Button>
                                 </Border>
                             </StackPanel>
+
+                            <!--  🚀 DINING OPTIONS TABS  -->
+                            <StackPanel Margin="0,16,0,0"
+                                        Visibility="{Binding IsRestaurantMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Style="{StaticResource PosFieldLabel}"
+                                           Text="Type de commande" />
+
+                                <ListBox Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         SelectedValue="{Binding SelectedDiningOption}"
+                                         SelectedValuePath="Tag">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="3" />
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Margin" Value="0,0,8,0" />
+                                            <Setter Property="Cursor" Value="Hand" />
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <!--  🚨 FIX: Removed invalid BorderColor property to prevent unhandled WPF ArgumentException crash  -->
+                                                        <Border x:Name="Bd"
+                                                                MinHeight="46"
+                                                                Padding="4"
+                                                                Background="{StaticResource BackgroundBrush}"
+                                                                BorderBrush="Transparent"
+                                                                BorderThickness="1.5"
+                                                                CornerRadius="10">
+                                                            <ContentPresenter HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="BorderBrush">
+                                                                    <Setter.Value>
+                                                                        <SolidColorBrush Color="{StaticResource BorderColor}" />
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource PrimaryBrush}" />
+                                                                <Setter Property="TextElement.Foreground" Value="White" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+
+                                    <!--  The 3 Options  -->
+                                    <ListBoxItem Tag="{x:Static enums:DiningOption.DineIn}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Margin="0,0,6,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Kind="Silverware" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="Sur place" />
+                                        </StackPanel>
+                                    </ListBoxItem>
+                                    <ListBoxItem Tag="{x:Static enums:DiningOption.Takeaway}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Margin="0,0,6,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Kind="ShoppingOutline" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="À emporter" />
+                                        </StackPanel>
+                                    </ListBoxItem>
+                                    <ListBoxItem Tag="{x:Static enums:DiningOption.Delivery}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Margin="0,0,6,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Kind="MopedOutline" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="Livraison" />
+                                        </StackPanel>
+                                    </ListBoxItem>
+                                </ListBox>
+
+                                <!--  DELIVERY ADDRESS BOX  -->
+                                <StackPanel Margin="0,12,8,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedDiningOption}"
+                                                             Value="{x:Static enums:DiningOption.Delivery}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+
+                                    <TextBlock Style="{StaticResource PosFieldLabel}"
+                                               Text="Adresse et instructions de livraison" />
+                                    <TextBox MinHeight="54"
+                                             Padding="14,12"
+                                             materialDesign:HintAssist.Hint="Ex: 15 Avenue du 30 Juin, Résidence..."
+                                             AcceptsReturn="True"
+                                             Style="{StaticResource PosTextBox}"
+                                             Text="{Binding DeliveryAddress, UpdateSourceTrigger=PropertyChanged}"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
-
                     <!--  ────── ROW 1: CART ITEMS LIST ──────  -->
                     <ListBox Grid.Row="1"
                              Margin="0"
@@ -1819,22 +2020,6 @@
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectedItem="{Binding SelectedCartItem}">
 
-                        <ListBox.Template>
-                            <ControlTemplate TargetType="ListBox">
-                                <Border Padding="{TemplateBinding Padding}"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        SnapsToDevicePixels="True">
-                                    <ScrollViewer Focusable="False"
-                                                  HorizontalScrollBarVisibility="Disabled"
-                                                  PanningMode="VerticalOnly"
-                                                  VerticalScrollBarVisibility="Auto">
-                                        <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                    </ScrollViewer>
-                                </Border>
-                            </ControlTemplate>
-                        </ListBox.Template>
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -1876,140 +2061,193 @@
                                 </Setter>
                             </Style>
                         </ListBox.ItemContainerStyle>
+
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid ToolTip="{Binding Name}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
+
+                                    <!--  COLUMN 0: Name & Info  -->
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock FontFamily="{StaticResource AppFont}"
-                                                   FontSize="13"
-                                                   FontWeight="Medium"
+                                                   FontSize="14"
+                                                   FontWeight="Bold"
                                                    Text="{Binding Name}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding Name}" />
+                                                   TextTrimming="CharacterEllipsis" />
                                         <TextBlock Margin="0,2,0,0"
                                                    FontFamily="{StaticResource AppFont}"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   ToolTip="Quantité et groupe de taxe">
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource TextMutedBrush}">
                                             <Run Text="{Binding QuantityDisplay, Mode=OneWay}" />
                                             <Run Text=" · Grp " />
                                             <Run Text="{Binding TaxGroupLabel, Mode=OneWay}" />
                                         </TextBlock>
-                                        <Border Margin="0,3,0,0"
+                                        <Border Margin="0,4,0,0"
                                                 Padding="6,2"
                                                 HorizontalAlignment="Left"
                                                 CornerRadius="4"
-                                                ToolTip="{Binding DiscountDisplay}"
                                                 Visibility="{Binding HasDiscount, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <Border.Background>
                                                 <SolidColorBrush Opacity="0.08"
                                                                  Color="{StaticResource ErrorColor}" />
                                             </Border.Background>
                                             <TextBlock FontFamily="{StaticResource AppFont}"
-                                                       FontSize="10"
-                                                       FontWeight="SemiBold"
+                                                       FontSize="11"
+                                                       FontWeight="Bold"
                                                        Foreground="#DC2626"
                                                        Text="{Binding DiscountDisplay, Mode=OneWay}" />
                                         </Border>
                                     </StackPanel>
+
+                                    <!--  COLUMN 1: +/- Buttons (Bigger Touch Targets)  -->
                                     <StackPanel Grid.Column="1"
-                                                Margin="10,0"
+                                                Margin="12,0"
                                                 VerticalAlignment="Center"
                                                 Orientation="Horizontal">
-                                        <Button Width="42"
-                                                Height="42"
+                                        <Button Width="48"
+                                                Height="48"
                                                 Padding="0"
-                                                Background="{StaticResource BackgroundBrush}"
+                                                Background="Transparent"
                                                 BorderThickness="0"
                                                 Command="{Binding DataContext.DecrementQuantityCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
-                                                Cursor="Hand"
-                                                ToolTip="Diminuer la quantité">
-                                            <TextBlock HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="18"
-                                                       FontWeight="Bold"
-                                                       Text="−" />
+                                                Cursor="Hand">
+                                            <Border Width="48"
+                                                    Height="48"
+                                                    Background="{StaticResource BackgroundBrush}"
+                                                    CornerRadius="12">
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="20"
+                                                           FontWeight="Bold"
+                                                           Text="-" />
+                                            </Border>
                                         </Button>
-                                        <TextBox MinWidth="64"
+
+                                        <TextBox MinWidth="60"
                                                  Margin="8,0"
-                                                 Padding="2,4"
-                                                 VerticalAlignment="Center"
+                                                 Padding="0,4"
                                                  HorizontalContentAlignment="Center"
                                                  VerticalContentAlignment="Center"
                                                  Background="Transparent"
                                                  BorderBrush="{StaticResource BorderBrush}"
-                                                 BorderThickness="0,0,0,1"
+                                                 BorderThickness="0,0,0,2"
                                                  FontFamily="{StaticResource AppFont}"
-                                                 FontSize="14"
+                                                 FontSize="16"
                                                  FontWeight="Bold"
                                                  IsReadOnly="{Binding DataContext.IsNormalized, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                 Text="{Binding Quantity, StringFormat=N3, UpdateSourceTrigger=LostFocus, Mode=TwoWay, ValidatesOnExceptions=True}"
-                                                 ToolTip="Quantité (max 3 décimales, ex. 3.587). Tab ou Entrée pour valider.">
-                                            <TextBox.InputBindings>
-                                                <!--
-                                                    Entrée → déplace le focus, ce qui déclenche LostFocus
-                                                    et donc la mise à jour de la source (Quantity).
-                                                -->
-                                                <KeyBinding Key="Enter"
-                                                            Command="{x:Static ApplicationCommands.NotACommand}" />
-                                            </TextBox.InputBindings>
-                                        </TextBox>
-                                        <Button Width="42"
-                                                Height="42"
+                                                 Text="{Binding Quantity, StringFormat=N3, UpdateSourceTrigger=LostFocus, Mode=TwoWay}" />
+
+                                        <Button Width="48"
+                                                Height="48"
                                                 Padding="0"
-                                                Background="{StaticResource BackgroundBrush}"
+                                                Background="Transparent"
                                                 BorderThickness="0"
                                                 Command="{Binding DataContext.IncrementQuantityCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
-                                                Cursor="Hand"
-                                                ToolTip="Augmenter la quantité">
-                                            <TextBlock HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="18"
-                                                       FontWeight="Bold"
-                                                       Text="＋" />
+                                                Cursor="Hand">
+                                            <Border Width="48"
+                                                    Height="48"
+                                                    Background="{StaticResource BackgroundBrush}"
+                                                    CornerRadius="12">
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="20"
+                                                           FontWeight="Bold"
+                                                           Text="+" />
+                                            </Border>
                                         </Button>
                                     </StackPanel>
+
+                                    <!--  COLUMN 2: Total & Actions (Note + Remove)  -->
                                     <StackPanel Grid.Column="2"
-                                                MinWidth="88"
+                                                MinWidth="90"
                                                 VerticalAlignment="Center">
                                         <TextBlock HorizontalAlignment="Right"
                                                    FontFamily="{StaticResource AppFont}"
-                                                   FontSize="14"
+                                                   FontSize="15"
                                                    FontWeight="Bold"
                                                    Foreground="{StaticResource PrimaryBrush}"
-                                                   Text="{Binding AmountTTC, StringFormat='{}{0:N2}'}"
-                                                   ToolTip="Montant TTC de cette ligne (2 décimales)" />
-                                        <Button MinHeight="26"
-                                                Padding="0"
-                                                HorizontalAlignment="Right"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Command="{Binding DataContext.RemoveFromCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                Cursor="Hand"
-                                                ToolTip="Retirer cet article du panier"
-                                                Visibility="{Binding DataContext.IsNormalized, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolConverter}}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <materialDesign:PackIcon Width="10"
-                                                                         Height="10"
-                                                                         Margin="0,0,3,0"
-                                                                         VerticalAlignment="Center"
+                                                   Text="{Binding AmountTTC, StringFormat='{}{0:N2}'}" />
+
+                                        <StackPanel Margin="0,8,0,0"
+                                                    HorizontalAlignment="Right"
+                                                    Orientation="Horizontal"
+                                                    Visibility="{Binding DataContext.IsNormalized, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolConverter}}">
+
+                                            <!--  NOTE POPUP TOGGLE  -->
+                                            <ToggleButton x:Name="NoteToggle"
+                                                          Margin="0,0,8,0"
+                                                          Padding="6"
+                                                          Background="Transparent"
+                                                          BorderThickness="0"
+                                                          Cursor="Hand">
+                                                <materialDesign:PackIcon Width="16"
+                                                                         Height="16"
+                                                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                                                         Kind="PencilOutline" />
+                                            </ToggleButton>
+                                            <Popup IsOpen="{Binding IsChecked, ElementName=NoteToggle}"
+                                                   Placement="Bottom"
+                                                   PlacementTarget="{Binding ElementName=NoteToggle}"
+                                                   StaysOpen="False">
+                                                <Border Padding="16"
+                                                        Background="White"
+                                                        BorderBrush="{StaticResource BorderLightBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="12"
+                                                        Effect="{StaticResource PopupShadow}">
+                                                    <StackPanel>
+                                                        <TextBlock Margin="0,0,0,8"
+                                                                   FontWeight="Bold"
+                                                                   Text="Notes de préparation :" />
+                                                        <TextBox MinWidth="240"
+                                                                 MinHeight="60"
+                                                                 materialDesign:HintAssist.Hint="Ex: Sans oignons, bien cuit..."
+                                                                 AcceptsReturn="True"
+                                                                 Style="{StaticResource PosTextBox}"
+                                                                 Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                                                                 TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Popup>
+
+                                            <!--  REMOVE BUTTON  -->
+                                            <Button Padding="6"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Command="{Binding DataContext.RemoveFromCartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand">
+                                                <materialDesign:PackIcon Width="16"
+                                                                         Height="16"
                                                                          Foreground="#EF4444"
-                                                                         Kind="Close" />
-                                                <TextBlock FontFamily="{StaticResource AppFont}"
-                                                           FontSize="9"
-                                                           Foreground="#EF4444"
-                                                           Text="retirer" />
-                                            </StackPanel>
-                                        </Button>
+                                                                         Kind="TrashCanOutline" />
+                                            </Button>
+                                        </StackPanel>
                                     </StackPanel>
+
+                                    <!--  ROW 1: Display Note if it exists  -->
+                                    <TextBlock Grid.Row="1"
+                                               Grid.ColumnSpan="3"
+                                               Margin="0,8,0,0"
+                                               FontFamily="{StaticResource AppFont}"
+                                               FontSize="12"
+                                               FontStyle="Italic"
+                                               Foreground="#D97706"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding HasNotes, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Run FontWeight="Bold"
+                                             Text="Note: " /><Run Text="{Binding Notes}" />
+                                    </TextBlock>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -2366,33 +2604,50 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- 1. Bouton "Attente" (Pause) -->
-                                        <Button Grid.Column="0" Margin="0,0,12,0"
+                                        <!--  1. Bouton "Attente" (Pause)  -->
+                                        <Button Grid.Column="0"
+                                                Margin="0,0,12,0"
                                                 Command="{Binding RequestHoldCommand}"
                                                 Style="{StaticResource PosHoldBtn}"
                                                 ToolTip="Mettre cette vente en attente pour y revenir plus tard"
                                                 Visibility="{Binding IsRestaurantMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                                            <materialDesign:PackIcon Width="22" Height="22" Foreground="White" Kind="PauseCircleOutline" />
+                                            <materialDesign:PackIcon Width="22"
+                                                                     Height="22"
+                                                                     Foreground="White"
+                                                                     Kind="PauseCircleOutline" />
                                         </Button>
 
-                                        <!-- 2. Bouton "Envoyer en Cuisine" (Visible UNIQUEMENT sur une Table) -->
-                                        <Button Grid.Column="1" Margin="0,0,12,0"
+                                        <!--  2. Bouton "Envoyer en Cuisine" (Visible UNIQUEMENT sur une Table)  -->
+                                        <Button Grid.Column="1"
+                                                Margin="0,0,12,0"
                                                 Command="{Binding SaveTableOrderCommand}"
                                                 Style="{StaticResource PosHoldBtn}"
                                                 ToolTip="Enregistrer la commande de la table / Envoyer en cuisine"
                                                 Visibility="{Binding IsRestaurantMode, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <materialDesign:PackIcon Width="22" Height="22" Foreground="White" Kind="SilverwareForkKnife" />
+                                            <materialDesign:PackIcon Width="22"
+                                                                     Height="22"
+                                                                     Foreground="White"
+                                                                     Kind="SilverwareForkKnife" />
                                         </Button>
 
-                                        <!-- 3. Bouton "PAIEMENT" -->
+                                        <!--  3. Bouton "PAIEMENT"  -->
                                         <Button Grid.Column="2"
                                                 HorizontalContentAlignment="Center"
                                                 Command="{Binding GoToPaymentStepCommand}"
                                                 Style="{StaticResource PosPrimaryBtn}"
                                                 ToolTip="Passer à l'étape de paiement">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="White" Text="PAIEMENT" />
-                                                <materialDesign:PackIcon Width="20" Height="20" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="White" Kind="ArrowRight" />
+                                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                                           FontSize="15"
+                                                           FontWeight="Bold"
+                                                           Foreground="White"
+                                                           Text="PAIEMENT" />
+                                                <materialDesign:PackIcon Width="20"
+                                                                         Height="20"
+                                                                         Margin="10,0,0,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Foreground="White"
+                                                                         Kind="ArrowRight" />
                                             </StackPanel>
                                         </Button>
                                     </Grid>

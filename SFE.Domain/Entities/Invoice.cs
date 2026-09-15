@@ -220,4 +220,7 @@ public class Invoice
 
     /// <summary>Date de la dernière impression/duplicata.</summary>
     public DateTimeOffset? LastPrintedAt { get; set; }
+
+    public DiningOption DiningOption { get; set; } = DiningOption.DineIn;
+    public string? DeliveryAddress { get; set; }
 }

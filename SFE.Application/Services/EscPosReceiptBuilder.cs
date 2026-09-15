@@ -385,13 +385,11 @@ public static class EscPosReceiptBuilder
         WriteDoubleLine(ms, ctx);
     }
 
-    private static void WriteInvoiceMeta(
-        MemoryStream ms, Invoice invoice, Company company, ReceiptContext ctx)
+    private static void WriteInvoiceMeta(MemoryStream ms, Invoice invoice, Company company, ReceiptContext ctx)
     {
         Write(ms, ALIGN_LEFT);
 
-        string regime = company.DefaultPriceMode == PriceMode.TTC
-            ? "MODE PRIX TTC" : "MODE PRIX HT";
+        string regime = company.DefaultPriceMode == PriceMode.TTC ? "MODE PRIX TTC" : "MODE PRIX HT";
         WriteRow(ms, "Regime", regime, ctx);
 
         Write(ms, BOLD_ON);
@@ -400,6 +398,34 @@ public static class EscPosReceiptBuilder
 
         WriteRow(ms, "Type", $"{invoice.Type} - {GetTypeLabel(invoice.Type)}", ctx);
         WriteRow(ms, "Date", FormatUtcAsLocal(invoice.CreatedAt, ctx), ctx);
+
+        // 🚨 NOUVEAU : Affichage du Mode de Commande
+        if (invoice.DiningOption == DiningOption.Takeaway)
+        {
+            WriteDoubleLine(ms, ctx);
+            Write(ms, ALIGN_CENTER);
+            Write(ms, BOLD_ON);
+            Write(ms, DOUBLE_H_ON);
+            WriteText(ms, "A EMPORTER", ctx);
+            Write(ms, SIZE_NORMAL);
+            Write(ms, BOLD_OFF);
+        }
+        else if (invoice.DiningOption == DiningOption.Delivery)
+        {
+            WriteDoubleLine(ms, ctx);
+            Write(ms, ALIGN_CENTER);
+            Write(ms, BOLD_ON);
+            Write(ms, DOUBLE_H_ON);
+            WriteText(ms, "LIVRAISON", ctx);
+            Write(ms, SIZE_NORMAL);
+            Write(ms, BOLD_OFF);
+
+            if (!string.IsNullOrWhiteSpace(invoice.DeliveryAddress))
+            {
+                Write(ms, ALIGN_LEFT);
+                WriteText(ms, $"Adresse: {invoice.DeliveryAddress}", ctx);
+            }
+        }
     }
 
     private static void WriteClientSection(
@@ -833,4 +859,67 @@ public static class EscPosReceiptBuilder
         PaymentType.Credit => "Credit",
         _ => pt.ToString()
     };
+
+    // =======================================================
+    //  KITCHEN ORDER TICKET (KOT)
+    // =======================================================
+    public static byte[] BuildKitchenTicket(
+        string tableLabel,
+        DiningOption diningOption,
+        List<OrderItem> items,
+        ITimeProvider time,
+        int paperWidthMm = 80)
+    {
+        var ms = new MemoryStream();
+        int charsPerLine = paperWidthMm >= 80 ? 48 : 32;
+        var ctx = new ReceiptContext { Width = charsPerLine, CodePage = 858 };
+
+        Write(ms, INIT);
+        Write(ms, new byte[] { 0x1B, 0x74, 0x13 }); // CP858
+
+        // 1. TICKET HEADER (Table or Takeaway)
+        Write(ms, ALIGN_CENTER);
+        Write(ms, BOLD_ON);
+        Write(ms, DOUBLE_ON); // Very large text
+
+        if (diningOption == DiningOption.Delivery)
+            WriteText(ms, "LIVRAISON", ctx);
+        else if (diningOption == DiningOption.Takeaway)
+            WriteText(ms, "A EMPORTER", ctx);
+        else
+            WriteText(ms, tableLabel.ToUpper(), ctx); // Ex: "TABLE N° 4"
+
+        Write(ms, SIZE_NORMAL);
+        Write(ms, BOLD_OFF);
+        Write(ms, LF);
+
+        // 2. TIME
+        Write(ms, ALIGN_LEFT);
+        WriteText(ms, $"Envoye le: {time.LocalNow:HH:mm:ss (dd/MM)}", ctx);
+        WriteDoubleLine(ms, ctx);
+
+        // 3. ITEMS
+        Write(ms, BOLD_ON);
+        foreach (var item in items)
+        {
+            // Quantity + Name (e.g., "2 x Steak Frites")
+            WriteText(ms, $"{item.SentQuantity} x {item.Name}", ctx);
+
+            // Notes (e.g., "Sans oignons")
+            if (!string.IsNullOrWhiteSpace(item.Notes))
+            {
+                Write(ms, BOLD_OFF);
+                WriteText(ms, $"  >>> NOTE: {item.Notes}", ctx);
+                Write(ms, BOLD_ON);
+            }
+            Write(ms, LF);
+        }
+        Write(ms, BOLD_OFF);
+
+        WriteDoubleLine(ms, ctx);
+        Write(ms, FEED_5);
+        Write(ms, CUT_PARTIAL);
+
+        return ms.ToArray();
+    }
 }

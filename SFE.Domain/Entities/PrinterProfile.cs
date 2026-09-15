@@ -6,8 +6,17 @@ public class PrinterProfile : SyncableEntity
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string Kind { get; set; } = "sunmi"; // e.g. sunmi, escpos-tcp, windows-printer
-    public string ConnectionString { get; set; } = string.Empty; // e.g. "tcp://10.0.0.5:9100" or terminal id
+    public int CompanyId { get; set; }
+
+    // Differentiates how the system talks to this printer
+    public string Kind { get; set; } = "windows-printer"; // "sunmi", "escpos-tcp", "windows-printer"
+
+    // IP Address (e.g. "192.168.1.100") or Windows Printer Name (e.g. "POS-80C")
+    public string ConnectionString { get; set; } = string.Empty;
+
+    // Used for network printers
+    public int Port { get; set; } = 9100;
+
     public bool IsDefaultKitchen { get; set; } = false;
     public bool IsDefaultReceipt { get; set; } = false;
 }

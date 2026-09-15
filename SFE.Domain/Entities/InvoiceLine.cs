@@ -81,4 +81,9 @@ public class InvoiceLine
 
     // Dans InvoiceLine, ajoutez :
     public int? ProductId { get; set; }  // 🆕 FK vers Product (pour décrément stock) 
+
+    // ══════════════════════════════════════════════
+    // NOTES / COMMENTAIRES DE LIGNE
+    // ══════════════════════════════════════════════
+    public string? Notes { get; set; }
 }

@@ -31,6 +31,8 @@ public partial class CartItemViewModel : ObservableObject
     [ObservableProperty] private decimal _sentQuantity = 0;
     // Propriété calculée pour savoir combien il reste à envoyer
     public decimal UnsentQuantity => Quantity - SentQuantity;
+    // Add this near ProductId
+    [ObservableProperty] private int? _menuItemId;
 
     // ══════ REMISE ══════
     [ObservableProperty] private DiscountType _discountType = DiscountType.None;
@@ -63,12 +65,20 @@ public partial class CartItemViewModel : ObservableObject
     // repasser PriceMode/discountBeforeTax.
     private bool _lastDiscountBeforeTax = true;
     private bool _isInitialized;
-
+  
+    [ObservableProperty] private string _notes = "";
     // ══════ AFFICHAGE ══════
     private PriceMode _displayMode = PriceMode.TTC;
 
     public decimal DisplayUnitPrice =>
         _displayMode == PriceMode.TTC ? UnitPriceTTC : UnitPriceHT;
+
+    partial void OnNotesChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasNotes));
+    }
+
+    public bool HasNotes => !string.IsNullOrWhiteSpace(Notes);
 
     public string QuantityDisplay => $"{Quantity:0.###} × {DisplayUnitPrice:N2}";
     public string TaxGroupLabel => $"{(char)('A' + (int)TaxGroup)}";

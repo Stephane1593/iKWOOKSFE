@@ -288,22 +288,27 @@ public static class DatabaseSeeder
         if (!await printerSet.IgnoreQueryFilters().AnyAsync())
         {
             await printerSet.AddRangeAsync(
-                new PrinterProfile { CompanyId = company.Id, Name = "Bar (Boissons)" },
-                new PrinterProfile { CompanyId = company.Id, Name = "Cuisine Chaude" },
-                new PrinterProfile { CompanyId = company.Id, Name = "Cuisine Froide (Entrées/Desserts)" }
+                new PrinterProfile { CompanyId = company.Id, Name = "Bar (Boissons)", Kind = "windows-printer" },
+                new PrinterProfile { CompanyId = company.Id, Name = "Cuisine Chaude", Kind = "windows-printer" },
+                new PrinterProfile { CompanyId = company.Id, Name = "Cuisine Froide (Entrées/Desserts)", Kind = "windows-printer" }
             );
             await context.SaveChangesAsync();
         }
+
+        // 🚨 Fetch the printers OUTSIDE the if-blocks so the menus can see them
+        var barPrinter = await printerSet.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Name == "Bar (Boissons)");
+        var chaudPrinter = await printerSet.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Name == "Cuisine Chaude");
+        var froidPrinter = await printerSet.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Name == "Cuisine Froide (Entrées/Desserts)");
 
         // ── AJOUT DES CATÉGORIES DE MENUS PAR DÉFAUT ──
         var menuSet = context.Set<Menu>();
         if (!await menuSet.IgnoreQueryFilters().AnyAsync())
         {
             await menuSet.AddRangeAsync(
-                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Boissons" },
-                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Entrées" },
-                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Plats Principaux" },
-                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Desserts" }
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Boissons", PrinterProfileId = barPrinter?.Id },
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Entrées", PrinterProfileId = froidPrinter?.Id },
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Plats Principaux", PrinterProfileId = chaudPrinter?.Id },
+                new Menu { RestaurantId = restaurant.Id, CompanyId = company.Id, Name = "Desserts", PrinterProfileId = froidPrinter?.Id }
             );
             await context.SaveChangesAsync();
         }

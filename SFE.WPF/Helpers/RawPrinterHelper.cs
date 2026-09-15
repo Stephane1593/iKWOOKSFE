@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Net.Sockets;
 
 namespace SFE.WPF.Helpers;
 
@@ -84,5 +85,26 @@ public static class RawPrinterHelper
             finally { EndDocPrinter(hPrinter); }         // ✅ always
         }
         finally { ClosePrinter(hPrinter); }              // ✅ always
+    }
+
+
+    /// <summary>
+    /// Sends raw ESC/POS bytes directly to a network printer via TCP/IP.
+    /// Default ESC/POS port is 9100.
+    /// </summary>
+    public static async Task SendBytesToNetworkPrinterAsync(string ipAddress, int port, byte[] data)
+    {
+        using var client = new TcpClient();
+
+        // 2-second timeout to prevent locking up the POS if printer is off
+        var connectTask = client.ConnectAsync(ipAddress, port);
+        if (await Task.WhenAny(connectTask, Task.Delay(2000)) != connectTask)
+        {
+            throw new TimeoutException($"Impossible de se connecter à l'imprimante {ipAddress}:{port}. Vérifiez qu'elle est allumée.");
+        }
+
+        using var stream = client.GetStream();
+        await stream.WriteAsync(data, 0, data.Length);
+        await stream.FlushAsync();
     }
 }

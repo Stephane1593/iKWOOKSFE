@@ -6,15 +6,10 @@
              Background="{StaticResource BackgroundBrush}">
 
     <UserControl.Resources>
-        <!-- ══════════ TABLE CARD BUTTON STYLE ══════════ -->
         <Style x:Key="TableCardBtn" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Margin" Value="8"/>
-            <Setter Property="Width" Value="160"/>
-            <Setter Property="Height" Value="140"/>
+            <Setter Property="Margin" Value="10"/>
             <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="RenderTransform">
                 <Setter.Value>
@@ -24,26 +19,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="16" 
-                                Background="{TemplateBinding Background}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                Padding="16">
-                            <Border.Effect>
-                                <DropShadowEffect ShadowDepth="2" BlurRadius="12" Opacity="0.06" Color="#0D2B3E"/>
-                            </Border.Effect>
-                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <!-- On remplace l'effet entier au lieu de cibler son nom -->
-                                <Setter TargetName="Bd" Property="Effect">
-                                    <Setter.Value>
-                                        <DropShadowEffect ShadowDepth="2" BlurRadius="16" Opacity="0.15" Color="#0D2B3E"/>
-                                    </Setter.Value>
-                                </Setter>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
+                        <ContentPresenter/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -51,7 +27,7 @@
                 <Trigger Property="IsPressed" Value="True">
                     <Setter Property="RenderTransform">
                         <Setter.Value>
-                            <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
+                            <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
                         </Setter.Value>
                     </Setter>
                 </Trigger>
@@ -59,159 +35,226 @@
         </Style>
     </UserControl.Resources>
 
-    <DockPanel Margin="28,24,28,24">
+    <!-- 🚨 ENVELOPPE GLOBALE POUR GÉRER L'OVERLAY DU POPUP -->
+    <Grid>
 
-        <!-- ── HEADER CARD ── -->
-        <Border DockPanel.Dock="Top" Margin="0,0,0,24"
-                Background="{StaticResource CardBrush}"
-                CornerRadius="14" Padding="24,18">
-            <Border.Effect>
-                <DropShadowEffect ShadowDepth="2" BlurRadius="14" Opacity="0.06" Color="#0D2B3E"/>
-            </Border.Effect>
+        <!-- CONTENU PRINCIPAL DE LA PAGE -->
+        <DockPanel Margin="28,24,28,24">
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <!-- ── HEADER CARD ── -->
+            <Border DockPanel.Dock="Top" Margin="0,0,0,24"
+                    Background="{StaticResource CardBrush}"
+                    CornerRadius="14" Padding="24,18">
+                <Border.Effect>
+                    <DropShadowEffect ShadowDepth="2" BlurRadius="14" Opacity="0.06" Color="#0D2B3E"/>
+                </Border.Effect>
 
-                <!-- Titre de la page -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border CornerRadius="10" Padding="10" Margin="0,0,16,0" VerticalAlignment="Center">
-                        <Border.Background>
-                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
-                        </Border.Background>
-                        <materialDesign:PackIcon Kind="TableFurniture" Width="24" Height="24" Foreground="{StaticResource PrimaryBrush}"/>
-                    </Border>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Plan de Salle" Style="{StaticResource PageTitleStyle}" Margin="0,0,0,2"/>
-                        <TextBlock Text="Gérez l'occupation des tables et les commandes en cours" 
-                                   Style="{StaticResource PageSubtitleStyle}" Margin="0"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border CornerRadius="10" Padding="10" Margin="0,0,16,0" VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                            </Border.Background>
+                            <materialDesign:PackIcon Kind="TableFurniture" Width="24" Height="24" Foreground="{StaticResource PrimaryBrush}"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Plan de Salle" Style="{StaticResource PageTitleStyle}" Margin="0,0,0,2"/>
+                            <TextBlock Text="Gérez l'occupation des tables et les commandes en cours" 
+                                       Style="{StaticResource PageSubtitleStyle}" Margin="0"/>
+                        </StackPanel>
                     </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessBrush}" Margin="0,0,6,0"/>
+                            <TextBlock Text="Libre" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                            <Ellipse Width="12" Height="12" Fill="{StaticResource ErrorBrush}" Margin="0,0,6,0"/>
+                            <TextBlock Text="Occupée" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0"/>
+                            <TextBlock Text="Nettoyage" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ── STATUS MESSAGES ── -->
+            <Border DockPanel.Dock="Top" Margin="0,0,0,16" CornerRadius="10" Padding="14,10"
+                    Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
+                    BorderThickness="1">
+                <Border.Background>
+                    <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.06"/>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.2"/>
+                </Border.BorderBrush>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="CheckCircleOutline" Width="18" Height="18"
+                                             Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                               FontFamily="{StaticResource AppFont}" FontSize="13" VerticalAlignment="Center"/>
                 </StackPanel>
+            </Border>
 
-                <!-- Légende des couleurs -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                        <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessBrush}" Margin="0,0,6,0"/>
-                        <TextBlock Text="Libre" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                        <Ellipse Width="12" Height="12" Fill="{StaticResource ErrorBrush}" Margin="0,0,6,0"/>
-                        <TextBlock Text="Occupée" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0"/>
-                        <TextBlock Text="Nettoyage" FontFamily="{StaticResource AppFont}" Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
+            <Border DockPanel.Dock="Top" Margin="0,0,0,16" CornerRadius="10" Padding="14,10"
+                    Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
+                    BorderThickness="1">
+                <Border.Background>
+                    <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.06"/>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.2"/>
+                </Border.BorderBrush>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18"
+                                             Foreground="{StaticResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
+                               FontFamily="{StaticResource AppFont}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </StackPanel>
-            </Grid>
-        </Border>
+            </Border>
 
-        <!-- ── STATUS MESSAGES ── -->
-        <Border DockPanel.Dock="Top" Margin="0,0,0,16" CornerRadius="10" Padding="14,10"
-                Visibility="{Binding ShowSuccess, Converter={StaticResource BoolToVisibilityConverter}}"
-                BorderThickness="1">
-            <Border.Background>
-                <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.06"/>
-            </Border.Background>
-            <Border.BorderBrush>
-                <SolidColorBrush Color="{StaticResource SuccessColor}" Opacity="0.2"/>
-            </Border.BorderBrush>
-            <StackPanel Orientation="Horizontal">
-                <materialDesign:PackIcon Kind="CheckCircleOutline" Width="18" Height="18"
-                                         Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
-                           FontFamily="{StaticResource AppFont}" FontSize="13" VerticalAlignment="Center"/>
-            </StackPanel>
-        </Border>
+            <!-- ── MAIN FLOOR PLAN (TABLES) ── -->
+            <ScrollViewer Style="{StaticResource FadeScrollViewerStyle}">
+                <ItemsControl ItemsSource="{Binding Tables}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-        <Border DockPanel.Dock="Top" Margin="0,0,0,16" CornerRadius="10" Padding="14,10"
-                Visibility="{Binding ShowError, Converter={StaticResource BoolToVisibilityConverter}}"
-                BorderThickness="1">
-            <Border.Background>
-                <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.06"/>
-            </Border.Background>
-            <Border.BorderBrush>
-                <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.2"/>
-            </Border.BorderBrush>
-            <StackPanel Orientation="Horizontal">
-                <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18"
-                                         Foreground="{StaticResource ErrorBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
-                           FontFamily="{StaticResource AppFont}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
-            </StackPanel>
-        </Border>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource TableCardBtn}"
+                                    Command="{Binding DataContext.TableTappedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
 
-        <!-- ── MAIN FLOOR PLAN (TABLES) ── -->
-        <ScrollViewer Style="{StaticResource FadeScrollViewerStyle}">
-            <ItemsControl ItemsSource="{Binding Tables}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <!-- Utilisation de WrapPanel pour que les tables s'affichent sous forme de grille fluide -->
-                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
+                                <Border x:Name="CardBorder" Width="220" MinHeight="170" CornerRadius="16" 
+                                        Background="{StaticResource CardBrush}" Padding="16" 
+                                        BorderThickness="1" BorderBrush="#E2E8F0">
+                                    <Border.Effect>
+                                        <DropShadowEffect x:Name="CardShadow" ShadowDepth="2" BlurRadius="12" Opacity="0.06" Color="#0D2B3E"/>
+                                    </Border.Effect>
 
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Style="{StaticResource TableCardBtn}"
-                                Command="{Binding DataContext.TableTappedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                CommandParameter="{Binding}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
 
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                                        <Grid Grid.Row="0">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="{StaticResource SuccessBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="StatusText" Text="Libre" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <materialDesign:PackIcon Kind="AccountGroupOutline" Width="15" Height="15" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,4,0"/>
+                                                <TextBlock Text="{Binding Entity.Seats}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                        </Grid>
 
-                                <!-- Icône de statut dynamique -->
-                                <materialDesign:PackIcon x:Name="StatusIcon" Kind="CheckCircle" 
-                                                         Width="20" Height="20" HorizontalAlignment="Right"/>
+                                        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,10">
+                                            <TextBlock Text="TABLE" FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" Margin="0,0,0,-4"/>
+                                            <TextBlock Text="{Binding Entity.Number}" FontFamily="{StaticResource AppFont}" FontSize="46" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
 
-                                <!-- Numéro de la Table -->
-                                <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="TABLE" FontFamily="{StaticResource AppFont}" FontSize="12" 
-                                               FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Number}" FontFamily="{StaticResource AppFont}" FontSize="36" 
-                                               FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,-4,0,0"/>
-                                </StackPanel>
+                                        <Border x:Name="OrderInfoPanel" Grid.Row="2" Background="#FFFFFF" CornerRadius="10" Padding="12,10" Visibility="Collapsed" Margin="0,4,0,0">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
 
-                                <!-- Couverts / Infos -->
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <materialDesign:PackIcon Kind="AccountGroupOutline" Width="14" Height="14" 
-                                                             Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                    <TextBlock Text="{Binding Seats}" FontFamily="{StaticResource AppFont}" FontSize="13" 
-                                               FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
+                                                <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,6">
+                                                    <materialDesign:PackIcon Kind="AccountTieOutline" Width="14" Height="14" Foreground="#64748B" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding WaiterName}" FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center"/>
+                                                </StackPanel>
 
-                        <DataTemplate.Triggers>
-                            <!-- SI TABLE LIBRE -->
-                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Free}">
-                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{StaticResource SuccessBrush}"/>
-                                <Setter TargetName="StatusIcon" Property="Kind" Value="CheckCircle"/>
-                            </DataTrigger>
+                                                <Grid Grid.Row="1">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                        <materialDesign:PackIcon Kind="ClockOutline" Width="13" Height="13" Foreground="#94A3B8" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding OrderTime, StringFormat='{}{0:HH:mm}'}" FontSize="12" FontWeight="Medium" Foreground="#64748B" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding OrderTotal, StringFormat='{}{0:N0} CDF'}" FontSize="13" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Button>
 
-                            <!-- SI TABLE OCCUPÉE -->
-                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Occupied}">
-                                <Setter TargetName="StatusIcon" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
-                                <Setter TargetName="StatusIcon" Property="Kind" Value="ClockOutline"/>
-                            </DataTrigger>
+                            <DataTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CardBorder" Property="Effect">
+                                        <Setter.Value>
+                                            <DropShadowEffect ShadowDepth="3" BlurRadius="18" Opacity="0.12" Color="#0D2B3E"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
 
-                            <!-- SI TABLE EN NETTOYAGE -->
-                            <DataTrigger Binding="{Binding Status}" Value="{x:Static domain:TableStatus.Cleaning}">
-                                <Setter TargetName="StatusIcon" Property="Foreground" Value="#F59E0B"/>
-                                <!-- Orange -->
-                                <Setter TargetName="StatusIcon" Property="Kind" Value="SprayBottle"/>
-                            </DataTrigger>
-                        </DataTemplate.Triggers>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-    </DockPanel>
+                                <DataTrigger Binding="{Binding Entity.Status}" Value="{x:Static domain:TableStatus.Occupied}">
+                                    <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource ErrorBrush}"/>
+                                    <Setter TargetName="StatusText" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                    <Setter TargetName="StatusText" Property="Text" Value="Occupée"/>
+
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#FEF2F2"/>
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#FECACA"/>
+                                    <Setter TargetName="OrderInfoPanel" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+
+                                <DataTrigger Binding="{Binding Entity.Status}" Value="{x:Static domain:TableStatus.Cleaning}">
+                                    <Setter TargetName="StatusDot" Property="Fill" Value="#F59E0B"/>
+                                    <Setter TargetName="StatusText" Property="Foreground" Value="#F59E0B"/>
+                                    <Setter TargetName="StatusText" Property="Text" Value="Nettoyage"/>
+
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#FEF3C7"/>
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#FDE68A"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!-- 🚨 POPUP NOM DU SERVEUR OVERLAY -->
+        <Grid Visibility="{Binding ShowWaiterPrompt, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="#A0000000" />
+            <Border Width="380" VerticalAlignment="Center" HorizontalAlignment="Center" 
+                    Background="#FFFFFF" CornerRadius="16" Padding="32">
+                <Border.Effect>
+                    <DropShadowEffect ShadowDepth="8" BlurRadius="24" Opacity="0.25" Color="#000000"/>
+                </Border.Effect>
+                <StackPanel>
+                    <TextBlock Text="Nouvelle Table" FontFamily="{StaticResource AppFont}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,8"/>
+                    <TextBlock Text="Qui est en charge de cette table ?" FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="#64748B" Margin="0,0,0,24"/>
+
+                    <TextBlock Text="NOM DU SERVEUR" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="4,0,0,4" />
+                    <TextBox Text="{Binding NewWaiterName, UpdateSourceTrigger=PropertyChanged}" 
+                             MinHeight="46" Padding="14,0" FontSize="15" Style="{StaticResource ModernTextBoxStyle}" />
+
+                    <Grid Margin="0,28,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="Annuler" Command="{Binding CancelWaiterPromptCommand}" 
+                                Background="#F1F5F9" Foreground="#475569" BorderThickness="0" MinHeight="44" Margin="0,0,6,0" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontWeight="SemiBold"/>
+                        <Button Grid.Column="1" Content="Ouvrir la table" Command="{Binding ConfirmWaiterCommand}" 
+                                Background="{StaticResource PrimaryBrush}" Foreground="White" BorderThickness="0" MinHeight="44" Margin="6,0,0,0" Cursor="Hand" FontFamily="{StaticResource AppFont}" FontWeight="Bold"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+    </Grid>
 </UserControl>

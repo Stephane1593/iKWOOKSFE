@@ -131,6 +131,7 @@ public partial class PosViewModel : BaseViewModel,
     [ObservableProperty] private PriceMode _priceMode = PriceMode.TTC;
     [ObservableProperty] private InvoiceType _invoiceType = InvoiceType.FV;
     [ObservableProperty] private string _operatorName = "Opérateur";
+    [ObservableProperty] private string _waiterName = "";
     [ObservableProperty] private string _isf = "";
     [ObservableProperty] private string _currentTime = "";
     [ObservableProperty] private string _currentDate = "";
@@ -261,6 +262,11 @@ public partial class PosViewModel : BaseViewModel,
     public ObservableCollection<MenuItem> RestaurantMenuItems { get; } = new();
     [ObservableProperty] private Menu? _selectedRestaurantMenu;
 
+    // ══════ MODE RESTAURANT & LIVRAISON ══════
+    [ObservableProperty] private DiningOption _selectedDiningOption = DiningOption.DineIn;
+    [ObservableProperty] private string _deliveryAddress = "";
+
+
     // ══════════════════════════════════════════════════════════
     //  CONSTRUCTEUR — 🆕 ITimeProvider injected
     // ══════════════════════════════════════════════════════════
@@ -327,6 +333,12 @@ public partial class PosViewModel : BaseViewModel,
 
         CurrentTableId = message.Value.TableId;
 
+        //NOUVEAU: Récupère le nom du serveur saisi sur le plan de salle
+        if (!string.IsNullOrWhiteSpace(message.Value.WaiterName))
+        {
+            WaiterName = message.Value.WaiterName;
+        }
+
         // 2. Configuration du mode (Restaurant ou Comptoir)
         if (CurrentTableId.HasValue)
         {
@@ -366,6 +378,7 @@ public partial class PosViewModel : BaseViewModel,
 
             if (order == null) return;
 
+            WaiterName = order.WaiterName ?? "";
             var itemRepo = _unitOfWork.GetRepository<OrderItem>();
             var items = await itemRepo.FindAsync(i => i.OrderId == order.Id);
             order.Items = items.ToList(); // On attache les articles trouvés à la commande
@@ -381,6 +394,7 @@ public partial class PosViewModel : BaseViewModel,
 
                 var cartItem = new CartItemViewModel
                 {
+                    MenuItemId = orderItem.MenuItemId,
                     ProductId = product.Id,
                     Code = product.Code,
                     Name = orderItem.Name,
@@ -493,12 +507,21 @@ public partial class PosViewModel : BaseViewModel,
         orderToSave.UpdatedAtUtc = _time.UtcNow;
         orderToSave.OperatorId = _auth.CurrentUser?.Id.ToString() ?? "01";
         orderToSave.Status = OrderStatus.InKitchen;
+        // NOUVEAU: Enregistre le serveur (par défaut l'opérateur s'il est vide)
+        orderToSave.WaiterName = string.IsNullOrWhiteSpace(WaiterName) ? OperatorName : WaiterName;
+
         orderToSave.TotalHT = TotalHT;
         orderToSave.TotalTVA = TotalTVA;
         orderToSave.TotalTTC = TotalTTC;
 
+        // NEW: Save Dining Option to the active Kitchen Order
+        orderToSave.DiningOption = SelectedDiningOption;
+        orderToSave.DeliveryAddress = SelectedDiningOption == DiningOption.Delivery ? DeliveryAddress : null;
+
+        // 🚨 FIX: Cast the entire calculation to (int) by wrapping it in parentheses
         var itemsToPrintForKitchen = CartItems
-            .Where(item => ((int)item.Quantity - item.SentQuantity) > 0)
+            .Where(item => (item.Quantity - item.SentQuantity) > 0)
+            .Select(item => (Item: item, QtyToPrint: (int)(item.Quantity - item.SentQuantity)))
             .ToList();
 
         var existingItems = isNewOrder
@@ -526,6 +549,7 @@ public partial class PosViewModel : BaseViewModel,
                 existing.Quantity = (int)item.Quantity;
                 existing.LineTotal = item.AmountTTC;
                 existing.SentQuantity = (int)item.Quantity;
+                existing.Notes = item.Notes;
             }
             else
             {
@@ -533,11 +557,13 @@ public partial class PosViewModel : BaseViewModel,
                 {
                     Order = orderToSave, // Use navigation property instead of ID for new, unsaved orders
                     ProductId = item.ProductId,
+                    MenuItemId = item.MenuItemId,
                     Name = item.Name,
                     UnitPrice = item.UnitPriceTTC,
                     Quantity = (int)item.Quantity,
                     SentQuantity = (int)item.Quantity,
-                    LineTotal = item.AmountTTC
+                    LineTotal = item.AmountTTC,
+                    Notes = item.Notes
                 });
             }
 
@@ -554,16 +580,129 @@ public partial class PosViewModel : BaseViewModel,
         // 🖨️ IMPRESSION EN CUISINE / BAR
         if (itemsToPrintForKitchen.Any())
         {
-            _ = Task.Run(() =>
+            // Do not await this directly here so it doesn't freeze the UI while printing
+            _ = DispatchKitchenPrintsAsync(itemsToPrintForKitchen, tableId);
+        }
+    }
+
+    // 🚨 FIX: Accept the pre-calculated Tuples
+    private async Task DispatchKitchenPrintsAsync(List<(CartItemViewModel Item, int QtyToPrint)> itemsToPrint, int? tableId)
+    {
+        if (!itemsToPrint.Any()) return;
+
+        var menuRepo = _unitOfWork.GetRepository<Menu>();
+        var menuItemRepo = _unitOfWork.GetRepository<MenuItem>();
+        var printerRepo = _unitOfWork.GetRepository<PrinterProfile>();
+
+        var printJobs = new Dictionary<PrinterProfile, List<OrderItem>>();
+
+        foreach (var pair in itemsToPrint)
+        {
+            var cartItem = pair.Item;
+            var qtyToPrint = pair.QtyToPrint; // Use the safely captured quantity!
+
+            PrinterProfile? targetPrinter = null;
+
+            if (cartItem.MenuItemId.HasValue)
+            {
+                var menuItem = await menuItemRepo.GetByIdAsync(cartItem.MenuItemId.Value);
+                if (menuItem != null)
+                {
+                    if (menuItem.PrinterProfileId.HasValue)
+                    {
+                        targetPrinter = await printerRepo.GetByIdAsync(menuItem.PrinterProfileId.Value);
+                    }
+                    else
+                    {
+                        var menu = await menuRepo.GetByIdAsync(menuItem.MenuId);
+                        if (menu != null && menu.PrinterProfileId.HasValue)
+                        {
+                            targetPrinter = await printerRepo.GetByIdAsync(menu.PrinterProfileId.Value);
+                        }
+                    }
+                }
+            }
+
+            if (targetPrinter != null)
+            {
+                if (!printJobs.ContainsKey(targetPrinter))
+                    printJobs[targetPrinter] = new List<OrderItem>();
+
+                printJobs[targetPrinter].Add(new OrderItem
+                {
+                    Name = cartItem.Name,
+                    SentQuantity = qtyToPrint, // 🚨 FIX: Inject the captured quantity here
+                    Notes = cartItem.Notes
+                });
+            }
+        }
+
+        string tableLabel = tableId.HasValue ? $"Table n° {tableId.Value}" : "Vente Comptoir";
+        var printTasks = new List<Task>();
+
+        foreach (var job in printJobs)
+        {
+            var printer = job.Key;
+            var items = job.Value;
+
+            if (!items.Any()) continue;
+
+            byte[] ticketBytes = EscPosReceiptBuilder.BuildKitchenTicket(
+                tableLabel, SelectedDiningOption, items, _time, 80);
+
+            printTasks.Add(Task.Run(async () =>
             {
                 try
                 {
-                    // Send `itemsToPrintForKitchen` to kitchen printer
+                    if (printer.Kind == "escpos-tcp")
+                    {
+                        string ip = printer.ConnectionString.Replace("tcp://", "").Split(':')[0];
+                        int port = printer.Port > 0 ? printer.Port : 9100;
+                        await RawPrinterHelper.SendBytesToNetworkPrinterAsync(ip, port, ticketBytes);
+                    }
+                    else if (printer.Kind == "windows-printer")
+                    {
+                        RawPrinterHelper.SendBytesToPrinter(printer.ConnectionString, ticketBytes, $"KOT {tableLabel}");
+                    }
                 }
-                catch { }
-            });
+                catch (Exception ex)
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        StatusMessage += $" ⚠️ Erreur impression ({printer.Name}): {ex.Message}";
+                        ShowError = true;
+                    });
+                }
+            }));
         }
+
+        await Task.WhenAll(printTasks);
     }
+
+    private async Task CancelTableOrderInternalAsync(int tableId)
+    {
+        var tableService = App.ServiceProvider.GetRequiredService<ITableService>();
+        var orderRepo = _unitOfWork.GetRepository<Order>();
+        var activeOrder = await tableService.GetActiveOrderAsync(tableId);
+
+        if (activeOrder != null)
+        {
+            var trackedOrder = (await orderRepo.FindAsync(o => o.Id == activeOrder.Id)).FirstOrDefault();
+            if (trackedOrder != null)
+            {
+                await orderRepo.DeleteAsync(trackedOrder);
+                await _unitOfWork.SaveChangesAsync();
+            }
+        }
+        await tableService.ChangeStatusAsync(tableId, TableStatus.Free);
+
+        CurrentTableId = null;
+        TableLabel = "Vente Comptoir";
+        IsRestaurantMode = false;
+        WaiterName = "";
+        WeakReferenceMessenger.Default.Send(new ReloadTablesMessage());
+    }
+
     // ══════ CHARGEMENT DES MENUS (MODE RESTAURANT) ══════
     private async Task LoadRestaurantMenusAsync()
     {
@@ -638,7 +777,7 @@ public partial class PosViewModel : BaseViewModel,
             }
 
             // 4. Ajout au panier 
-            await AddToCart(product);
+            await AddToCartInternal(product, menuItem.Id);
 
             // 5. Restauration de l'entité originale pour ne pas altérer le cache
             product.Name = originalName;
@@ -989,9 +1128,14 @@ public partial class PosViewModel : BaseViewModel,
     // ══════════════════════════════════════════════════════════
     //  PANIER
     // ══════════════════════════════════════════════════════════
-
     [RelayCommand]
     private async Task AddToCart(Product? product)
+    {
+        await AddToCartInternal(product, null);
+    }
+
+
+    private async Task AddToCartInternal(Product? product, int? menuItemId)
     {
         if (product == null || IsNormalized) return;
         ClearStatus();
@@ -1025,7 +1169,6 @@ public partial class PosViewModel : BaseViewModel,
                 }
             }
 
-
             existing.Quantity = newQty;
             existing.Recalculate(PriceMode, _discountBeforeTax);
 
@@ -1033,7 +1176,7 @@ public partial class PosViewModel : BaseViewModel,
             {
                 existing.Quantity -= 1;
                 existing.Recalculate(PriceMode, _discountBeforeTax);
-                StatusMessage = "Montant TTC résultant invalide (≤ 0).";
+                StatusMessage = "Montant TTC résultant invalide (= 0).";
                 ShowError = true;
                 return;
             }
@@ -1054,6 +1197,7 @@ public partial class PosViewModel : BaseViewModel,
 
             var item = new CartItemViewModel
             {
+                MenuItemId = menuItemId, // 🚨 NOUVEAU : Sauvegarde la liaison au menu
                 ProductId = product.Id,
                 Code = product.Code,
                 Name = product.Name,
@@ -1079,7 +1223,7 @@ public partial class PosViewModel : BaseViewModel,
 
             if (item.AmountTTC <= 0m)
             {
-                StatusMessage = $"« {product.Name} » : montant TTC résultant ≤ 0 (spec DGI art. 20-21).";
+                StatusMessage = $"« {product.Name} » : montant TTC résultant = 0 (spec DGI art. 20-21).";
                 ShowError = true;
                 return;
             }
@@ -1144,7 +1288,22 @@ public partial class PosViewModel : BaseViewModel,
             item.Quantity -= 1;
             item.Recalculate(PriceMode, _discountBeforeTax);
         }
+
+        // 🚨 1. RECALCULER LES TOTAUX EN PREMIER
         RecalculateTotals();
+
+        // 🚨 2. AUTO-SAVE EN CAS DE MODIFICATION SUR UNE TABLE
+        if (CurrentTableId.HasValue)
+        {
+            if (CartItems.Count == 0)
+            {
+                _ = CancelTableOrderInternalAsync(CurrentTableId.Value);
+            }
+            else
+            {
+                _ = SaveTableOrderInternalAsync(CurrentTableId.Value);
+            }
+        }
     }
 
     [RelayCommand]
@@ -1164,7 +1323,22 @@ public partial class PosViewModel : BaseViewModel,
         CartItems.Remove(item);
         if (SelectedCartItem == item) SelectedCartItem = null;
         ShowDiscountPanel = false;
+
+        // 🚨 1. RECALCULER LES TOTAUX EN PREMIER (Met à jour la variable TotalTTC)
         RecalculateTotals();
+
+        // 🚨 2. AUTO-SAVE: Sauvegarde le nouveau total dans la BDD
+        if (CurrentTableId.HasValue)
+        {
+            if (CartItems.Count == 0)
+            {
+                _ = CancelTableOrderInternalAsync(CurrentTableId.Value);
+            }
+            else
+            {
+                _ = SaveTableOrderInternalAsync(CurrentTableId.Value);
+            }
+        }
     }
 
     [RelayCommand]
@@ -1184,6 +1358,13 @@ public partial class PosViewModel : BaseViewModel,
 
         ClearCartInternal();
         ClearStatus();
+
+        // 🚨 FIX: La suppression en base de données doit se faire UNIQUEMENT quand 
+        // l'utilisateur clique explicitement sur le bouton pour vider le panier.
+        if (CurrentTableId.HasValue)
+        {
+            _ = CancelTableOrderInternalAsync(CurrentTableId.Value);
+        }
     }
 
     private void ClearCartInternal()
@@ -1192,7 +1373,12 @@ public partial class PosViewModel : BaseViewModel,
         SelectedCartItem = null;
         ShowDiscountPanel = false;
         CurrentStep = CheckoutStep.Review;
+
+        // 🚨 1. RECALCULER LES TOTAUX
         RecalculateTotals();
+
+        // ❌ FIX: Nous avons retiré l'auto-save d'ici. 
+        // Cette méthode sert juste à nettoyer l'écran visuellement (UI).
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1925,9 +2111,14 @@ public partial class PosViewModel : BaseViewModel,
                     var activeOrder = await tableService.GetActiveOrderAsync(CurrentTableId.Value);
                     if (activeOrder != null)
                     {
-                        activeOrder.Status = OrderStatus.Paid;
-                        await orderRepo.UpdateAsync(activeOrder);
-                        await _unitOfWork.SaveChangesAsync();
+                        // 🚨 FIX: Find the already tracked instance in memory to avoid the duplicate tracking crash
+                        var trackedOrder = (await orderRepo.FindAsync(o => o.Id == activeOrder.Id)).FirstOrDefault();
+                        if (trackedOrder != null)
+                        {
+                            trackedOrder.Status = OrderStatus.Paid;
+                            // Do NOT call UpdateAsync() here. Changing the property on a tracked entity is enough.
+                            await _unitOfWork.SaveChangesAsync();
+                        }
                     }
                 }
                 CurrentTableId = null;
@@ -2156,6 +2347,8 @@ public partial class PosViewModel : BaseViewModel,
         GrandTotal = 0; GrandTotalLabel = PriceMode == PriceMode.TTC ? "TOTAL TTC" : "TOTAL HT";
         TaxGroupSummaries.Clear(); TotalInAlternateCurrency = 0;
         CurrentTableId = null;TableLabel = "Vente Comptoir"; IsRestaurantMode = false;
+        SelectedDiningOption = DiningOption.DineIn;
+        DeliveryAddress = ""; 
         RecalculateTotals(); ClearStatus(); CloseAllOverlays();
         InvoiceType = InvoiceType.FV; await GenerateNewNumber();
         ShowFavoritesOnly = true; SelectedCategory = null;
@@ -2212,7 +2405,11 @@ public partial class PosViewModel : BaseViewModel,
             CurrencyRate = ExchangeRate,
             TotalHTBeforeDiscount = TotalHTBeforeDiscount,
             TotalDiscount = TotalDiscount,
-            PointOfSaleId = SelectedPointOfSale?.Id ?? 1
+            PointOfSaleId = SelectedPointOfSale?.Id ?? 1,
+
+            // Save Dining Option to the final invoice
+            DiningOption = SelectedDiningOption,
+            DeliveryAddress = SelectedDiningOption == DiningOption.Delivery ? DeliveryAddress : null
         };
 
         if (IsCreditNote)
@@ -2248,6 +2445,7 @@ public partial class PosViewModel : BaseViewModel,
                 UnitPriceTTC = item.UnitPriceTTC,
                 Quantity = item.Quantity,
                 Unit = item.Unit,
+                Notes = item.Notes,
                 DiscountType = item.DiscountType,
                 DiscountValue = item.DiscountValue,
                 DiscountAmount = item.DiscountAmount,

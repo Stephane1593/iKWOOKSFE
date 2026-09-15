@@ -89,6 +89,21 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     private readonly FiscalDeviceResolver? _resolver;
     private readonly ILicenseGuard _license;
 
+    // ----------------------------------------------------------------
+    //  KITCHEN / BAR PRINTERS (PrinterProfile)
+    // ----------------------------------------------------------------
+    public ObservableCollection<PrinterProfile> KitchenPrinters { get; } = new();
+
+    [ObservableProperty] private bool _isEditingKitchenPrinter;
+    [ObservableProperty] private string _kitchenPrinterFormTitle = "";
+    private int _editKitchenPrinterId;
+
+    [ObservableProperty] private string _editKitchenPrinterName = "";
+    [ObservableProperty] private string _editKitchenPrinterKind = "windows-printer";
+    [ObservableProperty] private string _editKitchenPrinterConnection = "";
+    [ObservableProperty] private int _editKitchenPrinterPort = 9100;
+
+    public string[] PrinterKinds { get; } = { "windows-printer", "escpos-tcp" };
     public PointOfSaleManagementViewModel(
         PointOfSaleService posService,
         IUnitOfWork unitOfWork,
@@ -311,6 +326,14 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         var posList = await _posService.GetAllAsync(CompanyId);
         AllPos = new ObservableCollection<PointOfSale>(posList);
+
+        // Load Kitchen Printers
+        var printers = await _unitOfWork.GetRepository<PrinterProfile>().GetAllAsync();
+        KitchenPrinters.Clear();
+        foreach (var p in printers)
+        {
+            KitchenPrinters.Add(p);
+        }
 
         RecomputeCanAddNewPos();
     }
@@ -1082,6 +1105,118 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
             IsBusy = false;
             lease?.Dispose();
+        }
+    }
+
+    [RelayCommand]
+    private void NewKitchenPrinter()
+    {
+        _editKitchenPrinterId = 0;
+        EditKitchenPrinterName = "";
+        EditKitchenPrinterKind = "windows-printer";
+        EditKitchenPrinterConnection = "";
+        EditKitchenPrinterPort = 9100;
+
+        KitchenPrinterFormTitle = "Nouvelle Imprimante Cuisine/Bar";
+        IsEditingKitchenPrinter = true;
+        ClearStatus(); // Assuming you have a ClearStatus or you can just set EditTestSuccess = false
+    }
+
+    [RelayCommand]
+    private void EditKitchenPrinter(PrinterProfile? printer)
+    {
+        if (printer == null) return;
+
+        _editKitchenPrinterId = printer.Id;
+        EditKitchenPrinterName = printer.Name;
+        EditKitchenPrinterKind = printer.Kind;
+        EditKitchenPrinterConnection = printer.ConnectionString;
+        EditKitchenPrinterPort = printer.Port > 0 ? printer.Port : 9100;
+
+        KitchenPrinterFormTitle = $"Modifier — {printer.Name}";
+        IsEditingKitchenPrinter = true;
+    }
+
+    [RelayCommand]
+    private void CancelKitchenPrinterEdit() => IsEditingKitchenPrinter = false;
+
+    [RelayCommand]
+    private async Task SaveKitchenPrinterAsync()
+    {
+        if (string.IsNullOrWhiteSpace(EditKitchenPrinterName) || string.IsNullOrWhiteSpace(EditKitchenPrinterConnection))
+        {
+            ShowErrorMessage("Le nom et la connexion (IP ou Nom Windows) sont obligatoires.");
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            var repo = _unitOfWork.GetRepository<PrinterProfile>();
+
+            if (_editKitchenPrinterId == 0)
+            {
+                await repo.AddAsync(new PrinterProfile
+                {
+                    CompanyId = CompanyId,
+                    Name = EditKitchenPrinterName.Trim(),
+                    Kind = EditKitchenPrinterKind,
+                    ConnectionString = EditKitchenPrinterConnection.Trim(),
+                    Port = EditKitchenPrinterPort
+                });
+            }
+            else
+            {
+                var existing = (await repo.FindAsync(p => p.Id == _editKitchenPrinterId)).FirstOrDefault();
+                if (existing != null)
+                {
+                    existing.Name = EditKitchenPrinterName.Trim();
+                    existing.Kind = EditKitchenPrinterKind;
+                    existing.ConnectionString = EditKitchenPrinterConnection.Trim();
+                    existing.Port = EditKitchenPrinterPort;
+                    await repo.UpdateAsync(existing);
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            IsEditingKitchenPrinter = false;
+            await LoadAsync(); // Reloads the lists
+            _ = ShowSuccessAsync("✓ Imprimante enregistrée avec succès.");
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Erreur : {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteKitchenPrinterAsync(PrinterProfile? printer)
+    {
+        if (printer == null) return;
+        try
+        {
+            IsBusy = true;
+            var repo = _unitOfWork.GetRepository<PrinterProfile>();
+            var existing = (await repo.FindAsync(p => p.Id == printer.Id)).FirstOrDefault();
+            if (existing != null)
+            {
+                await repo.DeleteAsync(existing);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            await LoadAsync();
+            _ = ShowSuccessAsync("✓ Imprimante supprimée.");
+        }
+        catch (Exception ex)
+        {
+            ShowErrorMessage($"Impossible de supprimer : {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 }

@@ -10,6 +10,7 @@ public class Menu : SyncableEntity
 
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-
+    public int? PrinterProfileId { get; set; }
+    public PrinterProfile? PrinterProfile { get; set; }
     public List<MenuItem> Items { get; set; } = new();
 }
