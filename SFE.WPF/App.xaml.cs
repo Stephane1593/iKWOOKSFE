@@ -410,6 +410,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<PointOfSaleService>();
         services.AddTransient<ReportService>();
         services.AddSingleton<CustomerDisplayService>();
+        services.AddTransient<LoyaltyService>();
         services.AddTransient<UserService>();
         services.AddTransient<CategoryService>();
         services.AddScoped<IInvoiceAdvanceService, InvoiceAdvanceService>();
@@ -418,6 +419,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<ITenantProvider>(sp => sp.GetRequiredService<TenantContext>());
         services.AddSingleton<IExcelInvoiceParser, ExcelInvoiceParser>();
         services.AddSingleton<IBulkInvoiceService, BulkInvoiceService>();
+        services.AddSingleton<IExcelProductParser, ExcelProductParser>();
         services.AddSingleton<ManagerGate>();
         services.AddSingleton<IManagerAuthorizationService, ManagerAuthorizationService>();
         services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();

@@ -670,6 +670,50 @@ public class ProductService
 
         return $"{prefix}-{maxNumber + 1:D3}";
     }
+
+    public async Task<(int SuccessCount, List<string> Errors)> ImportFromExcelAsync(Stream excelStream, IExcelProductParser parser)
+    {
+        var parseResult = await parser.ParseAsync(excelStream);
+        if (parseResult.Errors.Any())
+        {
+            return (0, parseResult.Errors.Select(e => $"Ligne {e.ExcelRow}: {e.Message}").ToList());
+        }
+
+        var errors = new List<string>();
+        int successCount = 0;
+
+        // Cache categories to prevent N+1 DB calls
+        var existingCategories = await _unitOfWork.ProductCategories.GetActiveCategoriesAsync();
+        var categoryMap = existingCategories.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var product in parseResult.Products)
+        {
+            // Category resolution and dynamic creation
+            if (parseResult.ExcelCategoryNames.TryGetValue(product, out var catName))
+            {
+                if (!categoryMap.TryGetValue(catName, out var category))
+                {
+                    category = await CreateCategoryAsync(catName);
+                    categoryMap[catName] = category; // Add to cache
+                }
+                product.CategoryId = category.Id;
+            }
+
+            // Auto-Generate Code if omitted in Excel
+            if (string.IsNullOrWhiteSpace(product.Code) && product.CategoryId.HasValue)
+            {
+                product.Code = await GenerateNextCodeAsync(product.CategoryId.Value);
+            }
+
+            var result = await CreateAsync(product);
+            if (result.Success)
+                successCount++;
+            else
+                errors.Add($"Produit '{product.Name}': {result.ErrorMessage}");
+        }
+
+        return (successCount, errors);
+    }
 }
 
 

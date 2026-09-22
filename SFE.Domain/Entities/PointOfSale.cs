@@ -33,6 +33,9 @@ public class PointOfSale
     public string? McfPortName { get; set; }
     public int McfBaudRate { get; set; } = 115200;
 
+    // Config Serveur MCF (Proxy)
+    public string? ServerMcfUrl { get; set; }
+
     /// <summary>
     /// 🆕 STRICT MODE — when DeviceType = Mcf, disables the e-MCF fallback.
     /// Sales will fail outright if the MCF is unreachable. Ignored for

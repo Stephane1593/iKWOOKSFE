@@ -49,6 +49,20 @@ public class ClientService
         await _unitOfWork.Clients.AddAsync(client);
         await _unitOfWork.SaveChangesAsync();
 
+        // 🆕 Auto-Mint Loyalty Account
+        if (client.IsLoyaltyMember)
+        {
+            var account = new LoyaltyAccount
+            {
+                ClientId = client.Id,
+                CardNumber = $"LC-{_time.UtcNow.Year}-{client.Id:D5}",
+                EnrolledAt = _time.UtcNow,
+                TierLevel = LoyaltyTierLevel.Bronze
+            };
+            await _unitOfWork.LoyaltyAccounts.AddAsync(account);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
         // ── AUDIT ── (fixed argument order: description, entityType, entityId)
         var description = $"Client « {client.Name} » · Type {client.Type}"
             + (!string.IsNullOrWhiteSpace(client.NIF) ? $" · NIF {client.NIF}" : "");
@@ -95,6 +109,26 @@ public class ClientService
         }
 
         await _unitOfWork.Clients.UpdateAsync(client);
+
+        // 🆕 Handle Loyalty Toggle on Edit
+        var existingAccount = await _unitOfWork.LoyaltyAccounts.GetByClientIdAsync(client.Id);
+        if (client.IsLoyaltyMember && existingAccount == null)
+        {
+            // They just opted in
+            var account = new LoyaltyAccount
+            {
+                ClientId = client.Id,
+                CardNumber = $"LC-{_time.UtcNow.Year}-{client.Id:D5}",
+                EnrolledAt = _time.UtcNow,
+                TierLevel = LoyaltyTierLevel.Bronze
+            };
+            await _unitOfWork.LoyaltyAccounts.AddAsync(account);
+        }
+        else if (!client.IsLoyaltyMember && existingAccount != null)
+        {
+            // They opted out - Delete or deactivate the account
+            await _unitOfWork.LoyaltyAccounts.DeleteAsync(existingAccount);
+        }
         await _unitOfWork.SaveChangesAsync();
 
         // ── AUDIT ── (fixed argument order)

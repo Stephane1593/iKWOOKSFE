@@ -23,6 +23,7 @@ public static class SyncableEntityConfiguration
         b.Property(e => e.UpdatedAtUtc).IsRequired();
         b.HasIndex(e => e.UpdatedAtUtc); // delta sync
         b.HasIndex(e => e.DeletedAtUtc);
+        b.HasIndex(e => e.LastSyncedAtUtc);
 
         b.Property(e => e.Version).IsRequired().IsConcurrencyToken();
 

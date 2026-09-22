@@ -1902,6 +1902,80 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- SECTION: FIDÉLITÉ (Loyalty)                 -->
+                <!-- ═══════════════════════════════════════════ -->
+                <Border Style="{StaticResource InvCard}" 
+                        Visibility="{Binding IsLoyaltySystemEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,10,0"
+                                                     VerticalAlignment="Center" Foreground="#F59E0B"
+                                                     Kind="StarCircleOutline" />
+                            <TextBlock Style="{StaticResource InvSectionTitle}" Text="Programme de Fidélité" />
+                        </StackPanel>
+
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Scanner Input / Card Number -->
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Style="{StaticResource InvFieldLabel}" Text="Scanner la carte (ou N°)" />
+                                <TextBox Style="{StaticResource InvTextBox}"
+                                         IsEnabled="{Binding IsNormalized, Converter={StaticResource InverseBoolConverter}}"
+                                         Text="{Binding ScannedLoyaltyCard, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Placez le curseur ici et scannez la carte du client">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding ProcessLoyaltyScanCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                            </StackPanel>
+
+                            <!-- Find Button -->
+                            <Button Grid.Column="1" VerticalAlignment="Bottom" MinHeight="42"
+                                    Command="{Binding ProcessLoyaltyScanCommand}"
+                                    Style="{StaticResource InvPrimaryBtn}"
+                                    Visibility="{Binding IsNormalized, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Magnify" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Vérifier" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- Loyalty Account Details & Toggle -->
+                        <Border Margin="0,12,0,0" Padding="14,12" CornerRadius="10" Background="#FEF3C7"
+                                Visibility="{Binding HasLoyaltyAccountLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="13" FontWeight="Bold" Foreground="#D97706"
+                                               Text="{Binding LoyaltyClientName}" />
+                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="#92400E" Margin="0,4,0,0"
+                                               Text="{Binding LoyaltyBalanceDisplay}" />
+                                </StackPanel>
+
+                                <!-- Toggle to use points -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Utiliser les points" Margin="0,0,10,0" VerticalAlignment="Center" 
+                                               FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="SemiBold" Foreground="#D97706"/>
+                                    <ToggleButton IsChecked="{Binding UseLoyaltyPoints}" 
+                                                  IsEnabled="{Binding CanRedeemPoints}"
+                                                  Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                  ToolTip="Appliquer la remise fidélité sur le total" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
                 <!--  ═══════════════════════════════════════════  -->
                 <!--  COMMENTS (A-H)  -->
                 <!--  ═══════════════════════════════════════════  -->

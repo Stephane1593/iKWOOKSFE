@@ -1,4 +1,5 @@
 ﻿using SFE.Domain.Enums;
+using System;
 
 namespace SFE.Domain.Entities
 {
@@ -18,8 +19,6 @@ namespace SFE.Domain.Entities
         public PriceMode DefaultPriceMode { get; set; } = PriceMode.TTC;  // 🆕
 
         // --- Ordre de calcul ---
-        // true  = HT → Remise → HT remisé → Taxes → TTC (défaut)
-        // false = HT → Taxes → Remise → TTC
         public bool DiscountBeforeTax { get; set; } = true;
 
         // --- Informations entreprise ---
@@ -30,6 +29,12 @@ namespace SFE.Domain.Entities
         public string CompanyAddress { get; set; } = string.Empty;
         public string CompanyPhone { get; set; } = string.Empty;
         public string CompanyEmail { get; set; } = string.Empty;
+
+        // ─── PARAMÈTRES DE FIDÉLITÉ (NEW) ───
+        public bool LoyaltyEnabled { get; set; } = false;
+        public decimal LoyaltyEarnRate { get; set; } = 1000m; // ex: 1 point gagné pour 1000 CDF dépensés
+        public decimal LoyaltyRedeemRate { get; set; } = 10m; // ex: 1 point = 10 CDF de remise
+        public int LoyaltyMinRedeemPoints { get; set; } = 100; // Minimum de points requis pour les utiliser
 
         public DateTimeOffset UpdatedAt { get; set; }
     }

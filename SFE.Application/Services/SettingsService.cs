@@ -41,6 +41,8 @@ public class SettingsService
             posList = new();
         }
 
+
+
         // ✅ FALLBACK: if Include didn't work, query POS directly
         if (posList.Count == 0)
         {
@@ -64,9 +66,9 @@ public class SettingsService
             CompanyPhone = company.Phone,
             CompanyEmail = company.Email,
             DefaultPriceMode = company.DefaultPriceMode,
-            LoyaltyEnabled = company.LoyaltyEnabled,
-            LoyaltyEarnRate = company.LoyaltyEarnRate,
-            LoyaltyRedeemRate = company.LoyaltyRedeemRate,
+           // LoyaltyEnabled = company.LoyaltyEnabled,
+           // LoyaltyEarnRate = company.LoyaltyEarnRate,
+           // LoyaltyRedeemRate = company.LoyaltyRedeemRate,
             DeploymentMode = company.DeploymentMode,
             CompanyISF = company.ISF,
             CompanyLogo = company.Logo,
@@ -78,6 +80,10 @@ public class SettingsService
             CurrentExchangeRateEUR = appSettings?.CurrentExchangeRateEUR ?? 3100m,
             CurrentExchangeRateCNY = appSettings?.CurrentExchangeRateCNY ?? 385m,
             ExchangeRateMode = appSettings?.ExchangeRateMode ?? ExchangeRateMode.Manual,
+            LoyaltyEnabled = appSettings?.LoyaltyEnabled ?? false,
+            LoyaltyEarnRate = appSettings?.LoyaltyEarnRate ?? 1000m,
+            LoyaltyRedeemRate = appSettings?.LoyaltyRedeemRate ?? 10m,
+            LoyaltyMinRedeemPoints = appSettings?.LoyaltyMinRedeemPoints ?? 100,
 
             // POS actif
             ActivePosId = activePos?.Id ?? 0,
@@ -89,6 +95,7 @@ public class SettingsService
             EmcfNIM = activePos?.EmcfNIM ?? "",
             McfPortName = activePos?.McfPortName ?? "",
             McfBaudRate = activePos?.McfBaudRate ?? 115200,
+            ServerMcfUrl = activePos?.ServerMcfUrl ?? "",
             DisableFallback = activePos?.DisableFallback ?? false,   // 🆕
 
             TotalPosCount = posList.Count,
@@ -145,6 +152,10 @@ public class SettingsService
                 appSettings.UpdatedAt = _time.UtcNow.UtcDateTime;   // ← ITimeProvider
                 appSettings.CompanyIdNat = data.CompanyISF;
                 appSettings.DefaultPriceMode = data.DefaultPriceMode;
+                appSettings.LoyaltyEnabled = data.LoyaltyEnabled;
+                appSettings.LoyaltyEarnRate = data.LoyaltyEarnRate;
+                appSettings.LoyaltyRedeemRate = data.LoyaltyRedeemRate;
+                appSettings.LoyaltyMinRedeemPoints = (int)data.LoyaltyMinRedeemPoints; // Ensure SettingsData uses int or cast it
 
                 await _unitOfWork.AppSettings.UpdateAsync(appSettings);
             }
@@ -161,6 +172,7 @@ public class SettingsService
                     pos.EmcfNIM = data.EmcfNIM;
                     pos.McfPortName = data.McfPortName;
                     pos.McfBaudRate = data.McfBaudRate;
+                    pos.ServerMcfUrl = data.ServerMcfUrl;
                     pos.DisableFallback = data.DisableFallback;
                     pos.SunmiEnabled = data.SunmiEnabled;
                     pos.SunmiTerminalUrl = data.SunmiTerminalUrl;
@@ -199,7 +211,7 @@ public class SettingsData
     public bool LoyaltyEnabled { get; set; }
     public decimal LoyaltyEarnRate { get; set; }
     public decimal LoyaltyRedeemRate { get; set; }
-    public decimal LoyaltyMinRedeemPoints { get; set; }
+    public int LoyaltyMinRedeemPoints { get; set; }
     public DeploymentMode DeploymentMode { get; set; }
     public string CompanyISF { get; set; } = string.Empty;
     public byte[]? CompanyLogo { get; set; }
@@ -223,6 +235,7 @@ public class SettingsData
     public string EmcfNIM { get; set; } = string.Empty;
     public string McfPortName { get; set; } = string.Empty;
     public int McfBaudRate { get; set; }
+    public string ServerMcfUrl { get; set; } = string.Empty;
     public bool McfPortValidated { get; set; } = false;
     public bool DisableFallback { get; set; } = false;   // 🆕
 

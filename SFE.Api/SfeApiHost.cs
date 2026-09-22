@@ -12,6 +12,7 @@ using SFE.Domain.Abstractions;
 using SFE.Licensing.Local;
 using SFE.Domain.Enums;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Mvc;
 
 namespace SFE.Api;
 
@@ -76,7 +77,8 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
             // These endpoints are available before terminal pairing.
             if (ctx.Request.Path.StartsWithSegments("/health") ||
                 ctx.Request.Path.StartsWithSegments("/license/status") ||
-                ctx.Request.Path.StartsWithSegments("/api/sync")) // 🚨 Laissez passer le Facteur !
+                ctx.Request.Path.StartsWithSegments("/api/sync") ||
+                ctx.Request.Path.StartsWithSegments("/api/fiscal"))
             {
                 await next();
                 return;
@@ -425,6 +427,55 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
 
                 _ => Results.Problem("Unable to generate QR.")
             };
+        });
+
+        // ══════════════════════════════════════════════════════
+        //  PROXY MCF (Pour les terminaux configurés en ServerMcf)
+        // ══════════════════════════════════════════════════════
+
+        _app.MapGet("/api/fiscal/status", async ([FromServices] IFiscalDeviceService fiscal) =>
+            Results.Ok(await fiscal.GetStatusAsync()));
+
+        _app.MapPost("/api/fiscal/submit", async (FiscalInvoiceRequest req, [FromServices] IFiscalDeviceService fiscal) =>
+            Results.Ok(await fiscal.SubmitInvoiceAsync(req)));
+
+        _app.MapPost("/api/fiscal/finalize/{uid}", async (string uid, HttpContext ctx, [FromServices] IFiscalDeviceService fiscal) =>
+        {
+            var payload = await ctx.Request.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+            decimal totalTTC = payload.GetProperty("TotalTTC").GetDecimal();
+            decimal totalTVA = payload.GetProperty("TotalTVA").GetDecimal();
+
+            return Results.Ok(await fiscal.FinalizeInvoiceAsync(uid, totalTTC, totalTVA));
+        });
+
+        _app.MapPost("/api/fiscal/cancel/{uid}", async (string uid, [FromServices] IFiscalDeviceService fiscal) =>
+        {
+            var result = await fiscal.CancelPendingInvoiceAsync(uid);
+            return Results.Ok(new { success = result });
+        });
+
+        _app.MapGet("/api/fiscal/server-status", async ([FromServices] IFiscalDeviceService fiscal) =>
+            Results.Ok(await fiscal.GetServerConnectionStatusAsync()));
+
+        _app.MapGet("/api/fiscal/detailed-info", async ([FromServices] IFiscalDeviceService fiscal) =>
+            Results.Ok(await fiscal.GetDetailedInfoAsync()));
+
+        _app.MapPost("/api/fiscal/health", async (HttpContext ctx, [FromServices] IFiscalDeviceService fiscal) =>
+        {
+            McfHealthThresholds? thresholds = null;
+            if (ctx.Request.ContentLength > 0)
+            {
+                try { thresholds = await ctx.Request.ReadFromJsonAsync<McfHealthThresholds>(); } catch { }
+            }
+
+            var method = fiscal.GetType().GetMethod("GetHealthReportAsync");
+            if (method != null)
+            {
+                var task = method.Invoke(fiscal, new object?[] { thresholds }) as Task<McfHealthReport>;
+                if (task != null) return Results.Ok(await task);
+            }
+
+            return Results.Ok(new McfHealthReport { Status = McfHealth.Unknown, Summary = "Rapport de santé non supporté par ce dispositif." });
         });
 
         // ══════════════════════════════════════════════════════

@@ -179,6 +179,17 @@ public partial class InvoicingViewModel : BaseViewModel,
     [ObservableProperty] private bool _showPendingError;
     [ObservableProperty] private bool _showPendingSection;
 
+    // ══════ FIDÉLITÉ ══════
+    [ObservableProperty] private bool _useLoyaltyPoints;
+    [ObservableProperty] private string _loyaltyBalanceDisplay = "";
+    [ObservableProperty] private string _scannedLoyaltyCard = "";
+    [ObservableProperty] private bool _hasLoyaltyAccountLoaded;
+    [ObservableProperty] private string _loyaltyClientName = "";
+    [ObservableProperty] private bool _canRedeemPoints;
+    [ObservableProperty] private bool _isLoyaltySystemEnabled;
+    private int _availablePoints = 0;
+    private decimal _loyaltyDiscountValue = 0m;
+
     // ══════ PROFORMA ══════
     [ObservableProperty] private bool _isProforma;
     // ⚠️ Fixé par le constructeur via _timeProvider.
@@ -387,6 +398,14 @@ public partial class InvoicingViewModel : BaseViewModel,
     {
         ShowClientDetails = value != ClientType.PP;
 
+        // Reset loyalty if they switch away from PP
+        if (value != ClientType.PP)
+        {
+            UseLoyaltyPoints = false;
+            LoyaltyBalanceDisplay = "";
+            _availablePoints = 0;
+        }
+
         OnPropertyChanged(nameof(IsClientNifRequired));
         OnPropertyChanged(nameof(IsClientNameRequired));
         OnPropertyChanged(nameof(ClientTypeMention));
@@ -495,6 +514,7 @@ public partial class InvoicingViewModel : BaseViewModel,
                     SelectedPriceMode = appSettings.DefaultPriceMode;
                     SelectedCurrency = appSettings.DefaultCurrency;
                     ExchangeRate = appSettings.CurrentExchangeRate;
+                    IsLoyaltySystemEnabled = appSettings.LoyaltyEnabled;
                 }
             }
             catch { _discountBeforeTax = true; }
@@ -936,6 +956,44 @@ public partial class InvoicingViewModel : BaseViewModel,
             }
         }
 
+        // ─── LOYALTY DISCOUNT DISTRIBUTION ───
+        // We distribute the loyalty discount proportionally across all lines 
+        // so the DGI receives the correctly adjusted VAT amounts per item.
+        if (UseLoyaltyPoints && _loyaltyDiscountValue > 0)
+        {
+            decimal baseTTC = InvoiceLines.Sum(l => l.AmountTTC);
+            decimal discountRemaining = _loyaltyDiscountValue;
+
+            for (int i = 0; i < InvoiceLines.Count; i++)
+            {
+                var line = InvoiceLines[i];
+                if (line.AmountTTC <= 0) continue;
+
+                // Calculate this line's share of the loyalty discount
+                decimal lineRatio = baseTTC > 0 ? line.AmountTTC / baseTTC : 0;
+
+                // If it's the last line, dump the remaining discount to prevent 0.01 rounding errors
+                decimal lineDiscount = (i == InvoiceLines.Count - 1)
+                    ? discountRemaining
+                    : Math.Round(_loyaltyDiscountValue * lineRatio, 2, MidpointRounding.AwayFromZero);
+
+                // Prevent the discount from making the line negative
+                if (lineDiscount > line.AmountTTC) lineDiscount = line.AmountTTC;
+
+                decimal vatRate = line.TaxRate / 100m;
+
+                // Adjust the line amounts
+                line.DiscountAmount += lineDiscount;
+                line.AmountTTC -= lineDiscount;
+
+                // Recalculate HT and TVA based on the newly reduced TTC
+                line.AmountHT = Math.Round(line.AmountTTC / (1m + vatRate), 2, MidpointRounding.AwayFromZero);
+                line.AmountTVA = line.AmountTTC - line.AmountHT;
+
+                discountRemaining -= lineDiscount;
+            }
+        }
+
         // 4. Totaux
         TotalHTBeforeDiscount = InvoiceLines.Sum(l => l.AmountHTBeforeDiscount);
         TotalDiscount = InvoiceLines.Sum(l => l.DiscountAmount);
@@ -1114,26 +1172,6 @@ public partial class InvoicingViewModel : BaseViewModel,
                     return;                    // finally { IsBusy = false; } will run
                 }
             }
-            if (IsCreditNote)
-            {
-                var ok = await _gate.RequireAsync(
-                    ManagerAction.IssueCreditNote,
-                    new AuthorizationContext
-                    {
-                        InvoiceNumber = InvoiceNumber,
-                        Amount = TotalTTC,
-                        Reason = $"{SelectedCreditNoteNature} — Réf: {OriginalReference}",
-                        RequestingUserId = _auth.CurrentUser?.Id,
-                        RequestingUserName = _auth.CurrentUser?.FullName ?? OperatorName
-                    });
-
-                if (!ok)
-                {
-                    StatusMessage = "Avoir refusé — autorisation manager requise.";
-                    ShowError = true;
-                    return;                    // finally { IsBusy = false; } will run
-                }
-            }
 
             StatusMessage = "Normalisation en cours...";
 
@@ -1183,7 +1221,13 @@ public partial class InvoicingViewModel : BaseViewModel,
             }
 
             var invoice = BuildInvoiceEntity(advanceAmount);
-            var result = await _invoiceService.NormalizeInvoiceAsync(invoice);
+
+            // Offload the heavy fiscal communication to a background thread
+            // so the UI stays responsive and the loading spinner keeps turning.
+            var result = await Task.Run(async () =>
+            {
+                return await _invoiceService.NormalizeInvoiceAsync(invoice);
+            });
 
             if (result.Success)
             {
@@ -1233,6 +1277,7 @@ public partial class InvoicingViewModel : BaseViewModel,
         InvoiceLines.Clear();
         PaymentItems.Clear();
         TaxGroupSummaries.Clear();
+        ClearLoyaltyDisplay();
 
         ClientNIF = ""; ClientName = ""; ClientAddress = "";
         ClientPhone = ""; ClientEmail = ""; ClientRCCM = "";
@@ -1521,6 +1566,13 @@ public partial class InvoicingViewModel : BaseViewModel,
         ClientSearchText = "";
         ClientSearchResults.Clear();
         IsClientSearchOpen = false;
+
+        // 🆕 Check loyalty status for manually selected clients
+        _ = LoadClientLoyaltyAsync(client.Id);
+
+        StatusMessage = $"✓ Client « {client.Name} » sélectionné.";
+        ShowSuccess = true;
+        ShowError = false;
     }
 
     [RelayCommand]
@@ -1531,6 +1583,13 @@ public partial class InvoicingViewModel : BaseViewModel,
         ClientNIF = ""; ClientName = ""; ClientAddress = "";
         ClientPhone = ""; ClientEmail = ""; ClientRCCM = "";
         ClientSearchText = "";
+
+        // 🆕 Reset loyalty UI
+        ClearLoyaltyDisplay();
+
+        StatusMessage = "Sélection du client effacée.";
+        ShowSuccess = true;
+        ShowError = false;
     }
 
     [RelayCommand]
@@ -1581,7 +1640,10 @@ public partial class InvoicingViewModel : BaseViewModel,
 
         try
         {
-            var original = await _invoiceService.LookupOriginalInvoiceAsync(OriginalReference.Trim());
+            var original = await Task.Run(async () =>
+            {
+                return await _invoiceService.LookupOriginalInvoiceAsync(OriginalReference.Trim());
+            });
 
             if (original == null)
             {
@@ -1963,6 +2025,105 @@ public partial class InvoicingViewModel : BaseViewModel,
         }
         catch { }
     }
+
+
+
+    [RelayCommand]
+    private async Task ProcessLoyaltyScan()
+    {
+        if (string.IsNullOrWhiteSpace(ScannedLoyaltyCard) || IsNormalized) return;
+
+        IsBusy = true;
+        ShowError = false;
+        ShowSuccess = false;
+
+        try
+        {
+            var account = await _unitOfWork.LoyaltyAccounts.GetByCardNumberAsync(ScannedLoyaltyCard.Trim());
+
+            if (account == null || account.Client == null)
+            {
+                StatusMessage = "Carte de fidélité introuvable.";
+                ShowError = true;
+                ClearLoyaltyDisplay();
+                return;
+            }
+
+            // Auto-select the client for the invoice
+            SelectClient(account.Client);
+
+            // Load the points data
+            await LoadClientLoyaltyAsync(account.ClientId);
+
+            ScannedLoyaltyCard = ""; // Clear the input ready for the next scan (e.g. products)
+
+            // 🆕 ADD SPECIFIC VISUAL FEEDBACK FOR SCAN
+            StatusMessage = $"✓ Carte reconnue. Client « {account.Client.Name} » identifié.";
+            ShowSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur lecture carte : {ex.Message}";
+            ShowError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task LoadClientLoyaltyAsync(int clientId)
+    {
+        var settings = await _unitOfWork.AppSettings.GetCurrentAsync();
+        if (settings == null || !settings.LoyaltyEnabled) return;
+
+        var account = await _unitOfWork.LoyaltyAccounts.GetByClientIdAsync(clientId);
+
+        if (account != null)
+        {
+            HasLoyaltyAccountLoaded = true;
+            LoyaltyClientName = $"{account.Client?.Name} (Niveau: {account.TierLevel})";
+
+            if (account.CurrentBalance >= settings.LoyaltyMinRedeemPoints)
+            {
+                _availablePoints = account.CurrentBalance;
+                _loyaltyDiscountValue = _availablePoints * settings.LoyaltyRedeemRate;
+                LoyaltyBalanceDisplay = $"{_availablePoints} pts disponibles (-{_loyaltyDiscountValue:N0} CDF)";
+                CanRedeemPoints = true;
+            }
+            else
+            {
+                _availablePoints = 0;
+                _loyaltyDiscountValue = 0;
+                LoyaltyBalanceDisplay = $"{account.CurrentBalance} pts (Minimum {settings.LoyaltyMinRedeemPoints} requis)";
+                CanRedeemPoints = false;
+                UseLoyaltyPoints = false;
+            }
+        }
+        else
+        {
+            ClearLoyaltyDisplay();
+        }
+    }
+
+    private void ClearLoyaltyDisplay()
+    {
+        HasLoyaltyAccountLoaded = false;
+        UseLoyaltyPoints = false;
+        LoyaltyClientName = "";
+        LoyaltyBalanceDisplay = "";
+        _availablePoints = 0;
+        _loyaltyDiscountValue = 0;
+        CanRedeemPoints = false;
+    }
+
+    partial void OnUseLoyaltyPointsChanged(bool value)
+    {
+        if (IsNormalized) return;
+        RecalculateTotals();
+    }
+
+
 }
 
 // ══════ HELPER CLASSES ══════

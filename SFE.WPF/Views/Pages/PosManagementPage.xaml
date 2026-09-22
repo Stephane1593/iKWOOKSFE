@@ -644,16 +644,34 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <!--  ── SECTION 4 : IMPRIMANTES CUISINE & BAR ──  -->
-                    <Border Margin="0,32,0,10" Padding="14,10" Background="Transparent" CornerRadius="8">
+                    <Border Margin="0,32,0,10"
+                            Padding="14,10"
+                            Background="Transparent"
+                            CornerRadius="8">
                         <Grid>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Profils d'impression (Cuisine &amp; Bar)" />
-                                <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Text="Configurez les imprimantes réseau (IP) ou USB pour la préparation des commandes." />
+                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                           FontSize="15"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Text="Profils d'impression (Cuisine &amp; Bar)" />
+                                <TextBlock Margin="0,2,0,0"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="Configurez les imprimantes réseau (IP) ou USB pour la préparation des commandes." />
                             </StackPanel>
-                            <Button HorizontalAlignment="Right" Command="{Binding NewKitchenPrinterCommand}" Style="{StaticResource BtnPrimary}">
+                            <Button HorizontalAlignment="Right"
+                                    Command="{Binding NewKitchenPrinterCommand}"
+                                    Style="{StaticResource BtnPrimary}">
                                 <StackPanel Orientation="Horizontal">
-                                    <materialDesign:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="Plus" />
-                                    <TextBlock VerticalAlignment="Center" Text="Ajouter une imprimante" />
+                                    <materialDesign:PackIcon Width="18"
+                                                             Height="18"
+                                                             Margin="0,0,8,0"
+                                                             VerticalAlignment="Center"
+                                                             Kind="Plus" />
+                                    <TextBlock VerticalAlignment="Center"
+                                               Text="Ajouter une imprimante" />
                                 </StackPanel>
                             </Button>
                         </Grid>
@@ -662,7 +680,12 @@
                     <ItemsControl ItemsSource="{Binding KitchenPrinters}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="0,0,0,10" Padding="18,16" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
+                                <Border Margin="0,0,0,10"
+                                        Padding="18,16"
+                                        Background="#F8FAFC"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        CornerRadius="12">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -671,26 +694,75 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Width="10" Height="10" Margin="0,0,14,0" VerticalAlignment="Center" Background="#3B82F6" CornerRadius="5" />
+                                        <Border Width="10"
+                                                Height="10"
+                                                Margin="0,0,14,0"
+                                                VerticalAlignment="Center"
+                                                Background="#3B82F6"
+                                                CornerRadius="5" />
 
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel Grid.Column="1"
+                                                    VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding Name}" />
-                                                <TextBlock Margin="2,0" Foreground="{StaticResource TextMutedBrush}" Text=" — " />
-                                                <TextBlock FontFamily="{StaticResource AppFont}" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding Kind}" />
+                                                <TextBlock FontFamily="Consolas"
+                                                           FontSize="13"
+                                                           FontWeight="Bold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           Text="{Binding Name}" />
+                                                <TextBlock Margin="2,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Text=" — " />
+                                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                                           FontSize="13"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           Text="{Binding Kind}" />
                                             </StackPanel>
-                                            <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
-                                                <materialDesign:PackIcon Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center" Foreground="#3B82F6" Kind="LanConnect" />
-                                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding ConnectionString}" />
+                                            <StackPanel Margin="0,6,0,0"
+                                                        Orientation="Horizontal">
+                                                <materialDesign:PackIcon Width="12"
+                                                                         Height="12"
+                                                                         Margin="0,0,4,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Foreground="#3B82F6"
+                                                                         Kind="LanConnect" />
+                                                <TextBlock VerticalAlignment="Center"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Text="{Binding ConnectionString}" />
                                             </StackPanel>
                                         </StackPanel>
 
-                                        <Button Grid.Column="2" MinWidth="40" MinHeight="40" Margin="0,0,4,0" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Command="{Binding DataContext.EditKitchenPrinterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Cursor="Hand">
-                                            <materialDesign:PackIcon Width="18" Height="18" Foreground="{StaticResource TextSecondaryBrush}" Kind="PencilOutline" />
+                                        <Button Grid.Column="2"
+                                                MinWidth="40"
+                                                MinHeight="40"
+                                                Margin="0,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.EditKitchenPrinterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Cursor="Hand">
+                                            <materialDesign:PackIcon Width="18"
+                                                                     Height="18"
+                                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                                     Kind="PencilOutline" />
                                         </Button>
 
-                                        <Button Grid.Column="3" MinWidth="40" MinHeight="40" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Command="{Binding DataContext.DeleteKitchenPrinterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Cursor="Hand">
-                                            <materialDesign:PackIcon Width="18" Height="18" Foreground="{StaticResource TextMutedBrush}" Kind="TrashCanOutline" />
+                                        <Button Grid.Column="3"
+                                                MinWidth="40"
+                                                MinHeight="40"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.DeleteKitchenPrinterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Cursor="Hand">
+                                            <materialDesign:PackIcon Width="18"
+                                                                     Height="18"
+                                                                     Foreground="{StaticResource TextMutedBrush}"
+                                                                     Kind="TrashCanOutline" />
                                         </Button>
                                     </Grid>
                                 </Border>
@@ -698,40 +770,80 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Border Margin="0,10,0,0" Padding="28" BorderThickness="1" CornerRadius="14" Visibility="{Binding IsEditingKitchenPrinter, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Margin="0,10,0,0"
+                            Padding="28"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Visibility="{Binding IsEditingKitchenPrinter, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Border.Background>
-                            <SolidColorBrush Opacity="0.04" Color="#3B82F6" />
+                            <SolidColorBrush Opacity="0.04"
+                                             Color="#3B82F6" />
                         </Border.Background>
                         <Border.BorderBrush>
-                            <SolidColorBrush Opacity="0.22" Color="#3B82F6" />
+                            <SolidColorBrush Opacity="0.22"
+                                             Color="#3B82F6" />
                         </Border.BorderBrush>
                         <StackPanel>
                             <Grid Margin="0,0,0,20">
-                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding KitchenPrinterFormTitle}" />
-                                <Button MinWidth="40" MinHeight="40" HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Command="{Binding CancelKitchenPrinterEditCommand}" Cursor="Hand">
-                                    <materialDesign:PackIcon Width="20" Height="20" Foreground="{StaticResource TextMutedBrush}" Kind="Close" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontFamily="{StaticResource AppFont}"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Text="{Binding KitchenPrinterFormTitle}" />
+                                <Button MinWidth="40"
+                                        MinHeight="40"
+                                        HorizontalAlignment="Right"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding CancelKitchenPrinterEditCommand}"
+                                        Cursor="Hand">
+                                    <materialDesign:PackIcon Width="20"
+                                                             Height="20"
+                                                             Foreground="{StaticResource TextMutedBrush}"
+                                                             Kind="Close" />
                                 </Button>
                             </Grid>
 
-                            <UniformGrid Margin="0,0,0,14" Columns="2">
+                            <UniformGrid Margin="0,0,0,14"
+                                         Columns="2">
                                 <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="NOM DU PROFIL *" />
-                                    <TextBox MinHeight="42" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding EditKitchenPrinterName, UpdateSourceTrigger=PropertyChanged}" ToolTip="Ex: Bar, Cuisine Chaude..." />
+                                    <TextBlock Style="{StaticResource FormLabelStyle}"
+                                               Text="NOM DU PROFIL *" />
+                                    <TextBox MinHeight="42"
+                                             Style="{StaticResource ModernTextBoxStyle}"
+                                             Text="{Binding EditKitchenPrinterName, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Ex: Bar, Cuisine Chaude..." />
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="TYPE DE CONNEXION *" />
-                                    <ComboBox MinHeight="42" ItemsSource="{Binding PrinterKinds}" SelectedItem="{Binding EditKitchenPrinterKind}" Style="{StaticResource ModernComboBoxStyle}" />
+                                    <TextBlock Style="{StaticResource FormLabelStyle}"
+                                               Text="TYPE DE CONNEXION *" />
+                                    <ComboBox MinHeight="42"
+                                              ItemsSource="{Binding PrinterKinds}"
+                                              SelectedItem="{Binding EditKitchenPrinterKind}"
+                                              Style="{StaticResource ModernComboBoxStyle}" />
                                 </StackPanel>
                             </UniformGrid>
 
-                            <UniformGrid Margin="0,0,0,24" Columns="2">
+                            <UniformGrid Margin="0,0,0,24"
+                                         Columns="2">
                                 <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="CONNEXION (IP ou NOM USB) *" />
-                                    <TextBox MinHeight="42" FontFamily="Consolas" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding EditKitchenPrinterConnection, UpdateSourceTrigger=PropertyChanged}" ToolTip="Ex: 192.168.1.100 ou POS-80C" />
+                                    <TextBlock Style="{StaticResource FormLabelStyle}"
+                                               Text="CONNEXION (IP ou NOM USB) *" />
+                                    <TextBox MinHeight="42"
+                                             FontFamily="Consolas"
+                                             Style="{StaticResource ModernTextBoxStyle}"
+                                             Text="{Binding EditKitchenPrinterConnection, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Ex: 192.168.1.100 ou POS-80C" />
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="PORT (IP UNIQUEMENT)" />
-                                    <TextBox MinHeight="42" FontFamily="Consolas" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding EditKitchenPrinterPort, UpdateSourceTrigger=PropertyChanged}" ToolTip="Généralement 9100 pour ESC/POS TCP" />
+                                    <TextBlock Style="{StaticResource FormLabelStyle}"
+                                               Text="PORT (IP UNIQUEMENT)" />
+                                    <TextBox MinHeight="42"
+                                             FontFamily="Consolas"
+                                             Style="{StaticResource ModernTextBoxStyle}"
+                                             Text="{Binding EditKitchenPrinterPort, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Généralement 9100 pour ESC/POS TCP" />
                                 </StackPanel>
                             </UniformGrid>
 
@@ -741,11 +853,20 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button Command="{Binding CancelKitchenPrinterEditCommand}" Content="Annuler" Style="{StaticResource BtnGhost}" />
-                                <Button Grid.Column="2" Command="{Binding SaveKitchenPrinterCommand}" Style="{StaticResource BtnPrimary}">
+                                <Button Command="{Binding CancelKitchenPrinterEditCommand}"
+                                        Content="Annuler"
+                                        Style="{StaticResource BtnGhost}" />
+                                <Button Grid.Column="2"
+                                        Command="{Binding SaveKitchenPrinterCommand}"
+                                        Style="{StaticResource BtnPrimary}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" Kind="ContentSave" />
-                                        <TextBlock VerticalAlignment="Center" Text="Enregistrer" />
+                                        <materialDesign:PackIcon Width="18"
+                                                                 Height="18"
+                                                                 Margin="0,0,8,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Kind="ContentSave" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Text="Enregistrer" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -899,87 +1020,67 @@
                                            Text="DISPOSITIF FISCAL" />
                             </StackPanel>
 
-                            <UniformGrid Margin="0,0,0,18"
-                                         Columns="3">
-                                <RadioButton MinHeight="68"
-                                             Margin="0,0,6,0"
-                                             GroupName="PosDeviceType"
-                                             IsChecked="{Binding EditIsEmcfOnly}"
-                                             Style="{StaticResource RadioCardStyle}">
+                            <UniformGrid Margin="0,0,0,18" Columns="2">
+                                <!-- 1. e-MCF -->
+                                <RadioButton MinHeight="68" Margin="0,0,6,6" GroupName="PosDeviceType" IsChecked="{Binding EditIsEmcfOnly}" Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22"
-                                                                 Height="22"
-                                                                 Margin="0,0,12,0"
-                                                                 VerticalAlignment="Center"
-                                                                 Foreground="{StaticResource PrimaryBrush}"
-                                                                 Kind="AccessPointNetwork" />
+                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" Kind="AccessPointNetwork" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}"
-                                                       FontSize="14"
-                                                       FontWeight="Bold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                                       Text="e-MCF" />
-                                            <TextBlock Margin="0,2,0,0"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="API REST (Internet)" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="e-MCF" />
+                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="API REST (Internet)" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
-                                <RadioButton MinHeight="68"
-                                             Margin="3,0,3,0"
-                                             GroupName="PosDeviceType"
-                                             IsChecked="{Binding EditIsMcfOnly}"
-                                             Style="{StaticResource RadioCardStyle}">
+
+                                <!-- 2. MCF -->
+                                <RadioButton MinHeight="68" Margin="6,0,0,6" GroupName="PosDeviceType" IsChecked="{Binding EditIsMcfOnly}" Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22"
-                                                                 Height="22"
-                                                                 Margin="0,0,12,0"
-                                                                 VerticalAlignment="Center"
-                                                                 Foreground="#9333EA"
-                                                                 Kind="SerialPort" />
+                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="#9333EA" Kind="SerialPort" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}"
-                                                       FontSize="14"
-                                                       FontWeight="Bold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                                       Text="MCF" />
-                                            <TextBlock Margin="0,2,0,0"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="Port série (RS232/USB)" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="MCF" />
+                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="Port série (RS232/USB)" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
-                                <RadioButton MinHeight="68"
-                                             Margin="6,0,0,0"
-                                             GroupName="PosDeviceType"
-                                             IsChecked="{Binding EditIsHybrid}"
-                                             Style="{StaticResource RadioCardStyle}">
+
+                                <!-- 3. Hybride -->
+                                <RadioButton MinHeight="68" Margin="0,6,6,0" GroupName="PosDeviceType" IsChecked="{Binding EditIsHybrid}" Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22"
-                                                                 Height="22"
-                                                                 Margin="0,0,12,0"
-                                                                 VerticalAlignment="Center"
-                                                                 Foreground="#059669"
-                                                                 Kind="SwapHorizontal" />
+                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="#059669" Kind="SwapHorizontal" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}"
-                                                       FontSize="14"
-                                                       FontWeight="Bold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                                       Text="Hybride" />
-                                            <TextBlock Margin="0,2,0,0"
-                                                       FontFamily="{StaticResource AppFont}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="e-MCF + MCF (fallback)" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Hybride" />
+                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="e-MCF + MCF" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </RadioButton>
+
+                                <!-- 🆕 4. Serveur MCF (Proxy réseau local) -->
+                                <RadioButton MinHeight="68" Margin="6,6,0,0" GroupName="PosDeviceType" IsChecked="{Binding EditIsServerMcf}" Style="{StaticResource RadioCardStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="#2563EB" Kind="ServerNetwork" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Serveur MCF" />
+                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="Via le POS principal" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
                             </UniformGrid>
+
+                            <!-- 🆕 SERVER MCF CONFIGURATION -->
+                            <Border Margin="0,0,0,10" Padding="20" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" 
+                                    Visibility="{Binding ShowServerMcfFields, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <StackPanel Margin="0,0,0,14" Orientation="Horizontal">
+                                        <materialDesign:PackIcon Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="#2563EB" Kind="ServerNetwork" />
+                                        <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Text="PARAMÈTRES DU SERVEUR LOCAL" />
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="URL DU SERVEUR POS PRINCIPAL *" />
+                                    <TextBox MinHeight="42" Margin="0,0,0,0" Style="{StaticResource ModernTextBoxStyle}" 
+                                             Text="{Binding EditServerMcfUrl, UpdateSourceTrigger=PropertyChanged}" 
+                                             ToolTip="Exemple: http://192.168.1.10:5005" />
+                                    <TextBlock Margin="0,4,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="Entrez l'URL IP du point de vente principal sur lequel est branché le MCF." />
+                                </StackPanel>
+                            </Border>
 
                             <!--  e-MCF fields (visible for e-MCF or Hybrid)  -->
                             <Border Margin="0,0,0,10"

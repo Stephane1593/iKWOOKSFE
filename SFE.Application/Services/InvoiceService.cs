@@ -15,19 +15,22 @@ public class InvoiceService
     private readonly StockService _stockService;
     private readonly IAuditService _auditService;
     private readonly ITimeProvider _time;
+    private readonly LoyaltyService _loyaltyService;
 
     public InvoiceService(
         IUnitOfWork unitOfWork,
         IFiscalDeviceService fiscalDevice,
         StockService stockService,
         IAuditService auditService,
-        ITimeProvider time)
+        ITimeProvider time,
+        LoyaltyService loyaltyService)
     {
         _unitOfWork = unitOfWork;
         _fiscalDevice = fiscalDevice;
         _stockService = stockService;
         _auditService = auditService;
         _time = time;
+        _loyaltyService = loyaltyService;
     }
 
     public async Task<string> GenerateInvoiceNumberAsync(InvoiceType type, int pointOfSaleId)
@@ -242,6 +245,15 @@ public class InvoiceService
             }
 
             await _unitOfWork.Invoices.AddAsync(invoice);
+
+            // ---> NEW: PROCESS LOYALTY LEDGER HERE <---
+            // We pass the amount of points used. (Assuming you add `PointsRedeemed` to the Invoice entity).
+            if (invoice.PointsRedeemed > 0 || invoice.Type == InvoiceType.FV)
+            {
+                await _loyaltyService.ProcessInvoiceLoyaltyAsync(invoice, invoice.PointsRedeemed);
+            }
+
+
             await _unitOfWork.SaveChangesAsync();
         }
         catch (Exception ex)

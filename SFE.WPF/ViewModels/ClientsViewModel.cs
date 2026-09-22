@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SFE.Application.Interfaces;
 using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
@@ -10,6 +11,7 @@ namespace SFE.WPF.ViewModels;
 public partial class ClientsViewModel : BaseViewModel
 {
     private readonly ClientService _clientService;
+    private readonly IUnitOfWork _unitOfWork; // 🆕 Ajout de l'UnitOfWork
 
     // ══════ LIST ══════
     public ObservableCollection<ClientListItem> Clients { get; } = new();
@@ -31,6 +33,14 @@ public partial class ClientsViewModel : BaseViewModel
     [ObservableProperty] private string _formEmail = "";
     [ObservableProperty] private string _formRCCM = "";
 
+    [ObservableProperty] private bool _formIsLoyaltyMember;
+
+    // ══════ FIDÉLITÉ (AFFICHAGE) ══════
+    [ObservableProperty] private bool _hasLoyaltyAccount;
+    [ObservableProperty] private string _loyaltyCardNumber = "";
+    [ObservableProperty] private int _loyaltyPoints;
+    [ObservableProperty] private string _loyaltyTier = "";
+
     // ══════ VALIDATION HINTS ══════
     public bool IsNifRequired => FormType is ClientType.PM or ClientType.PC or ClientType.PL;
     public bool IsNameRequired => FormType != ClientType.PP;
@@ -44,9 +54,10 @@ public partial class ClientsViewModel : BaseViewModel
     // ══════ ENUMS ══════
     public ClientType[] ClientTypes { get; } = Enum.GetValues<ClientType>();
 
-    public ClientsViewModel(ClientService clientService)
+    public ClientsViewModel(ClientService clientService, IUnitOfWork unitOfWork)
     {
         _clientService = clientService;
+        _unitOfWork = unitOfWork;
         PageTitle = "Clients";
         _ = LoadAsync();
     }
@@ -103,7 +114,7 @@ public partial class ClientsViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    private void EditClient(ClientListItem? item)
+    private async Task EditClient(ClientListItem? item) // 🆕 Transformé en async Task
     {
         if (item == null) return;
         _editingId = item.Id;
@@ -114,10 +125,40 @@ public partial class ClientsViewModel : BaseViewModel
         FormPhone = item.Phone ?? "";
         FormEmail = item.Email ?? "";
         FormRCCM = item.RCCM ?? "";
+        FormIsLoyaltyMember = item.IsLoyaltyMember;
+
+        await LoadClientLoyaltyAsync(item.Id); // 🆕 Chargement des détails du compte
 
         IsCreating = false;
         IsEditing = true;
         FormTitle = $"Modifier — {item.Name}";
+    }
+
+    private async Task LoadClientLoyaltyAsync(int clientId)
+    {
+        try
+        {
+            var account = await _unitOfWork.LoyaltyAccounts.GetByClientIdAsync(clientId);
+            if (account != null)
+            {
+                HasLoyaltyAccount = true;
+                LoyaltyCardNumber = account.CardNumber ?? "Générée automatiquement";
+                LoyaltyPoints = account.CurrentBalance;
+                LoyaltyTier = account.TierLevel.ToString();
+            }
+            else
+            {
+                HasLoyaltyAccount = false;
+                LoyaltyCardNumber = "Aucune carte";
+                LoyaltyPoints = 0;
+                LoyaltyTier = "Non membre";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur lecture fidélité : {ex.Message}";
+            ShowError = true;
+        }
     }
 
     [RelayCommand]
@@ -135,6 +176,7 @@ public partial class ClientsViewModel : BaseViewModel
             Phone = string.IsNullOrWhiteSpace(FormPhone) ? null : FormPhone.Trim(),
             Email = string.IsNullOrWhiteSpace(FormEmail) ? null : FormEmail.Trim(),
             RCCM = string.IsNullOrWhiteSpace(FormRCCM) ? null : FormRCCM.Trim(),
+            IsLoyaltyMember = FormIsLoyaltyMember
         };
 
         var result = IsCreating
@@ -191,7 +233,15 @@ public partial class ClientsViewModel : BaseViewModel
         FormType = ClientType.PP;
         FormNIF = ""; FormName = ""; FormAddress = "";
         FormPhone = ""; FormEmail = ""; FormRCCM = "";
+        FormIsLoyaltyMember = false;
         FormTitle = "";
+
+        // 🆕 Clear loyalty visual states
+        HasLoyaltyAccount = false;
+        LoyaltyCardNumber = "";
+        LoyaltyPoints = 0;
+        LoyaltyTier = "";
+
         ClearStatus();
     }
 
@@ -207,6 +257,7 @@ public partial class ClientsViewModel : BaseViewModel
 
 public class ClientListItem
 {
+    // ... Le reste de la classe ClientListItem reste inchangé ...
     public int Id { get; }
     public ClientType Type { get; }
     public string TypeCode { get; }
@@ -218,6 +269,7 @@ public class ClientListItem
     public string? Email { get; }
     public string? RCCM { get; }
     public string CreatedDisplay { get; }
+    public bool IsLoyaltyMember { get; }
 
     public ClientListItem(Client c)
     {
@@ -232,5 +284,6 @@ public class ClientListItem
         Email = c.Email;
         RCCM = c.RCCM;
         CreatedDisplay = c.CreatedAt.ToString("dd/MM/yyyy");
+        IsLoyaltyMember = c.IsLoyaltyMember;
     }
 }

@@ -197,6 +197,18 @@ public partial class PosViewModel : BaseViewModel,
     [ObservableProperty] private string _commentH = "";
     [ObservableProperty] private bool _showCommentPanel;
 
+    // ══════ FIDÉLITÉ ══════
+    [ObservableProperty] private bool _useLoyaltyPoints;
+    [ObservableProperty] private string _loyaltyBalanceDisplay = "";
+    [ObservableProperty] private string _scannedLoyaltyCard = "";
+    [ObservableProperty] private bool _hasLoyaltyAccountLoaded;
+    [ObservableProperty] private string _loyaltyClientName = "";
+    [ObservableProperty] private bool _canRedeemPoints;
+    [ObservableProperty] private bool _isLoyaltySystemEnabled;
+
+    private int _availablePoints = 0;
+    private decimal _loyaltyDiscountValue = 0m;
+
     public bool IsCommentARequired =>
         SelectedClientType == ClientType.AO || CartItems.Any(l => l.TaxGroup == TaxGroup.D);
     public string CommentALabel => SelectedClientType == ClientType.AO
@@ -971,6 +983,7 @@ public partial class PosViewModel : BaseViewModel,
                     SelectedCurrency = appSettings.DefaultCurrency;
                     ExchangeRate = appSettings.CurrentExchangeRate;
                     _currentExchangeRate = appSettings.CurrentExchangeRate;
+                    IsLoyaltySystemEnabled = appSettings.LoyaltyEnabled;
                 }
             }
             catch { _discountBeforeTax = true; }
@@ -1511,6 +1524,11 @@ public partial class PosViewModel : BaseViewModel,
         ClientEmail = client.Email ?? ""; ClientRCCM = client.RCCM ?? "";
         ClientSearchText = ""; ClientSearchResults.Clear(); IsClientSearchOpen = false;
         OnPropertyChanged(nameof(HasClientSelected));
+
+        _ = LoadClientLoyaltyAsync(client.Id); // 🆕 Load points
+
+        StatusMessage = $"✓ Client « {client.Name} » sélectionné.";
+        ShowSuccess = true; ShowError = false;
     }
 
     [RelayCommand]
@@ -1521,6 +1539,11 @@ public partial class PosViewModel : BaseViewModel,
         ClientPhone = ""; ClientEmail = ""; ClientRCCM = "";
         ClientSearchText = "";
         OnPropertyChanged(nameof(HasClientSelected));
+
+        ClearLoyaltyDisplay(); // 🆕 Reset fidelity UI
+
+        StatusMessage = "Sélection du client effacée.";
+        ShowSuccess = true; ShowError = false;
     }
 
     [RelayCommand]
@@ -1871,6 +1894,35 @@ public partial class PosViewModel : BaseViewModel,
                     lastLine.AmountTVA += diff;
                     lastLine.AmountTTC += diff;
                 }
+            }
+        }
+
+        // ─── LOYALTY DISCOUNT DISTRIBUTION ───
+        if (UseLoyaltyPoints && _loyaltyDiscountValue > 0)
+        {
+            decimal baseTTC = CartItems.Sum(l => l.AmountTTC);
+            decimal discountRemaining = _loyaltyDiscountValue;
+
+            for (int i = 0; i < CartItems.Count; i++)
+            {
+                var line = CartItems[i];
+                if (line.AmountTTC <= 0) continue;
+
+                decimal lineRatio = baseTTC > 0 ? line.AmountTTC / baseTTC : 0;
+                decimal lineDiscount = (i == CartItems.Count - 1)
+                    ? discountRemaining
+                    : Math.Round(_loyaltyDiscountValue * lineRatio, 2, MidpointRounding.AwayFromZero);
+
+                if (lineDiscount > line.AmountTTC) lineDiscount = line.AmountTTC;
+                decimal vatRate = line.TaxRate / 100m;
+
+                line.DiscountAmount += lineDiscount;
+                line.AmountTTC -= lineDiscount;
+
+                line.AmountHT = Math.Round(line.AmountTTC / (1m + vatRate), 2, MidpointRounding.AwayFromZero);
+                line.AmountTVA = line.AmountTTC - line.AmountHT;
+
+                discountRemaining -= lineDiscount;
             }
         }
 
@@ -2517,6 +2569,12 @@ public partial class PosViewModel : BaseViewModel,
             });
         }
 
+        // Add this right before "return invoice;" at the bottom of BuildInvoice()
+        if (UseLoyaltyPoints && _availablePoints > 0)
+        {
+            invoice.PointsRedeemed = _availablePoints;
+        }
+
         return invoice;
     }
 
@@ -2861,5 +2919,94 @@ public partial class PosViewModel : BaseViewModel,
         catch { }
     }
 
-        public void Dispose() { try { if (_barcodeScanner is IDisposable d) d.Dispose(); } catch { /* swallow */ } }
+
+
+    [RelayCommand]
+    private async Task ProcessLoyaltyScan()
+    {
+        if (string.IsNullOrWhiteSpace(ScannedLoyaltyCard) || IsNormalized) return;
+
+        IsBusy = true; ShowError = false; ShowSuccess = false;
+        try
+        {
+            var account = await _unitOfWork.LoyaltyAccounts.GetByCardNumberAsync(ScannedLoyaltyCard.Trim());
+            if (account == null || account.Client == null)
+            {
+                StatusMessage = "Carte de fidélité introuvable.";
+                ShowError = true;
+                ClearLoyaltyDisplay();
+                return;
+            }
+
+            // Auto-select the client
+            SelectClient(account.Client);
+            await LoadClientLoyaltyAsync(account.ClientId);
+
+            ScannedLoyaltyCard = "";
+
+            // Override the SelectClient feedback with specific scan feedback
+            StatusMessage = $"✓ Carte reconnue. Client « {account.Client.Name} » identifié.";
+            ShowSuccess = true;
+            ShowClientPanel = false; // Auto-close the panel to return to scanning items
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur lecture carte : {ex.Message}";
+            ShowError = true;
+        }
+        finally { IsBusy = false; }
+    }
+
+    private async Task LoadClientLoyaltyAsync(int clientId)
+    {
+        if (!IsLoyaltySystemEnabled) return;
+        var settings = await _unitOfWork.AppSettings.GetCurrentAsync();
+        if (settings == null) return;
+
+        var account = await _unitOfWork.LoyaltyAccounts.GetByClientIdAsync(clientId);
+        if (account != null)
+        {
+            HasLoyaltyAccountLoaded = true;
+            LoyaltyClientName = $"{account.Client?.Name} (Niveau: {account.TierLevel})";
+
+            if (account.CurrentBalance >= settings.LoyaltyMinRedeemPoints)
+            {
+                _availablePoints = account.CurrentBalance;
+                _loyaltyDiscountValue = _availablePoints * settings.LoyaltyRedeemRate;
+                LoyaltyBalanceDisplay = $"{_availablePoints} pts dispo (-{_loyaltyDiscountValue:N0} CDF)";
+                CanRedeemPoints = true;
+            }
+            else
+            {
+                _availablePoints = 0;
+                _loyaltyDiscountValue = 0;
+                LoyaltyBalanceDisplay = $"{account.CurrentBalance} pts (Minimum {settings.LoyaltyMinRedeemPoints} requis)";
+                CanRedeemPoints = false;
+                UseLoyaltyPoints = false;
+            }
+        }
+        else
+        {
+            ClearLoyaltyDisplay();
+        }
+    }
+
+    private void ClearLoyaltyDisplay()
+    {
+        HasLoyaltyAccountLoaded = false;
+        UseLoyaltyPoints = false;
+        LoyaltyClientName = "";
+        LoyaltyBalanceDisplay = "";
+        _availablePoints = 0;
+        _loyaltyDiscountValue = 0;
+        CanRedeemPoints = false;
+    }
+
+    partial void OnUseLoyaltyPointsChanged(bool value)
+    {
+        if (IsNormalized) return;
+        RecalculateTotals();
+    }
+
+    public void Dispose() { try { if (_barcodeScanner is IDisposable d) d.Dispose(); } catch { /* swallow */ } }
 }

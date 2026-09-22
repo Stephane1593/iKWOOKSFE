@@ -152,6 +152,16 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
 
         switch (settings.DeviceType)
         {
+            case DeviceType.ServerMcf:
+                if (string.IsNullOrWhiteSpace(settings.ServerMcfUrl))
+                    throw new InvalidOperationException("L'URL du serveur MCF n'est pas configurée.");
+
+                _primaryDevice = new RemoteMcfHttpClient(settings.ServerMcfUrl, _time);
+                Debug.WriteLine("[FiscalResolver] ✓ ServerMcf primary built");
+                TryEnsureFallback(settings);
+                break;
+
+
             case DeviceType.EMcf:
                 _primaryDevice = BuildEmcfDevice(settings);
                 Debug.WriteLine("[FiscalResolver] ✓ e-MCF primary built");
@@ -184,6 +194,16 @@ public class FiscalDeviceResolver : IFiscalDeviceService, IDisposable
         _lastDeviceType = settings.DeviceType;
         _lastConfigKey = configKey;
         _initialized = true;
+    }
+
+    private IFiscalDeviceService BuildServerMcfDevice(SettingsData settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.ServerMcfUrl))
+            throw new InvalidOperationException("L'URL du serveur MCF n'est pas configurée.");
+
+        // Ici nous instancierons votre nouvelle classe "RemoteMcfHttpClient" 
+        // qui implémentera IFiscalDeviceService et redirigera vers votre Web API.
+        return new RemoteMcfHttpClient(settings.ServerMcfUrl, _time);
     }
 
     private void TryEnsureFallback(SettingsData settings)

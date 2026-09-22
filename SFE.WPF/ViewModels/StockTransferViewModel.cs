@@ -1,5 +1,4 @@
-﻿// File: SFE.WPF/ViewModels/StockTransferViewModel.cs
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SFE.Application.Events;
 using SFE.Application.Interfaces;

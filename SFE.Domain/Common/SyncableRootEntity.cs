@@ -30,6 +30,7 @@ public abstract class SyncableRootEntity
     {
         UpdatedAtUtc = utcNow;
         Version++;
+        LastSyncedAtUtc = null; // Explicitly flags the record for the next sync cycle
     }
 
     public void MarkDeleted(DateTimeOffset utcNow)

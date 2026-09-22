@@ -467,9 +467,13 @@ public partial class SettingsViewModel : BaseViewModel
             ? (data.ActivePosCode ?? "—")
             : $"{data.ActivePosCode} — {data.ActivePosName}";
 
-        ActivePosDeviceSummary = IsEmcfSelected
-            ? $"e-MCF · {(string.IsNullOrWhiteSpace(EmcfApiUrl) ? "(URL non configurée)" : EmcfApiUrl)}"
-            : $"MCF · {(string.IsNullOrWhiteSpace(SelectedComPort) ? "(port non configuré)" : SelectedComPort)} @ {BaudRate}";
+        // 🚨 FIX: Add support for ServerMcf display
+        ActivePosDeviceSummary = ActiveDeviceType switch
+        {
+            DeviceType.EMcf => $"e-MCF · {(string.IsNullOrWhiteSpace(EmcfApiUrl) ? "(URL non configurée)" : EmcfApiUrl)}",
+            DeviceType.ServerMcf => $"Serveur MCF · Proxy réseau vers le POS principal",
+            _ => $"MCF · {(string.IsNullOrWhiteSpace(SelectedComPort) ? "(port non configuré)" : SelectedComPort)} @ {BaudRate}"
+        };
     }
 
     [RelayCommand]
@@ -912,17 +916,22 @@ public partial class SettingsViewModel : BaseViewModel
     {
         try
         {
-            // 1. Try the real health report (MCF only).
-            var mcf = ResolveMcfClient(_fiscalDevice);
-            if (mcf != null)
+            // 1. Find the real underlying client (local MCF or Remote proxy)
+            var reportingClient = ResolveHealthReportingClient(_fiscalDevice);
+
+            if (reportingClient is McfSerialClient mcf)
             {
-                var report = await mcf.GetHealthReportAsync();
-                ApplyHealthReport(report);
+                ApplyHealthReport(await mcf.GetHealthReportAsync());
+                return;
+            }
+
+            if (reportingClient is RemoteMcfHttpClient remote)
+            {
+                ApplyHealthReport(await remote.GetHealthReportAsync());
                 return;
             }
 
             // 2. Fallback: synthesize a verdict from FiscalDeviceDetailedInfo
-            //    (covers e-MCF and any future device type).
             ApplySyntheticHealthFromDetailedInfo(info);
         }
         catch (Exception ex)
@@ -935,6 +944,22 @@ public partial class SettingsViewModel : BaseViewModel
             DeviceHealthWarnings.Clear();
             HasHealthReport = true;
         }
+    }
+
+    // 🆕 Helper to safely extract the concrete client from the resolver wrapper
+    private static IFiscalDeviceService? ResolveHealthReportingClient(IFiscalDeviceService svc)
+    {
+        if (svc is McfSerialClient or RemoteMcfHttpClient) return svc;
+
+        if (svc is FiscalDeviceResolver r)
+        {
+            // Prefer the currently active device, then primary, then fallback
+            if (r.CurrentDevice is McfSerialClient or RemoteMcfHttpClient) return r.CurrentDevice;
+            if (r.PrimaryDevice is McfSerialClient or RemoteMcfHttpClient) return r.PrimaryDevice;
+            if (r.FallbackDevice is McfSerialClient or RemoteMcfHttpClient) return r.FallbackDevice;
+        }
+
+        return null;
     }
 
     private static McfSerialClient? ResolveMcfClient(IFiscalDeviceService svc)

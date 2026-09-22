@@ -2799,80 +2799,56 @@
                     </StackPanel>
                 </Border>
 
-                <!--
+                <!-- 
                     ════════════════════════════════════════════
                     SECTION 4 — FIDÉLITÉ
                     ════════════════════════════════════════════
                 -->
-                <Border x:Name="SectionLoyalty"
-                        Style="{StaticResource PremiumCard}">
+                <Border x:Name="SectionLoyalty" Style="{StaticResource PremiumCard}">
                     <StackPanel>
-                        <StackPanel Margin="0,0,0,10"
-                                    Orientation="Horizontal">
-                            <Border Width="44"
-                                    Height="44"
-                                    CornerRadius="12">
+                        <!-- Header -->
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <Border Width="44" Height="44" CornerRadius="12">
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                         <GradientStop Offset="0" Color="#FEF3C7" />
                                         <GradientStop Offset="1" Color="#FDE68A" />
                                     </LinearGradientBrush>
                                 </Border.Background>
-                                <md:PackIcon Width="22"
-                                             Height="22"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center"
-                                             Foreground="#D97706"
-                                             Kind="StarCircle" />
+                                <md:PackIcon Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                             Foreground="#D97706" Kind="StarCircle" />
                             </Border>
-                            <StackPanel Margin="14,0,0,0"
-                                        VerticalAlignment="Center">
-                                <TextBlock FontSize="15"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"
                                            Text="Programme de fidélité" />
-                                <TextBlock Margin="0,3,0,0"
-                                           FontSize="12"
-                                           Foreground="#94A3B8"
+                                <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="#94A3B8"
                                            Text="Récompensez vos clients réguliers avec des points" />
                             </StackPanel>
                         </StackPanel>
 
-                        <Rectangle Height="1"
-                                   Margin="0,10,0,22"
-                                   Fill="{StaticResource SeparatorGradient}" />
+                        <Rectangle Height="1" Margin="0,10,0,22" Fill="{StaticResource SeparatorGradient}" />
 
-                        <Border Margin="0,0,0,18"
-                                Style="{StaticResource InnerPanel}">
+                        <!-- Enable Toggle -->
+                        <Border Margin="0,0,0,18" Style="{StaticResource InnerPanel}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
                                                Text="Activer le programme de fidélité" />
-                                    <TextBlock Margin="0,4,0,0"
-                                               FontSize="12"
-                                               Foreground="#94A3B8"
+                                    <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="#94A3B8"
                                                Text="Les clients pourront accumuler et utiliser des points" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1"
-                                            VerticalAlignment="Center"
-                                            Orientation="Horizontal">
-                                    <TextBlock Margin="0,0,10,0"
-                                               VerticalAlignment="Center"
-                                               FontSize="12"
-                                               FontWeight="Bold">
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal">
+                                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" FontSize="12" FontWeight="Bold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Text" Value="Désactivé" />
                                                 <Setter Property="Foreground" Value="#94A3B8" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsLoyaltyEnabled}"
-                                                                 Value="True">
+                                                    <DataTrigger Binding="{Binding IsLoyaltyEnabled}" Value="True">
                                                         <Setter Property="Text" Value="Activé" />
                                                         <Setter Property="Foreground" Value="#059669" />
                                                     </DataTrigger>
@@ -2880,85 +2856,47 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <ToggleButton IsChecked="{Binding IsLoyaltyEnabled}"
+                                    <ToggleButton IsChecked="{Binding IsLoyaltyEnabled, Mode=TwoWay}"
                                                   IsEnabled="{Binding CanUseLoyalty}"
                                                   Style="{StaticResource ToggleSwitchSuccessStyle}" />
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <!--  Lock notice — visible only when Feature.Loyalty is not licensed  -->
-                        <Border Margin="0,0,0,18"
-                                Padding="14,12"
-                                Background="#FEF2F2"
-                                BorderBrush="#FECACA"
-                                BorderThickness="1"
-                                CornerRadius="10">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CanUseLoyalty}"
-                                                     Value="False">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
+                        <!-- Lock notice (License) -->
+                        <Border Margin="0,0,0,18" Padding="14,12" Background="#FEF2F2" BorderBrush="#FECACA"
+                                BorderThickness="1" CornerRadius="10"
+                                Visibility="{Binding CanUseLoyalty, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                             <StackPanel Orientation="Horizontal">
-                                <md:PackIcon Width="18"
-                                             Height="18"
-                                             Margin="0,0,10,0"
-                                             VerticalAlignment="Top"
-                                             Foreground="#DC2626"
-                                             Kind="LockOutline" />
+                                <md:PackIcon Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Top"
+                                             Foreground="#DC2626" Kind="LockOutline" />
                                 <StackPanel>
-                                    <TextBlock FontSize="12"
-                                               FontWeight="Bold"
-                                               Foreground="#DC2626"
+                                    <TextBlock FontSize="12" FontWeight="Bold" Foreground="#DC2626"
                                                Text="Fonctionnalité non disponible" />
-                                    <TextBlock Margin="0,3,0,0"
-                                               FontSize="11"
-                                               Foreground="#B91C1C"
-                                               Text="{Binding LoyaltyLockReason}"
-                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="#B91C1C"
+                                               Text="{Binding LoyaltyLockReason}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
 
-                        <StackPanel>
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLoyaltyEnabled}"
-                                                     Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
+                        <!-- Settings Inputs -->
+                        <StackPanel Visibility="{Binding IsLoyaltyEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,10,16">
-                                    <TextBlock Style="{StaticResource FieldLabel}"
-                                               Text="TAUX D'ACCUMULATION (1 POINT PAR X CDF)" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="TAUX D'ACCUMULATION (1 POINT PAR X CDF)" />
                                     <TextBox Style="{StaticResource FormInput}"
-                                             Text="{Binding LoyaltyEarnRate, UpdateSourceTrigger=PropertyChanged}" />
+                                             Text="{Binding LoyaltyEarnRate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Margin="10,0,0,16">
-                                    <TextBlock Style="{StaticResource FieldLabel}"
-                                               Text="VALEUR DE RÉDEMPTION (1 POINT = X CDF)" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="VALEUR DE RÉDEMPTION (1 POINT = X CDF)" />
                                     <TextBox Style="{StaticResource FormInput}"
-                                             Text="{Binding LoyaltyRedeemRate, UpdateSourceTrigger=PropertyChanged}" />
+                                             Text="{Binding LoyaltyRedeemRate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
                                 </StackPanel>
                             </UniformGrid>
                             <StackPanel>
-                                <TextBlock Style="{StaticResource FieldLabel}"
-                                           Text="MINIMUM DE POINTS POUR UTILISER" />
-                                <TextBox MaxWidth="300"
-                                         HorizontalAlignment="Left"
-                                         Style="{StaticResource FormInput}"
-                                         Text="{Binding LoyaltyMinRedeemPoints, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="MINIMUM DE POINTS POUR UTILISER" />
+                                <TextBox MaxWidth="300" HorizontalAlignment="Left" Style="{StaticResource FormInput}"
+                                         Text="{Binding LoyaltyMinRedeemPoints, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>

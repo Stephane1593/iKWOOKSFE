@@ -8,6 +8,7 @@ using SFE.Application.Services;
 using SFE.Domain.Entities;
 using SFE.Domain.Enums;
 using SFE.WPF.Services;
+using System.IO;
 
 namespace SFE.WPF.ViewModels;
 
@@ -16,6 +17,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     private readonly ProductService _productService;
     private readonly SettingsService _settingsService;
     private readonly IAuthService _authService;
+    private readonly IExcelProductParser _excelParser;
 
     // ══════════════════════════════════════════════
     //  LISTE
@@ -114,11 +116,12 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
     // ══════════════════════════════════════════════
     //  CONSTRUCTOR
     // ══════════════════════════════════════════════
-    public ProductsViewModel(ProductService productService, SettingsService settingsService, IAuthService authService)
+    public ProductsViewModel(ProductService productService, SettingsService settingsService, IAuthService authService, IExcelProductParser excelParser)
     {
         _productService = productService;
         _settingsService = settingsService;
         _authService = authService;
+        _excelParser = excelParser;
         PageTitle = "Catalogue Produits";
 
         Subscribe(OnStockOrProductChangedAsync,
@@ -133,6 +136,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             AppEvent.CategoryDeleted);
         Subscribe(InitializeAsync, AppEvent.ForceGlobalRefresh);
         _ = InitializeAsync();
+        _excelParser = excelParser;
     }
 
     public bool CanDeleteProducts => _authService.HasPermission("authorize.deleteProduct");
@@ -744,5 +748,76 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             ShowError = true;
         }
         finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task ImportProductsAsync()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Importer des produits",
+            Filter = "Fichiers Excel|*.xlsx"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        IsBusy = true;
+        ShowError = false;
+        ShowSuccess = false;
+
+        try
+        {
+            using var stream = File.OpenRead(dlg.FileName);
+            var (count, errors) = await _productService.ImportFromExcelAsync(stream, _excelParser);
+
+            if (errors.Any())
+            {
+                StatusMessage = $"{count} produit(s) importé(s) avec des erreurs : \n" + string.Join("\n", errors.Take(5));
+                ShowError = true;
+            }
+            else
+            {
+                StatusMessage = $"{count} produit(s) importé(s) avec succès !";
+                ShowSuccess = true;
+            }
+
+            await LoadProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur d'importation : {ex.Message}";
+            ShowError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadImportTemplateAsync()
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Télécharger le modèle d'importation",
+            Filter = "Fichiers Excel|*.xlsx",
+            FileName = "Modele_Import_Produits.xlsx"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            using var stream = File.Create(dlg.FileName);
+            await _excelParser.WriteTemplateAsync(stream);
+
+            StatusMessage = "Modèle téléchargé avec succès.";
+            ShowSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erreur : {ex.Message}";
+            ShowError = true;
+        }
     }
 }

@@ -13,5 +13,8 @@ public enum DeviceType
     Mcf = 1,
 
     /// <summary>Hybrid: try e-MCF first, fallback to MCF if unavailable</summary>
-    Hybrid = 2
+    Hybrid = 2,
+
+    /// <summary>Le POS se connecte à un serveur local qui possède le MCF physique.</summary>
+    ServerMcf = 3
 }

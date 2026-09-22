@@ -22,6 +22,8 @@ public class Invoice
     public string ClientEmail { get; set; } = string.Empty;
     public string ClientRCCM { get; set; } = string.Empty;
 
+    public int PointsRedeemed { get; set; }
+
     // === Opérateur ===
     public string OperatorId { get; set; } = string.Empty;
     public string OperatorName { get; set; } = string.Empty;

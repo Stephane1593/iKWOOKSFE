@@ -3489,7 +3489,92 @@
                                     </Border>
                                 </Popup>
                             </Grid>
+                            <!--  ═══════════════════════════════════════════  -->
+                            <!--  SECTION FIDÉLITÉ (SCANNER)  -->
+                            <!--  ═══════════════════════════════════════════  -->
+                            <StackPanel Visibility="{Binding IsLoyaltySystemEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Style="{StaticResource PosFieldLabel}"
+                                           Text="Programme de Fidélité" />
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox materialDesign:HintAssist.Hint="Scanner la carte ou saisir le N°"
+                                             Style="{StaticResource PosTextBox}"
+                                             Text="{Binding ScannedLoyaltyCard, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Cliquez ici et scannez la carte du client avec la douchette">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter"
+                                                        Command="{Binding ProcessLoyaltyScanCommand}" />
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <Button Grid.Column="1"
+                                            Margin="10,0,0,0"
+                                            Padding="14,0"
+                                            Command="{Binding ProcessLoyaltyScanCommand}"
+                                            Style="{StaticResource PosGhostBtn}"
+                                            ToolTip="Vérifier la carte de fidélité">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Width="18"
+                                                                     Height="18"
+                                                                     Margin="0,0,6,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{StaticResource PrimaryBrush}"
+                                                                     Kind="Magnify" />
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryBrush}"
+                                                       Text="Vérifier" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
 
+                                <!--  Détails du compte et Toggle  -->
+                                <Border Margin="0,0,0,22"
+                                        Padding="16,12"
+                                        Background="#FEF3C7"
+                                        CornerRadius="10"
+                                        Visibility="{Binding HasLoyaltyAccountLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="13"
+                                                       FontWeight="Bold"
+                                                       Foreground="#D97706"
+                                                       Text="{Binding LoyaltyClientName}" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11"
+                                                       Foreground="#92400E"
+                                                       Text="{Binding LoyaltyBalanceDisplay}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    Orientation="Horizontal">
+                                            <TextBlock Margin="0,0,10,0"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#D97706"
+                                                       Text="Utiliser les points" />
+                                            <ToggleButton IsChecked="{Binding UseLoyaltyPoints}"
+                                                          IsEnabled="{Binding CanRedeemPoints}"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          ToolTip="Appliquer la remise fidélité sur le total" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                            <Separator Margin="0,0,0,18"
+                                       Background="{StaticResource BorderLightBrush}"
+                                       Visibility="{Binding IsLoyaltySystemEnabled, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <!--  ═══════════════════════════════════════════  -->
                             <!--  Type  -->
                             <TextBlock Style="{StaticResource PosFieldLabel}"
                                        Text="Type client"

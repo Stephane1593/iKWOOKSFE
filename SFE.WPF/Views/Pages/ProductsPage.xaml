@@ -184,34 +184,93 @@
                               Style="{StaticResource ModernComboBoxStyle}"
                               ToolTip="Filtrer par catégorie" />
 
-                    <!--  Add button  -->
-                    <Button Grid.Column="3"
-                            MinHeight="44"
-                            Padding="18,10"
-                            Background="{StaticResource PrimaryBrush}"
-                            BorderThickness="0"
-                            Command="{Binding StartNewProductCommand}"
-                            Cursor="Hand"
-                            FontFamily="{StaticResource AppFont}"
-                            FontSize="13"
-                            FontWeight="SemiBold"
-                            Foreground="White">
-                        <Button.Effect>
-                            <DropShadowEffect BlurRadius="12"
-                                              Opacity="0.18"
-                                              ShadowDepth="2"
-                                              Color="{StaticResource PrimaryColor}" />
-                        </Button.Effect>
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Width="18"
-                                                     Height="18"
-                                                     Margin="0,0,8,0"
-                                                     VerticalAlignment="Center"
-                                                     Kind="Plus" />
-                            <TextBlock VerticalAlignment="Center"
-                                       Text="Nouveau produit" />
-                        </StackPanel>
-                    </Button>
+                    <!--  Action buttons (Excel & New Product)  -->
+                    <StackPanel Grid.Column="3"
+                                Orientation="Horizontal">
+
+                        <!--  Download Template Button  -->
+                        <Button MinHeight="44"
+                                Margin="0,0,10,0"
+                                Padding="14,10"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource PrimaryBrush}"
+                                BorderThickness="1"
+                                Command="{Binding DownloadImportTemplateCommand}"
+                                Cursor="Hand"
+                                FontFamily="{StaticResource AppFont}"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                ToolTip="Télécharger le modèle Excel vierge">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Width="18"
+                                                         Height="18"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
+                                                         Kind="FileExcelOutline" />
+                                <TextBlock VerticalAlignment="Center"
+                                           Text="Modèle" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Import Button  -->
+                        <Button MinHeight="44"
+                                Margin="0,0,10,0"
+                                Padding="14,10"
+                                Background="#10B981"
+                                BorderThickness="0"
+                                Command="{Binding ImportProductsCommand}"
+                                Cursor="Hand"
+                                FontFamily="{StaticResource AppFont}"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                ToolTip="Importer des produits depuis Excel">
+                            <Button.Effect>
+                                <DropShadowEffect BlurRadius="12"
+                                                  Opacity="0.18"
+                                                  ShadowDepth="2"
+                                                  Color="#10B981" />
+                            </Button.Effect>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Width="18"
+                                                         Height="18"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
+                                                         Kind="Upload" />
+                                <TextBlock VerticalAlignment="Center"
+                                           Text="Importer" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Original Add button  -->
+                        <Button MinHeight="44"
+                                Padding="18,10"
+                                Background="{StaticResource PrimaryBrush}"
+                                BorderThickness="0"
+                                Command="{Binding StartNewProductCommand}"
+                                Cursor="Hand"
+                                FontFamily="{StaticResource AppFont}"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="White">
+                            <Button.Effect>
+                                <DropShadowEffect BlurRadius="12"
+                                                  Opacity="0.18"
+                                                  ShadowDepth="2"
+                                                  Color="{StaticResource PrimaryColor}" />
+                            </Button.Effect>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Width="18"
+                                                         Height="18"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
+                                                         Kind="Plus" />
+                                <TextBlock VerticalAlignment="Center"
+                                           Text="Nouveau produit" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 

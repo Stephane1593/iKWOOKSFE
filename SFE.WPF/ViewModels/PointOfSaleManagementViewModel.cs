@@ -140,6 +140,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         GC.SuppressFinalize(this);
     }
 
+
+
     // ── State ──
     [ObservableProperty] private int _companyId;
     [ObservableProperty] private ObservableCollection<PointOfSale> _allPos = new();
@@ -176,6 +178,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [ObservableProperty] private string _editSunmiTerminalId = "";
 
     [ObservableProperty] private bool _editDisableFallback;
+    [ObservableProperty] private string _editServerMcfUrl = "";
 
     private bool _editIsEmcfOnly = true;
     public bool EditIsEmcfOnly
@@ -187,9 +190,11 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             {
                 _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
                 _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
+                _editIsServerMcf = false; OnPropertyChanged(nameof(EditIsServerMcf));
                 OnPropertyChanged(nameof(ShowEmcfFields));
                 OnPropertyChanged(nameof(ShowMcfFields));
                 OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+                OnPropertyChanged(nameof(ShowServerMcfFields));
             }
         }
     }
@@ -204,9 +209,11 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             {
                 _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
                 _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
+                _editIsServerMcf = false; OnPropertyChanged(nameof(EditIsServerMcf));
                 OnPropertyChanged(nameof(ShowEmcfFields));
                 OnPropertyChanged(nameof(ShowMcfFields));
                 OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+                OnPropertyChanged(nameof(ShowServerMcfFields));
                 _ = RefreshComPortsAsync(SelectedComPort?.Name);
             }
         }
@@ -222,14 +229,35 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             {
                 _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
                 _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
+                _editIsServerMcf = false; OnPropertyChanged(nameof(EditIsServerMcf));
                 OnPropertyChanged(nameof(ShowEmcfFields));
                 OnPropertyChanged(nameof(ShowMcfFields));
                 OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+                OnPropertyChanged(nameof(ShowServerMcfFields));
                 _ = RefreshComPortsAsync(SelectedComPort?.Name);
             }
         }
     }
 
+    private bool _editIsServerMcf;
+    public bool EditIsServerMcf
+    {
+        get => _editIsServerMcf;
+        set
+        {
+            if (SetProperty(ref _editIsServerMcf, value) && value)
+            {
+                _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
+                _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
+                _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
+                OnPropertyChanged(nameof(ShowEmcfFields));
+                OnPropertyChanged(nameof(ShowMcfFields));
+                OnPropertyChanged(nameof(ShowServerMcfFields)); // 🆕
+                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
+            }
+        }
+    }
+    public bool ShowServerMcfFields => EditIsServerMcf;
     public bool ShowEmcfFields => EditIsEmcfOnly || EditIsHybrid;
     public bool ShowMcfFields => EditIsMcfOnly || EditIsHybrid;
     public bool ShowDisableFallbackToggle => EditIsMcfOnly;
@@ -388,6 +416,9 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         FormTitle = "Nouveau point de vente";
         IsEditing = true;
 
+        EditIsServerMcf = false;
+        EditServerMcfUrl = "";
+
         _ = RefreshComPortsAsync(null);
         _ = RefreshPrinterListAsync();
     }
@@ -409,8 +440,9 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             case DeviceType.EMcf: EditIsEmcfOnly = true; break;
             case DeviceType.Mcf: EditIsMcfOnly = true; break;
             case DeviceType.Hybrid: EditIsHybrid = true; break;
+            case DeviceType.ServerMcf: EditIsServerMcf = true; break;
         }
-
+        EditServerMcfUrl = pos.ServerMcfUrl ?? "";
         EditEmcfUrl = pos.EmcfApiUrl ?? "";
         EditEmcfToken = pos.EmcfToken ?? "";
         EditEmcfNim = pos.EmcfNIM ?? "";
@@ -449,9 +481,10 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     {
         if (!await EnsureCompanyLoadedAsync()) return;
 
-        var deviceType = EditIsHybrid ? DeviceType.Hybrid
-                       : EditIsEmcfOnly ? DeviceType.EMcf
-                                        : DeviceType.Mcf;
+        var deviceType = EditIsServerMcf ? DeviceType.ServerMcf
+                               : EditIsHybrid ? DeviceType.Hybrid
+                               : EditIsEmcfOnly ? DeviceType.EMcf
+                                                : DeviceType.Mcf;
 
         if (deviceType is DeviceType.Mcf or DeviceType.Hybrid
             && string.IsNullOrWhiteSpace(EditMcfPortName))
@@ -514,6 +547,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
                 McfPortName = NullIfEmpty(EditMcfPortName),
                 McfBaudRate = EditMcfBaudRate,
+                ServerMcfUrl = NullIfEmpty(EditServerMcfUrl),
                 DisableFallback = disableFallback,
 
                 SunmiEnabled = EditSunmiEnabled,
@@ -554,6 +588,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
             pos.McfPortName = NullIfEmpty(EditMcfPortName);
             pos.McfBaudRate = EditMcfBaudRate;
+            pos.ServerMcfUrl = NullIfEmpty(EditServerMcfUrl);
             pos.DisableFallback = disableFallback;
 
             pos.SunmiEnabled = EditSunmiEnabled;
@@ -781,7 +816,18 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         try
         {
-            if (EditIsMcfOnly || EditIsHybrid)
+            if (EditIsServerMcf)
+            {
+                if (string.IsNullOrWhiteSpace(EditServerMcfUrl))
+                {
+                    EditTestSuccess = false;
+                    EditTestMessage = "L'URL du serveur MCF est obligatoire.";
+                    HasEditTestResult = true;
+                    return;
+                }
+                device = new RemoteMcfHttpClient(EditServerMcfUrl, _time);
+            }
+            else if (EditIsMcfOnly || EditIsHybrid)
             {
                 if (string.IsNullOrWhiteSpace(EditMcfPortName))
                 {
@@ -1047,7 +1093,13 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         try
         {
-            if (pos.DeviceType == DeviceType.EMcf || pos.DeviceType == DeviceType.Hybrid)
+            if (pos.DeviceType == DeviceType.ServerMcf)
+            {
+                if (string.IsNullOrWhiteSpace(pos.ServerMcfUrl))
+                    throw new InvalidOperationException("URL du serveur MCF non configurée.");
+                device = new RemoteMcfHttpClient(pos.ServerMcfUrl, _time);
+            }
+            else if (pos.DeviceType == DeviceType.EMcf || pos.DeviceType == DeviceType.Hybrid)
             {
                 device = new EMcfHttpClient(
                     pos.EmcfApiUrl ?? "",
