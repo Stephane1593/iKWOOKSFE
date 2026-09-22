@@ -55,6 +55,10 @@ public interface IInvoiceRepository : IRepository<Invoice>
     /// Returns proformas not yet converted, optionally filtered by POS or expiration.
     /// </summary>
     Task<List<Invoice>> GetActiveProformasAsync(int? pointOfSaleId = null, bool excludeExpired = true);
+
+    // 🚨 NOUVEAU: Pour le système de synchronisation (Le Facteur)
+    Task<List<Invoice>> GetUnsyncedInvoicesAsync(int limit = 50);
+    Task MarkAsSyncedAsync(IEnumerable<int> invoiceIds, DateTimeOffset syncDate);
 }
 
 /// <summary>

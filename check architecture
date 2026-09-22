@@ -1,1234 +1,788 @@
 ==========================================================
  LICENSING REVIEW BUNDLE #2
  Focus     : feature tokens + MaxUsers enforcement
- Generated : 2026-09-14 14:07:30
+ Generated : 2026-09-15 12:56:36
  Repo root : C:\iKwook
  File count: 4 requested
 ==========================================================
 
 
 ==========================================================
-FILE: SFE.Domain\Entities\PrinterProfile.cs
-SIZE: 519 bytes
+FILE: SFE.WPF\App.xaml.cs
+SIZE: 20436 bytes
 ==========================================================
-using SFE.Domain.Common;
-
-namespace SFE.Domain.Entities;
-
-public class PrinterProfile : SyncableEntity
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Kind { get; set; } = "sunmi"; // e.g. sunmi, escpos-tcp, windows-printer
-    public string ConnectionString { get; set; } = string.Empty; // e.g. "tcp://10.0.0.5:9100" or terminal id
-    public bool IsDefaultKitchen { get; set; } = false;
-    public bool IsDefaultReceipt { get; set; } = false;
-}
-
-
-==========================================================
-FILE: SFE.Domain\Entities\ProductCategory.cs
-SIZE: 457 bytes
-==========================================================
-namespace SFE.Domain.Entities;
-
-public class ProductCategory
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Color { get; set; } = "#3B82F6";
-    public string Icon { get; set; } = "??";
-    public int SortOrder { get; set; }
-    public bool IsActive { get; set; } = true;
-    public DateTimeOffset CreatedAt { get; set; }
-
-    public List<Product> Products { get; set; } = new();
-}
-
-
-==========================================================
-FILE: SFE.WPF\ViewModels\PointOfSaleManagementViewModel.cs
-SIZE: 41460 bytes
-==========================================================
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
+using System.IO;
+using System.Windows;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
 using SFE.Application.Services;
-using SFE.Domain.Abstractions;
-using SFE.Domain.Entities;
-using SFE.Domain.Enums;
+using SFE.Infrastructure.Persistence;
 using SFE.Infrastructure.EMcf;
-using SFE.Infrastructure.Mcf;
-using SFE.WPF.Helpers;
+using SFE.WPF.ViewModels;
 using SFE.WPF.Services;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.IO.Ports;
+using SFE.WPF.Views;
+using SFE.WPF.Views.Pages;
+using QuestPDF.Infrastructure;
 using System.Text;
-using System.Windows.Media;
+using SFE.Domain.Abstractions;
+using SFE.Infrastructure.Persistence.Repositories;
+using SFE.Api;
 using SFE.Licensing.Domain;
 using SFE.Licensing.Local;
+using SFE.WPF.Licensing;
+using Microsoft.Extensions.Logging;
+using SFE.Infrastructure.Repositories;
 
-namespace SFE.WPF.ViewModels;
+namespace SFE.WPF;
 
-// ----------------------------------------------------------------
-//  COM PORT INFO
-// ----------------------------------------------------------------
-public partial class ComPortInfo : ObservableObject
+public partial class App : System.Windows.Application
 {
-    public string Name { get; }
-    public ComPortStatus Status { get; }
-    public string StatusLabel { get; }
-    public Brush StatusColor { get; }
-    public Brush TextColor { get; }
+    public static IServiceProvider ServiceProvider { get; private set; } = null!;
 
-    public ComPortInfo(string name, ComPortStatus status)
+    private SfeApiHost? _api;
+    private PaymentReconciliationService? _reconciler;
+    private CancellationTokenSource? _reconcilerCts;
+
+    private async void Application_Startup(object sender, StartupEventArgs e)
     {
-        Name = name;
-        Status = status;
-        (StatusLabel, StatusColor, TextColor) = status switch
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var services = new ServiceCollection();
+        ConfigureServices(services);
+        ServiceProvider = services.BuildServiceProvider();
+
+        // -- Start the local HTTP + mDNS host --
+        _api = new SfeApiHost(ServiceProvider);
+        await _api.StartAsync();
+
+        // -- Start the payment reconciler (BackgroundService, started manually
+        //    because WPF isn't running under an IHost) --
+        _reconciler = ServiceProvider.GetRequiredService<PaymentReconciliationService>();
+        _reconcilerCts = new CancellationTokenSource();
+        await _reconciler.StartAsync(_reconcilerCts.Token);
+
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var context = ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseSeeder.SeedAsync(context);
+
+        // -- License bootstrap --
+        var guard = ServiceProvider.GetRequiredService<ILicenseGuard>();
+        await guard.InitializeAsync();
+
+        if (guard.Current.Status.IsFatal())
         {
-            ComPortStatus.Available => (
-                "Disponible",
-                (Brush)new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)),
-                (Brush)new SolidColorBrush(Color.FromRgb(0x0F, 0x76, 0x4E))),
-            ComPortStatus.InUse => (
-                "Occupé",
-                (Brush)new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
-                (Brush)new SolidColorBrush(Color.FromRgb(0x92, 0x40, 0x0E))),
-            ComPortStatus.NotFound => (
-                "Introuvable",
-                (Brush)new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)),
-                (Brush)new SolidColorBrush(Color.FromRgb(0x9C, 0x1C, 0x1C))),
-            ComPortStatus.Probing => (
-                "Analyse…",
-                (Brush)new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
-                (Brush)new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69))),
-            _ => (
-                "Inconnu",
-                (Brush)new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
-                (Brush)new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69))),
-        };
-        StatusColor.Freeze();
-        TextColor.Freeze();
-    }
+            var blocker = new LicenseBlockedWindow(guard);
+            blocker.ShowDialog();
 
-    public override bool Equals(object? obj) =>
-        obj is ComPortInfo o && string.Equals(o.Name, Name, StringComparison.OrdinalIgnoreCase);
-
-    public override int GetHashCode() =>
-        StringComparer.OrdinalIgnoreCase.GetHashCode(Name ?? "");
-}
-
-public enum ComPortStatus { Available, InUse, NotFound, Probing }
-
-public class ActivePosDeviceConfigChangedMessage
-{
-    public int PosId { get; }
-    public ActivePosDeviceConfigChangedMessage(int posId) => PosId = posId;
-}
-
-// ----------------------------------------------------------------
-//  POS MANAGEMENT VIEWMODEL
-// ----------------------------------------------------------------
-public partial class PointOfSaleManagementViewModel : BaseViewModel
-{
-    private readonly PointOfSaleService _posService;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly StockService _stockService;
-    private readonly ITimeProvider _time;
-    private readonly FiscalDeviceResolver? _resolver;
-    private readonly ILicenseGuard _license;
-
-    public PointOfSaleManagementViewModel(
-        PointOfSaleService posService,
-        IUnitOfWork unitOfWork,
-        StockService stockService,
-        ITimeProvider time,
-        ILicenseGuard license,
-        FiscalDeviceResolver? resolver = null)
-    {
-        _posService = posService;
-        _unitOfWork = unitOfWork;
-        _stockService = stockService;
-        _time = time ?? throw new ArgumentNullException(nameof(time));
-        _license = license;
-        _resolver = resolver;
-        PageTitle = "Points de vente";
-
-        _license.StatusChanged += OnLicenseChanged;
-        RefreshFeatureGates();
-
-        _ = LoadAsync();
-    }
-
-    private void OnLicenseChanged(LicenseSnapshot _)
-    {
-        var d = System.Windows.Application.Current?.Dispatcher;
-        if (d is null || d.CheckAccess()) RefreshFeatureGates();
-        else d.Invoke(RefreshFeatureGates);
-    }
-
-    public void Dispose()
-    {
-        _license.StatusChanged -= OnLicenseChanged;
-        GC.SuppressFinalize(this);
-    }
-
-    // -- State --
-    [ObservableProperty] private int _companyId;
-    [ObservableProperty] private ObservableCollection<PointOfSale> _allPos = new();
-    [ObservableProperty] private bool _isEditing;
-    [ObservableProperty] private string _formTitle = "";
-    [ObservableProperty] private bool _isProbingComPorts;
-
-    // -- Licence-driven UI hints --
-    [ObservableProperty] private bool _canAddNewPos = true;
-    [ObservableProperty] private string _multiPosLockReason = "";
-    [ObservableProperty] private bool _canUseSunmi = true;
-    [ObservableProperty] private string _sunmiLockReason = "";
-    [ObservableProperty] private bool _canDisableFallback = true;
-    [ObservableProperty] private string _fallbackLockReason = "";
-
-    // -- Edit form: General --
-    private int _editId;
-    [ObservableProperty] private string _editCode = "";
-    [ObservableProperty] private string _editName = "";
-    [ObservableProperty] private string _editAddress = "";
-    [ObservableProperty] private string _editCity = "";
-    [ObservableProperty] private string _editPhone = "";
-    [ObservableProperty] private bool _editManagesStock = true;
-    [ObservableProperty] private bool _editAllowNegativeStock;
-
-    // -- Edit form: Fiscal device --
-    [ObservableProperty] private string _editEmcfUrl = "";
-    [ObservableProperty] private string _editEmcfToken = "";
-    [ObservableProperty] private string _editEmcfNim = "";
-
-    // -- Edit form: Sunmi terminal (LAN) --
-    [ObservableProperty] private bool _editSunmiEnabled;
-    [ObservableProperty] private string _editSunmiTerminalUrl = "";
-    [ObservableProperty] private string _editSunmiTerminalId = "";
-
-    [ObservableProperty] private bool _editDisableFallback;
-
-    private bool _editIsEmcfOnly = true;
-    public bool EditIsEmcfOnly
-    {
-        get => _editIsEmcfOnly;
-        set
-        {
-            if (SetProperty(ref _editIsEmcfOnly, value) && value)
+            // If the user installed a valid license inside the blocker, guard.Current
+            // will have flipped to non-fatal and we can proceed. Otherwise, exit.
+            if (guard.Current.Status.IsFatal())
             {
-                _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
-                _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
-                OnPropertyChanged(nameof(ShowEmcfFields));
-                OnPropertyChanged(nameof(ShowMcfFields));
-                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
-            }
-        }
-    }
-
-    private bool _editIsMcfOnly;
-    public bool EditIsMcfOnly
-    {
-        get => _editIsMcfOnly;
-        set
-        {
-            if (SetProperty(ref _editIsMcfOnly, value) && value)
-            {
-                _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
-                _editIsHybrid = false; OnPropertyChanged(nameof(EditIsHybrid));
-                OnPropertyChanged(nameof(ShowEmcfFields));
-                OnPropertyChanged(nameof(ShowMcfFields));
-                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
-                _ = RefreshComPortsAsync(SelectedComPort?.Name);
-            }
-        }
-    }
-
-    private bool _editIsHybrid;
-    public bool EditIsHybrid
-    {
-        get => _editIsHybrid;
-        set
-        {
-            if (SetProperty(ref _editIsHybrid, value) && value)
-            {
-                _editIsEmcfOnly = false; OnPropertyChanged(nameof(EditIsEmcfOnly));
-                _editIsMcfOnly = false; OnPropertyChanged(nameof(EditIsMcfOnly));
-                OnPropertyChanged(nameof(ShowEmcfFields));
-                OnPropertyChanged(nameof(ShowMcfFields));
-                OnPropertyChanged(nameof(ShowDisableFallbackToggle));
-                _ = RefreshComPortsAsync(SelectedComPort?.Name);
-            }
-        }
-    }
-
-    public bool ShowEmcfFields => EditIsEmcfOnly || EditIsHybrid;
-    public bool ShowMcfFields => EditIsMcfOnly || EditIsHybrid;
-    public bool ShowDisableFallbackToggle => EditIsMcfOnly;
-
-    // -- Edit form: MCF serial --
-    [ObservableProperty] private int _editMcfBaudRate = 115200;
-
-    public ObservableCollection<ComPortInfo> AvailableComPorts { get; } = new();
-    public int[] AvailableBaudRates { get; } = { 9600, 19200, 38400, 57600, 115200, 230400 };
-
-    private ComPortInfo? _selectedComPort;
-    public ComPortInfo? SelectedComPort
-    {
-        get => _selectedComPort;
-        set => SetProperty(ref _selectedComPort, value);
-    }
-
-    private void RefreshFeatureGates()
-    {
-        // Sunmi terminal feature
-        CanUseSunmi = _license.TryUse(Feature.SunmiTerminal, out var sReason);
-        SunmiLockReason = sReason ?? "";
-        if (!CanUseSunmi && EditSunmiEnabled) EditSunmiEnabled = false;
-
-        // e-MCF ? MCF fallback feature — required to *disable* fallback on a hybrid box
-        CanDisableFallback = _license.TryUse(Feature.EmcfFallback, out var fReason);
-        FallbackLockReason = fReason ?? "";
-        if (!CanDisableFallback && EditDisableFallback) EditDisableFallback = false;
-
-        // Multi-POS: enforced by count vs. MaxPointsOfSale in claims.
-        RecomputeCanAddNewPos();
-    }
-
-    private void RecomputeCanAddNewPos()
-    {
-        var claims = _license.Current.Claims;
-        var activeCount = AllPos?.Count(p => p.IsActive) ?? 0;
-
-        // If no claims yet (trial/unknown), allow one POS to unblock first-run.
-        var max = claims?.MaxPointsOfSale ?? 1;
-
-        if (activeCount < max)
-        {
-            CanAddNewPos = true;
-            MultiPosLockReason = "";
-        }
-        else
-        {
-            CanAddNewPos = false;
-            MultiPosLockReason = claims is null
-                ? "Aucune licence active — un seul point de vente autorisé."
-                : $"Votre licence autorise {max} point(s) de vente actif(s). " +
-                  "Passez à une édition Multi-POS pour en ajouter davantage.";
-        }
-    }
-
-    private string EditMcfPortName => SelectedComPort?.Name ?? "";
-
-    // -- Edit form: Inline test result --
-    [ObservableProperty] private bool _hasEditTestResult;
-    [ObservableProperty] private bool _editTestSuccess;
-    [ObservableProperty] private string _editTestMessage = "";
-
-    // -- Edit form: Printer --
-    [ObservableProperty] private string _editPrinterName = "";
-    [ObservableProperty] private int _editPaperWidth = 80;
-    [ObservableProperty] private bool _editAutoPrint = true;
-    [ObservableProperty] private int _editPrintCopies = 1;
-    [ObservableProperty] private bool _editEnableCustomerDisplay;
-    [ObservableProperty] private bool _editEnableCashDrawer;
-    [ObservableProperty] private int _editCashDrawerPin;
-    [ObservableProperty] private int _editCodePage = 858;
-    [ObservableProperty] private bool _editPrintLogo;
-    [ObservableProperty] private string _editFooterText = "Merci pour votre achat !";
-
-    public int[] PaperWidths { get; } = { 80, 58 };
-    public int[] PrintCopiesOptions { get; } = { 1, 2, 3 };
-    public int[] CashDrawerPins { get; } = { 0, 1 };
-    public int[] CodePages { get; } = { 858, 850, 437, 1252, 65001 };
-    public ObservableCollection<string> DetectedPrinters { get; } = new();
-
-    // ------------------------------------------------------------
-    //  CRUD
-    // ------------------------------------------------------------
-    [RelayCommand]
-    private async Task LoadAsync()
-    {
-        if (CompanyId == 0)
-        {
-            var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
-            if (company != null) CompanyId = company.Id;
-        }
-
-        if (!await EnsureCompanyLoadedAsync()) return;
-
-        var posList = await _posService.GetAllAsync(CompanyId);
-        AllPos = new ObservableCollection<PointOfSale>(posList);
-
-        RecomputeCanAddNewPos();
-    }
-
-    [RelayCommand]
-    private async Task StartNewPosAsync()
-    {
-        if (!await EnsureCompanyLoadedAsync()) return;
-
-        // Licence: MultiPos slot check.
-        RecomputeCanAddNewPos();
-        if (!CanAddNewPos)
-        {
-            ShowErrorMessage(MultiPosLockReason);
-            return;
-        }
-
-        _editId = 0;
-        EditCode = await _posService.GenerateNextCodeAsync(CompanyId);
-        EditName = "";
-        EditAddress = "";
-        EditCity = "";
-        EditPhone = "";
-        EditManagesStock = true;
-        EditAllowNegativeStock = false;
-
-        EditIsEmcfOnly = true;
-        EditEmcfUrl = "";
-        EditEmcfToken = "";
-        EditEmcfNim = "";
-
-        EditMcfBaudRate = 115200;
-        EditDisableFallback = false;
-
-        EditSunmiEnabled = false;
-        EditSunmiTerminalUrl = "";
-        EditSunmiTerminalId = "";
-
-        EditPrinterName = "";
-        EditPaperWidth = 80;
-        EditAutoPrint = true;
-        EditPrintCopies = 1;
-        EditEnableCustomerDisplay = false;
-        EditEnableCashDrawer = false;
-        EditCashDrawerPin = 0;
-        EditCodePage = 858;
-        EditPrintLogo = false;
-        EditFooterText = "Merci pour votre achat !";
-
-        HasEditTestResult = false;
-        FormTitle = "Nouveau point de vente";
-        IsEditing = true;
-
-        _ = RefreshComPortsAsync(null);
-        _ = RefreshPrinterListAsync();
-    }
-
-    [RelayCommand]
-    private void EditPos(PointOfSale pos)
-    {
-        _editId = pos.Id;
-        EditCode = pos.Code;
-        EditName = pos.Name;
-        EditAddress = pos.Address;
-        EditCity = pos.City;
-        EditPhone = pos.Phone;
-        EditManagesStock = pos.ManagesStock;
-        EditAllowNegativeStock = pos.AllowNegativeStock;
-
-        switch (pos.DeviceType)
-        {
-            case DeviceType.EMcf: EditIsEmcfOnly = true; break;
-            case DeviceType.Mcf: EditIsMcfOnly = true; break;
-            case DeviceType.Hybrid: EditIsHybrid = true; break;
-        }
-
-        EditEmcfUrl = pos.EmcfApiUrl ?? "";
-        EditEmcfToken = pos.EmcfToken ?? "";
-        EditEmcfNim = pos.EmcfNIM ?? "";
-
-        EditMcfBaudRate = pos.McfBaudRate > 0 ? pos.McfBaudRate : 115200;
-        EditDisableFallback = pos.DisableFallback;
-
-        EditSunmiEnabled = pos.SunmiEnabled;
-        EditSunmiTerminalUrl = pos.SunmiTerminalUrl ?? "";
-        EditSunmiTerminalId = pos.SunmiTerminalId ?? "";
-
-        EditPrinterName = pos.ThermalPrinterName ?? "";
-        EditPaperWidth = pos.PaperWidthMm > 0 ? pos.PaperWidthMm : 80;
-        EditAutoPrint = pos.AutoPrintReceipt;
-        EditPrintCopies = pos.PrintCopies > 0 ? pos.PrintCopies : 1;
-        EditEnableCustomerDisplay = pos.EnableCustomerDisplay;
-        EditEnableCashDrawer = pos.EnableCashDrawer;
-        EditCashDrawerPin = pos.CashDrawerPin;
-        EditCodePage = pos.PrinterCodePage > 0 ? pos.PrinterCodePage : 858;
-        EditPrintLogo = pos.PrintLogo;
-        EditFooterText = pos.ReceiptFooterText ?? "Merci pour votre achat !";
-
-        HasEditTestResult = false;
-        FormTitle = $"Modifier {pos.Code}";
-        IsEditing = true;
-
-        _ = RefreshComPortsAsync(pos.McfPortName);
-        _ = RefreshPrinterListAsync(EditPrinterName);
-    }
-
-    [RelayCommand]
-    private void CancelEdit() => IsEditing = false;
-
-    [RelayCommand]
-    private async Task SavePosAsync()
-    {
-        if (!await EnsureCompanyLoadedAsync()) return;
-
-        var deviceType = EditIsHybrid ? DeviceType.Hybrid
-                       : EditIsEmcfOnly ? DeviceType.EMcf
-                                        : DeviceType.Mcf;
-
-        if (deviceType is DeviceType.Mcf or DeviceType.Hybrid
-            && string.IsNullOrWhiteSpace(EditMcfPortName))
-        {
-            ShowErrorMessage("Veuillez sélectionner un port COM pour le mode MCF/Hybride.");
-            return;
-        }
-
-        // -- Licence enforcement --
-
-        // 1) Sunmi terminal
-        if (EditSunmiEnabled && !_license.TryUse(Feature.SunmiTerminal, out var sunmiReason))
-        {
-            ShowErrorMessage(sunmiReason ?? "Terminal Sunmi non inclus dans votre licence.");
-            return;
-        }
-
-        // 2) MCF ? e-MCF fallback: disabling fallback requires the feature.
-        //    (Enabling fallback — the default — is always allowed.)
-        if (deviceType == DeviceType.Mcf && EditDisableFallback
-            && !_license.TryUse(Feature.EmcfFallback, out var fbReason))
-        {
-            ShowErrorMessage(fbReason ?? "La désactivation du repli e-MCF requiert la fonctionnalité correspondante.");
-            return;
-        }
-
-        // 3) MultiPos slot: enforced only on CREATE. Existing POS can always be edited/reactivated.
-        if (_editId == 0)
-        {
-            RecomputeCanAddNewPos();
-            if (!CanAddNewPos)
-            {
-                ShowErrorMessage(MultiPosLockReason);
+                Shutdown();
                 return;
             }
         }
 
-        var disableFallback = (deviceType == DeviceType.Mcf) && EditDisableFallback;
-
-        PosSaveResult result;
-        int savedPosId; // ?? declared outside, will hold the id regardless of branch
-
-        if (_editId == 0)
+        while (true)
         {
-            var pos = new PointOfSale
+            var authService = ServiceProvider.GetRequiredService<IAuthService>();
+            var sessionState = ServiceProvider.GetRequiredService<CashSessionState>();
+
+            // -- 1. Show Login --
+            var loginVm = new LoginViewModel(authService);
+            var loginWindow = new LoginWindow { DataContext = loginVm };
+            loginVm.LoginSucceeded += () => loginWindow.DialogResult = true;
+
+            bool? loginResult = loginWindow.ShowDialog();
+            if (loginResult != true)
             {
-                CompanyId = CompanyId,
-                Code = EditCode,
-                Name = EditName,
-                Address = EditAddress,
-                City = EditCity,
-                Phone = EditPhone,
-                ManagesStock = EditManagesStock,
-                AllowNegativeStock = EditAllowNegativeStock,
-                DeviceType = deviceType,
+                Shutdown();
+                return;
+            }
 
-                EmcfApiUrl = NullIfEmpty(EditEmcfUrl),
-                EmcfToken = NullIfEmpty(EditEmcfToken),
-                EmcfNIM = NullIfEmpty(EditEmcfNim),
+            // -- 2. Determine session flow --
+            var sessionAction = ResolveSessionAction(authService, sessionState);
 
-                McfPortName = NullIfEmpty(EditMcfPortName),
-                McfBaudRate = EditMcfBaudRate,
-                DisableFallback = disableFallback,
+            switch (sessionAction)
+            {
+                case SessionAction.JoinExisting:
+                    {
+                        var session = sessionState.Current!;
+                        MessageBox.Show(
+                            $"Une session de caisse est déjà ouverte.\n\n" +
+                            $"Point de vente : {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"Ouverte le : {session.OpenedAt:dd/MM/yyyy HH:mm}\n" +
+                            $"Par : {session.OperatorName}\n\n" +
+                            $"Vous reprenez cette session en tant que {authService.CurrentUser!.FullName}.\n" +
+                            $"Pour la clôturer, effectuez un Rapport Z.",
+                            "Reprise de session",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
 
-                SunmiEnabled = EditSunmiEnabled,
-                SunmiTerminalUrl = EditSunmiTerminalUrl?.Trim() ?? "",
-                SunmiTerminalId = EditSunmiTerminalId?.Trim() ?? "",
+                        sessionState.Current!.OperatorName = authService.CurrentUser!.FullName;
+                        break;
+                    }
 
-                ThermalPrinterName = EditPrinterName?.Trim() ?? "",
-                PaperWidthMm = EditPaperWidth,
-                AutoPrintReceipt = EditAutoPrint,
-                PrintCopies = EditPrintCopies,
-                EnableCustomerDisplay = EditEnableCustomerDisplay,
-                EnableCashDrawer = EditEnableCashDrawer,
-                CashDrawerPin = EditCashDrawerPin,
-                PrinterCodePage = EditCodePage,
-                PrintLogo = EditPrintLogo,
-                ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !"
-            };
-            result = await _posService.CreateAsync(pos);
-            savedPosId = pos.Id; // ? still in scope here
-        }
-        else
-        {
-            var pos = await _posService.GetByIdAsync(_editId);
-            if (pos == null) { ShowErrorMessage("POS introuvable."); return; }
+                case SessionAction.BlockedWrongPos:
+                    {
+                        var session = sessionState.Current!;
+                        var user = authService.CurrentUser!;
+                        var userPosId = user.PointOfSaleId;
 
-            pos.Code = EditCode;
-            pos.Name = EditName;
-            pos.Address = EditAddress;
-            pos.City = EditCity;
-            pos.Phone = EditPhone;
-            pos.ManagesStock = EditManagesStock;
-            pos.AllowNegativeStock = EditAllowNegativeStock;
-            pos.DeviceType = deviceType;
+                        string userPosDisplay = "un autre point de vente";
+                        if (userPosId.HasValue)
+                        {
+                            try
+                            {
+                                var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+                                var userPos = await uow.PointsOfSale.GetByIdAsync(userPosId.Value);
+                                if (userPos != null)
+                                    userPosDisplay = $"{userPos.Code} — {userPos.Name}";
+                            }
+                            catch { /* fallback to generic message */ }
+                        }
 
-            pos.EmcfApiUrl = NullIfEmpty(EditEmcfUrl);
-            pos.EmcfToken = NullIfEmpty(EditEmcfToken);
-            pos.EmcfNIM = NullIfEmpty(EditEmcfNim);
+                        MessageBox.Show(
+                            $"Impossible de vous connecter.\n\n" +
+                            $"Une session est déjà ouverte sur :\n" +
+                            $"   ?? {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"   ?? Depuis le {session.OpenedAt:dd/MM/yyyy à HH:mm}\n" +
+                            $"   ?? Par : {session.OperatorName}\n\n" +
+                            $"Vous êtes assigné(e) à :\n" +
+                            $"   ?? {userPosDisplay}\n\n" +
+                            $"La session en cours doit d'abord être clôturée par un Rapport Z\n" +
+                            $"avant qu'un autre point de vente puisse être utilisé sur cette machine.",
+                            "Session en cours sur un autre POS",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
 
-            pos.McfPortName = NullIfEmpty(EditMcfPortName);
-            pos.McfBaudRate = EditMcfBaudRate;
-            pos.DisableFallback = disableFallback;
+                        authService.Logout();
+                        continue;
+                    }
 
-            pos.SunmiEnabled = EditSunmiEnabled;
-            pos.SunmiTerminalUrl = EditSunmiTerminalUrl?.Trim() ?? "";
-            pos.SunmiTerminalId = EditSunmiTerminalId?.Trim() ?? "";
+                case SessionAction.BlockedNoPos:
+                    {
+                        var session = sessionState.Current!;
 
-            pos.ThermalPrinterName = EditPrinterName?.Trim() ?? "";
-            pos.PaperWidthMm = EditPaperWidth;
-            pos.AutoPrintReceipt = EditAutoPrint;
-            pos.PrintCopies = EditPrintCopies;
-            pos.EnableCustomerDisplay = EditEnableCustomerDisplay;
-            pos.EnableCashDrawer = EditEnableCashDrawer;
-            pos.CashDrawerPin = EditCashDrawerPin;
-            pos.PrinterCodePage = EditCodePage;
-            pos.PrintLogo = EditPrintLogo;
-            pos.ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !";
+                        MessageBox.Show(
+                            $"Impossible de vous connecter.\n\n" +
+                            $"Une session est ouverte sur {session.PointOfSaleCode} — {session.PointOfSaleName}\n" +
+                            $"mais aucun point de vente ne vous est assigné.\n\n" +
+                            $"Contactez votre administrateur.",
+                            "Accès refusé",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
 
-            result = await _posService.UpdateAsync(pos);
-            savedPosId = pos.Id; // ? still in scope here
-        }
+                        authService.Logout();
+                        continue;
+                    }
 
-        if (result.Success)
-        {
-            try { _resolver?.Invalidate(); } catch { /* non-fatal */ }
+                case SessionAction.BypassToSetup:
+                    {
+                        var session = sessionState.Current!;
 
-            WeakReferenceMessenger.Default.Send(new ActivePosDeviceConfigChangedMessage(savedPosId)); // ? use the captured id
+                        var choice = MessageBox.Show(
+                            $"Une session est ouverte sur {session.PointOfSaleCode} — {session.PointOfSaleName}.\n\n" +
+                            $"En tant que technicien, vous pouvez :\n" +
+                            $"• Accéder au mode configuration (paramètres, utilisateurs)\n" +
+                            $"• La caisse et la facturation restent indisponibles\n\n" +
+                            $"Continuer en mode configuration ?",
+                            "Mode Technicien",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
 
-            IsEditing = false;
-            await LoadAsync();
-            _ = ShowSuccessAsync(_editId == 0 ? "? POS créé avec succès." : "? POS mis à jour.");
+                        if (choice != MessageBoxResult.Yes)
+                        {
+                            authService.Logout();
+                            continue;
+                        }
 
-        }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
+                        sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+                        break;
+                    }
+
+                case SessionAction.ShowDialog:
+                    {
+                        if (sessionState.IsSetupMode)
+                            sessionState.Close();
+
+                        var uow = ServiceProvider.GetRequiredService<IUnitOfWork>();
+                        var settingsService = ServiceProvider.GetRequiredService<SettingsService>();
+                        var timeProvider = ServiceProvider.GetRequiredService<ITimeProvider>();
+                        var sessionVm = new SessionOpenViewModel(uow, authService, settingsService, timeProvider);
+                        var sessionDialog = new SessionOpenDialog { DataContext = sessionVm };
+
+                        sessionVm.SessionConfirmed += () => sessionDialog.DialogResult = true;
+                        sessionVm.SessionBypassed += () => sessionDialog.DialogResult = true;
+
+                        bool? sessionResult = sessionDialog.ShowDialog();
+                        if (sessionResult != true)
+                        {
+                            authService.Logout();
+                            continue;
+                        }
+
+                        if (sessionVm.IsBypass)
+                            sessionState.EnterSetupMode(authService.CurrentUser!.FullName);
+                        else
+                            sessionState.Open(sessionVm.Result!);
+
+                        break;
+                    }
+            }
+
+            // -- 3. Show Main Window --
+            var mainVm = ServiceProvider.GetRequiredService<MainViewModel>();
+            var mainWindow = new MainWindow(mainVm);
+            mainWindow.ShowDialog();
+
+            // -- 4. Handle close reason --
+            if (mainVm.Reason == MainViewModel.CloseReason.None)
+            {
+                Shutdown();
+                return;
+            }
+
+            if (mainVm.Reason == MainViewModel.CloseReason.ZClose)
+            {
+                sessionState.Close();
+            }
+            else if (mainVm.Reason == MainViewModel.CloseReason.Logout)
+            {
+                if (sessionState.IsSetupMode)
+                    sessionState.ExitSetupMode();
+            }
+
+            authService.Logout();
         }
     }
 
-    [RelayCommand]
-    private async Task DeactivatePosAsync(PointOfSale pos)
+    protected override async void OnExit(ExitEventArgs e)
     {
-        var result = await _posService.DeactivateAsync(pos.Id);
-        if (result.Success)
+        if (_reconciler is not null)
         {
-            await LoadAsync();
-            _ = ShowSuccessAsync($"POS {pos.Code} désactivé.");
+            _reconcilerCts?.Cancel();
+            try { await _reconciler.StopAsync(CancellationToken.None); } catch { /* shutting down */ }
+            _reconcilerCts?.Dispose();
         }
-        else ShowErrorMessage(result.ErrorMessage);
+        if (_api is not null) await _api.StopAsync();
+        base.OnExit(e);
     }
 
-    [RelayCommand]
-    private async Task ReactivatePosAsync(PointOfSale? pos)
+    // -------------------------------------------------------
+    //  SESSION ACTION RESOLVER
+    // -------------------------------------------------------
+
+    private enum SessionAction
     {
-        if (pos == null || pos.IsActive) return;
-
-        // Réactiver augmente le nombre de POS actifs ? même limite que la création.
-        RecomputeCanAddNewPos();
-        if (!CanAddNewPos)
-        {
-            ShowErrorMessage(MultiPosLockReason);
-            return;
-        }
-
-        var result = await _posService.ReactivateAsync(pos.Id);
-        if (result.Success)
-        {
-            try { _resolver?.Invalidate(); } catch { /* non-fatal */ }
-            await LoadAsync();
-            _ = ShowSuccessAsync($"? POS {pos.Code} réactivé.");
-        }
-        else
-        {
-            ShowErrorMessage(result.ErrorMessage);
-        }
+        ShowDialog,
+        JoinExisting,
+        BlockedWrongPos,
+        BlockedNoPos,
+        BypassToSetup
     }
 
-
-    [RelayCommand]
-    private async Task InitializeStockAsync(PointOfSale pos)
+    private static SessionAction ResolveSessionAction(
+        IAuthService authService, CashSessionState sessionState)
     {
-        IsBusy = true;
-        try
+        if (!sessionState.IsSessionOpen)
+            return SessionAction.ShowDialog;
+
+        var user = authService.CurrentUser;
+        if (user == null)
+            return SessionAction.ShowDialog;
+
+        var openPosId = sessionState.Current!.PointOfSaleId;
+        var userPosId = user.PointOfSaleId;
+        bool canBypass = authService.HasPermission("bypassPosCheck");
+
+        if (userPosId.HasValue && userPosId.Value == openPosId)
+            return SessionAction.JoinExisting;
+
+        if (userPosId.HasValue && userPosId.Value != openPosId)
         {
-            var count = await _stockService.InitializePosStockFromProductsAsync(pos.Id, "Admin");
-            _ = ShowSuccessAsync($"? {count} produit(s) initialisé(s) dans {pos.Code}.");
+            if (canBypass)
+                return SessionAction.BypassToSetup;
+            return SessionAction.BlockedWrongPos;
         }
-        catch (Exception ex)
+
+        if (!userPosId.HasValue)
         {
-            ShowErrorMessage($"Erreur initialisation stock : {ex.Message}");
+            if (canBypass)
+                return SessionAction.BypassToSetup;
+            return SessionAction.BlockedNoPos;
         }
-        finally { IsBusy = false; }
+
+        return SessionAction.ShowDialog;
     }
 
-    // ------------------------------------------------------------
-    //  COM PORT DETECTION
-    // ------------------------------------------------------------
-
-    [RelayCommand]
-    private Task RefreshComPorts() => RefreshComPortsAsync(SelectedComPort?.Name);
-
-    private async Task RefreshComPortsAsync(string? preferredPort)
+    private static void ConfigureServices(IServiceCollection services)
     {
-        if (IsProbingComPorts) return;
-        IsProbingComPorts = true;
-        try
+        // --- Base de données ---
+        var appDataPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SFE");
+        Directory.CreateDirectory(appDataPath);
+        var dbPath = Path.Combine(appDataPath, "sfe.db");
+
+        var walInterceptor = new SqliteWalInterceptor();
+
+        services.AddLogging(); // safe to call even if you never wire a provider
+
+        services.AddDbContext<AppDbContext>((sp, options) =>
+            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                   .AddInterceptors(walInterceptor),
+            ServiceLifetime.Transient);
+
+        services.AddDbContextFactory<AppDbContext>((sp, options) =>
+            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                   .AddInterceptors(walInterceptor));
+
+        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
+
+        // Cross-checks system clock against domain timestamps. Must be registered
+        // BEFORE AddSfeLicensingLocal because AntiClockTamper resolves it.
+        services.AddSingleton<IMonotonicClockAnchor, EfMonotonicClockAnchor>();
+
+        // --- Licensing ---
+        // No dev trial issuer registered here anymore. First-run without a .lic
+        // shows LicenseBlockedWindow; paste in a dev-minted .lic to proceed.
+        services.AddSfeLicensingLocal(
+            licensePublicKey: EmbeddedLicensePublicKey.GetBytes(),
+            pinnedPublicKeySha256Hex: EmbeddedLicensePublicKey.PublicKeySha256Hex);
+
+        // --- Repositories & Unit of Work ---
+        services.AddTransient<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+
+        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+
+        // --- AUTH ---
+        services.AddSingleton<IAuthService, AuthService>();
+
+        // --- Session State ---
+        services.AddSingleton<CashSessionState>();
+
+        // --- Services Application ---
+        services.AddTransient<SettingsService>();
+        services.AddTransient<DashboardService>();
+        services.AddTransient<InvoiceService>();
+        services.AddTransient<ProductService>();
+        services.AddTransient<ClientService>();
+        services.AddTransient<StockService>();
+        services.AddTransient<PointOfSaleService>();
+        services.AddTransient<ReportService>();
+        services.AddSingleton<CustomerDisplayService>();
+        services.AddTransient<UserService>();
+        services.AddTransient<CategoryService>();
+        services.AddScoped<IInvoiceAdvanceService, InvoiceAdvanceService>();
+        services.AddSingleton<TenantContext>();
+        services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddSingleton<ITenantProvider>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddSingleton<IExcelInvoiceParser, ExcelInvoiceParser>();
+        services.AddSingleton<IBulkInvoiceService, BulkInvoiceService>();
+        services.AddSingleton<ManagerGate>();
+        services.AddSingleton<IManagerAuthorizationService, ManagerAuthorizationService>();
+        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
+        services.AddSingleton<IBarcodeScannerService, KeyboardBarcodeScanner>();
+        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
+        services.AddSingleton<InMemoryPendingOrderStore>();
+
+        // --- Fiscal Device ---
+        services.AddSingleton<FiscalDeviceResolver>();
+        services.AddSingleton<IFiscalDeviceService>(sp =>
+            sp.GetRequiredService<FiscalDeviceResolver>());
+
+        // --- payment skeleton ---
+        services.AddSingleton<MockPaymentProvider>(_ => new MockPaymentProvider
         {
-            string[] systemPorts;
-            try { systemPorts = SerialPort.GetPortNames().Distinct().OrderBy(p => p).ToArray(); }
-            catch { systemPorts = Array.Empty<string>(); }
-
-            AvailableComPorts.Clear();
-            foreach (var p in systemPorts)
-                AvailableComPorts.Add(new ComPortInfo(p, ComPortStatus.Probing));
-
-            if (!string.IsNullOrWhiteSpace(preferredPort)
-                && !AvailableComPorts.Any(p => string.Equals(p.Name, preferredPort, StringComparison.OrdinalIgnoreCase)))
-            {
-                AvailableComPorts.Add(new ComPortInfo(preferredPort, ComPortStatus.NotFound));
-            }
-
-            SelectedComPort =
-                (!string.IsNullOrWhiteSpace(preferredPort)
-                    ? AvailableComPorts.FirstOrDefault(p =>
-                          string.Equals(p.Name, preferredPort, StringComparison.OrdinalIgnoreCase))
-                    : null)
-                ?? AvailableComPorts.FirstOrDefault();
-
-            if (systemPorts.Length == 0) return;
-
-            // ?? If the resolver currently owns a port, do NOT probe it — just mark it InUse.
-            string? activePosPort = null;
-            if (_resolver != null)
-            {
-                try
-                {
-                    var diag = await _resolver.GetDiagnosticsAsync();
-                    activePosPort = diag.ConfiguredPortName;
-                }
-                catch { /* ignore */ }
-            }
-
-            var portsToProbe = systemPorts
-                .Where(p => !string.Equals(p, activePosPort, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-            var probed = await Task.Run(() =>
-                portsToProbe
-                    .AsParallel()
-                    .WithDegreeOfParallelism(Math.Max(2, Math.Min(portsToProbe.Length, 8)))
-                    .Select(p => (Name: p, Status: ProbePort(p)))
-                    .ToList());
-
-            // Mark the resolver-owned port as InUse without touching it.
-            if (!string.IsNullOrEmpty(activePosPort)
-                && systemPorts.Contains(activePosPort, StringComparer.OrdinalIgnoreCase))
-            {
-                probed.Add((activePosPort!, ComPortStatus.InUse));
-            }
-
-            foreach (var (name, status) in probed)
-            {
-                var idx = -1;
-                for (int i = 0; i < AvailableComPorts.Count; i++)
-                    if (string.Equals(AvailableComPorts[i].Name, name, StringComparison.OrdinalIgnoreCase))
-                    { idx = i; break; }
-
-                if (idx >= 0)
-                    AvailableComPorts[idx] = new ComPortInfo(name, status);
-            }
-
-            if (SelectedComPort != null)
-            {
-                var keep = SelectedComPort.Name;
-                SelectedComPort = AvailableComPorts.FirstOrDefault(p =>
-                    string.Equals(p.Name, keep, StringComparison.OrdinalIgnoreCase));
-            }
-        }
-        finally { IsProbingComPorts = false; }
-    }
-
-    private static ComPortStatus ProbePort(string portName)
-    {
-        try
-        {
-            using var sp = new SerialPort(portName) { ReadTimeout = 50, WriteTimeout = 50 };
-            sp.Open();
-            // Hold briefly so a concurrent legitimate user surfaces as InUse.
-            Thread.Sleep(20);
-            sp.Close();
-            return ComPortStatus.Available;
-        }
-        catch (UnauthorizedAccessException) { return ComPortStatus.InUse; }
-        catch (IOException) { return ComPortStatus.NotFound; }
-        catch { return ComPortStatus.InUse; }
-    }
-
-    // ------------------------------------------------------------
-    //  INLINE MCF / e-MCF TEST
-    // ------------------------------------------------------------
-
-    [RelayCommand]
-    private async Task TestEditingPosConnectionAsync()
-    {
-        if (IsProbingComPorts)
-        {
-            EditTestSuccess = false;
-            EditTestMessage = "Analyse des ports en cours, veuillez patienter…";
-            HasEditTestResult = true;
-            return;
-        }
-
-        HasEditTestResult = false;
-        IsBusy = true;
-
-        // ?? Take exclusive ownership of any port the resolver might be holding.
-        IDisposable? lease = null;
-        if (_resolver != null)
-        {
-            try { lease = await _resolver.AcquireExclusiveAccessAsync(); }
-            catch { /* non-fatal */ }
-        }
-
-        IFiscalDeviceService? device = null;
-        McfSerialClient? mcfOwned = null;
-
-        try
-        {
-            if (EditIsMcfOnly || EditIsHybrid)
-            {
-                if (string.IsNullOrWhiteSpace(EditMcfPortName))
-                {
-                    EditTestSuccess = false;
-                    EditTestMessage = "Aucun port COM sélectionné.";
-                    HasEditTestResult = true;
-                    return;
-                }
-
-                if (SelectedComPort?.Status == ComPortStatus.NotFound)
-                {
-                    EditTestSuccess = false;
-                    EditTestMessage = $"Le port {EditMcfPortName} n'est pas disponible sur cette machine.";
-                    HasEditTestResult = true;
-                    return;
-                }
-
-                mcfOwned = new McfSerialClient(EditMcfPortName, _time, EditMcfBaudRate);
-                mcfOwned.Connect();
-                device = mcfOwned;
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(EditEmcfUrl) || string.IsNullOrWhiteSpace(EditEmcfToken))
-                {
-                    EditTestSuccess = false;
-                    EditTestMessage = "URL ou token e-MCF manquant.";
-                    HasEditTestResult = true;
-                    return;
-                }
-                device = new EMcfHttpClient(EditEmcfUrl, EditEmcfToken, "", _time);
-            }
-
-            var status = await device.GetStatusAsync();
-
-            EditTestSuccess = status.Success;
-            EditTestMessage = status.Success
-                ? $"Connexion réussie — NIM : {status.NIM}"
-                : $"Échec : {status.ErrorMessage}";
-            HasEditTestResult = true;
-        }
-        catch (Exception ex)
-        {
-            EditTestSuccess = false;
-            EditTestMessage = $"Erreur : {ex.GetBaseException().Message}";
-            HasEditTestResult = true;
-        }
-        finally
-        {
-            // Dispose mcfOwned if it was created (covers the Connect-throws case);
-            // otherwise dispose the e-MCF client through IDisposable.
-            if (mcfOwned != null)
-            {
-                try { mcfOwned.Dispose(); } catch { }
-            }
-            else if (device is IDisposable d)
-            {
-                try { d.Dispose(); } catch { }
-            }
-
-            IsBusy = false;
-            lease?.Dispose();
-        }
-    }
-
-    // ------------------------------------------------------------
-    //  PRINTER
-    // ------------------------------------------------------------
-
-    [RelayCommand]
-    private Task RefreshPrinterList() => RefreshPrinterListAsync();
-
-    private async Task RefreshPrinterListAsync(string? preferred = null)
-    {
-        var previous = preferred ?? EditPrinterName;
-        var found = await Task.Run(() =>
-        {
-            var list = new List<string> { "" };
-            try
-            {
-                foreach (string p in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
-                    list.Add(p);
-            }
-            catch { }
-            return list;
+            Mode = MockPaymentProvider.Behaviour.ExternallyDriven
         });
+        services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<MockPaymentProvider>());
+        services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
+        services.AddScoped<PaymentService>();
+        services.AddScoped<ITableService, TableService>();
+        services.AddScoped<IPendingOrderProvider, InvoicePendingOrderProvider>();
+        services.AddScoped<IRestaurantRepository, RestaurantRepository>();
+        services.AddScoped<IMenuRepository, MenuRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IPrinterProfileRepository, PrinterProfileRepository>();
 
-        DetectedPrinters.Clear();
-        foreach (var p in found) DetectedPrinters.Add(p);
 
-        if (!string.IsNullOrEmpty(previous) && DetectedPrinters.Contains(previous))
-            EditPrinterName = previous;
-    }
-
-    [RelayCommand]
-    private async Task AutoDetectPrinterAsync()
-    {
-        string[] thermalKeywords =
+        services.Configure<PaymentReconciliationOptions>(o =>
         {
-            "pos", "thermal", "receipt", "epson", "tm-t", "tm-m",
-            "star ", "tsp", "bixolon", "srp-", "citizen", "ct-",
-            "xprinter", "xp-", "rongta", "rp-", "zjiang",
-            "pos-58", "pos-80", "80mm", "58mm", "optima"
-        };
-
-        var found = await Task.Run(() =>
-        {
-            try
-            {
-                foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
-                {
-                    string lower = printer.ToLowerInvariant();
-                    foreach (var kw in thermalKeywords)
-                        if (lower.Contains(kw)) return printer;
-                }
-            }
-            catch { }
-            return null!;
+            o.PollInterval = TimeSpan.FromSeconds(2);
+            o.StuckAfter = TimeSpan.FromSeconds(2);
+            o.MaxAttempts = 30;
         });
+        services.AddSingleton<PaymentReconciliationService>();
 
-        if (!string.IsNullOrEmpty(found))
+        services.AddSingleton(sp =>
         {
-            EditPrinterName = found;
-            _ = ShowSuccessAsync($"?? Imprimante détectée : {found}");
-        }
-        else
-        {
-            ShowErrorMessage("Aucune imprimante thermique détectée automatiquement.");
-        }
+            // TODO: replace this with a secret saved in SettingsService or pairing config.
+            var secretText = "ikwookQrcodebaby";
+            var secret = Encoding.UTF8.GetBytes(secretText);
+
+            return new OfflineQrService(
+                pairingSecret: secret,
+                caisseId: Environment.MachineName);
+        });
+        services.AddScoped<OfflineQrResolver>();
+
+        // --- ViewModels ---
+        services.AddTransient<MainViewModel>();
+        services.AddTransient<DashboardViewModel>();
+        services.AddTransient<PosViewModel>();
+        services.AddTransient<InvoicingViewModel>();
+        services.AddTransient<ProductsViewModel>();
+        services.AddTransient<ClientsViewModel>();
+        services.AddTransient<StockViewModel>();
+        services.AddTransient<StockTransferViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddTransient<SalesHistoryViewModel>();
+        services.AddTransient<PointOfSaleManagementViewModel>();
+        services.AddTransient<ReportViewModel>();
+        services.AddTransient<InvoiceDocumentView>();
+        services.AddTransient<SessionCloseViewModel>();
+        services.AddTransient<ReportZPageViewModel>();
+        services.AddTransient<ReportXPageViewModel>();
+        services.AddTransient<ReportAPageViewModel>();
+        services.AddTransient<UsersViewModel>();
+        services.AddTransient<CategoriesViewModel>();
+        services.AddTransient<BulkInvoicingViewModel>();
+        services.AddTransient<TablesViewModel>();
+        services.AddTransient<RestaurantConfigViewModel>();
+        services.AddTransient<RestaurantConfigPage>();
+
+        // -- Audit --
+        services.AddSingleton<IAuditWriter, AuditWriter>();
+        services.AddSingleton<IAuditService, AuditService>();
+        services.AddTransient<AuditLogViewModel>();
+
+        // --- Fenêtres & Pages ---
+        services.AddTransient<MainWindow>();
+        services.AddTransient<ClientsPage>();
+        services.AddTransient<ReportView>();
+        services.AddTransient<InvoiceDocumentView>();
+        services.AddTransient<PosManagementPage>();
+        services.AddTransient<Views.Pages.BulkInvoicingPage>();
     }
 
-    [RelayCommand]
-    private async Task TestPrintAsync()
+    private static async Task InitializeDatabaseAsync()
     {
-        string printerName = EditPrinterName?.Trim() ?? "";
-        if (string.IsNullOrEmpty(printerName))
-        {
-            await AutoDetectPrinterAsync();
-            printerName = EditPrinterName?.Trim() ?? "";
-        }
-        if (string.IsNullOrEmpty(printerName))
-        {
-            ShowErrorMessage("Aucune imprimante configurée ou détectée.");
-            return;
-        }
+        using var scope = ServiceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseSeeder.SeedAsync(context);
+    }
+}
 
-        try
-        {
-            int charsPerLine = EditPaperWidth >= 80 ? 48 : 32;
-            byte[] receipt = BuildTestReceipt(charsPerLine, EditCodePage, _time.LocalNow);
-            await Task.Run(() => RawPrinterHelper.SendBytesToPrinter(printerName, receipt, "SFE-TestPrint"));
-            _ = ShowSuccessAsync($"?? Ticket test envoyé à « {printerName} ».");
-        }
-        catch (Exception ex)
-        {
-            ShowErrorMessage($"Erreur impression : {ex.Message}");
-        }
+
+==========================================================
+FILE: SFE.Infrastructure.Persistence\AppDbContext.cs
+SIZE: 8496 bytes
+==========================================================
+using Microsoft.EntityFrameworkCore;
+using SFE.Application.Services;
+using SFE.Domain.Abstractions;
+using SFE.Domain.Common;
+using SFE.Domain.Entities;
+using SFE.Infrastructure.Persistence.Converters;
+
+namespace SFE.Infrastructure.Persistence;
+
+public sealed class AppDbContext : DbContext
+{
+    // --- DbSets ---
+    public DbSet<Company> Companies => Set<Company>();
+    public DbSet<PointOfSale> PointsOfSale => Set<PointOfSale>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<LoyaltyAccount> LoyaltyAccounts => Set<LoyaltyAccount>();
+    public DbSet<LoyaltyTransaction> LoyaltyTransactions => Set<LoyaltyTransaction>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<PosStock> PosStocks { get; set; } = null!;
+    public DbSet<StockMovement> StockMovements { get; set; } = null!;
+    public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
+    public DbSet<StockTransferLine> StockTransferLines { get; set; } = null!;
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
+    public DbSet<DailyReport> DailyReports { get; set; } = null!;
+    public DbSet<ReportInvoiceTypeSummary> ReportInvoiceTypeSummaries { get; set; } = null!;
+    public DbSet<ReportTaxGroupDetail> ReportTaxGroupDetails { get; set; } = null!;
+    public DbSet<ReportPaymentSummary> ReportPaymentSummaries { get; set; } = null!;
+    public DbSet<ArticleReportLine> ArticleReportLines { get; set; } = null!;
+    public DbSet<AuditLogEntry> AuditLogEntries { get; set; } = null!;
+
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+
+    public DbSet<Restaurant> Restaurants => Set<Restaurant>();
+    public DbSet<Menu> Menus => Set<Menu>();
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<Table> Tables => Set<Table>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<PrinterProfile> PrinterProfiles => Set<PrinterProfile>();
+
+    private readonly ITimeProvider _time;
+    private readonly ITenantProvider _tenant;
+
+    // -- DI constructor (runtime) --
+    public AppDbContext(
+        DbContextOptions<AppDbContext> options,
+        ITimeProvider time,
+        ITenantProvider tenant) : base(options)
+    {
+        _time = time ?? throw new ArgumentNullException(nameof(time));
+        _tenant = tenant ?? throw new ArgumentNullException(nameof(tenant));
     }
 
-    // ------------------------------------------------------------
-    //  HELPERS
-    // ------------------------------------------------------------
-
-    private async Task<bool> EnsureCompanyLoadedAsync()
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
-        if (CompanyId > 0) return true;
-        var company = await _unitOfWork.Companies.GetCurrentCompanyAsync();
-        if (company != null) { CompanyId = company.Id; return true; }
-        ShowErrorMessage("Aucune entreprise configurée.");
-        return false;
+        base.ConfigureConventions(configurationBuilder);
+
+        configurationBuilder
+        .Properties<Ulid>()
+        .HaveConversion<UlidToStringConverter>()
+        .HaveMaxLength(26);
     }
 
-    private static string? NullIfEmpty(string? s) =>
-        string.IsNullOrWhiteSpace(s) ? null : s;
-
-    private static byte[] BuildTestReceipt(int charsPerLine, int codePage, DateTimeOffset now)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        using var ms = new MemoryStream();
-        void Write(params byte[] data) => ms.Write(data, 0, data.Length);
+        base.OnModelCreating(modelBuilder);
 
-        Encoding enc;
-        try { enc = Encoding.GetEncoding(codePage); }
-        catch { enc = Encoding.GetEncoding(437); }
+        // 1) Applique d'abord toutes les IEntityTypeConfiguration
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        void PrintLine(string text)
-        {
-            byte[] bytes = enc.GetBytes(text);
-            ms.Write(bytes, 0, bytes.Length);
-            ms.WriteByte(0x0A);
-        }
+        // 2) Conversion GLOBALE DateTimeOffset ? long pour SQLite
+        ApplyDateTimeOffsetConversions(modelBuilder);
 
-        Write(0x1B, 0x40);
-        byte cpByte = codePage switch { 437 => 0x00, 850 => 0x02, 858 => 0x13, 1252 => 0x10, _ => 0x13 };
-        Write(0x1B, 0x74, cpByte);
-        Write(0x1B, 0x61, 0x01);
-        Write(0x1B, 0x45, 0x01);
-        Write(0x1D, 0x21, 0x11);
-        PrintLine("SFE GECOM");
-        Write(0x1D, 0x21, 0x00);
-        Write(0x1B, 0x45, 0x00);
-        PrintLine("");
-        PrintLine(new string('=', charsPerLine));
-        PrintLine("TEST D'IMPRESSION");
-        PrintLine(new string('=', charsPerLine));
-        PrintLine("");
-        PrintLine($"Largeur : {(charsPerLine >= 48 ? 80 : 58)} mm");
-        PrintLine($"Caractères/ligne : {charsPerLine}");
-        PrintLine($"Code page : {codePage}");
-        PrintLine($"Date : {now:dd/MM/yyyy HH:mm:ss}");
-        PrintLine("");
-        PrintLine("Caractères spéciaux :");
-        PrintLine("é è ê ë à â ù û ç ô î ï €");
-        PrintLine("");
-        PrintLine(new string('-', charsPerLine));
-        Write(0x1B, 0x61, 0x00);
-
-        void PrintRow(string left, string right)
-        {
-            int gap = charsPerLine - left.Length - right.Length;
-            if (gap < 1) gap = 1;
-            PrintLine(left + new string(' ', gap) + right);
-        }
-        PrintRow("Article test", "1 500,00 CDF");
-        PrintRow("TVA 16%", "240,00 CDF");
-        Write(0x1B, 0x61, 0x01);
-        PrintLine(new string('-', charsPerLine));
-        Write(0x1B, 0x61, 0x00);
-        Write(0x1B, 0x45, 0x01);
-        Write(0x1D, 0x21, 0x01);
-        PrintRow("TOTAL TTC", "1 740,00 CDF");
-        Write(0x1D, 0x21, 0x00);
-        Write(0x1B, 0x45, 0x00);
-        Write(0x1B, 0x61, 0x01);
-        PrintLine(new string('=', charsPerLine));
-        PrintLine("");
-        PrintLine("Si ce ticket s'imprime");
-        PrintLine("correctement, votre");
-        PrintLine("imprimante est configurée !");
-        PrintLine("");
-        PrintLine("--- iKWOOK SFE ---");
-        PrintLine("");
-        Write(0x1B, 0x64, 0x05);
-        Write(0x1D, 0x56, 0x01);
-        return ms.ToArray();
+        // 3) Global query filters (tenant + soft-delete)
+        ApplyGlobalFilters(modelBuilder);
     }
 
-    [RelayCommand]
-    private async Task TestPosConnection(PointOfSale? pos)
+    private static void ApplyDateTimeOffsetConversions(ModelBuilder modelBuilder)
     {
-        if (pos == null) return;
-        IsBusy = true;
-
-        // ?? Lease the port before opening it directly.
-        IDisposable? lease = null;
-        if (_resolver != null)
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            try { lease = await _resolver.AcquireExclusiveAccessAsync(); }
-            catch { /* non-fatal */ }
-        }
-
-        IFiscalDeviceService? device = null;
-        McfSerialClient? mcfOwned = null;
-
-        try
-        {
-            if (pos.DeviceType == DeviceType.EMcf || pos.DeviceType == DeviceType.Hybrid)
+            foreach (var property in entityType.GetProperties())
             {
-                device = new EMcfHttpClient(
-                    pos.EmcfApiUrl ?? "",
-                    pos.EmcfToken ?? "",
-                    "",
-                    _time);
-            }
-            else
-            {
-                mcfOwned = new McfSerialClient(pos.McfPortName ?? "COM3", _time, pos.McfBaudRate);
-                mcfOwned.Connect();
-                device = mcfOwned;
-            }
+                if (property.GetValueConverter() != null) continue;
 
-            var status = await device.GetStatusAsync();
-
-            if (status.Success)
-            {
-                pos.LastKnownNIM = status.NIM;
-                pos.LastKnownNIF = status.NIF;
-                pos.LastConnectionTestAt = _time.UtcNow.UtcDateTime;
-
-                if (!string.IsNullOrEmpty(status.NIM))
-                    pos.EmcfNIM = status.NIM;
-
-                var serverStatus = await device.GetServerConnectionStatusAsync();
-                if (serverStatus.Success)
+                if (property.ClrType == typeof(DateTimeOffset))
                 {
-                    pos.McfLastServerConnection = serverStatus.LastServerConnection;
-                    pos.McfServerStatus = serverStatus.ConnectionStatus;
+                    property.SetValueConverter(DateTimeOffsetConverters.ToTicks);
+                    property.SetColumnType("INTEGER");
                 }
-
-                await _posService.UpdateAsync(pos);
-                await LoadAsync();
-                _ = ShowSuccessAsync($"? Connexion réussie — NIM: {status.NIM}");
-            }
-            else
-            {
-                ShowErrorMessage($"Échec: {status.ErrorMessage}");
+                else if (property.ClrType == typeof(DateTimeOffset?))
+                {
+                    property.SetValueConverter(DateTimeOffsetConverters.ToNullableTicks);
+                    property.SetColumnType("INTEGER");
+                }
             }
         }
-        catch (Exception ex)
-        {
-            ShowErrorMessage($"Erreur: {ex.Message}");
-        }
-        finally
-        {
-            if (mcfOwned != null)
-            {
-                try { mcfOwned.Dispose(); } catch { }
-            }
-            else if (device is IDisposable d)
-            {
-                try { d.Dispose(); } catch { }
-            }
+    }
 
-            IsBusy = false;
-            lease?.Dispose();
+    private void ApplyGlobalFilters(ModelBuilder modelBuilder)
+    {
+        foreach (var et in modelBuilder.Model.GetEntityTypes())
+        {
+            var clr = et.ClrType;
+
+            // ?? Ordre important : SyncableEntity hérite généralement de SyncableRootEntity
+            //    donc tester le plus spécifique d'abord.
+            if (typeof(SyncableEntity).IsAssignableFrom(clr))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(SetTenantFilter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .MakeGenericMethod(clr);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+            else if (typeof(SyncableRootEntity).IsAssignableFrom(clr))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(SetRootSoftDeleteFilter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .MakeGenericMethod(clr);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+        }
+    }
+
+    // Tenant + soft-delete filter
+    private void SetTenantFilter<T>(ModelBuilder mb) where T : SyncableEntity
+    {
+        mb.Entity<T>().HasQueryFilter(e =>
+            e.DeletedAtUtc == null &&
+            (_tenant.IsBootstrapMode || _tenant.CompanyId == 0 || e.CompanyId == _tenant.CompanyId));
+    }
+
+    // Soft-delete filter only (root entities, non-tenant-scoped)
+    private void SetRootSoftDeleteFilter<T>(ModelBuilder mb) where T : SyncableRootEntity
+    {
+        mb.Entity<T>().HasQueryFilter(e => e.DeletedAtUtc == null);
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        ApplyAuditAndTenantStamps();
+        return await base.SaveChangesAsync(ct);
+    }
+
+    public override int SaveChanges()
+    {
+        ApplyAuditAndTenantStamps();
+        return base.SaveChanges();
+    }
+
+    private void ApplyAuditAndTenantStamps()
+    {
+        var now = _time.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<SyncableRootEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    if (entry.Entity.CreatedAtUtc == default)
+                        entry.Entity.CreatedAtUtc = now;
+                    entry.Entity.UpdatedAtUtc = now;
+                    if (entry.Entity.SyncId == default)
+                        entry.Entity.SyncId = Ulid.NewUlid();
+
+                    // Stamp origin POS automatically
+                    if (entry.Entity.OriginPointOfSaleSyncId is null &&
+                        _tenant.CurrentPointOfSaleSyncId is { } posSyncId)
+                    {
+                        entry.Entity.OriginPointOfSaleId = _tenant.CurrentPointOfSaleId;
+                        entry.Entity.OriginPointOfSaleSyncId = posSyncId;
+                    }
+
+                    // Stamp CompanyId on tenant-scoped entities
+                    if (entry.Entity is SyncableEntity scoped &&
+                        scoped.CompanyId == 0 &&
+                        !_tenant.IsBootstrapMode &&
+                        _tenant.IsAuthenticated)
+                    {
+                        scoped.CompanyId = _tenant.CompanyId;
+                    }
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.MarkUpdated(now);
+                    break;
+
+                case EntityState.Deleted:
+                    // Convert hard-delete to soft-delete
+                    entry.State = EntityState.Modified;
+                    entry.Entity.MarkDeleted(now);
+                    break;
+            }
         }
     }
 }
 
 
 ==========================================================
-FILE: SFE.WPF\Helpers\RawPrinterHelper.cs
-SIZE: 4147 bytes
+FILE: SFE.Domain\Common\SyncableEntity.cs
+SIZE: 358 bytes
 ==========================================================
-using System.Runtime.InteropServices;
+namespace SFE.Domain.Common;
 
-namespace SFE.WPF.Helpers;
-
-public static class RawPrinterHelper
+/// <summary>
+/// Base for every tenant-scoped entity. Adds CompanyId to the root contract.
+/// 99% of entities inherit this. Only <c>Company</c> itself uses <see cref="SyncableRootEntity"/> directly.
+/// </summary>
+public abstract class SyncableEntity : SyncableRootEntity
 {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-    private class DOCINFOA
+    public int CompanyId { get; set; }
+}
+
+
+==========================================================
+FILE: SFE.Application\Events\AppEventBus.cs
+SIZE: 1718 bytes
+==========================================================
+// SFE.Application/Events/AppEventBus.cs
+namespace SFE.Application.Events;
+
+public enum AppEvent
+{
+    // Products
+    ProductCreated,
+    ProductUpdated,
+    ProductDeleted,
+
+    // Stock
+    StockUpdated,
+
+    // Transfers
+    StockTransferCreated,
+    StockTransferShipped,
+    StockTransferReceived,
+    StockTransferCancelled,
+
+    // ?? Users
+    UserCreated,
+    UserUpdated,
+    UserDeleted,
+
+    // ?? Roles
+    RoleCreated,
+    RoleUpdated,
+    RoleDeleted,
+
+    CategoryCreated,
+    CategoryUpdated,
+    CategoryDeleted,
+
+    // ?? Fiscal device
+    FiscalDeviceStatusChanged,
+}
+
+public class AppEventArgs
+{
+    public AppEvent Event { get; init; }
+    public string? EntityId { get; init; }
+}
+
+public static class AppEventBus
+{
+    private static readonly List<Func<AppEventArgs, Task>> _handlers = new();
+    private static readonly object _lock = new();
+
+    public static void Subscribe(Func<AppEventArgs, Task> handler)
     {
-        [MarshalAs(UnmanagedType.LPStr)] public string? pDocName;
-        [MarshalAs(UnmanagedType.LPStr)] public string? pOutputFile;
-        [MarshalAs(UnmanagedType.LPStr)] public string? pDataType;
+        lock (_lock)
+            _handlers.Add(handler);
     }
 
-    // -- P/Invoke declarations (unchanged) --------------------------
-    [DllImport("winspool.drv", EntryPoint = "OpenPrinterA",
-        SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true)]
-    private static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
-
-    [DllImport("winspool.drv", EntryPoint = "ClosePrinter",
-        SetLastError = true, ExactSpelling = true)]
-    private static extern bool ClosePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.drv", EntryPoint = "StartDocPrinterA",
-        SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true)]
-    private static extern bool StartDocPrinter(IntPtr hPrinter, int level,
-        [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
-
-    [DllImport("winspool.drv", EntryPoint = "EndDocPrinter",
-        SetLastError = true, ExactSpelling = true)]
-    private static extern bool EndDocPrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.drv", EntryPoint = "StartPagePrinter",
-        SetLastError = true, ExactSpelling = true)]
-    private static extern bool StartPagePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.drv", EntryPoint = "EndPagePrinter",
-        SetLastError = true, ExactSpelling = true)]
-    private static extern bool EndPagePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.drv", EntryPoint = "WritePrinter",
-        SetLastError = true, ExactSpelling = true)]
-    private static extern bool WritePrinter(
-        IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
-
-    // -- Public API -------------------------------------------------
-
-    /// <summary>
-    /// Sends raw ESC/POS bytes to the named Windows printer.
-    /// Throws on failure with Win32 error detail.
-    /// </summary>
-    public static void SendBytesToPrinter(
-        string printerName, byte[] data, string docName = "SFE Receipt")
+    public static void Unsubscribe(Func<AppEventArgs, Task> handler)
     {
-        if (!OpenPrinter(printerName.Normalize(), out IntPtr hPrinter, IntPtr.Zero))
-            throw new InvalidOperationException(
-                $"Cannot open printer \"{printerName}\". " +
-                $"Win32 error: {Marshal.GetLastWin32Error()}");
-        try
+        lock (_lock)
+            _handlers.Remove(handler);
+    }
+
+    public static async Task PublishAsync(AppEventArgs args)
+    {
+        Func<AppEventArgs, Task>[] snapshot;
+        lock (_lock)
+            snapshot = _handlers.ToArray();
+
+        foreach (var handler in snapshot)
         {
-            if (!StartDocPrinter(hPrinter, 1,
-                    new DOCINFOA { pDocName = docName, pDataType = "RAW" }))
-                throw new InvalidOperationException(
-                    $"StartDocPrinter failed. Win32 error: {Marshal.GetLastWin32Error()}");
-            try
+            try { await handler(args); }
+            catch (Exception ex)
             {
-                if (!StartPagePrinter(hPrinter))
-                    throw new InvalidOperationException(
-                        $"StartPagePrinter failed. Win32 error: {Marshal.GetLastWin32Error()}");
-                try
-                {
-                    IntPtr pUnmanaged = Marshal.AllocCoTaskMem(data.Length);
-                    try
-                    {
-                        Marshal.Copy(data, 0, pUnmanaged, data.Length);
-                        if (!WritePrinter(hPrinter, pUnmanaged, data.Length, out _))
-                            throw new InvalidOperationException(
-                                $"WritePrinter failed. Win32 error: {Marshal.GetLastWin32Error()}");
-                    }
-                    finally { Marshal.FreeCoTaskMem(pUnmanaged); }
-                }
-                finally { EndPagePrinter(hPrinter); }   // ? always
+                System.Diagnostics.Debug.WriteLine(
+                    $"[AppEventBus] Handler error for {args.Event}: {ex.Message}");
             }
-            finally { EndDocPrinter(hPrinter); }         // ? always
         }
-        finally { ClosePrinter(hPrinter); }              // ? always
     }
 }
 

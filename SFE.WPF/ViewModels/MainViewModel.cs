@@ -639,4 +639,27 @@ public partial class MainViewModel : BaseViewModel, IRecipient<OpenTableMessage>
             NotificationType = "error";
         }
     }
+
+    // ═══════════════════════════════════════════════════════
+    //  RAFRAÎCHISSEMENT GLOBAL
+    // ═══════════════════════════════════════════════════════
+
+    [RelayCommand]
+    private async Task ForceRefreshAsync()
+    {
+        // 1. Afficher un message de confirmation rapide
+        NotificationMessage = "Actualisation des données en cours...";
+        NotificationType = "info";
+        ShowNotificationBanner = true;
+
+        // 2. Diffuser l'ordre de rafraîchissement à l'écran actif
+        await AppEventBus.PublishAsync(new AppEventArgs { Event = AppEvent.ForceGlobalRefresh });
+
+        // 3. Masquer le message après 1.5 seconde
+        await Task.Delay(1500);
+        if (NotificationMessage == "Actualisation des données en cours...")
+        {
+            ShowNotificationBanner = false;
+        }
+    }
 }

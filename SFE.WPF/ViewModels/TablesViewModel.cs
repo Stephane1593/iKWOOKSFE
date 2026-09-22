@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Messaging;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
 using SFE.WPF.Messages;
+using Microsoft.Extensions.DependencyInjection;
+using SFE.Application.Events;
 
 namespace SFE.WPF.ViewModels;
 
@@ -44,6 +46,9 @@ public partial class TablesViewModel : BaseViewModel, IActivatable, IRecipient<R
         _tableService = tableService ?? throw new ArgumentNullException(nameof(tableService));
         PageTitle = "Plan de Salle";
         WeakReferenceMessenger.Default.Register(this);
+
+        // 🚨 Écoute des mises à jour réseau ET du bouton rafraîchir
+        Subscribe(LoadTablesAsync, AppEvent.TableStatusChanged, AppEvent.ForceGlobalRefresh);
     }
 
     public async Task ActivateAsync()
@@ -65,39 +70,44 @@ public partial class TablesViewModel : BaseViewModel, IActivatable, IRecipient<R
 
         try
         {
-            var tables = await _tableService.GetAllAsync();
-            var displayList = new List<TableDisplayModel>();
+            List<TableDisplayModel> displayList = new();
 
-            foreach (var table in tables)
+            // 1. Enter the database bubble
+            await RunInScopeAsync(async (sp) =>
             {
-                var displayModel = new TableDisplayModel(table);
-                var activeOrder = await _tableService.GetActiveOrderAsync(table.Id);
+                var scopedTableService = sp.GetRequiredService<ITableService>();
+                var tables = await scopedTableService.GetAllAsync();
 
-                if (activeOrder != null)
+                foreach (var table in tables)
                 {
-                    if (table.Status == TableStatus.Free)
+                    var displayModel = new TableDisplayModel(table);
+                    var activeOrder = await scopedTableService.GetActiveOrderAsync(table.Id);
+
+                    if (activeOrder != null)
                     {
-                        table.Status = TableStatus.Occupied;
-                        await _tableService.ChangeStatusAsync(table.Id, TableStatus.Occupied);
+                        if (table.Status == TableStatus.Free)
+                        {
+                            table.Status = TableStatus.Occupied;
+                            await scopedTableService.ChangeStatusAsync(table.Id, TableStatus.Occupied);
+                        }
+                        displayModel.OrderTotal = activeOrder.TotalTTC;
+                        displayModel.WaiterName = activeOrder.WaiterName ?? "Serveur";
+                        displayModel.OrderTime = activeOrder.CreatedAtUtc;
                     }
-
-                    displayModel.OrderTotal = activeOrder.TotalTTC;
-                    displayModel.WaiterName = activeOrder.WaiterName ?? "Serveur";
-                    displayModel.OrderTime = activeOrder.CreatedAtUtc;
-                }
-                else
-                {
-                    if (table.Status == TableStatus.Occupied)
+                    else if (table.Status == TableStatus.Occupied)
                     {
                         table.Status = TableStatus.Free;
-                        await _tableService.ChangeStatusAsync(table.Id, TableStatus.Free);
+                        await scopedTableService.ChangeStatusAsync(table.Id, TableStatus.Free);
                     }
+                    displayList.Add(displayModel);
                 }
+            });
 
-                displayList.Add(displayModel);
-            }
-
-            Tables = new ObservableCollection<TableDisplayModel>(displayList);
+            // 🚨 2. FORCE THE UI TO REDRAW INSTANTLY ON THE MAIN THREAD
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                Tables = new ObservableCollection<TableDisplayModel>(displayList);
+            });
         }
         catch (Exception ex)
         {
@@ -119,21 +129,33 @@ public partial class TablesViewModel : BaseViewModel, IActivatable, IRecipient<R
         {
             if (table.Status == TableStatus.Free)
             {
-                // 🚨 Au lieu d'ouvrir directement, on prépare le popup
                 _pendingTableForOpen = model;
                 NewWaiterName = "";
                 ShowWaiterPrompt = true;
             }
             else if (table.Status == TableStatus.Occupied)
             {
-                var activeOrder = await _tableService.GetActiveOrderAsync(table.Id);
-                WeakReferenceMessenger.Default.Send(new OpenTableMessage(table.Id, activeOrder?.Id));
+                int? activeOrderId = null;
+
+                // 🚨 Use the scope bubble so tapping a table doesn't crash the background sync!
+                await RunInScopeAsync(async (sp) =>
+                {
+                    var scopedTableService = sp.GetRequiredService<ITableService>();
+                    var activeOrder = await scopedTableService.GetActiveOrderAsync(table.Id);
+                    activeOrderId = activeOrder?.Id;
+                });
+
+                WeakReferenceMessenger.Default.Send(new OpenTableMessage(table.Id, activeOrderId));
             }
             else if (table.Status == TableStatus.Cleaning)
             {
-                await _tableService.ChangeStatusAsync(table.Id, TableStatus.Free);
+                await RunInScopeAsync(async (sp) =>
+                {
+                    var scopedTableService = sp.GetRequiredService<ITableService>();
+                    await scopedTableService.ChangeStatusAsync(table.Id, TableStatus.Free);
+                });
                 await LoadTablesAsync();
-                _ = ShowSuccessAsync($"La table {table.Number} est maintenant libre.");
+                _ = ShowSuccessAsync($"La table {table.Number} est libre.");
             }
         }
         catch (Exception ex)

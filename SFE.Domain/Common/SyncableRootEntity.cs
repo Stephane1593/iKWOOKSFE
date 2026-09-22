@@ -1,4 +1,4 @@
-﻿using Cysharp.Text;
+﻿using System;
 
 namespace SFE.Domain.Common;
 
@@ -19,6 +19,9 @@ public abstract class SyncableRootEntity
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public DateTimeOffset? DeletedAtUtc { get; set; }
 
+    // 🚨 NOUVEAU: Le tampon de livraison du facteur
+    public DateTimeOffset? LastSyncedAtUtc { get; set; }
+
     public long Version { get; set; } = 1;
 
     public bool IsDeleted => DeletedAtUtc is not null;
@@ -37,5 +40,11 @@ public abstract class SyncableRootEntity
     public void Restore(DateTimeOffset utcNow)
     {
         if (DeletedAtUtc is not null) { DeletedAtUtc = null; MarkUpdated(utcNow); }
+    }
+
+    // 🚨 NOUVEAU: Méthode appelée par le facteur quand le colis est livré
+    public void MarkSynced(DateTimeOffset utcNow)
+    {
+        LastSyncedAtUtc = utcNow;
     }
 }

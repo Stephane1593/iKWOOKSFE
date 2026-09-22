@@ -24,6 +24,8 @@ using System.Windows.Controls;
 using System.Windows;
 using Menu = SFE.Domain.Entities.Menu;
 using MenuItem = SFE.Domain.Entities.MenuItem;
+using SFE.Application.Events;
+
 
 namespace SFE.WPF.ViewModels;
 
@@ -312,6 +314,16 @@ public partial class PosViewModel : BaseViewModel,
 
         // Start keyboard barcode scanner (keyboard-emulating scanners)
         try { _barcodeScanner = new KeyboardBarcodeScanner(); _barcodeScanner.CodeScanned += BarcodeScanner_CodeScanned; _barcodeScanner.Start(); } catch { }
+
+        // 🚨 NOUVEAU : Action lors du clic sur le bouton rafraîchir
+        Subscribe(async () =>
+        {
+            await LoadDisplayProductsAsync();
+            if (CurrentTableId.HasValue)
+            {
+                Receive(new OpenTableMessage(CurrentTableId.Value, null));
+            }
+        }, AppEvent.ForceGlobalRefresh);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -362,58 +374,62 @@ public partial class PosViewModel : BaseViewModel,
         IsBusy = true;
         try
         {
-            var tableService = App.ServiceProvider.GetRequiredService<ITableService>();
-            var orderRepo = _unitOfWork.GetRepository<Order>();
-            var productRepo = _unitOfWork.GetRepository<Product>();
+            var itemsToLoad = new List<CartItemViewModel>();
 
-            // On cherche s'il y a une commande (ex: InKitchen) pour cette table
-            var activeOrder = await tableService.GetActiveOrderAsync(CurrentTableId.Value);
-
-            // S'il n'y a pas de commande, on laisse le panier vide pour une nouvelle commande
-            if (activeOrder == null) return;
-
-            // On charge la commande AVEC ses articles (IncludeProperties)
-            var orders = await orderRepo.FindAsync(o => o.Id == activeOrder.Id);
-            var order = orders.FirstOrDefault();
-
-            if (order == null) return;
-
-            WaiterName = order.WaiterName ?? "";
-            var itemRepo = _unitOfWork.GetRepository<OrderItem>();
-            var items = await itemRepo.FindAsync(i => i.OrderId == order.Id);
-            order.Items = items.ToList(); // On attache les articles trouvés à la commande
-
-            if (order.Items.Count == 0) return;
-
-            // On repeuple le panier
-            foreach (var orderItem in order.Items)
+            // 1. Enter the isolated database bubble
+            await RunInScopeAsync(async (sp) =>
             {
-                if (orderItem.ProductId == null) continue;
-                var product = await productRepo.GetByIdAsync(orderItem.ProductId.Value);
-                if (product == null) continue;
+                // 🚨 Request fresh services just for this query
+                var scopedTableService = sp.GetRequiredService<ITableService>();
+                var scopedUow = sp.GetRequiredService<IUnitOfWork>();
 
-                var cartItem = new CartItemViewModel
+                var orderRepo = scopedUow.GetRepository<Order>();
+                var productRepo = scopedUow.GetRepository<Product>();
+                var itemRepo = scopedUow.GetRepository<OrderItem>();
+
+                var activeOrder = await scopedTableService.GetActiveOrderAsync(CurrentTableId.Value);
+                if (activeOrder == null) return;
+
+                var orders = await orderRepo.FindAsync(o => o.Id == activeOrder.Id);
+                var order = orders.FirstOrDefault();
+                if (order == null) return;
+
+                WaiterName = order.WaiterName ?? "";
+
+                var items = await itemRepo.FindAsync(i => i.OrderId == order.Id);
+                foreach (var orderItem in items)
                 {
-                    MenuItemId = orderItem.MenuItemId,
-                    ProductId = product.Id,
-                    Code = product.Code,
-                    Name = orderItem.Name,
-                    ItemType = product.ItemType,
-                    TaxGroup = product.TaxGroup,
-                    TaxGroupAType = product.TaxGroupAType,
-                    UnitPriceHT = product.UnitPriceHtCdf,
-                    UnitPriceTTC = orderItem.UnitPrice,
-                    Unit = product.Unit,
-                    Quantity = orderItem.Quantity,
-                    SentQuantity = orderItem.SentQuantity, // 🚨 CRUCIAL : Mémorise ce qui est déjà en cuisine
-                    StockQuantity = product.StockQuantity,
-                    TrackStock = product.TrackStock,
-                    SpecificTaxType = product.SpecificTaxType,
-                    SpecificTaxValue = product.SpecificTaxValue,
-                    SpecificTaxName = product.HasSpecificTax ? $"TS {product.SpecificTaxDisplay}" : "",
-                    TaxApplicationMode = product.TaxSpecificMode == TaxSpecificMode.OnTotal ? TaxApplicationMode.OnTotal : TaxApplicationMode.PerArticle
-                };
+                    if (orderItem.ProductId == null) continue;
+                    var product = await productRepo.GetByIdAsync(orderItem.ProductId.Value);
+                    if (product == null) continue;
 
+                    itemsToLoad.Add(new CartItemViewModel
+                    {
+                        MenuItemId = orderItem.MenuItemId,
+                        ProductId = product.Id,
+                        Code = product.Code,
+                        Name = orderItem.Name,
+                        ItemType = product.ItemType,
+                        TaxGroup = product.TaxGroup,
+                        TaxGroupAType = product.TaxGroupAType,
+                        UnitPriceHT = product.UnitPriceHtCdf,
+                        UnitPriceTTC = orderItem.UnitPrice,
+                        Unit = product.Unit,
+                        Quantity = orderItem.Quantity,
+                        SentQuantity = orderItem.SentQuantity,
+                        StockQuantity = product.StockQuantity,
+                        TrackStock = product.TrackStock,
+                        SpecificTaxType = product.SpecificTaxType,
+                        SpecificTaxValue = product.SpecificTaxValue,
+                        SpecificTaxName = product.HasSpecificTax ? $"TS {product.SpecificTaxDisplay}" : "",
+                        TaxApplicationMode = product.TaxSpecificMode == TaxSpecificMode.OnTotal ? TaxApplicationMode.OnTotal : TaxApplicationMode.PerArticle
+                    });
+                }
+            });
+
+            // 2. Update the UI AFTER the bubble is closed
+            foreach (var cartItem in itemsToLoad)
+            {
                 cartItem.Recalculate(PriceMode, _discountBeforeTax);
                 CartItems.Add(cartItem);
             }
@@ -575,7 +591,8 @@ public partial class PosViewModel : BaseViewModel,
         // This single SaveChanges applies the Order insertion/update AND all OrderItem updates safely.
         await _unitOfWork.SaveChangesAsync();
 
-        WeakReferenceMessenger.Default.Send(new SFE.WPF.Messages.ReloadTablesMessage());
+        // 🚨 Diffuser sur TOUT LE RÉSEAU que la table a changé (cela mettra à jour l'écran actuel ET les autres tablettes)
+        await AppEventBus.PublishAsync(new AppEventArgs { Event = AppEvent.TableStatusChanged });
 
         // 🖨️ IMPRESSION EN CUISINE / BAR
         if (itemsToPrintForKitchen.Any())
@@ -585,58 +602,58 @@ public partial class PosViewModel : BaseViewModel,
         }
     }
 
-    // 🚨 FIX: Accept the pre-calculated Tuples
     private async Task DispatchKitchenPrintsAsync(List<(CartItemViewModel Item, int QtyToPrint)> itemsToPrint, int? tableId)
     {
         if (!itemsToPrint.Any()) return;
 
-        var menuRepo = _unitOfWork.GetRepository<Menu>();
-        var menuItemRepo = _unitOfWork.GetRepository<MenuItem>();
-        var printerRepo = _unitOfWork.GetRepository<PrinterProfile>();
-
         var printJobs = new Dictionary<PrinterProfile, List<OrderItem>>();
 
-        foreach (var pair in itemsToPrint)
+        // 🚨 1. BUBBLE: Get the printers safely from the background thread
+        await RunInScopeAsync(async (sp) =>
         {
-            var cartItem = pair.Item;
-            var qtyToPrint = pair.QtyToPrint; // Use the safely captured quantity!
+            var scopedUow = sp.GetRequiredService<IUnitOfWork>();
+            var menuRepo = scopedUow.GetRepository<Menu>();
+            var menuItemRepo = scopedUow.GetRepository<MenuItem>();
+            var printerRepo = scopedUow.GetRepository<PrinterProfile>();
 
-            PrinterProfile? targetPrinter = null;
-
-            if (cartItem.MenuItemId.HasValue)
+            foreach (var pair in itemsToPrint)
             {
-                var menuItem = await menuItemRepo.GetByIdAsync(cartItem.MenuItemId.Value);
-                if (menuItem != null)
+                var cartItem = pair.Item;
+                var qtyToPrint = pair.QtyToPrint;
+                PrinterProfile? targetPrinter = null;
+
+                if (cartItem.MenuItemId.HasValue)
                 {
-                    if (menuItem.PrinterProfileId.HasValue)
+                    var menuItem = await menuItemRepo.GetByIdAsync(cartItem.MenuItemId.Value);
+                    if (menuItem != null)
                     {
-                        targetPrinter = await printerRepo.GetByIdAsync(menuItem.PrinterProfileId.Value);
-                    }
-                    else
-                    {
-                        var menu = await menuRepo.GetByIdAsync(menuItem.MenuId);
-                        if (menu != null && menu.PrinterProfileId.HasValue)
+                        if (menuItem.PrinterProfileId.HasValue)
+                            targetPrinter = await printerRepo.GetByIdAsync(menuItem.PrinterProfileId.Value);
+                        else
                         {
-                            targetPrinter = await printerRepo.GetByIdAsync(menu.PrinterProfileId.Value);
+                            var menu = await menuRepo.GetByIdAsync(menuItem.MenuId);
+                            if (menu != null && menu.PrinterProfileId.HasValue)
+                                targetPrinter = await printerRepo.GetByIdAsync(menu.PrinterProfileId.Value);
                         }
                     }
                 }
-            }
 
-            if (targetPrinter != null)
-            {
-                if (!printJobs.ContainsKey(targetPrinter))
-                    printJobs[targetPrinter] = new List<OrderItem>();
-
-                printJobs[targetPrinter].Add(new OrderItem
+                if (targetPrinter != null)
                 {
-                    Name = cartItem.Name,
-                    SentQuantity = qtyToPrint, // 🚨 FIX: Inject the captured quantity here
-                    Notes = cartItem.Notes
-                });
-            }
-        }
+                    if (!printJobs.ContainsKey(targetPrinter))
+                        printJobs[targetPrinter] = new List<OrderItem>();
 
+                    printJobs[targetPrinter].Add(new OrderItem
+                    {
+                        Name = cartItem.Name,
+                        SentQuantity = qtyToPrint,
+                        Notes = cartItem.Notes
+                    });
+                }
+            }
+        });
+
+        // 2. ACTUAL PRINTING (Done outside the bubble)
         string tableLabel = tableId.HasValue ? $"Table n° {tableId.Value}" : "Vente Comptoir";
         var printTasks = new List<Task>();
 
@@ -644,7 +661,6 @@ public partial class PosViewModel : BaseViewModel,
         {
             var printer = job.Key;
             var items = job.Value;
-
             if (!items.Any()) continue;
 
             byte[] ticketBytes = EscPosReceiptBuilder.BuildKitchenTicket(
@@ -669,7 +685,7 @@ public partial class PosViewModel : BaseViewModel,
                 {
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
-                        StatusMessage += $" ⚠️ Erreur impression ({printer.Name}): {ex.Message}";
+                        StatusMessage += $" ⚠️ Erreur impression: {ex.Message}";
                         ShowError = true;
                     });
                 }
@@ -700,7 +716,8 @@ public partial class PosViewModel : BaseViewModel,
         TableLabel = "Vente Comptoir";
         IsRestaurantMode = false;
         WaiterName = "";
-        WeakReferenceMessenger.Default.Send(new ReloadTablesMessage());
+        // 🚨 Diffuser sur le réseau que la table a été libérée
+        await AppEventBus.PublishAsync(new AppEventArgs { Event = AppEvent.TableStatusChanged });
     }
 
     // ══════ CHARGEMENT DES MENUS (MODE RESTAURANT) ══════

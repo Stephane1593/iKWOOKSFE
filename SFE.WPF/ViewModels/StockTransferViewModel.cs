@@ -30,7 +30,8 @@ public partial class StockTransferViewModel : BaseViewModel
             AppEvent.StockTransferCreated,
             AppEvent.StockTransferShipped,
             AppEvent.StockTransferReceived,
-            AppEvent.StockTransferCancelled);
+            AppEvent.StockTransferCancelled,
+            AppEvent.ForceGlobalRefresh);
     }
 
     private async Task OnTransferChangedAsync()

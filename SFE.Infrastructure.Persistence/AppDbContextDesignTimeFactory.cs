@@ -14,14 +14,11 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        var appData = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "SFE");
-        Directory.CreateDirectory(appData);
-        var dbPath = Path.Combine(appData, "sfe.db");
+        // 🚨 REMPLACEZ PAR VOTRE VRAI MOT DE PASSE POSTGRESQL ICI 🚨
+        var connectionString = "Host=127.0.0.1;Database=SFE_Network_V2;Username=postgres;Password=Pass-123";
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={dbPath};Cache=Shared")
+            .UseNpgsql(connectionString)
             .Options;
 
         // Stubs are fine for migrations: no data is read/written here.

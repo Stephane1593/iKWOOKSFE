@@ -53,7 +53,8 @@ public partial class StockViewModel : BaseViewModel
             AppEvent.StockUpdated,
             AppEvent.ProductCreated,
             AppEvent.ProductUpdated,
-            AppEvent.ProductDeleted);
+            AppEvent.ProductDeleted,
+            AppEvent.ForceGlobalRefresh);
     }
 
     private async Task OnStockOrProductChangedAsync()

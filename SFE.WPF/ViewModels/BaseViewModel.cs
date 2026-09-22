@@ -1,4 +1,8 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Events;
 
 namespace SFE.WPF.ViewModels;
@@ -46,6 +50,18 @@ public abstract partial class BaseViewModel : ObservableObject
         ShowSuccess = false;
         ShowError = false;
         StatusMessage = "";
+    }
+
+    // ── NOUVEAU: Le "Scope Bubble" pour les opérations de base de données sécurisées ──
+    protected async Task RunInScopeAsync(Func<IServiceProvider, Task> action)
+    {
+        // 1. Crée une bulle d'injection de dépendances complètement isolée
+        using var scope = App.ServiceProvider.CreateScope();
+
+        // 2. Exécute le travail de base de données avec des services neufs
+        await action(scope.ServiceProvider);
+
+        // 3. La bulle est détruite automatiquement ici, libérant le DbContext.
     }
 
     /// <summary>

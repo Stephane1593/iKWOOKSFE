@@ -20,6 +20,10 @@ using SFE.Licensing.Local;
 using SFE.WPF.Licensing;
 using Microsoft.Extensions.Logging;
 using SFE.Infrastructure.Repositories;
+using SFE.Application.Events;
+using CommunityToolkit.Mvvm.Messaging;
+using SFE.WPF.Messages;
+using Microsoft.Extensions.Hosting;
 
 namespace SFE.WPF;
 
@@ -38,8 +42,30 @@ public partial class App : System.Windows.Application
         ConfigureServices(services);
         ServiceProvider = services.BuildServiceProvider();
 
+        // 🚨 1. Démarrer la connexion réseau (SignalR)
+        var netConfig = SFE.Application.Helpers.LocalNetworkConfig.Load();
+        string serverIp = netConfig.DatabaseProvider == "PostgreSQL" ? netConfig.ConnectionString : "127.0.0.1";
+        await AppEventBus.InitializeNetworkAsync(serverIp);
+
+        // 🚨 2. Faire le pont entre le réseau et l'interface utilisateur
+        AppEventBus.Subscribe(async args =>
+        {
+            if (args.Event == AppEvent.TableStatusChanged)
+            {
+               WeakReferenceMessenger.Default.Send(new SFE.WPF.Messages.ReloadTablesMessage());
+            }
+            await Task.CompletedTask;
+        });
+
         // ── Start the local HTTP + mDNS host ──
         _api = new SfeApiHost(ServiceProvider);
+        //Démarrer le Facteur en arrière-plan
+        var hostedServices = ServiceProvider.GetServices<IHostedService>();
+        foreach (var svc in hostedServices)
+        {
+            _ = svc.StartAsync(CancellationToken.None);
+        }
+
         await _api.StartAsync();
 
         // ── Start the payment reconciler (BackgroundService, started manually
@@ -306,25 +332,49 @@ public partial class App : System.Windows.Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        // 🚨 1. LIRE LA CONFIGURATION RÉSEAU (Le Sticky Note)
+        var networkConfig = SFE.Application.Helpers.LocalNetworkConfig.Load();
+
         // ═══ Base de données ═══
         var appDataPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "SFE");
         Directory.CreateDirectory(appDataPath);
-        var dbPath = Path.Combine(appDataPath, "sfe.db");
 
-        var walInterceptor = new SqliteWalInterceptor();
+        services.AddLogging();
 
-        services.AddLogging(); // safe to call even if you never wire a provider
+        // 🚨 2. CHOISIR LE MOTEUR DE BASE DE DONNÉES
+        if (networkConfig.DatabaseProvider == "PostgreSQL" && !string.IsNullOrWhiteSpace(networkConfig.ConnectionString))
+        {
+            var migrationAssembly = typeof(AppDbContext).Assembly.FullName;
 
-        services.AddDbContext<AppDbContext>((sp, options) =>
-            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
-                   .AddInterceptors(walInterceptor),
-            ServiceLifetime.Transient);
+            // 🚨 Force the app to create and use a brand new database
+            var freshConnectionString = networkConfig.ConnectionString.Replace("SFE_Network", "SFE_Network_V2");
 
-        services.AddDbContextFactory<AppDbContext>((sp, options) =>
-            options.UseSqlite($"Data Source={dbPath};Cache=Shared")
-                   .AddInterceptors(walInterceptor));
+            services.AddDbContext<AppDbContext>((sp, options) =>
+                options.UseNpgsql(freshConnectionString,
+                    b => b.MigrationsAssembly(migrationAssembly)),
+                ServiceLifetime.Transient);
+
+            services.AddDbContextFactory<AppDbContext>((sp, options) =>
+                options.UseNpgsql(freshConnectionString,
+                    b => b.MigrationsAssembly(migrationAssembly)));
+        }
+        else
+        {
+            // Mode Local Isolé (Comptoir simple)
+            var dbPath = Path.Combine(appDataPath, "sfe.db");
+            var walInterceptor = new SqliteWalInterceptor();
+
+            services.AddDbContext<AppDbContext>((sp, options) =>
+                options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                       .AddInterceptors(walInterceptor),
+                ServiceLifetime.Transient);
+
+            services.AddDbContextFactory<AppDbContext>((sp, options) =>
+                options.UseSqlite($"Data Source={dbPath};Cache=Shared")
+                       .AddInterceptors(walInterceptor));
+        }
 
         services.AddSingleton<ITimeProvider, SystemTimeProvider>();
 
@@ -342,7 +392,6 @@ public partial class App : System.Windows.Application
         // ═══ Repositories & Unit of Work ═══
         services.AddTransient<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
-
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
         // ═══ AUTH ═══
@@ -373,7 +422,6 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IManagerAuthorizationService, ManagerAuthorizationService>();
         services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
         services.AddSingleton<IBarcodeScannerService, KeyboardBarcodeScanner>();
-        services.AddSingleton<IManagerAuthorizationPrompter, ManagerAuthorizationPrompter>();
         services.AddSingleton<InMemoryPendingOrderStore>();
 
         // ═══ Fiscal Device ═══
@@ -454,6 +502,9 @@ public partial class App : System.Windows.Application
         services.AddTransient<InvoiceDocumentView>();
         services.AddTransient<PosManagementPage>();
         services.AddTransient<Views.Pages.BulkInvoicingPage>();
+
+        //NOUVEAU: Embaucher le Facteur (Background Sync Worker)
+        services.AddHostedService<BackgroundSyncWorker>();
     }
 
     private static async Task InitializeDatabaseAsync()

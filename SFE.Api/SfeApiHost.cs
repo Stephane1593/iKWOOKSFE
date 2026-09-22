@@ -4,12 +4,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using SFE.Application.Interfaces;
 using SFE.Application.Payments;
 using SFE.Application.Services;
 using SFE.Domain.Abstractions;
 using SFE.Licensing.Local;
 using SFE.Domain.Enums;
+using Microsoft.AspNetCore.SignalR;
 
 namespace SFE.Api;
 
@@ -29,6 +31,15 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
         {
             o.SerializerOptions.Converters.Add(
                 new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+            // 🚨 NOUVEAU: Empêcher le serveur de planter sur les boucles infinies
+            o.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+
+        });
+
+        //NOUVEAU: Enregistrer SignalR dans l'API
+        builder.Services.AddSignalR(options => {
+            options.EnableDetailedErrors = true;
         });
 
         _app = builder.Build();
@@ -64,7 +75,8 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
         {
             // These endpoints are available before terminal pairing.
             if (ctx.Request.Path.StartsWithSegments("/health") ||
-                ctx.Request.Path.StartsWithSegments("/license/status"))
+                ctx.Request.Path.StartsWithSegments("/license/status") ||
+                ctx.Request.Path.StartsWithSegments("/api/sync")) // 🚨 Laissez passer le Facteur !
             {
                 await next();
                 return;
@@ -415,8 +427,73 @@ public sealed class SfeApiHost(IServiceProvider appServices, int port = 5005)
             };
         });
 
-        await _app.StartAsync();
-        AdvertiseMdns();
+        // ══════════════════════════════════════════════════════
+        //  SYNCHRONISATION (POSTMAN RECEIVER)
+        // ══════════════════════════════════════════════════════
+
+        _app.MapPost("/api/sync/push", async (List<SFE.Domain.Entities.Invoice> incomingInvoices, CancellationToken ct) =>
+        {
+            using var scope = appServices.CreateScope();
+
+            // Respect de la Clean Architecture : on utilise IUnitOfWork au lieu de AppDbContext
+            var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+            int addedCount = 0;
+
+            foreach (var incoming in incomingInvoices)
+            {
+                // 1. Vérifier si le serveur a déjà reçu cette facture grâce à son Numéro (Unique)
+                var existing = await uow.Invoices.GetByInvoiceNumberAsync(incoming.InvoiceNumber);
+
+                if (existing == null)
+                {
+                    // 2. Effacer les IDs locaux (1, 2, 3...) de la tablette locale.
+                    incoming.Id = 0;
+
+                    if (incoming.Lines != null)
+                    {
+                        foreach (var line in incoming.Lines)
+                        {
+                            line.Id = 0;
+                            line.InvoiceId = 0; // Détacher l'ancien ID
+                        }
+                    }
+
+                    if (incoming.Payments != null)
+                    {
+                        foreach (var payment in incoming.Payments)
+                        {
+                            payment.Id = 0;
+                            payment.InvoiceId = 0;
+                        }
+                    }
+
+                    // 3. Ajouter à la base de données du serveur
+                    await uow.Invoices.AddAsync(incoming);
+                    addedCount++;
+                }
+            }
+
+            // 4. Sauvegarder toutes les nouvelles factures en une seule fois
+            if (addedCount > 0)
+            {
+                await uow.SaveChangesAsync();
+            }
+
+            return Results.Ok(new { received = incomingInvoices.Count, added = addedCount });
+        });
+
+        _app.MapHub<SfeEventHub>("/events");
+        try
+        {
+            await _app.StartAsync();
+            AdvertiseMdns();
+        }
+        catch (System.IO.IOException)
+        {
+            // If the port is already taken, it means Tablet A is already acting as the Server.
+            // We swallow this error so Tablet B can gracefully launch as a Client!
+        }
     }
 
     private void AdvertiseMdns()

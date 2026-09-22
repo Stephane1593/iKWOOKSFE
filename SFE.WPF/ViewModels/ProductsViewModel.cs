@@ -131,7 +131,7 @@ public partial class ProductsViewModel : BaseViewModel, IActivatable
             AppEvent.CategoryCreated,
             AppEvent.CategoryUpdated,
             AppEvent.CategoryDeleted);
-
+        Subscribe(InitializeAsync, AppEvent.ForceGlobalRefresh);
         _ = InitializeAsync();
     }
 

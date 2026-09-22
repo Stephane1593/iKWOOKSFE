@@ -47,6 +47,14 @@ public partial class SettingsViewModel : BaseViewModel
     [ObservableProperty] private string _companyEmail = "";
     [ObservableProperty] private string _companyISF = "";
 
+    // ══════════ RÉSEAU & BASE DE DONNÉES ══════════
+    [ObservableProperty] private bool _isNetworkMode;
+    [ObservableProperty] private string _networkConnectionString = "";
+    private bool _initialNetworkMode;
+    private string _initialConnectionString = "";
+    [ObservableProperty] private bool _enableSync;
+    [ObservableProperty] private string _syncServerUrl = "";
+
     // ══════════ LOGO ══════════
     [ObservableProperty] private ImageSource? _companyLogoPreview;
     [ObservableProperty] private bool _hasLogo;
@@ -242,7 +250,7 @@ public partial class SettingsViewModel : BaseViewModel
         // Licence: seed from the current snapshot, then follow every transition.
         _license.StatusChanged += OnLicenseStatusChanged;
         RefreshLicenseFromSnapshot(_license.Current);
-
+        Subscribe(LoadSettingsAsync, AppEvent.ForceGlobalRefresh);
         RefreshComPorts();
         _ = LoadSettingsAsync();
     }
@@ -372,6 +380,17 @@ public partial class SettingsViewModel : BaseViewModel
         IsBusy = true;
         try
         {
+            // 🚨 NOUVEAU: Charger la configuration réseau (Sticky Note)
+            var netConfig = SFE.Application.Helpers.LocalNetworkConfig.Load();
+            IsNetworkMode = netConfig.DatabaseProvider == "PostgreSQL";
+            NetworkConnectionString = netConfig.ConnectionString;
+            EnableSync = netConfig.EnableSync;
+            SyncServerUrl = netConfig.SyncServerUrl;
+
+            _initialNetworkMode = IsNetworkMode;
+            _initialConnectionString = NetworkConnectionString;
+
+
             var data = await _settingsService.LoadSettingsAsync();
             _companyId = data.CompanyId;
             _activePosId = data.ActivePosId;
@@ -592,6 +611,31 @@ public partial class SettingsViewModel : BaseViewModel
 
             await Task.Delay(4000);
             ShowSaveSuccess = false;
+
+            // 🚨 NOUVEAU: Sauvegarder la configuration réseau
+            var netConfig = new SFE.Application.Helpers.LocalNetworkConfig
+            {
+                DatabaseProvider = IsNetworkMode ? "PostgreSQL" : "SQLite",
+                ConnectionString = NetworkConnectionString,
+                IsServer = true,
+                EnableSync = EnableSync,
+                SyncServerUrl = SyncServerUrl
+            };
+            SFE.Application.Helpers.LocalNetworkConfig.Save(netConfig);
+
+            // Si l'utilisateur a changé la base de données, on doit redémarrer l'application !
+            if (_initialNetworkMode != IsNetworkMode || _initialConnectionString != NetworkConnectionString)
+            {
+                System.Windows.MessageBox.Show(
+                    "Vous avez modifié les paramètres de base de données.\nL'application va se fermer pour appliquer ces changements. Veuillez la relancer.",
+                    "Redémarrage requis",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+
+                System.Windows.Application.Current.Shutdown();
+                return;
+            }
+
         }
         catch (Exception ex)
         {

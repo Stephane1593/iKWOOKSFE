@@ -42,8 +42,8 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasMaxLength(200);
 
         // 🆕 Logo — stored as BLOB (no max length needed for byte[])
-        builder.Property(c => c.Logo)
-            .HasColumnType("BLOB");
+        builder.Property(c => c.Logo);
+  
 
         builder.Property(c => c.DefaultPriceMode)
             .HasConversion<int>()

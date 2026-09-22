@@ -181,6 +181,14 @@ public class Invoice
     public DateTimeOffset? NormalizedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 
+    // 🚨 NOUVEAU: Tampon de livraison pour le facteur (Synchronisation)
+    public DateTimeOffset? LastSyncedAtUtc { get; set; }
+
+    public void MarkSynced(DateTimeOffset utcNow)
+    {
+        LastSyncedAtUtc = utcNow;
+    }
+
     // === Relations ===
     public List<InvoiceLine> Lines { get; set; } = new();
     public List<InvoicePayment> Payments { get; set; } = new();

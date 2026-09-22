@@ -74,8 +74,11 @@ public sealed class AppDbContext : DbContext
         // 1) Applique d'abord toutes les IEntityTypeConfiguration
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // 2) Conversion GLOBALE DateTimeOffset → long pour SQLite
-        ApplyDateTimeOffsetConversions(modelBuilder);
+        // 2) Conversion GLOBALE DateTimeOffset → long pour SQLite UNIQUEMENT
+        if (Database.IsSqlite())
+        {
+            ApplyDateTimeOffsetConversions(modelBuilder);
+        }
 
         // 3) Global query filters (tenant + soft-delete)
         ApplyGlobalFilters(modelBuilder);

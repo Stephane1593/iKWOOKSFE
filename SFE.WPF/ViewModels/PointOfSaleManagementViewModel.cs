@@ -17,6 +17,7 @@ using System.Text;
 using System.Windows.Media;
 using SFE.Licensing.Domain;
 using SFE.Licensing.Local;
+using SFE.Application.Events;
 
 namespace SFE.WPF.ViewModels;
 
@@ -122,7 +123,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
 
         _license.StatusChanged += OnLicenseChanged;
         RefreshFeatureGates();
-
+        Subscribe(LoadAsync, AppEvent.ForceGlobalRefresh);
         _ = LoadAsync();
     }
 

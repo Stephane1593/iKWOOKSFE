@@ -134,7 +134,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
 
         builder.HasIndex(i => i.SourceProformaId);
         builder.HasIndex(i => new { i.Type, i.ConvertedToInvoiceId })
-               .HasFilter("[Type] = 6");
+               .HasFilter("\"Type\" = 6");
 
         builder.Property(i => i.ProformaValidUntil).IsRequired(false);
 

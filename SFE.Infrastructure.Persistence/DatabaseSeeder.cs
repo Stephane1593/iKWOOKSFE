@@ -208,6 +208,8 @@ public static class DatabaseSeeder
 
     public static async Task SeedAsync(AppDbContext context)
     {
+
+
         await context.Database.MigrateAsync();
         await EnsureSuperAdminAsync(context);
 

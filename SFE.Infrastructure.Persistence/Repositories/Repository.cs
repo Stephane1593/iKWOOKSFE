@@ -22,12 +22,14 @@ public class Repository<T> : IRepository<T> where T : class
 
     public virtual async Task<List<T>> GetAllAsync()
     {
-        return await _dbSet.ToListAsync();
+        // Use AsNoTracking to prevent state contention and context locking
+        return await _dbSet.AsNoTracking().ToListAsync();
     }
 
     public virtual async Task<List<T>> FindAsync(Expression<Func<T, bool>> predicate)
     {
-        return await _dbSet.Where(predicate).ToListAsync();
+        // Use AsNoTracking so fast navigation between tables doesn't cause a command overlap
+        return await _dbSet.AsNoTracking().Where(predicate).ToListAsync();
     }
 
     public virtual async Task<T> AddAsync(T entity)

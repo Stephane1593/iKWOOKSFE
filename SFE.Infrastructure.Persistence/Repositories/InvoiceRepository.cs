@@ -331,4 +331,28 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 
         return await q.OrderByDescending(i => i.CreatedAt).ToListAsync();
     }
+
+    // 🚨 NOUVEAU: Récupère les factures non synchronisées pour le Facteur
+    public async Task<List<Invoice>> GetUnsyncedInvoicesAsync(int limit = 50)
+    {
+        return await _dbSet
+            .Include(i => i.Lines)
+            .Include(i => i.Payments)
+            .Where(i => i.Status == InvoiceStatus.Normalized &&
+                       (i.LastSyncedAtUtc == null || i.UpdatedAt > i.LastSyncedAtUtc))
+            .OrderBy(i => i.UpdatedAt)
+            .Take(limit)
+            .ToListAsync();
+    }
+
+    // 🚨 NOUVEAU: Marque les factures comme "Livrées" (Synchronisées)
+    public async Task MarkAsSyncedAsync(IEnumerable<int> invoiceIds, DateTimeOffset syncDate)
+    {
+        var invoices = await _dbSet.Where(i => invoiceIds.Contains(i.Id)).ToListAsync();
+        foreach (var inv in invoices)
+        {
+            inv.MarkSynced(syncDate);
+        }
+        await _db.SaveChangesAsync();
+    }
 }

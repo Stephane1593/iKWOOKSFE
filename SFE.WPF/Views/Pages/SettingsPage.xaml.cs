@@ -16,6 +16,10 @@ public partial class SettingsPage : UserControl
     private void JumpToBilling(object sender, RoutedEventArgs e) => ScrollTo(SectionBilling);
     private void JumpToLoyalty(object sender, RoutedEventArgs e) => ScrollTo(SectionLoyalty);
     private void JumpToLicense(object sender, RoutedEventArgs e) => ScrollTo(SectionLicense);
+    private void JumpToDatabase(object sender, RoutedEventArgs e)
+    {
+        SectionDatabase.BringIntoView();
+    }
 
     private void ScrollTo(FrameworkElement target)
     {
