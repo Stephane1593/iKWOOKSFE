@@ -1021,9 +1021,18 @@ public partial class PosViewModel : BaseViewModel,
             try
             {
                 if (SelectedPointOfSale?.EnableCustomerDisplay == true && _currentCompany != null)
-                    _customerDisplay.Open(_currentCompany.Name);
+                {
+                    // 🆕 Pass the logo and the publicity settings
+                    _customerDisplay.Open(
+                        _currentCompany.Name,
+                        _currentCompany.Logo,
+                        SelectedPointOfSale.EnablePublicity,
+                        SelectedPointOfSale.PublicityFolder ?? "");
+                }
                 else
+                {
                     _customerDisplay.Close();
+                }
             }
             catch { }
         }
@@ -1049,9 +1058,18 @@ public partial class PosViewModel : BaseViewModel,
         try
         {
             if (pos.EnableCustomerDisplay && _currentCompany != null)
-                _customerDisplay.Open(_currentCompany.Name);
+            {
+                // 🆕 Pass the logo and the publicity settings here as well
+                _customerDisplay.Open(
+                    _currentCompany.Name,
+                    _currentCompany.Logo,
+                    pos.EnablePublicity,
+                    pos.PublicityFolder ?? "");
+            }
             else
+            {
                 _customerDisplay.Close();
+            }
         }
         catch { }
     }

@@ -18,6 +18,8 @@ using System.Windows.Media;
 using SFE.Licensing.Domain;
 using SFE.Licensing.Local;
 using SFE.Application.Events;
+using Microsoft.Win32;
+using System.Windows.Media.Imaging;
 
 namespace SFE.WPF.ViewModels;
 
@@ -180,6 +182,10 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
     [ObservableProperty] private bool _editDisableFallback;
     [ObservableProperty] private string _editServerMcfUrl = "";
 
+    // Add to your observable properties list
+    [ObservableProperty] private bool _editEnablePublicity;
+    [ObservableProperty] private string _editPublicityFolder = "";
+
     private bool _editIsEmcfOnly = true;
     public bool EditIsEmcfOnly
     {
@@ -218,6 +224,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             }
         }
     }
+
+
 
     private bool _editIsHybrid;
     public bool EditIsHybrid
@@ -464,6 +472,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         EditCodePage = pos.PrinterCodePage > 0 ? pos.PrinterCodePage : 858;
         EditPrintLogo = pos.PrintLogo;
         EditFooterText = pos.ReceiptFooterText ?? "Merci pour votre achat !";
+        EditEnablePublicity = pos.EnablePublicity;
+        EditPublicityFolder = pos.PublicityFolder ?? "";
 
         HasEditTestResult = false;
         FormTitle = $"Modifier {pos.Code}";
@@ -563,7 +573,9 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
                 CashDrawerPin = EditCashDrawerPin,
                 PrinterCodePage = EditCodePage,
                 PrintLogo = EditPrintLogo,
-                ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !"
+                ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !",
+                EnablePublicity = EditEnablePublicity,
+                PublicityFolder = EditPublicityFolder?.Trim() ?? "",
             };
             result = await _posService.CreateAsync(pos);
             savedPosId = pos.Id; // ✅ still in scope here
@@ -605,6 +617,8 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
             pos.PrinterCodePage = EditCodePage;
             pos.PrintLogo = EditPrintLogo;
             pos.ReceiptFooterText = EditFooterText?.Trim() ?? "Merci pour votre achat !";
+            pos.EnablePublicity = EditEnablePublicity;
+            pos.PublicityFolder = EditPublicityFolder?.Trim() ?? "";
 
             result = await _posService.UpdateAsync(pos);
             savedPosId = pos.Id; // ✅ still in scope here
@@ -987,6 +1001,83 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         }
     }
 
+    [RelayCommand]
+    private void BrowsePublicityFolder()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Sélectionnez le dossier contenant les images publicitaires",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            string selectedPath = dialog.FolderName;
+
+            // 1. Format Check: Only allow specific extensions
+            var validExtensions = new[] { ".png", ".jpg", ".jpeg" };
+            var files = Directory.GetFiles(selectedPath)
+                .Where(f => validExtensions.Contains(Path.GetExtension(f).ToLower()))
+                .ToList();
+
+            if (files.Count == 0)
+            {
+                ShowErrorMessage("Aucune image valide (.png, .jpg, .jpeg) trouvée dans ce dossier.");
+                return;
+            }
+
+            int validImagesCount = 0;
+            int invalidImagesCount = 0;
+
+            // 2. Dimension Check: Verify resolution without loading full images into RAM
+            foreach (var file in files)
+            {
+                try
+                {
+                    using var stream = File.OpenRead(file);
+                    var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    var frame = decoder.Frames[0];
+
+                    // Define your minimum acceptable dimensions for the customer display
+                    int minWidth = 800;
+                    int minHeight = 600;
+
+                    if (frame.PixelWidth >= minWidth && frame.PixelHeight >= minHeight)
+                    {
+                        validImagesCount++;
+                    }
+                    else
+                    {
+                        invalidImagesCount++;
+                    }
+                }
+                catch
+                {
+                    // Catches corrupted files or files that pretend to be images
+                    invalidImagesCount++;
+                }
+            }
+
+            // 3. Final Validation
+            if (validImagesCount == 0)
+            {
+                ShowErrorMessage("Toutes les images sont invalides ou trop petites (Minimum requis : 800x600 px).");
+                return;
+            }
+
+            // Save the original path as requested
+            EditPublicityFolder = selectedPath;
+
+            string successMessage = $"Dossier validé avec {validImagesCount} image(s) conforme(s).";
+            if (invalidImagesCount > 0)
+            {
+                successMessage += $"\n({invalidImagesCount} fichier(s) ignoré(s) car trop petit(s) ou corrompu(s)).";
+            }
+
+            _ = ShowSuccessAsync(successMessage);
+        }
+    }
+
     // ════════════════════════════════════════════════════════════
     //  HELPERS
     // ════════════════════════════════════════════════════════════
@@ -1025,7 +1116,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         Write(0x1B, 0x61, 0x01);
         Write(0x1B, 0x45, 0x01);
         Write(0x1D, 0x21, 0x11);
-        PrintLine("SFE GECOM");
+        PrintLine("iSFE");
         Write(0x1D, 0x21, 0x00);
         Write(0x1B, 0x45, 0x00);
         PrintLine("");
@@ -1067,7 +1158,7 @@ public partial class PointOfSaleManagementViewModel : BaseViewModel
         PrintLine("correctement, votre");
         PrintLine("imprimante est configurée !");
         PrintLine("");
-        PrintLine("--- iKWOOK SFE ---");
+        PrintLine("--- iSFE ---");
         PrintLine("");
         Write(0x1B, 0x64, 0x05);
         Write(0x1D, 0x56, 0x01);

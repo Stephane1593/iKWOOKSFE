@@ -1020,65 +1020,157 @@
                                            Text="DISPOSITIF FISCAL" />
                             </StackPanel>
 
-                            <UniformGrid Margin="0,0,0,18" Columns="2">
-                                <!-- 1. e-MCF -->
-                                <RadioButton MinHeight="68" Margin="0,0,6,6" GroupName="PosDeviceType" IsChecked="{Binding EditIsEmcfOnly}" Style="{StaticResource RadioCardStyle}">
+                            <UniformGrid Margin="0,0,0,18"
+                                         Columns="2">
+                                <!--  1. e-MCF  -->
+                                <RadioButton MinHeight="68"
+                                             Margin="0,0,6,6"
+                                             GroupName="PosDeviceType"
+                                             IsChecked="{Binding EditIsEmcfOnly}"
+                                             Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" Kind="AccessPointNetwork" />
+                                        <materialDesign:PackIcon Width="22"
+                                                                 Height="22"
+                                                                 Margin="0,0,12,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Foreground="{StaticResource PrimaryBrush}"
+                                                                 Kind="AccessPointNetwork" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="e-MCF" />
-                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="API REST (Internet)" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       Text="e-MCF" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Text="API REST (Internet)" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
 
-                                <!-- 2. MCF -->
-                                <RadioButton MinHeight="68" Margin="6,0,0,6" GroupName="PosDeviceType" IsChecked="{Binding EditIsMcfOnly}" Style="{StaticResource RadioCardStyle}">
+                                <!--  2. MCF  -->
+                                <RadioButton MinHeight="68"
+                                             Margin="6,0,0,6"
+                                             GroupName="PosDeviceType"
+                                             IsChecked="{Binding EditIsMcfOnly}"
+                                             Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="#9333EA" Kind="SerialPort" />
+                                        <materialDesign:PackIcon Width="22"
+                                                                 Height="22"
+                                                                 Margin="0,0,12,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Foreground="#9333EA"
+                                                                 Kind="SerialPort" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="MCF" />
-                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="Port série (RS232/USB)" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       Text="MCF" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Text="Port série (RS232/USB)" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
 
-                                <!-- 3. Hybride -->
-                                <RadioButton MinHeight="68" Margin="0,6,6,0" GroupName="PosDeviceType" IsChecked="{Binding EditIsHybrid}" Style="{StaticResource RadioCardStyle}">
+                                <!--  3. Hybride  -->
+                                <RadioButton MinHeight="68"
+                                             Margin="0,6,6,0"
+                                             GroupName="PosDeviceType"
+                                             IsChecked="{Binding EditIsHybrid}"
+                                             Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="#059669" Kind="SwapHorizontal" />
+                                        <materialDesign:PackIcon Width="22"
+                                                                 Height="22"
+                                                                 Margin="0,0,12,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Foreground="#059669"
+                                                                 Kind="SwapHorizontal" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Hybride" />
-                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="e-MCF + MCF" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       Text="Hybride" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Text="e-MCF + MCF" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
 
-                                <!-- 🆕 4. Serveur MCF (Proxy réseau local) -->
-                                <RadioButton MinHeight="68" Margin="6,6,0,0" GroupName="PosDeviceType" IsChecked="{Binding EditIsServerMcf}" Style="{StaticResource RadioCardStyle}">
+                                <!--  🆕 4. Serveur MCF (Proxy réseau local)  -->
+                                <RadioButton MinHeight="68"
+                                             Margin="6,6,0,0"
+                                             GroupName="PosDeviceType"
+                                             IsChecked="{Binding EditIsServerMcf}"
+                                             Style="{StaticResource RadioCardStyle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="#2563EB" Kind="ServerNetwork" />
+                                        <materialDesign:PackIcon Width="22"
+                                                                 Height="22"
+                                                                 Margin="0,0,12,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Foreground="#2563EB"
+                                                                 Kind="ServerNetwork" />
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Serveur MCF" />
-                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="Via le POS principal" />
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       Text="Serveur MCF" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Text="Via le POS principal" />
                                         </StackPanel>
                                     </StackPanel>
                                 </RadioButton>
                             </UniformGrid>
 
-                            <!-- 🆕 SERVER MCF CONFIGURATION -->
-                            <Border Margin="0,0,0,10" Padding="20" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" 
+                            <!--  🆕 SERVER MCF CONFIGURATION  -->
+                            <Border Margin="0,0,0,10"
+                                    Padding="20"
+                                    Background="White"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
                                     Visibility="{Binding ShowServerMcfFields, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <StackPanel>
-                                    <StackPanel Margin="0,0,0,14" Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="#2563EB" Kind="ServerNetwork" />
-                                        <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Text="PARAMÈTRES DU SERVEUR LOCAL" />
+                                    <StackPanel Margin="0,0,0,14"
+                                                Orientation="Horizontal">
+                                        <materialDesign:PackIcon Width="16"
+                                                                 Height="16"
+                                                                 Margin="0,0,8,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Foreground="#2563EB"
+                                                                 Kind="ServerNetwork" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   FontFamily="{StaticResource AppFont}"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Text="PARAMÈTRES DU SERVEUR LOCAL" />
                                     </StackPanel>
-                                    <TextBlock Style="{StaticResource FormLabelStyle}" Text="URL DU SERVEUR POS PRINCIPAL *" />
-                                    <TextBox MinHeight="42" Margin="0,0,0,0" Style="{StaticResource ModernTextBoxStyle}" 
-                                             Text="{Binding EditServerMcfUrl, UpdateSourceTrigger=PropertyChanged}" 
+                                    <TextBlock Style="{StaticResource FormLabelStyle}"
+                                               Text="URL DU SERVEUR POS PRINCIPAL *" />
+                                    <TextBox MinHeight="42"
+                                             Margin="0,0,0,0"
+                                             Style="{StaticResource ModernTextBoxStyle}"
+                                             Text="{Binding EditServerMcfUrl, UpdateSourceTrigger=PropertyChanged}"
                                              ToolTip="Exemple: http://192.168.1.10:5005" />
-                                    <TextBlock Margin="0,4,0,0" FontFamily="{StaticResource AppFont}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="Entrez l'URL IP du point de vente principal sur lequel est branché le MCF." />
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontFamily="{StaticResource AppFont}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="Entrez l'URL IP du point de vente principal sur lequel est branché le MCF." />
                                 </StackPanel>
                             </Border>
 
@@ -1639,29 +1731,28 @@
                                             Padding="20"
                                             Background="#F8FAFC"
                                             CornerRadius="10">
-                                        <UniformGrid Columns="2"
-                                                     Rows="2">
-                                            <CheckBox MinHeight="40"
-                                                      Margin="0,0,0,8"
-                                                      Content="Impression auto après normalisation"
-                                                      FontFamily="{StaticResource AppFont}"
-                                                      FontSize="13"
-                                                      IsChecked="{Binding EditAutoPrint}" />
-                                            <CheckBox MinHeight="40"
-                                                      Margin="0,0,0,8"
-                                                      Content="Imprimer le logo entreprise"
-                                                      FontFamily="{StaticResource AppFont}"
-                                                      FontSize="13"
-                                                      IsChecked="{Binding EditPrintLogo}" />
-                                            <CheckBox MinHeight="40"
-                                                      Content="Affichage client (écran secondaire)"
-                                                      FontFamily="{StaticResource AppFont}"
-                                                      FontSize="13"
-                                                      IsChecked="{Binding EditEnableCustomerDisplay}" />
-                                            <StackPanel VerticalAlignment="Center"
-                                                        Orientation="Horizontal">
+                                        <StackPanel>
+                                            <!--  Top Row: General Checkboxes  -->
+                                            <UniformGrid Margin="0,0,0,12"
+                                                         Columns="2">
                                                 <CheckBox MinHeight="40"
-                                                          Margin="0,0,14,0"
+                                                          Content="Impression auto après normalisation"
+                                                          FontFamily="{StaticResource AppFont}"
+                                                          FontSize="13"
+                                                          IsChecked="{Binding EditAutoPrint}" />
+                                                <CheckBox MinHeight="40"
+                                                          Content="Imprimer le logo entreprise"
+                                                          FontFamily="{StaticResource AppFont}"
+                                                          FontSize="13"
+                                                          IsChecked="{Binding EditPrintLogo}" />
+                                            </UniformGrid>
+
+                                            <!--  Middle Row: Cash Drawer  -->
+                                            <StackPanel MinHeight="40"
+                                                        Margin="0,0,0,12"
+                                                        Orientation="Horizontal">
+                                                <CheckBox Margin="0,0,14,0"
+                                                          VerticalAlignment="Center"
                                                           Content="Tiroir-caisse"
                                                           FontFamily="{StaticResource AppFont}"
                                                           FontSize="13"
@@ -1683,7 +1774,47 @@
                                                               SelectedItem="{Binding EditCashDrawerPin}" />
                                                 </StackPanel>
                                             </StackPanel>
-                                        </UniformGrid>
+
+                                            <Separator Margin="0,4,0,12"
+                                                       Background="#E2E8F0" />
+
+                                            <!--  Bottom Row: Customer Display & Publicity  -->
+                                            <CheckBox MinHeight="40"
+                                                      Content="Affichage client (écran secondaire)"
+                                                      FontFamily="{StaticResource AppFont}"
+                                                      FontSize="13"
+                                                      IsChecked="{Binding EditEnableCustomerDisplay}" />
+
+                                            <StackPanel Margin="28,8,0,0"
+                                                        Visibility="{Binding EditEnableCustomerDisplay, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <CheckBox MinHeight="30"
+                                                          Content="Activer le défilement publicitaire en veille"
+                                                          FontFamily="{StaticResource AppFont}"
+                                                          FontSize="12"
+                                                          IsChecked="{Binding EditEnablePublicity}" />
+
+                                                <StackPanel Margin="0,8,0,0"
+                                                            Orientation="Horizontal"
+                                                            Visibility="{Binding EditEnablePublicity, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBox Width="300"
+                                                             MinHeight="36"
+                                                             Padding="8,4"
+                                                             FontFamily="{StaticResource AppFont}"
+                                                             FontSize="12"
+                                                             IsReadOnly="True"
+                                                             Style="{StaticResource ModernTextBoxStyle}"
+                                                             Text="{Binding EditPublicityFolder}"
+                                                             ToolTip="Dossier contenant les images (.jpg, .png)" />
+                                                    <Button MinHeight="36"
+                                                            Margin="8,0,0,0"
+                                                            Padding="12,4"
+                                                            Command="{Binding BrowsePublicityFolderCommand}"
+                                                            Content="Parcourir"
+                                                            FontSize="11"
+                                                            Style="{StaticResource BtnGhost}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </StackPanel>
                                     </Border>
 
                                     <TextBlock Style="{StaticResource FormLabelStyle}"

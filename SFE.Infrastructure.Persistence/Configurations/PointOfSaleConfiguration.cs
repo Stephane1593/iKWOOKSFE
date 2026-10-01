@@ -75,6 +75,10 @@ public class PointOfSaleConfiguration : IEntityTypeConfiguration<PointOfSale>
         builder.Property(p => p.AutoPrintReceipt).HasDefaultValue(true);
         builder.Property(p => p.PrintCopies).HasDefaultValue(1);
         builder.Property(p => p.EnableCustomerDisplay).HasDefaultValue(false);
+
+        builder.Property(p => p.EnablePublicity).HasDefaultValue(false);
+        builder.Property(p => p.PublicityFolder).HasMaxLength(1000);
+
         builder.Property(p => p.EnableCashDrawer).HasDefaultValue(false);
         builder.Property(p => p.CashDrawerPin).HasDefaultValue(0);
         builder.Property(p => p.PrinterCodePage).HasDefaultValue(858);

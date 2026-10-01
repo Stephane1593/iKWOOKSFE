@@ -7,7 +7,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:SFE.WPF.ViewModels"
         x:Name="RootWindow"
-        Title="iKWOOK SFE — Système de Facturation d'Entreprise"
+        Title="iSFE — Système de Facturation d'Entreprise"
         Width="1300"
         Height="800"
         MinWidth="800"
@@ -15,6 +15,7 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel,
                                          IsDesignTimeCreatable=False}"
         Background="{StaticResource BackgroundBrush}"
+        Icon="/Resources/Images/ISFE.ico"
         WindowStartupLocation="CenterScreen"
         mc:Ignorable="d">
 
@@ -421,48 +422,18 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!--  ── LOGO ──  -->
+                        <!--  Logo  -->
                         <StackPanel Grid.Column="0"
-                                    Margin="0,0,28,0"
+                                    Margin="0,0,32,0"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal">
-                            <Border Width="136"
-                                    Height="38"
-                                    Background="{StaticResource LogoGradient}"
-                                    CornerRadius="10">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="14"
-                                                      Direction="270"
-                                                      Opacity="0.2"
-                                                      ShadowDepth="2"
-                                                      Color="#1A8CBF" />
-                                </Border.Effect>
-                                <!--  Inner glass shine  -->
-                                <Border CornerRadius="10">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Offset="0" Color="#20FFFFFF" />
-                                            <GradientStop Offset="0.5" Color="#00FFFFFF" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <StackPanel HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Orientation="Horizontal">
-                                        <materialDesign:PackIcon Width="18"
-                                                                 Height="18"
-                                                                 Margin="0,0,7,0"
-                                                                 VerticalAlignment="Center"
-                                                                 Foreground="White"
-                                                                 Kind="CubeOutline" />
-                                        <TextBlock VerticalAlignment="Center"
-                                                   FontFamily="{StaticResource AppFont}"
-                                                   FontSize="14"
-                                                   FontWeight="Bold"
-                                                   Foreground="White"
-                                                   Text="iKWOOK SFE" />
-                                    </StackPanel>
-                                </Border>
-                            </Border>
+
+                            <!--  Clean, transparent image without background borders  -->
+                            <Image Height="34"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="/Resources/Images/ISFE.png"
+                                   Stretch="Uniform" />
+
                         </StackPanel>
 
                         <!--  ══════════════════════════════════════  -->
@@ -474,91 +445,91 @@
                                       PanningMode="HorizontalOnly"
                                       PreviewMouseWheel="NavScrollViewer_PreviewMouseWheel"
                                       VerticalScrollBarVisibility="Disabled">
-                            <!-- ══════════════════════════════════════ -->
-                            <!-- NAVIGATION ITEMS -->
-                            <!-- ══════════════════════════════════════ -->
+                            <!--  ══════════════════════════════════════  -->
+                            <!--  NAVIGATION ITEMS  -->
+                            <!--  ══════════════════════════════════════  -->
                             <ScrollViewer Grid.Column="1"
-              Focusable="False"
-              HorizontalScrollBarVisibility="Hidden"
-              PreviewMouseWheel="NavScrollViewer_PreviewMouseWheel"
-              PanningMode="HorizontalOnly"
-              VerticalScrollBarVisibility="Disabled">
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          PanningMode="HorizontalOnly"
+                                          PreviewMouseWheel="NavScrollViewer_PreviewMouseWheel"
+                                          VerticalScrollBarVisibility="Disabled">
                                 <StackPanel VerticalAlignment="Center"
-                Orientation="Horizontal">
+                                            Orientation="Horizontal">
 
-                                    <!-- ┌─ TABLEAU DE BORD ─┐ -->
-                                    <Button Command="{Binding NavigateToPageCommand}"
-                CommandParameter="Dashboard"
-                IsEnabled="{Binding CanAccessDashboard}"
-                Padding="9,8"
-                Style="{StaticResource NavBtn}"
-                ToolTip="Tableau de bord">
+                                    <!--  ┌─ TABLEAU DE BORD ─┐  -->
+                                    <Button Padding="9,8"
+                                            Command="{Binding NavigateToPageCommand}"
+                                            CommandParameter="Dashboard"
+                                            IsEnabled="{Binding CanAccessDashboard}"
+                                            Style="{StaticResource NavBtn}"
+                                            ToolTip="Tableau de bord">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon Width="18"
-                                         Height="18"
-                                         VerticalAlignment="Center"
-                                         Kind="ViewDashboard" />
+                                                                     Height="18"
+                                                                     VerticalAlignment="Center"
+                                                                     Kind="ViewDashboard" />
                                             <TextBlock Margin="8,0,0,0"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource NavLabelAdaptiveStyle}"
-                           Text="Tableau de bord" />
+                                                       VerticalAlignment="Center"
+                                                       Style="{StaticResource NavLabelAdaptiveStyle}"
+                                                       Text="Tableau de bord" />
                                         </StackPanel>
                                     </Button>
 
-                                    <!-- ┌─ FICHIER ─┐ -->
+                                    <!--  ┌─ FICHIER ─┐  -->
                                     <Grid>
                                         <ToggleButton x:Name="FichierDropdownBtn"
-                          Checked="OnDropdownOpened"
-                          IsEnabled="{Binding CanSeeFichier}"
-                          Padding="9,8"
-                          Style="{StaticResource NavDropdownBtn}"
-                          ToolTip="Fichier">
+                                                      Padding="9,8"
+                                                      Checked="OnDropdownOpened"
+                                                      IsEnabled="{Binding CanSeeFichier}"
+                                                      Style="{StaticResource NavDropdownBtn}"
+                                                      ToolTip="Fichier">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="18"
-                                             Height="18"
-                                             VerticalAlignment="Center"
-                                             Kind="FolderOutline" />
+                                                                         Height="18"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="FolderOutline" />
                                                 <TextBlock Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource NavLabelAdaptiveStyle}"
-                               Text="Fichier" />
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource NavLabelAdaptiveStyle}"
+                                                           Text="Fichier" />
                                                 <materialDesign:PackIcon Width="16"
-                                             Height="16"
-                                             Margin="4,0,0,0"
-                                             VerticalAlignment="Center"
-                                             Kind="ChevronDown"
-                                             Opacity="0.45"
-                                             Style="{StaticResource NavLabelAdaptiveStyle}" />
+                                                                         Height="16"
+                                                                         Margin="4,0,0,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="ChevronDown"
+                                                                         Opacity="0.45"
+                                                                         Style="{StaticResource NavLabelAdaptiveStyle}" />
                                             </StackPanel>
                                         </ToggleButton>
                                         <Popup AllowsTransparency="True"
-                   HorizontalOffset="-4"
-                   IsOpen="{Binding IsChecked, ElementName=FichierDropdownBtn, Mode=TwoWay}"
-                   Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=FichierDropdownBtn}"
-                   PopupAnimation="Fade"
-                   StaysOpen="False"
-                   VerticalOffset="8">
+                                               HorizontalOffset="-4"
+                                               IsOpen="{Binding IsChecked, ElementName=FichierDropdownBtn, Mode=TwoWay}"
+                                               Placement="Bottom"
+                                               PlacementTarget="{Binding ElementName=FichierDropdownBtn}"
+                                               PopupAnimation="Fade"
+                                               StaysOpen="False"
+                                               VerticalOffset="8">
                                             <Border MinWidth="240"
-                        Padding="6"
-                        Background="{StaticResource PopupGradient}"
-                        BorderBrush="#E8F0F5"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Effect="{StaticResource PopupShadow}">
+                                                    Padding="6"
+                                                    Background="{StaticResource PopupGradient}"
+                                                    BorderBrush="#E8F0F5"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Effect="{StaticResource PopupShadow}">
                                                 <StackPanel>
-                                                    <!-- Caisse -->
+                                                    <!--  Caisse  -->
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Cash"
-                                IsEnabled="{Binding CanAccessPos}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Cash"
+                                                            IsEnabled="{Binding CanAccessPos}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="32"
-                                        Height="32"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="32"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#ECFDF5" />
@@ -566,31 +537,34 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="16"
-                                                             Height="16"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#059669"
-                                                             Kind="CashRegister" />
+                                                                                         Height="16"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#059669"
+                                                                                         Kind="CashRegister" />
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
-                                                                <TextBlock FontWeight="Medium" Text="Caisse" />
-                                                                <TextBlock FontSize="10" Foreground="#94A3B8" Text="Point de vente" />
+                                                                <TextBlock FontWeight="Medium"
+                                                                           Text="Caisse" />
+                                                                <TextBlock FontSize="10"
+                                                                           Foreground="#94A3B8"
+                                                                           Text="Point de vente" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </Button>
 
-                                                    <!-- Plan de Salle -->
+                                                    <!--  Plan de Salle  -->
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Tables"
-                                IsEnabled="{Binding CanAccessTables}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Tables"
+                                                            IsEnabled="{Binding CanAccessTables}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="32"
-                                        Height="32"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="32"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#FFF7ED" />
@@ -598,31 +572,34 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="16"
-                                                             Height="16"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#C2410C"
-                                                             Kind="TableFurniture" />
+                                                                                         Height="16"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#C2410C"
+                                                                                         Kind="TableFurniture" />
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
-                                                                <TextBlock FontWeight="Medium" Text="Plan de Salle" />
-                                                                <TextBlock FontSize="10" Foreground="#94A3B8" Text="Gestion des tables" />
+                                                                <TextBlock FontWeight="Medium"
+                                                                           Text="Plan de Salle" />
+                                                                <TextBlock FontSize="10"
+                                                                           Foreground="#94A3B8"
+                                                                           Text="Gestion des tables" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </Button>
 
-                                                    <!-- Facture -->
+                                                    <!--  Facture  -->
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Invoicing"
-                                IsEnabled="{Binding CanAccessInvoicing}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Invoicing"
+                                                            IsEnabled="{Binding CanAccessInvoicing}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="32"
-                                        Height="32"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="32"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#EFF6FF" />
@@ -630,35 +607,40 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="16"
-                                                             Height="16"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#2563EB"
-                                                             Kind="ReceiptTextOutline" />
+                                                                                         Height="16"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#2563EB"
+                                                                                         Kind="ReceiptTextOutline" />
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
-                                                                <TextBlock FontWeight="Medium" Text="Facture" />
-                                                                <TextBlock FontSize="10" Foreground="#94A3B8" Text="Créer une facture" />
+                                                                <TextBlock FontWeight="Medium"
+                                                                           Text="Facture" />
+                                                                <TextBlock FontSize="10"
+                                                                           Foreground="#94A3B8"
+                                                                           Text="Créer une facture" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </Button>
 
-                                                    <!-- Séparateur -->
-                                                    <Border Height="1" Margin="8,4" Background="#E5E7EB" />
+                                                    <!--  Séparateur  -->
+                                                    <Border Height="1"
+                                                            Margin="8,4"
+                                                            Background="#E5E7EB" />
 
-                                                    <!-- Facturation en masse -->
+                                                    <!--  Facturation en masse  -->
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="BulkInvoicing"
-                                IsEnabled="{Binding CanAccessBulkInvoicing}"
-                                Style="{StaticResource NavSubBtn}"
-                                ToolTip="Importer et facturer plusieurs clients depuis un fichier Excel">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="BulkInvoicing"
+                                                            IsEnabled="{Binding CanAccessBulkInvoicing}"
+                                                            Style="{StaticResource NavSubBtn}"
+                                                            ToolTip="Importer et facturer plusieurs clients depuis un fichier Excel">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="32"
-                                        Height="32"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="32"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#F5F3FF" />
@@ -666,27 +648,30 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="16"
-                                                             Height="16"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#7C3AED"
-                                                             Kind="FileExcelBoxOutline" />
+                                                                                         Height="16"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#7C3AED"
+                                                                                         Kind="FileExcelBoxOutline" />
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
                                                                 <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock FontWeight="Medium" Text="Facturation en masse" />
+                                                                    <TextBlock FontWeight="Medium"
+                                                                               Text="Facturation en masse" />
                                                                     <Border Margin="8,0,0,0"
-                                                Padding="5,1"
-                                                VerticalAlignment="Center"
-                                                Background="#EDE9FE"
-                                                CornerRadius="4">
+                                                                            Padding="5,1"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="#EDE9FE"
+                                                                            CornerRadius="4">
                                                                         <TextBlock FontSize="9"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#7C3AED"
-                                                       Text="EXCEL" />
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="#7C3AED"
+                                                                                   Text="EXCEL" />
                                                                     </Border>
                                                                 </StackPanel>
-                                                                <TextBlock FontSize="10" Foreground="#94A3B8" Text="Import multi-clients" />
+                                                                <TextBlock FontSize="10"
+                                                                           Foreground="#94A3B8"
+                                                                           Text="Import multi-clients" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </Button>
@@ -695,61 +680,62 @@
                                         </Popup>
                                     </Grid>
 
-                                    <!-- ┌─ ÉDITER ─┐ -->
+                                    <!--  ┌─ ÉDITER ─┐  -->
                                     <Grid>
                                         <ToggleButton x:Name="EditerDropdownBtn"
-                          Checked="OnDropdownOpened"
-                          IsEnabled="{Binding CanSeeEditer}"
-                          Padding="9,8"
-                          Style="{StaticResource NavDropdownBtn}"
-                          ToolTip="Éditer">
+                                                      Padding="9,8"
+                                                      Checked="OnDropdownOpened"
+                                                      IsEnabled="{Binding CanSeeEditer}"
+                                                      Style="{StaticResource NavDropdownBtn}"
+                                                      ToolTip="Éditer">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="18"
-                                             Height="18"
-                                             VerticalAlignment="Center"
-                                             Kind="PencilOutline" />
+                                                                         Height="18"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="PencilOutline" />
                                                 <TextBlock Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource NavLabelAdaptiveStyle}"
-                               Text="Éditer" />
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource NavLabelAdaptiveStyle}"
+                                                           Text="Éditer" />
                                                 <materialDesign:PackIcon Width="16"
-                                             Height="16"
-                                             Margin="4,0,0,0"
-                                             VerticalAlignment="Center"
-                                             Kind="ChevronDown"
-                                             Opacity="0.45"
-                                             Style="{StaticResource NavLabelAdaptiveStyle}" />
+                                                                         Height="16"
+                                                                         Margin="4,0,0,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="ChevronDown"
+                                                                         Opacity="0.45"
+                                                                         Style="{StaticResource NavLabelAdaptiveStyle}" />
                                             </StackPanel>
                                         </ToggleButton>
                                         <Popup AllowsTransparency="True"
-                   HorizontalOffset="-4"
-                   IsOpen="{Binding IsChecked, ElementName=EditerDropdownBtn, Mode=TwoWay}"
-                   Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=EditerDropdownBtn}"
-                   PopupAnimation="Fade"
-                   StaysOpen="False"
-                   VerticalOffset="8">
+                                               HorizontalOffset="-4"
+                                               IsOpen="{Binding IsChecked, ElementName=EditerDropdownBtn, Mode=TwoWay}"
+                                               Placement="Bottom"
+                                               PlacementTarget="{Binding ElementName=EditerDropdownBtn}"
+                                               PopupAnimation="Fade"
+                                               StaysOpen="False"
+                                               VerticalOffset="8">
                                             <Border MinWidth="260"
-                        Padding="6"
-                        Background="{StaticResource PopupGradient}"
-                        BorderBrush="#E8F0F5"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Effect="{StaticResource PopupShadow}">
+                                                    Padding="6"
+                                                    Background="{StaticResource PopupGradient}"
+                                                    BorderBrush="#E8F0F5"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Effect="{StaticResource PopupShadow}">
                                                 <StackPanel>
-                                                    <TextBlock Style="{StaticResource NavSectionHeader}" Text="DONNÉES" />
+                                                    <TextBlock Style="{StaticResource NavSectionHeader}"
+                                                               Text="DONNÉES" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Articles"
-                                IsEnabled="{Binding CanAccessProducts}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Articles"
+                                                            IsEnabled="{Binding CanAccessProducts}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#F5F3FF" />
@@ -757,27 +743,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#7C3AED"
-                                                             Kind="PackageVariantClosed" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#7C3AED"
+                                                                                         Kind="PackageVariantClosed" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Articles" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Articles" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Categories"
-                                IsEnabled="{Binding CanAccessProducts}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Categories"
+                                                            IsEnabled="{Binding CanAccessProducts}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#FDF2F8" />
@@ -785,27 +772,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#DB2777"
-                                                             Kind="TagMultipleOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#DB2777"
+                                                                                         Kind="TagMultipleOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Catégories" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Catégories" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Clients"
-                                IsEnabled="{Binding CanAccessClients}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Clients"
+                                                            IsEnabled="{Binding CanAccessClients}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#EFF6FF" />
@@ -813,27 +801,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#2563EB"
-                                                             Kind="AccountGroupOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#2563EB"
+                                                                                         Kind="AccountGroupOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Clients" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Clients" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Stock"
-                                IsEnabled="{Binding CanAccessStock}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Stock"
+                                                            IsEnabled="{Binding CanAccessStock}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#ECFDF5" />
@@ -841,29 +830,31 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#059669"
-                                                             Kind="Warehouse" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#059669"
+                                                                                         Kind="Warehouse" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Stocks" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Stocks" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Separator Style="{StaticResource PopupSep}" />
-                                                    <TextBlock Style="{StaticResource NavSectionHeader}" Text="OPÉRATIONS" />
+                                                    <TextBlock Style="{StaticResource NavSectionHeader}"
+                                                               Text="OPÉRATIONS" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding CloseReportZCommand}"
-                                IsEnabled="{Binding CanCloseZ}"
-                                Style="{StaticResource NavSubBtnWarning}">
+                                                            Command="{Binding CloseReportZCommand}"
+                                                            IsEnabled="{Binding CanCloseZ}"
+                                                            Style="{StaticResource NavSubBtnWarning}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#FEF3C7" />
@@ -871,15 +862,15 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#D97706"
-                                                             Kind="FileCheckOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#D97706"
+                                                                                         Kind="FileCheckOutline" />
                                                             </Border>
                                                             <TextBlock VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Text="Clôture du rapport Z" />
+                                                                       FontWeight="SemiBold"
+                                                                       Text="Clôture du rapport Z" />
                                                         </StackPanel>
                                                     </Button>
                                                 </StackPanel>
@@ -887,61 +878,62 @@
                                         </Popup>
                                     </Grid>
 
-                                    <!-- ┌─ AFFICHAGE ─┐ -->
+                                    <!--  ┌─ AFFICHAGE ─┐  -->
                                     <Grid>
                                         <ToggleButton x:Name="AffichageDropdownBtn"
-                          Checked="OnDropdownOpened"
-                          IsEnabled="{Binding CanSeeAffichage}"
-                          Padding="9,8"
-                          Style="{StaticResource NavDropdownBtn}"
-                          ToolTip="Affichage">
+                                                      Padding="9,8"
+                                                      Checked="OnDropdownOpened"
+                                                      IsEnabled="{Binding CanSeeAffichage}"
+                                                      Style="{StaticResource NavDropdownBtn}"
+                                                      ToolTip="Affichage">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="18"
-                                             Height="18"
-                                             VerticalAlignment="Center"
-                                             Kind="MonitorDashboard" />
+                                                                         Height="18"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="MonitorDashboard" />
                                                 <TextBlock Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource NavLabelAdaptiveStyle}"
-                               Text="Affichage" />
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource NavLabelAdaptiveStyle}"
+                                                           Text="Affichage" />
                                                 <materialDesign:PackIcon Width="16"
-                                             Height="16"
-                                             Margin="4,0,0,0"
-                                             VerticalAlignment="Center"
-                                             Kind="ChevronDown"
-                                             Opacity="0.45"
-                                             Style="{StaticResource NavLabelAdaptiveStyle}" />
+                                                                         Height="16"
+                                                                         Margin="4,0,0,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="ChevronDown"
+                                                                         Opacity="0.45"
+                                                                         Style="{StaticResource NavLabelAdaptiveStyle}" />
                                             </StackPanel>
                                         </ToggleButton>
                                         <Popup AllowsTransparency="True"
-                   HorizontalOffset="-4"
-                   IsOpen="{Binding IsChecked, ElementName=AffichageDropdownBtn, Mode=TwoWay}"
-                   Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=AffichageDropdownBtn}"
-                   PopupAnimation="Fade"
-                   StaysOpen="False"
-                   VerticalOffset="8">
+                                               HorizontalOffset="-4"
+                                               IsOpen="{Binding IsChecked, ElementName=AffichageDropdownBtn, Mode=TwoWay}"
+                                               Placement="Bottom"
+                                               PlacementTarget="{Binding ElementName=AffichageDropdownBtn}"
+                                               PopupAnimation="Fade"
+                                               StaysOpen="False"
+                                               VerticalOffset="8">
                                             <Border MinWidth="280"
-                        Padding="6"
-                        Background="{StaticResource PopupGradient}"
-                        BorderBrush="#E8F0F5"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Effect="{StaticResource PopupShadow}">
+                                                    Padding="6"
+                                                    Background="{StaticResource PopupGradient}"
+                                                    BorderBrush="#E8F0F5"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Effect="{StaticResource PopupShadow}">
                                                 <StackPanel>
-                                                    <TextBlock Style="{StaticResource NavSectionHeader}" Text="RAPPORTS" />
+                                                    <TextBlock Style="{StaticResource NavSectionHeader}"
+                                                               Text="RAPPORTS" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="ReportX"
-                                IsEnabled="{Binding CanAccessReports}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="ReportX"
+                                                            IsEnabled="{Binding CanAccessReports}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#EFF6FF" />
@@ -949,27 +941,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#2563EB"
-                                                             Kind="FileChartOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#2563EB"
+                                                                                         Kind="FileChartOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Rapport X" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Rapport X" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="ReportA"
-                                IsEnabled="{Binding CanAccessReports}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="ReportA"
+                                                            IsEnabled="{Binding CanAccessReports}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#ECFDF5" />
@@ -977,27 +970,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#059669"
-                                                             Kind="FileChartOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#059669"
+                                                                                         Kind="FileChartOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Rapport A" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Rapport A" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="ReportZ"
-                                IsEnabled="{Binding CanAccessReports}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="ReportZ"
+                                                            IsEnabled="{Binding CanAccessReports}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#F5F3FF" />
@@ -1005,30 +999,32 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#7C3AED"
-                                                             Kind="FileChartOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#7C3AED"
+                                                                                         Kind="FileChartOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Rapport Z" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Rapport Z" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Separator Style="{StaticResource PopupSep}" />
-                                                    <TextBlock Style="{StaticResource NavSectionHeader}" Text="HISTORIQUE" />
+                                                    <TextBlock Style="{StaticResource NavSectionHeader}"
+                                                               Text="HISTORIQUE" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="SalesJournal"
-                                IsEnabled="{Binding CanAccessSalesHistory}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="SalesJournal"
+                                                            IsEnabled="{Binding CanAccessSalesHistory}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#FFF7ED" />
@@ -1036,27 +1032,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#C2410C"
-                                                             Kind="BookOpenPageVariantOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#C2410C"
+                                                                                         Kind="BookOpenPageVariantOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Journal" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Journal" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="ReportHistory"
-                                IsEnabled="{Binding CanAccessReportHistory}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="ReportHistory"
+                                                            IsEnabled="{Binding CanAccessReportHistory}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#F1F5F9" />
@@ -1064,13 +1061,14 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#475569"
-                                                             Kind="ClockOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#475569"
+                                                                                         Kind="ClockOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Historique des rapports" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Historique des rapports" />
                                                         </StackPanel>
                                                     </Button>
                                                 </StackPanel>
@@ -1078,61 +1076,62 @@
                                         </Popup>
                                     </Grid>
 
-                                    <!-- ┌─ OUTILS ─┐ -->
+                                    <!--  ┌─ OUTILS ─┐  -->
                                     <Grid>
                                         <ToggleButton x:Name="OutilsDropdownBtn"
-                          Checked="OnDropdownOpened"
-                          IsEnabled="{Binding CanSeeOutils}"
-                          Padding="9,8"
-                          Style="{StaticResource NavDropdownBtn}"
-                          ToolTip="Outils">
+                                                      Padding="9,8"
+                                                      Checked="OnDropdownOpened"
+                                                      IsEnabled="{Binding CanSeeOutils}"
+                                                      Style="{StaticResource NavDropdownBtn}"
+                                                      ToolTip="Outils">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="18"
-                                             Height="18"
-                                             VerticalAlignment="Center"
-                                             Kind="WrenchOutline" />
+                                                                         Height="18"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="WrenchOutline" />
                                                 <TextBlock Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource NavLabelAdaptiveStyle}"
-                               Text="Outils" />
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource NavLabelAdaptiveStyle}"
+                                                           Text="Outils" />
                                                 <materialDesign:PackIcon Width="16"
-                                             Height="16"
-                                             Margin="4,0,0,0"
-                                             VerticalAlignment="Center"
-                                             Kind="ChevronDown"
-                                             Opacity="0.45"
-                                             Style="{StaticResource NavLabelAdaptiveStyle}" />
+                                                                         Height="16"
+                                                                         Margin="4,0,0,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="ChevronDown"
+                                                                         Opacity="0.45"
+                                                                         Style="{StaticResource NavLabelAdaptiveStyle}" />
                                             </StackPanel>
                                         </ToggleButton>
                                         <Popup AllowsTransparency="True"
-                   HorizontalOffset="-4"
-                   IsOpen="{Binding IsChecked, ElementName=OutilsDropdownBtn, Mode=TwoWay}"
-                   Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=OutilsDropdownBtn}"
-                   PopupAnimation="Fade"
-                   StaysOpen="False"
-                   VerticalOffset="8">
+                                               HorizontalOffset="-4"
+                                               IsOpen="{Binding IsChecked, ElementName=OutilsDropdownBtn, Mode=TwoWay}"
+                                               Placement="Bottom"
+                                               PlacementTarget="{Binding ElementName=OutilsDropdownBtn}"
+                                               PopupAnimation="Fade"
+                                               StaysOpen="False"
+                                               VerticalOffset="8">
                                             <Border MinWidth="300"
-                        Padding="6"
-                        Background="{StaticResource PopupGradient}"
-                        BorderBrush="#E8F0F5"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Effect="{StaticResource PopupShadow}">
+                                                    Padding="6"
+                                                    Background="{StaticResource PopupGradient}"
+                                                    BorderBrush="#E8F0F5"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Effect="{StaticResource PopupShadow}">
                                                 <StackPanel>
-                                                    <TextBlock Style="{StaticResource NavSectionHeader}" Text="CONFIGURATION" />
+                                                    <TextBlock Style="{StaticResource NavSectionHeader}"
+                                                               Text="CONFIGURATION" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Settings"
-                                IsEnabled="{Binding CanAccessSettings}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Settings"
+                                                            IsEnabled="{Binding CanAccessSettings}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#F1F5F9" />
@@ -1140,27 +1139,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#475569"
-                                                             Kind="CogOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#475569"
+                                                                                         Kind="CogOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Configuration de base" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Configuration de base" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="PosManagement"
-                                IsEnabled="{Binding CanAccessSettings}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="PosManagement"
+                                                            IsEnabled="{Binding CanAccessSettings}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#ECFDF5" />
@@ -1168,27 +1168,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#059669"
-                                                             Kind="StorefrontOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#059669"
+                                                                                         Kind="StorefrontOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Gestion des points de vente" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Gestion des points de vente" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="Users"
-                                IsEnabled="{Binding CanAccessUsers}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="Users"
+                                                            IsEnabled="{Binding CanAccessUsers}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#EFF6FF" />
@@ -1196,27 +1197,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#2563EB"
-                                                             Kind="AccountMultipleOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#2563EB"
+                                                                                         Kind="AccountMultipleOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Gestion des utilisateurs" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Gestion des utilisateurs" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="RestaurantConfig"
-                                IsEnabled="{Binding CanAccessSettings}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="RestaurantConfig"
+                                                            IsEnabled="{Binding CanAccessSettings}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#FFF7ED" />
@@ -1224,30 +1226,32 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#C2410C"
-                                                             Kind="SilverwareForkKnife" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#C2410C"
+                                                                                         Kind="SilverwareForkKnife" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Configuration Restaurant" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Configuration Restaurant" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Separator Style="{StaticResource PopupSep}" />
-                                                    <TextBlock Style="{StaticResource NavSectionHeader}" Text="OUTILS D'AUDIT" />
+                                                    <TextBlock Style="{StaticResource NavSectionHeader}"
+                                                               Text="OUTILS D'AUDIT" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="AuditLog"
-                                IsEnabled="{Binding CanAccessAudit}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="AuditLog"
+                                                            IsEnabled="{Binding CanAccessAudit}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#FEF3C7" />
@@ -1255,13 +1259,14 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#D97706"
-                                                             Kind="ShieldCheckOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#D97706"
+                                                                                         Kind="ShieldCheckOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Journal d'audit" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Journal d'audit" />
                                                         </StackPanel>
                                                     </Button>
                                                 </StackPanel>
@@ -1269,57 +1274,57 @@
                                         </Popup>
                                     </Grid>
 
-                                    <!-- ┌─ AIDE ─┐ -->
+                                    <!--  ┌─ AIDE ─┐  -->
                                     <Grid>
                                         <ToggleButton x:Name="AideDropdownBtn"
-                          Checked="OnDropdownOpened"
-                          Padding="9,8"
-                          Style="{StaticResource NavDropdownBtn}"
-                          ToolTip="Aide">
+                                                      Padding="9,8"
+                                                      Checked="OnDropdownOpened"
+                                                      Style="{StaticResource NavDropdownBtn}"
+                                                      ToolTip="Aide">
                                             <StackPanel Orientation="Horizontal">
                                                 <materialDesign:PackIcon Width="18"
-                                             Height="18"
-                                             VerticalAlignment="Center"
-                                             Kind="HelpCircleOutline" />
+                                                                         Height="18"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="HelpCircleOutline" />
                                                 <TextBlock Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource NavLabelAdaptiveStyle}"
-                               Text="Aide" />
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource NavLabelAdaptiveStyle}"
+                                                           Text="Aide" />
                                                 <materialDesign:PackIcon Width="16"
-                                             Height="16"
-                                             Margin="4,0,0,0"
-                                             VerticalAlignment="Center"
-                                             Kind="ChevronDown"
-                                             Opacity="0.45"
-                                             Style="{StaticResource NavLabelAdaptiveStyle}" />
+                                                                         Height="16"
+                                                                         Margin="4,0,0,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Kind="ChevronDown"
+                                                                         Opacity="0.45"
+                                                                         Style="{StaticResource NavLabelAdaptiveStyle}" />
                                             </StackPanel>
                                         </ToggleButton>
                                         <Popup AllowsTransparency="True"
-                   HorizontalOffset="-4"
-                   IsOpen="{Binding IsChecked, ElementName=AideDropdownBtn, Mode=TwoWay}"
-                   Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=AideDropdownBtn}"
-                   PopupAnimation="Fade"
-                   StaysOpen="False"
-                   VerticalOffset="8">
+                                               HorizontalOffset="-4"
+                                               IsOpen="{Binding IsChecked, ElementName=AideDropdownBtn, Mode=TwoWay}"
+                                               Placement="Bottom"
+                                               PlacementTarget="{Binding ElementName=AideDropdownBtn}"
+                                               PopupAnimation="Fade"
+                                               StaysOpen="False"
+                                               VerticalOffset="8">
                                             <Border MinWidth="250"
-                        Padding="6"
-                        Background="{StaticResource PopupGradient}"
-                        BorderBrush="#E8F0F5"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Effect="{StaticResource PopupShadow}">
+                                                    Padding="6"
+                                                    Background="{StaticResource PopupGradient}"
+                                                    BorderBrush="#E8F0F5"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Effect="{StaticResource PopupShadow}">
                                                 <StackPanel>
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding NavigateToPageCommand}"
-                                CommandParameter="UserManual"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding NavigateToPageCommand}"
+                                                            CommandParameter="UserManual"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#EFF6FF" />
@@ -1327,27 +1332,28 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#2563EB"
-                                                             Kind="BookOpenOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#2563EB"
+                                                                                         Kind="BookOpenOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="Manuel d'utilisation" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="Manuel d'utilisation" />
                                                         </StackPanel>
                                                     </Button>
 
                                                     <Separator Style="{StaticResource PopupSep}" />
 
                                                     <Button Click="CloseDropdowns"
-                                Command="{Binding ShowAboutCommand}"
-                                Style="{StaticResource NavSubBtn}">
+                                                            Command="{Binding ShowAboutCommand}"
+                                                            Style="{StaticResource NavSubBtn}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Border Width="30"
-                                        Height="30"
-                                        Margin="0,0,10,0"
-                                        VerticalAlignment="Center"
-                                        CornerRadius="8">
+                                                                    Height="30"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Center"
+                                                                    CornerRadius="8">
                                                                 <Border.Background>
                                                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                                         <GradientStop Offset="0" Color="#F1F5F9" />
@@ -1355,13 +1361,14 @@
                                                                     </LinearGradientBrush>
                                                                 </Border.Background>
                                                                 <materialDesign:PackIcon Width="15"
-                                                             Height="15"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Foreground="#475569"
-                                                             Kind="InformationOutline" />
+                                                                                         Height="15"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center"
+                                                                                         Foreground="#475569"
+                                                                                         Kind="InformationOutline" />
                                                             </Border>
-                                                            <TextBlock VerticalAlignment="Center" Text="À propos" />
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="À propos" />
                                                         </StackPanel>
                                                     </Button>
                                                 </StackPanel>
@@ -1929,7 +1936,7 @@
                                FontFamily="{StaticResource AppFont}"
                                FontSize="11"
                                Foreground="#94A3B8">
-                        <Run Text="iKWOOK SFE v2.0" />
+                        <Run Text="iSFE v1.0.0" />
                         <Run Text=" — " />
                         <Run Text="Système de Facturation" />
                     </TextBlock>

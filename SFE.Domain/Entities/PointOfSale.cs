@@ -146,4 +146,7 @@ public class PointOfSale
     public bool SunmiEnabled { get; set; }
     public string? SunmiTerminalUrl { get; set; }   // e.g. http://192.168.1.50:8080
     public string? SunmiTerminalId { get; set; }
+
+    public bool EnablePublicity { get; set; } = false;
+    public string? PublicityFolder { get; set; }
 }

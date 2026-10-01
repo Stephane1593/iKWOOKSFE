@@ -53,17 +53,21 @@ public class CustomerDisplayService : IDisposable
         return string.Join(Environment.NewLine, lines);
     }
 
-    public void Open(string companyName)
+    public void Open(string companyName, byte[]? companyLogo = null, bool enablePublicity = false, string publicityFolder = "")
     {
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
             if (IsOpen)
             {
                 _viewModel!.CompanyName = companyName;
+                _viewModel.LoadCompanyLogo(companyLogo);
+                _viewModel.InitializePublicity(enablePublicity, publicityFolder);
                 return;
             }
 
             _viewModel = new CustomerDisplayViewModel(_timeProvider) { CompanyName = companyName };
+            _viewModel.LoadCompanyLogo(companyLogo);
+            _viewModel.InitializePublicity(enablePublicity, publicityFolder);
 
             _window = new CustomerDisplayWindow
             {

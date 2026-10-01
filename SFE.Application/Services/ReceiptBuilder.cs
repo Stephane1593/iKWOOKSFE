@@ -22,7 +22,7 @@ public static class ReceiptBuilder
 
         // ── EN-TÊTE ──
         sb.AppendLine(line);
-        sb.AppendLine(Center("iKWOOK SFE - Système de Facturation"));
+        sb.AppendLine(Center("iSFE - Système de Facturation"));
         sb.AppendLine(Center("Électronique"));
         sb.AppendLine(line);
         sb.AppendLine();

@@ -1,6 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <None Remove="Resources\Images\ISFE.ico" />
+    <None Remove="Resources\Images\ISFE.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Licensing.Domain\SFE.Licensing.Domain.csproj" />
     <ProjectReference Include="..\SFE.Api\SFE.Api.csproj" />
     <ProjectReference Include="..\SFE.Domain\SFE.Domain.csproj" />
@@ -25,12 +30,18 @@
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Resources\Images\ISFE.ico" />
+    <Resource Include="Resources\Images\ISFE.png" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Resources\Images\ISFE.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DefineConstants>$(DefineConstants);SFE_RELEASE</DefineConstants>

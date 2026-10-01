@@ -136,7 +136,7 @@ public partial class MainViewModel : BaseViewModel, IRecipient<OpenTableMessage>
         _sessionState = sessionState;
         _timeProvider = timeProvider;
         _guard = guard;
-        PageTitle = "iKWOOK SFE";
+        PageTitle = "iSFE";
 
         IsSetupMode = sessionState.IsSetupMode;
         SessionBanner = sessionState.IsSetupMode
@@ -394,8 +394,8 @@ public partial class MainViewModel : BaseViewModel, IRecipient<OpenTableMessage>
     private void ShowAbout()
     {
         System.Windows.MessageBox.Show(
-            "iKWOOK SFE v2.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par Assium Group.\nTous droits réservés.",
-            "À propos de iKWOOK SFE",
+            "iSFE v1.0.0\nSystème de Facturation d'Entreprise\n\n© 2026 · Conforme DGI-RDC\n\nDéveloppé par Assium Group.\nTous droits réservés.",
+            "À propos de iSFE",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Information);
     }
