@@ -26,13 +26,17 @@ public class LoyaltyService
     /// </summary>
     public async Task ProcessInvoiceLoyaltyAsync(Invoice invoice, int pointsToRedeem)
     {
-        var settings = await _settings.LoadSettingsAsync();
-        if (!settings.LoyaltyEnabled || invoice.ClientType != ClientType.PP)
-            return; // Loyalty only applies to physical persons by default
+        // Query settings directly from UOW to ensure fresh data
+        var settings = await _uow.AppSettings.GetCurrentAsync();
+        if (settings == null || !settings.LoyaltyEnabled || invoice.ClientType != ClientType.PP)
+            return;
 
-        // We need the client to look up or create the account
-        var client = await _uow.Clients.GetByNIFAsync(invoice.ClientNIF ?? "")
-                     ?? await _uow.Clients.SearchAsync(invoice.ClientName).ContinueWith(t => t.Result.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(invoice.ClientPhone))
+            return;
+
+        string phoneToMatch = invoice.ClientPhone.Trim();
+        var matchingClients = await _uow.Clients.FindAsync(c => c.Phone == phoneToMatch);
+        var client = matchingClients.FirstOrDefault();
 
         if (client == null) return;
 
@@ -48,16 +52,23 @@ public class LoyaltyService
                 TotalPointsEarned = 0
             };
             await _uow.LoyaltyAccounts.AddAsync(account);
+
+            // Save immediately so the new account gets an Id from the database
+            await _uow.SaveChangesAsync();
         }
 
-        // 1. Process Redemptions (if they asked to use points)
+        // Use explicit repository to guarantee EF Core tracks the new transactions
+        var transactionRepo = _uow.GetRepository<LoyaltyTransaction>();
+
+        // 1. Process Redemptions
         if (pointsToRedeem > 0 && account.CurrentBalance >= pointsToRedeem)
         {
             account.CurrentBalance -= pointsToRedeem;
             account.LastActivityAt = _time.UtcNow;
 
-            account.Transactions.Add(new LoyaltyTransaction
+            await transactionRepo.AddAsync(new LoyaltyTransaction
             {
+                LoyaltyAccountId = account.Id,
                 InvoiceId = invoice.Id,
                 Type = "REDEEM",
                 Points = -pointsToRedeem,
@@ -66,17 +77,16 @@ public class LoyaltyService
             });
 
             await _audit.LogAsync(
-                AuditAction.ClientUpdated, // Standardize your audit actions as needed
+                AuditAction.ClientUpdated,
                 AuditModule.Clients,
                 $"{pointsToRedeem} points utilisés par {client.Name} sur {invoice.InvoiceNumber}.",
                 entityType: "LoyaltyAccount",
                 entityId: account.Id.ToString());
         }
 
-        // 2. Process Earnings (Points earned on the final TTC paid)
+        // 2. Process Earnings
         if (settings.LoyaltyEarnRate > 0)
         {
-            // E.g., Earn 1 point per 1000 CDF spent
             int pointsEarned = (int)(invoice.TotalTTC / settings.LoyaltyEarnRate);
 
             if (pointsEarned > 0)
@@ -85,8 +95,9 @@ public class LoyaltyService
                 account.TotalPointsEarned += pointsEarned;
                 account.LastActivityAt = _time.UtcNow;
 
-                account.Transactions.Add(new LoyaltyTransaction
+                await transactionRepo.AddAsync(new LoyaltyTransaction
                 {
+                    LoyaltyAccountId = account.Id,
                     InvoiceId = invoice.Id,
                     Type = "EARN",
                     Points = pointsEarned,
@@ -96,8 +107,12 @@ public class LoyaltyService
             }
         }
 
-        // Tier evaluation
         EvaluateTier(account);
+        await _uow.LoyaltyAccounts.UpdateAsync(account);
+        // FIX: Force the save here! This guarantees the points are committed 
+        // even if the DI container gave this service a different UOW instance.
+        await _uow.SaveChangesAsync();
+
     }
 
     private void EvaluateTier(LoyaltyAccount account)

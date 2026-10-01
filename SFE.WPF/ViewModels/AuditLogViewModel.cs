@@ -100,7 +100,8 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
 
     public async Task ActivateAsync()
     {
-        ApplyPeriodPreset("Aujourd'hui");
+        // FIX: Widen the default search window to 'Ce mois' to account for timezone drift
+        ApplyPeriodPreset("Ce mois");
         await LoadAsync();
         await LoadUsersAsync();
     }
@@ -134,11 +135,12 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
         SearchText = "";
         FilterUser = "";
         FilterModule = null;
-        SelectedPeriodPreset = "Aujourd'hui";
-        ApplyPeriodPreset("Aujourd'hui");
+        SelectedPeriodPreset = "Ce mois"; // Update here too
+        ApplyPeriodPreset("Ce mois");
         CurrentPage = 1;
         await LoadAsync();
     }
+
 
     [RelayCommand]
     private async Task SetPeriod(string preset)
@@ -184,7 +186,7 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
     private DateTimeOffset ToStartOfDayOffset(DateTime date)
     {
         var local = DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified);
-        return new DateTimeOffset(local, _time.LocalNow.Offset);
+        return new DateTimeOffset(local, _time.LocalNow.Offset).ToUniversalTime();
     }
 
     /// <summary>
@@ -195,7 +197,7 @@ public partial class AuditLogViewModel : BaseViewModel, IActivatable
     {
         var local = DateTime.SpecifyKind(
             date.Date.AddDays(1).AddTicks(-1), DateTimeKind.Unspecified);
-        return new DateTimeOffset(local, _time.LocalNow.Offset);
+        return new DateTimeOffset(local, _time.LocalNow.Offset).ToUniversalTime();
     }
 
     private async Task LoadAsync()

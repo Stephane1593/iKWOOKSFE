@@ -12,12 +12,16 @@ public class LoyaltyAccountRepository : Repository<LoyaltyAccount>, ILoyaltyAcco
 
     public async Task<LoyaltyAccount?> GetByClientIdAsync(int clientId)
     {
-        return await _dbSet.FirstOrDefaultAsync(la => la.ClientId == clientId);
+        return await _dbSet
+            .Include(la => la.Client) // Explicitly load the Client navigation property
+            .FirstOrDefaultAsync(la => la.ClientId == clientId);
     }
 
     public async Task<LoyaltyAccount?> GetByCardNumberAsync(string cardNumber)
     {
-        return await _dbSet.FirstOrDefaultAsync(la => la.CardNumber == cardNumber);
+        return await _dbSet
+            .Include(la => la.Client) // Explicitly load the Client navigation property
+            .FirstOrDefaultAsync(la => la.CardNumber == cardNumber);
     }
 
     public async Task<LoyaltyAccount?> GetWithTransactionsAsync(int accountId)

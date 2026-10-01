@@ -285,6 +285,8 @@ public class StockService
                 transfer.Lines.Select(l => l.ProductId).Distinct());
             await _unitOfWork.SaveChangesAsync();
 
+            await _unitOfWork.CommitTransactionAsync();
+
             await _audit.LogAsync(
                 AuditAction.TransferShipped,
                 AuditModule.Stock,
@@ -295,7 +297,7 @@ public class StockService
             _unitOfWork.EnqueueEvent(AppEvent.StockTransferShipped, transfer.Id.ToString());
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
 
-            await _unitOfWork.CommitTransactionAsync();
+
             await _unitOfWork.FlushEventsAsync();   // ← FIX: post-commit flush
 
             return StockOperationResult.Ok(transfer.Lines.Count,
@@ -379,6 +381,8 @@ public class StockService
             await _unitOfWork.StockTransfers.UpdateAsync(transfer);
             await _unitOfWork.SaveChangesAsync();
 
+            await _unitOfWork.CommitTransactionAsync();
+
             await _audit.LogAsync(
                 AuditAction.TransferReceived,
                 AuditModule.Stock,
@@ -394,7 +398,7 @@ public class StockService
             _unitOfWork.EnqueueEvent(AppEvent.StockTransferReceived, transfer.Id.ToString());
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
 
-            await _unitOfWork.CommitTransactionAsync();
+
             await _unitOfWork.FlushEventsAsync();   // ← FIX: post-commit flush
 
             return StockOperationResult.Ok(transfer.Lines.Count,
@@ -452,6 +456,8 @@ public class StockService
             await _unitOfWork.StockTransfers.UpdateAsync(transfer);
             await _unitOfWork.SaveChangesAsync();
 
+            await _unitOfWork.CommitTransactionAsync();
+
             if (stockRestored)
             {
                 await UpdateGlobalStocksAsync(
@@ -472,7 +478,7 @@ public class StockService
             if (stockRestored)
                 _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
 
-            await _unitOfWork.CommitTransactionAsync();
+
             await _unitOfWork.FlushEventsAsync();   // ← FIX: post-commit flush
 
             return StockOperationResult.Ok(0,
@@ -670,7 +676,8 @@ public class StockService
                 Reference = reference,
                 OperatorName = operatorName,
                 Notes = notes,
-                UnitCost = unitCost
+                UnitCost = unitCost,
+                CreatedAt = now
             };
             await _unitOfWork.StockMovements.AddAsync(movement);
 
@@ -678,6 +685,8 @@ public class StockService
 
             await UpdateProductGlobalStockAsync(productId);
             await _unitOfWork.SaveChangesAsync();
+
+            await _unitOfWork.CommitTransactionAsync();
 
             var auditAction = type switch
             {
@@ -701,7 +710,6 @@ public class StockService
 
             _unitOfWork.EnqueueEvent(AppEvent.StockUpdated);
 
-            await _unitOfWork.CommitTransactionAsync();
             await _unitOfWork.FlushEventsAsync();   // post-commit flush
 
             return StockOperationResult.Ok(after);
@@ -748,7 +756,8 @@ public class StockService
             OperatorName = operatorName,
             Notes = notes,
             CounterpartPointOfSaleId = counterpartPosId,
-            TransferReference = transferReference
+            TransferReference = transferReference,
+            CreatedAt = now
         };
         await _unitOfWork.StockMovements.AddAsync(movement);
     }

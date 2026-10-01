@@ -246,15 +246,17 @@ public class InvoiceService
 
             await _unitOfWork.Invoices.AddAsync(invoice);
 
-            // ---> NEW: PROCESS LOYALTY LEDGER HERE <---
-            // We pass the amount of points used. (Assuming you add `PointsRedeemed` to the Invoice entity).
+            // 1. SAVE FIRST to generate the invoice.Id from the database
+            await _unitOfWork.SaveChangesAsync();
+
+            // 2. NOW PROCESS LOYALTY WITH A VALID INVOICE ID
             if (invoice.PointsRedeemed > 0 || invoice.Type == InvoiceType.FV)
             {
                 await _loyaltyService.ProcessInvoiceLoyaltyAsync(invoice, invoice.PointsRedeemed);
+
+                // 3. SAVE AGAIN to commit the new loyalty points
+                await _unitOfWork.SaveChangesAsync();
             }
-
-
-            await _unitOfWork.SaveChangesAsync();
         }
         catch (Exception ex)
         {
@@ -1101,7 +1103,11 @@ public class InvoiceService
                         invoice.InvoiceNumber, invoice.OperatorName);
 
                     if (!decResult.Success && string.IsNullOrEmpty(invoice.CommentH))
+                    {
                         invoice.CommentH = $"⚠ Stock: {decResult.ErrorMessage}";
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                        
                     break;
 
                 case StockImpactKind.Increment:

@@ -762,6 +762,18 @@ public partial class SalesHistoryViewModel : BaseViewModel
         if (SelectedInvoice != null)
             await RefreshRowAsync(SelectedInvoice);
     }
+
+    [RelayCommand]
+    private void CopyRowCode(InvoiceListItemViewModel row)
+    {
+        // Make sure to use the property that holds the FULL code (e.g., CodeDEFDGI), not the short one.
+        if (row == null || string.IsNullOrWhiteSpace(row.CodeDEFDGI)) return;
+
+        System.Windows.Clipboard.SetText(row.CodeDEFDGI);
+
+        StatusMessage = "Code DEF copié dans le presse-papiers.";
+        ShowSuccess = true;
+    }
 }
 
 // ═════════════════════════════════════════════════════

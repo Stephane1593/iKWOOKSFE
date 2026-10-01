@@ -1,7 +1,12 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SFE.Application.Interfaces;
 using SFE.Domain.Entities;
+using System;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace SFE.Infrastructure.Persistence;
 
@@ -25,12 +30,27 @@ public class AuditWriter : IAuditWriter
         {
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            // Safe fallback for SQLite BIGINT primary keys that don't auto-increment
+            if (entry.Id == 0)
+            {
+                var existingIds = context.Set<AuditLogEntry>().Select(e => (long?)e.Id);
+                long maxId = await existingIds.MaxAsync() ?? 0;
+                entry.Id = maxId + 1;
+            }
+
             context.Set<AuditLogEntry>().Add(entry);
             await context.SaveChangesAsync();
         }
         catch (Exception ex)
         {
-            // Audit must NEVER crash the application
+            try
+            {
+                File.AppendAllText("audit_errors.log",
+                    $"{DateTime.Now}: {ex.Message}\n{ex.InnerException?.Message}\n{ex.StackTrace}\n\n");
+            }
+            catch { }
+
             Debug.WriteLine($"[AuditWriter] Write failed: {ex.Message}");
         }
     }

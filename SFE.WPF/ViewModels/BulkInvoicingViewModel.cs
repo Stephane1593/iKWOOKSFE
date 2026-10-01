@@ -136,9 +136,14 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
             return;
         }
 
+        // 1. FIX: Add MessageBox for missing selections
         if (string.IsNullOrEmpty(SelectedFilePath) || SelectedPointOfSale == null)
         {
             LastError = "Sélectionnez un fichier et un point de vente.";
+            System.Windows.MessageBox.Show(LastError,
+                "Validation",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
             return;
         }
 
@@ -173,7 +178,12 @@ public partial class BulkInvoicingViewModel : BaseViewModel, IActivatable
         }
         catch (Exception ex)
         {
+            // 2. FIX: Add MessageBox for file reading errors (e.g., file open in Excel)
             LastError = ex.Message;
+            System.Windows.MessageBox.Show($"Impossible de lire le fichier :\n{ex.Message}",
+                "Erreur de lecture",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
         }
         finally { IsParsing = false; }
     }

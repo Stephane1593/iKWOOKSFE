@@ -12,6 +12,9 @@ public class AuditLogEntryConfiguration : IEntityTypeConfiguration<AuditLogEntry
         b.ToTable("AuditLog");
         b.HasKey(e => e.Id);
 
+        // FIX: Force EF Core and SQLite to auto-generate the ID on insert
+        b.Property(e => e.Id).ValueGeneratedOnAdd();
+
         b.Property(e => e.Timestamp)
          .IsRequired();
 

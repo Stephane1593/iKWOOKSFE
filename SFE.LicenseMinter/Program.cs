@@ -81,11 +81,11 @@ class Program
             ActivationSlots = 1,
             Features = new()
             {
-                "bulk_invoicing",
                 "loyalty",
                 "stock_transfers",
                 "multi_pos",
-                "advanced_reports"
+                "advanced_reports",
+                "restaurant"
             },
             IssuedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             NotBeforeUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),

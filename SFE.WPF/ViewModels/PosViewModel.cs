@@ -335,7 +335,7 @@ public partial class PosViewModel : BaseViewModel,
             {
                 Receive(new OpenTableMessage(CurrentTableId.Value, null));
             }
-        }, AppEvent.ForceGlobalRefresh);
+        }, AppEvent.ForceGlobalRefresh, AppEvent.StockUpdated);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -524,10 +524,11 @@ public partial class PosViewModel : BaseViewModel,
         }
         else
         {
-            // 🚨 CRUCIAL: Fetch the exact tracked instance from memory to avoid the 
-            // "another instance with the same key is already being tracked" exception.
             var trackedOrders = await orderRepo.FindAsync(o => o.Id == activeOrder.Id);
             orderToSave = trackedOrders.FirstOrDefault() ?? activeOrder;
+
+            // FIX: Force EF Core to track the entity for updates
+            await orderRepo.UpdateAsync(orderToSave);
         }
 
         // Modifying properties on a tracked entity automatically flags it for UPDATE.
@@ -579,11 +580,11 @@ public partial class PosViewModel : BaseViewModel,
                 existing.SentQuantity = (int)item.Quantity;
                 existing.Notes = item.Notes;
             }
+            // 2. Map the Foreign Key for existing orders
             else
             {
-                await itemRepo.AddAsync(new OrderItem
+                var newOrderItem = new OrderItem
                 {
-                    Order = orderToSave, // Use navigation property instead of ID for new, unsaved orders
                     ProductId = item.ProductId,
                     MenuItemId = item.MenuItemId,
                     Name = item.Name,
@@ -592,7 +593,19 @@ public partial class PosViewModel : BaseViewModel,
                     SentQuantity = (int)item.Quantity,
                     LineTotal = item.AmountTTC,
                     Notes = item.Notes
-                });
+                };
+
+                // FIX: Use navigation property only for unsaved orders. Use FK for existing.
+                if (isNewOrder)
+                {
+                    newOrderItem.Order = orderToSave;
+                }
+                else
+                {
+                    newOrderItem.OrderId = orderToSave.Id;
+                }
+
+                await itemRepo.AddAsync(newOrderItem);
             }
 
             item.SentQuantity = (int)item.Quantity;
@@ -1007,8 +1020,10 @@ public partial class PosViewModel : BaseViewModel,
             try { DetectThermalPrinter(); } catch { }
             try
             {
-                if (_currentCompany != null)
+                if (SelectedPointOfSale?.EnableCustomerDisplay == true && _currentCompany != null)
                     _customerDisplay.Open(_currentCompany.Name);
+                else
+                    _customerDisplay.Close();
             }
             catch { }
         }
@@ -1035,6 +1050,8 @@ public partial class PosViewModel : BaseViewModel,
         {
             if (pos.EnableCustomerDisplay && _currentCompany != null)
                 _customerDisplay.Open(_currentCompany.Name);
+            else
+                _customerDisplay.Close();
         }
         catch { }
     }
@@ -1210,6 +1227,11 @@ public partial class PosViewModel : BaseViewModel,
                 ShowError = true;
                 return;
             }
+
+            // 🚨 NOUVEAU : On retire l'article pour le replacer tout en haut
+            CartItems.Remove(existing);
+            CartItems.Insert(0, existing);
+            SelectedCartItem = existing;
         }
         else
         {
@@ -1270,7 +1292,8 @@ public partial class PosViewModel : BaseViewModel,
                 }
             }
 
-            CartItems.Add(item);
+            CartItems.Insert(0, item);
+            SelectedCartItem = item;
         }
         RecalculateTotals();
         PlayAddSound();
@@ -2186,6 +2209,7 @@ public partial class PosViewModel : BaseViewModel,
                         {
                             trackedOrder.Status = OrderStatus.Paid;
                             // Do NOT call UpdateAsync() here. Changing the property on a tracked entity is enough.
+                            await orderRepo.UpdateAsync(trackedOrder);
                             await _unitOfWork.SaveChangesAsync();
                         }
                     }
@@ -2504,6 +2528,7 @@ public partial class PosViewModel : BaseViewModel,
             invoice.Lines.Add(new InvoiceLine
             {
                 LineNumber = lineNum++,
+                ProductId = item.ProductId,
                 Code = item.Code,
                 Name = item.Name,
                 ItemType = item.ItemType,
@@ -2929,7 +2954,10 @@ public partial class PosViewModel : BaseViewModel,
         IsBusy = true; ShowError = false; ShowSuccess = false;
         try
         {
-            var account = await _unitOfWork.LoyaltyAccounts.GetByCardNumberAsync(ScannedLoyaltyCard.Trim());
+            // FIX: Force uppercase to match the database exactly
+            string normalizedCardNumber = ScannedLoyaltyCard.Trim().ToUpperInvariant();
+
+            var account = await _unitOfWork.LoyaltyAccounts.GetByCardNumberAsync(normalizedCardNumber);
             if (account == null || account.Client == null)
             {
                 StatusMessage = "Carte de fidélité introuvable.";
@@ -2938,16 +2966,14 @@ public partial class PosViewModel : BaseViewModel,
                 return;
             }
 
-            // Auto-select the client
             SelectClient(account.Client);
             await LoadClientLoyaltyAsync(account.ClientId);
 
             ScannedLoyaltyCard = "";
 
-            // Override the SelectClient feedback with specific scan feedback
             StatusMessage = $"✓ Carte reconnue. Client « {account.Client.Name} » identifié.";
             ShowSuccess = true;
-            ShowClientPanel = false; // Auto-close the panel to return to scanning items
+            ShowClientPanel = false;
         }
         catch (Exception ex)
         {

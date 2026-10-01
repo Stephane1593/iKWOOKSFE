@@ -1,6 +1,8 @@
 ﻿using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using SFE.WPF.ViewModels;
+using System.Windows.Input;
 
 namespace SFE.WPF;
 
@@ -33,6 +35,15 @@ public partial class MainWindow : Window
         {
             if (btn != null && btn != opened)
                 btn.IsChecked = false;
+        }
+    }
+
+    private void NavScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is ScrollViewer scv)
+        {
+            scv.ScrollToHorizontalOffset(scv.HorizontalOffset - e.Delta);
+            e.Handled = true;
         }
     }
 

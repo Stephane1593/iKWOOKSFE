@@ -1553,6 +1553,7 @@
                                       ItemsSource="{Binding Invoices}"
                                       RowBackground="White"
                                       ScrollViewer.CanContentScroll="True"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                       SelectedItem="{Binding SelectedInvoice}"
                                       SelectionMode="Single"
                                       SelectionUnit="FullRow"
@@ -1633,50 +1634,34 @@
                                 </DataGrid.RowStyle>
 
                                 <DataGrid.Columns>
-                                    <!--  Date  -->
-                                    <DataGridTemplateColumn Width="95"
-                                                            Header="Date">
+                                    <!-- Date -->
+                                    <DataGridTemplateColumn Width="105" Header="Date">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel>
-                                                    <TextBlock FontFamily="{StaticResource AppFont}"
-                                                               FontSize="12"
-                                                               FontWeight="Medium"
-                                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                                               Text="{Binding DateDisplay}" />
-                                                    <TextBlock Margin="0,2,0,0"
-                                                               FontFamily="{StaticResource AppFont}"
-                                                               FontSize="10"
-                                                               Foreground="{StaticResource TextMutedBrush}"
-                                                               Text="{Binding TimeDisplay}" />
+                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="12" FontWeight="Medium"
+                               Foreground="{StaticResource TextPrimaryBrush}" Text="{Binding DateDisplay}" />
+                                                    <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource AppFont}" FontSize="10"
+                               Foreground="{StaticResource TextMutedBrush}" Text="{Binding TimeDisplay}" />
                                                 </StackPanel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
 
-                                    <!--  Type badge  -->
-                                    <DataGridTemplateColumn Width="55"
-                                                            Header="Type">
+                                    <!-- Type badge -->
+                                    <DataGridTemplateColumn Width="65" Header="Type">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Border Padding="7,3"
-                                                        HorizontalAlignment="Left"
-                                                        Background="{Binding TypeBadgeBg}"
-                                                        CornerRadius="6">
-                                                    <TextBlock FontFamily="{StaticResource AppFont}"
-                                                               FontSize="10"
-                                                               FontWeight="Bold"
-                                                               Foreground="{Binding TypeColor}"
-                                                               Text="{Binding TypeLabel}" />
+                                                <Border Padding="7,3" HorizontalAlignment="Left" Background="{Binding TypeBadgeBg}" CornerRadius="6">
+                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10" FontWeight="Bold"
+                               Foreground="{Binding TypeColor}" Text="{Binding TypeLabel}" />
                                                 </Border>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
 
-                                    <!--  Numéro  -->
-                                    <DataGridTextColumn Width="95"
-                                                        Binding="{Binding InvoiceNumber}"
-                                                        Header="Numéro">
+                                    <!-- Numéro -->
+                                    <DataGridTextColumn Width="110" Binding="{Binding InvoiceNumber}" Header="Numéro">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="FontFamily" Value="Consolas" />
@@ -1687,54 +1672,66 @@
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
 
-                                    <!--  Code DEF  -->
-                                    <DataGridTextColumn Width="120"
-                                                        Binding="{Binding CodeDEFShort}"
-                                                        Header="Code DEF">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="FontFamily" Value="Consolas" />
-                                                <Setter Property="FontSize" Value="10" />
-                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
-                                                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
+                                    <!-- Code DEF (Avec bouton de copie) -->
+                                    <DataGridTemplateColumn Width="150" Header="Code DEF">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
 
-                                    <!--  Client  -->
-                                    <DataGridTextColumn Width="*"
-                                                        Binding="{Binding ClientName}"
-                                                        Header="Client">
+                                                    <TextBlock Text="{Binding CodeDEFShort}"
+                               FontFamily="Consolas" FontSize="11"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding CodeDEFShort}" />
+
+                                                    <!-- Bouton Copier -->
+                                                    <Button Grid.Column="1"
+                            Margin="4,0,0,0"
+                            Command="{Binding DataContext.CopyRowCodeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                            CommandParameter="{Binding}"
+                            Style="{StaticResource PanelIconBtn}"
+                            Width="26" Height="26" Padding="0"
+                            ToolTip="Copier le code complet">
+                                                        <materialDesign:PackIcon Kind="ContentCopy" Width="14" Height="14" 
+                                                 Foreground="{StaticResource TextMutedBrush}" 
+                                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!-- Client -->
+                                    <DataGridTextColumn Width="*" MinWidth="160" Binding="{Binding ClientName}" Header="Client">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
                                                 <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
                                                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                                                 <Setter Property="VerticalAlignment" Value="Center" />
+                                                <Setter Property="ToolTip" Value="{Binding ClientName}" />
                                             </Style>
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
 
-                                    <!--  Payment  -->
-                                    <DataGridTemplateColumn Width="40"
-                                                            Header="Paie.">
+                                    <!-- Payment -->
+                                    <DataGridTemplateColumn Width="50" Header="Paie.">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <materialDesign:PackIcon Width="18"
-                                                                         Height="18"
-                                                                         HorizontalAlignment="Center"
-                                                                         VerticalAlignment="Center"
-                                                                         Foreground="{StaticResource TextMutedBrush}"
-                                                                         Kind="{Binding PaymentIconKind}" />
+                                                <materialDesign:PackIcon Width="18" Height="18" HorizontalAlignment="Center"
+                                         VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                                         Kind="{Binding PaymentIconKind}" ToolTip="{Binding PaymentTypeDisplay}" />
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
 
-                                    <!--  Montant TTC  -->
-                                    <DataGridTextColumn Width="115"
-                                                        Binding="{Binding TotalDisplay}"
-                                                        Header="Montant TTC">
+                                    <!-- Montant TTC -->
+                                    <DataGridTextColumn Width="120" Binding="{Binding TotalDisplay}" Header="Montant TTC">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
@@ -1745,93 +1742,56 @@
                                             </Style>
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
-                                    <!--  Tirage  -->
-                                    <DataGridTemplateColumn Width="75"
-                                                            Header="Tirage">
+
+                                    <!-- Tirage -->
+                                    <DataGridTemplateColumn Width="80" Header="Tirage">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Border Padding="7,3"
-                                                        HorizontalAlignment="Center"
-                                                        Background="{Binding PrintBadgeBg}"
-                                                        CornerRadius="6"
-                                                        ToolTip="{Binding PrintTooltip}">
-                                                    <TextBlock FontFamily="{StaticResource AppFont}"
-                                                               FontSize="10"
-                                                               FontWeight="Bold"
-                                                               Foreground="{Binding PrintBadgeFg}"
-                                                               Text="{Binding PrintBadgeText}" />
+                                                <Border Padding="7,3" HorizontalAlignment="Center" Background="{Binding PrintBadgeBg}"
+                        CornerRadius="6" ToolTip="{Binding PrintTooltip}">
+                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10" FontWeight="Bold"
+                               Foreground="{Binding PrintBadgeFg}" Text="{Binding PrintBadgeText}" />
                                                 </Border>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
 
-                                    <!--  Statut  -->
-                                    <DataGridTemplateColumn Width="90"
-                                                            Header="Statut">
+                                    <!-- Statut -->
+                                    <DataGridTemplateColumn Width="95" Header="Statut">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Border Padding="8,3"
-                                                        HorizontalAlignment="Center"
-                                                        Background="{Binding StatusBadgeBg}"
-                                                        CornerRadius="8">
-                                                    <TextBlock FontFamily="{StaticResource AppFont}"
-                                                               FontSize="10"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{Binding StatusColor}">
-                                                        <Run Text="{Binding StatusIcon, Mode=OneWay}" />
-                                                        <Run Text=" " />
-                                                        <Run Text="{Binding StatusLabel, Mode=OneWay}" />
+                                                <Border Padding="8,3" HorizontalAlignment="Center" Background="{Binding StatusBadgeBg}" CornerRadius="8">
+                                                    <TextBlock FontFamily="{StaticResource AppFont}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding StatusColor}">
+                        <Run Text="{Binding StatusIcon, Mode=OneWay}" />
+                        <Run Text=" " />
+                        <Run Text="{Binding StatusLabel, Mode=OneWay}" />
                                                     </TextBlock>
                                                 </Border>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
 
-                                    <!--  Actions  -->
-                                    <DataGridTemplateColumn Width="100"
-                                                            Header="">
+                                    <!-- Actions -->
+                                    <DataGridTemplateColumn Width="110" Header="">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <StackPanel HorizontalAlignment="Center"
-                                                            Orientation="Horizontal">
-                                                    <Button Width="32"
-                                                            Height="32"
-                                                            Command="{Binding DataContext.ViewInvoiceCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource PanelIconBtn}"
-                                                            ToolTip="Voir le détail">
-                                                        <materialDesign:PackIcon Width="16"
-                                                                                 Height="16"
-                                                                                 Foreground="{StaticResource AccentBlueBrush}"
-                                                                                 Kind="EyeOutline" />
+                                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                                    <Button Width="32" Height="32"
+                            Command="{Binding DataContext.ViewInvoiceCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                            CommandParameter="{Binding}" Style="{StaticResource PanelIconBtn}" ToolTip="Voir le détail">
+                                                        <materialDesign:PackIcon Width="16" Height="16" Foreground="{StaticResource AccentBlueBrush}" Kind="EyeOutline" />
                                                     </Button>
-                                                    <Button Width="32"
-                                                            Height="32"
-                                                            Margin="2,0,0,0"
-                                                            Command="{Binding DataContext.ReprintInvoiceCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource PanelIconBtn}"
-                                                            ToolTip="Réimprimer">
-                                                        <materialDesign:PackIcon Width="16"
-                                                                                 Height="16"
-                                                                                 Foreground="{StaticResource TextMutedBrush}"
-                                                                                 Kind="Printer" />
+                                                    <Button Width="32" Height="32" Margin="2,0,0,0" Background="Transparent" BorderThickness="0"
+                            Command="{Binding DataContext.ReprintInvoiceCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                            CommandParameter="{Binding}" Cursor="Hand" Style="{StaticResource PanelIconBtn}" ToolTip="Réimprimer">
+                                                        <materialDesign:PackIcon Width="16" Height="16" Foreground="{StaticResource TextMutedBrush}" Kind="Printer" />
                                                     </Button>
-                                                    <Button Width="32"
-                                                            Height="32"
-                                                            Margin="2,0,0,0"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            Command="{Binding DataContext.ConvertProformaCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                            CommandParameter="{Binding}"
-                                                            Cursor="Hand"
-                                                            Style="{StaticResource PanelIconBtn}"
-                                                            ToolTip="Convertir cette proforma en facture fiscale"
-                                                            Visibility="{Binding IsConvertibleProforma, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                        <materialDesign:PackIcon Width="16"
-                                                                                 Height="16"
-                                                                                 Foreground="#7C3AED"
-                                                                                 Kind="SwapHorizontal" />
+                                                    <Button Width="32" Height="32" Margin="2,0,0,0" Background="Transparent" BorderThickness="0"
+                            Command="{Binding DataContext.ConvertProformaCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                            CommandParameter="{Binding}" Cursor="Hand" Style="{StaticResource PanelIconBtn}"
+                            ToolTip="Convertir cette proforma en facture fiscale"
+                            Visibility="{Binding IsConvertibleProforma, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <materialDesign:PackIcon Width="16" Height="16" Foreground="#7C3AED" Kind="SwapHorizontal" />
                                                     </Button>
                                                 </StackPanel>
                                             </DataTemplate>

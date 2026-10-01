@@ -1,72 +1,80 @@
 ﻿<UserControl x:Class="SFE.WPF.Views.Pages.BulkInvoicingPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-      Background="{StaticResource BackgroundBrush}">
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             Background="{StaticResource BackgroundBrush}">
 
     <UserControl.Resources>
-        <!-- ★ Thin scrollbars / fade scroll viewer (same as PosPage) -->
-        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBarStyle}"/>
-        <Style TargetType="ScrollViewer" BasedOn="{StaticResource FadeScrollViewerStyle}"/>
+        <!--  ★ Thin scrollbars / fade scroll viewer (same as PosPage)  -->
+        <Style BasedOn="{StaticResource ThinScrollBarStyle}"
+               TargetType="ScrollBar" />
+        <Style BasedOn="{StaticResource FadeScrollViewerStyle}"
+               TargetType="ScrollViewer" />
 
-        <!-- ══════════ CARD ══════════ -->
-        <Style x:Key="CCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="24,20"/>
+        <!--  ══════════ CARD ══════════  -->
+        <Style x:Key="CCard"
+               TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="24,20" />
             <Setter Property="Effect">
                 <Setter.Value>
-                    <DropShadowEffect ShadowDepth="2" BlurRadius="14"
-                                      Opacity="0.06" Color="#0D2B3E"/>
+                    <DropShadowEffect BlurRadius="14"
+                                      Opacity="0.06"
+                                      ShadowDepth="2"
+                                      Color="#0D2B3E" />
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- ══════════ FIELD LABEL ══════════ -->
-        <Style x:Key="CFieldLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="Margin" Value="2,0,0,6"/>
+        <!--  ══════════ FIELD LABEL ══════════  -->
+        <Style x:Key="CFieldLabel"
+               TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="2,0,0,6" />
         </Style>
 
-        <!-- ══════════ TOUCH TEXTBOX (min 48px) ══════════ -->
-        <Style x:Key="CTextBox" TargetType="TextBox">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="14,12"/>
-            <Setter Property="MinHeight" Value="48"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderThickness" Value="1.5"/>
+        <!--  ══════════ TOUCH TEXTBOX (min 48px) ══════════  -->
+        <Style x:Key="CTextBox"
+               TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderThickness" Value="1.5" />
             <Setter Property="BorderBrush">
                 <Setter.Value>
-                    <SolidColorBrush Color="{StaticResource BorderLightColor}"/>
+                    <SolidColorBrush Color="{StaticResource BorderLightColor}" />
                 </Setter.Value>
             </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                Padding="{TemplateBinding Padding}"
+                        <Border x:Name="Bd"
                                 MinHeight="{TemplateBinding MinHeight}"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
                                 SnapsToDevicePixels="True">
                             <ScrollViewer x:Name="PART_ContentHost"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush"
-                                        Value="{StaticResource PrimaryBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="BorderBrush">
                                     <Setter.Value>
-                                        <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.5"/>
+                                        <SolidColorBrush Opacity="0.5"
+                                                         Color="{StaticResource PrimaryColor}" />
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
@@ -76,40 +84,47 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ TOUCH COMBOBOX (min 48px) ══════════ -->
-        <Style x:Key="CComboBox" TargetType="ComboBox">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Padding" Value="12,10"/>
-            <Setter Property="MinHeight" Value="48"/>
+        <!--  ══════════ TOUCH COMBOBOX (min 48px) ══════════  -->
+        <Style x:Key="CComboBox"
+               TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="MinHeight" Value="48" />
         </Style>
 
-        <!-- ══════════ PRIMARY GRADIENT BUTTON ══════════ -->
-        <Style x:Key="CPrimaryBtn" TargetType="Button">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="22,14"/>
-            <Setter Property="MinHeight" Value="50"/>
+        <!--  ══════════ PRIMARY GRADIENT BUTTON ══════════  -->
+        <Style x:Key="CPrimaryBtn"
+               TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="22,14" />
+            <Setter Property="MinHeight" Value="50" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="12" Padding="{TemplateBinding Padding}"
-                                MinHeight="{TemplateBinding MinHeight}">
+                        <Border x:Name="Bd"
+                                MinHeight="{TemplateBinding MinHeight}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="12">
                             <Border.Background>
                                 <LinearGradientBrush x:Name="BdGrad" StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop x:Name="G0" Color="#37B1E4" Offset="0"/>
-                                    <GradientStop x:Name="G1" Color="#1A8CBF" Offset="1"/>
+                                    <GradientStop x:Name="G0" Offset="0" Color="#37B1E4" />
+                                    <GradientStop x:Name="G1" Offset="1" Color="#1A8CBF" />
                                 </LinearGradientBrush>
                             </Border.Background>
                             <Border.Effect>
-                                <DropShadowEffect ShadowDepth="1" BlurRadius="8"
-                                                  Opacity="0.18" Color="#37B1E4"/>
+                                <DropShadowEffect BlurRadius="8"
+                                                  Opacity="0.18"
+                                                  ShadowDepth="1"
+                                                  Color="#37B1E4" />
                             </Border.Effect>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <EventTrigger RoutedEvent="MouseEnter">
@@ -117,10 +132,12 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="G0"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#2DA0D3" Duration="0:0:0.18"/>
+                                                        To="#2DA0D3"
+                                                        Duration="0:0:0.18" />
                                         <ColorAnimation Storyboard.TargetName="G1"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#1579A8" Duration="0:0:0.18"/>
+                                                        To="#1579A8"
+                                                        Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -129,10 +146,12 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="G0"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#37B1E4" Duration="0:0:0.22"/>
+                                                        To="#37B1E4"
+                                                        Duration="0:0:0.22" />
                                         <ColorAnimation Storyboard.TargetName="G1"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#1A8CBF" Duration="0:0:0.22"/>
+                                                        To="#1A8CBF"
+                                                        Duration="0:0:0.22" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -142,23 +161,28 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ GHOST BUTTON ══════════ -->
-        <Style x:Key="CGhostBtn" TargetType="Button">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="18,12"/>
-            <Setter Property="MinHeight" Value="48"/>
+        <!--  ══════════ GHOST BUTTON ══════════  -->
+        <Style x:Key="CGhostBtn"
+               TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="18,12" />
+            <Setter Property="MinHeight" Value="48" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}"
-                                MinHeight="{TemplateBinding MinHeight}">
+                        <Border x:Name="Bd"
+                                MinHeight="{TemplateBinding MinHeight}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="10">
                             <Border.Background>
-                                <SolidColorBrush x:Name="BdBg" Color="#F3F4F6"/>
+                                <SolidColorBrush x:Name="BdBg"
+                                                 Color="#F3F4F6" />
                             </Border.Background>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <EventTrigger RoutedEvent="MouseEnter">
@@ -166,7 +190,8 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="BdBg"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#E5E7EB" Duration="0:0:0.15"/>
+                                                        To="#E5E7EB"
+                                                        Duration="0:0:0.15" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -175,7 +200,8 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="BdBg"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#F3F4F6" Duration="0:0:0.18"/>
+                                                        To="#F3F4F6"
+                                                        Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -185,24 +211,29 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ DANGER BUTTON ══════════ -->
-        <Style x:Key="CDangerBtn" TargetType="Button">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#DC2626"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="MinHeight" Value="48"/>
+        <!--  ══════════ DANGER BUTTON ══════════  -->
+        <Style x:Key="CDangerBtn"
+               TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#DC2626" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="MinHeight" Value="48" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}"
-                                MinHeight="{TemplateBinding MinHeight}">
+                        <Border x:Name="Bd"
+                                MinHeight="{TemplateBinding MinHeight}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="10">
                             <Border.Background>
-                                <SolidColorBrush x:Name="BdBg" Color="#FEE2E2"/>
+                                <SolidColorBrush x:Name="BdBg"
+                                                 Color="#FEE2E2" />
                             </Border.Background>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <EventTrigger RoutedEvent="MouseEnter">
@@ -210,7 +241,8 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="BdBg"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#FECACA" Duration="0:0:0.15"/>
+                                                        To="#FECACA"
+                                                        Duration="0:0:0.15" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -219,7 +251,8 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="BdBg"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#FEE2E2" Duration="0:0:0.18"/>
+                                                        To="#FEE2E2"
+                                                        Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -229,32 +262,38 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ SUCCESS BUTTON ══════════ -->
-        <Style x:Key="CSuccessBtn" TargetType="Button">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="22,14"/>
-            <Setter Property="MinHeight" Value="50"/>
+        <!--  ══════════ SUCCESS BUTTON ══════════  -->
+        <Style x:Key="CSuccessBtn"
+               TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="22,14" />
+            <Setter Property="MinHeight" Value="50" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="12" Padding="{TemplateBinding Padding}"
-                                MinHeight="{TemplateBinding MinHeight}">
+                        <Border x:Name="Bd"
+                                MinHeight="{TemplateBinding MinHeight}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="12">
                             <Border.Background>
                                 <LinearGradientBrush x:Name="BdGrad" StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop x:Name="G0" Color="#10B981" Offset="0"/>
-                                    <GradientStop x:Name="G1" Color="#059669" Offset="1"/>
+                                    <GradientStop x:Name="G0" Offset="0" Color="#10B981" />
+                                    <GradientStop x:Name="G1" Offset="1" Color="#059669" />
                                 </LinearGradientBrush>
                             </Border.Background>
                             <Border.Effect>
-                                <DropShadowEffect ShadowDepth="1" BlurRadius="8"
-                                                  Opacity="0.18" Color="#10B981"/>
+                                <DropShadowEffect BlurRadius="8"
+                                                  Opacity="0.18"
+                                                  ShadowDepth="1"
+                                                  Color="#10B981" />
                             </Border.Effect>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <EventTrigger RoutedEvent="MouseEnter">
@@ -262,10 +301,12 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="G0"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#059669" Duration="0:0:0.18"/>
+                                                        To="#059669"
+                                                        Duration="0:0:0.18" />
                                         <ColorAnimation Storyboard.TargetName="G1"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#047857" Duration="0:0:0.18"/>
+                                                        To="#047857"
+                                                        Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -274,10 +315,12 @@
                                     <Storyboard>
                                         <ColorAnimation Storyboard.TargetName="G0"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#10B981" Duration="0:0:0.22"/>
+                                                        To="#10B981"
+                                                        Duration="0:0:0.22" />
                                         <ColorAnimation Storyboard.TargetName="G1"
                                                         Storyboard.TargetProperty="Color"
-                                                        To="#059669" Duration="0:0:0.22"/>
+                                                        To="#059669"
+                                                        Duration="0:0:0.22" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -287,28 +330,33 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ ICON BUTTON (touch 44×44) ══════════ -->
-        <Style x:Key="CIconBtn" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Width" Value="44"/>
-            <Setter Property="Height" Value="44"/>
-            <Setter Property="Padding" Value="10"/>
+        <!--  ══════════ ICON BUTTON (touch 44×44) ══════════  -->
+        <Style x:Key="CIconBtn"
+               TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="10" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="10" Padding="{TemplateBinding Padding}"
-                                Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="Bd"
+                                Width="{TemplateBinding Width}"
+                                Height="{TemplateBinding Height}"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#F3F4F6"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#F3F4F6" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E5E7EB"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#E5E7EB" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -316,28 +364,35 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ CLOSE BUTTON (touch 40×40) ══════════ -->
-        <Style x:Key="CCloseBtn" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
+        <!--  ══════════ CLOSE BUTTON (touch 40×40) ══════════  -->
+        <Style x:Key="CCloseBtn"
+               TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="10" Width="40" Height="40">
-                            <materialDesign:PackIcon Kind="Close" Width="18" Height="18"
+                        <Border x:Name="Bd"
+                                Width="40"
+                                Height="40"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10">
+                            <materialDesign:PackIcon Width="18"
+                                                     Height="18"
+                                                     HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
                                                      Foreground="{StaticResource TextSecondaryBrush}"
-                                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                     Kind="Close" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FEE2E2"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#FEE2E2" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FECACA"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#FECACA" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -345,71 +400,77 @@
             </Setter>
         </Style>
 
-        <!-- ══════════ DATAGRID ROW (touch 56px) ══════════ -->
-        <Style x:Key="TouchDataGridRow" TargetType="DataGridRow">
-            <Setter Property="MinHeight" Value="56"/>
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <!--  ══════════ DATAGRID ROW (touch 56px) ══════════  -->
+        <Style x:Key="TouchDataGridRow"
+               TargetType="DataGridRow">
+            <Setter Property="MinHeight" Value="56" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="BorderBrush">
                 <Setter.Value>
-                    <SolidColorBrush Color="{StaticResource BorderLightColor}"/>
+                    <SolidColorBrush Color="{StaticResource BorderLightColor}" />
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background">
                         <Setter.Value>
-                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.04"/>
+                            <SolidColorBrush Opacity="0.04"
+                                             Color="{StaticResource PrimaryColor}" />
                         </Setter.Value>
                     </Setter>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background">
                         <Setter.Value>
-                            <SolidColorBrush Color="{StaticResource PrimaryColor}" Opacity="0.08"/>
+                            <SolidColorBrush Opacity="0.08"
+                                             Color="{StaticResource PrimaryColor}" />
                         </Setter.Value>
                     </Setter>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <!-- ══════════ DATAGRID HEADER ══════════ -->
-        <Style x:Key="TouchDataGridColumnHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Padding" Value="14,14"/>
-            <Setter Property="MinHeight" Value="48"/>
-            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+        <!--  ══════════ DATAGRID HEADER ══════════  -->
+        <Style x:Key="TouchDataGridColumnHeader"
+               TargetType="DataGridColumnHeader">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="14,14" />
+            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="BorderThickness" Value="0,0,0,2" />
             <Setter Property="BorderBrush">
                 <Setter.Value>
-                    <SolidColorBrush Color="{StaticResource BorderLightColor}"/>
+                    <SolidColorBrush Color="{StaticResource BorderLightColor}" />
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- ══════════ DATAGRID CELL ══════════ -->
-        <Style x:Key="TouchDataGridCell" TargetType="DataGridCell">
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
+        <!--  ══════════ DATAGRID CELL ══════════  -->
+        <Style x:Key="TouchDataGridCell"
+               TargetType="DataGridCell">
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
-                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center"/>
+                        <Border Padding="{TemplateBinding Padding}"
+                                Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -418,78 +479,115 @@
 
     <Grid Margin="20,16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Page header: title/subtitle on the left, secondary actions on the right. -->
-        <Grid Grid.Row="0" Margin="0,0,0,18">
+        <!--  Page header: title/subtitle on the left, secondary actions on the right.  -->
+        <Grid Grid.Row="0"
+              Margin="0,0,0,18">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="Facturation en masse" FontFamily="{StaticResource AppFont}"
-                           FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                <TextBlock Text="Importez un fichier Excel et créez plusieurs factures en une seule opération."
-                           Margin="0,6,0,0" FontFamily="{StaticResource AppFont}" FontSize="13"
-                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBlock FontFamily="{StaticResource AppFont}"
+                           FontSize="26"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Text="Facturation en masse" />
+                <TextBlock Margin="0,6,0,0"
+                           FontFamily="{StaticResource AppFont}"
+                           FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="Importez un fichier Excel et créez plusieurs factures en une seule opération." />
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Style="{StaticResource CGhostBtn}" Command="{Binding DownloadTemplateCommand}"
-                        Margin="0,0,10,0">
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                <Button Margin="0,0,10,0"
+                        Command="{Binding DownloadTemplateCommand}"
+                        Style="{StaticResource CGhostBtn}">
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="FileDownloadOutline" Width="18" Height="18"
-                                                 Foreground="{StaticResource PrimaryBrush}" Margin="0,0,8,0"/>
-                        <TextBlock Text="Modèle Excel" FontFamily="{StaticResource AppFont}" FontSize="13"/>
+                        <materialDesign:PackIcon Width="18"
+                                                 Height="18"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{StaticResource PrimaryBrush}"
+                                                 Kind="FileDownloadOutline" />
+                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                   FontSize="13"
+                                   Text="Modèle Excel" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CGhostBtn}" Command="{Binding ResetCommand}">
+                <Button Command="{Binding ResetCommand}"
+                        Style="{StaticResource CGhostBtn}">
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="Refresh" Width="18" Height="18"
-                                                 Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
-                        <TextBlock Text="Réinitialiser" FontFamily="{StaticResource AppFont}" FontSize="13"/>
+                        <materialDesign:PackIcon Width="18"
+                                                 Height="18"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                                 Kind="Refresh" />
+                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                   FontSize="13"
+                                   Text="Réinitialiser" />
                     </StackPanel>
                 </Button>
             </StackPanel>
         </Grid>
 
-        <!-- Point de vente + file picker. CCard is 14px radius and 24,20 padding. -->
-        <Border Grid.Row="1" Style="{StaticResource CCard}" Margin="0,0,0,14">
+        <!--  Point de vente + file picker. CCard is 14px radius and 24,20 padding.  -->
+        <Border Grid.Row="1"
+                Margin="0,0,0,14"
+                Style="{StaticResource CCard}">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="260"/>
-                    <ColumnDefinition Width="20"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="260" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Point de vente" Style="{StaticResource CFieldLabel}"/>
-                    <ComboBox Style="{StaticResource CComboBox}" ItemsSource="{Binding AvailablePointsOfSale}"
-                              SelectedItem="{Binding SelectedPointOfSale, Mode=TwoWay}" DisplayMemberPath="Name"/>
+                    <TextBlock Style="{StaticResource CFieldLabel}"
+                               Text="Point de vente" />
+                    <ComboBox DisplayMemberPath="Name"
+                              ItemsSource="{Binding AvailablePointsOfSale}"
+                              SelectedItem="{Binding SelectedPointOfSale, Mode=TwoWay}"
+                              Style="{StaticResource CComboBox}" />
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <TextBlock Text="Fichier Excel" Style="{StaticResource CFieldLabel}"/>
+                    <TextBlock Style="{StaticResource CFieldLabel}"
+                               Text="Fichier Excel" />
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border Background="{StaticResource BackgroundBrush}" CornerRadius="10"
-                                Padding="14,0" MinHeight="48">
-                            <TextBlock Text="{Binding SelectedFilePath, TargetNullValue=Séléctionnez un fichier Excel}"
-                                       FontFamily="{StaticResource AppFont}" FontSize="14"
+                        <Border MinHeight="48"
+                                Padding="14,0"
+                                Background="{StaticResource BackgroundBrush}"
+                                CornerRadius="10">
+                            <TextBlock VerticalAlignment="Center"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="14"
                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                       Text="{Binding SelectedFilePath, TargetNullValue=Séléctionnez un fichier Excel}"
+                                       TextTrimming="CharacterEllipsis" />
                         </Border>
-                        <Button Grid.Column="1" Style="{StaticResource CGhostBtn}" Command="{Binding BrowseFileCommand}"
-                                Margin="10,0,0,0">
+                        <Button Grid.Column="1"
+                                Margin="10,0,0,0"
+                                Command="{Binding BrowseFileCommand}"
+                                Style="{StaticResource CGhostBtn}">
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="FolderOpenOutline" Width="18" Height="18"
-                                                         Foreground="{StaticResource PrimaryBrush}" Margin="0,0,8,0"/>
-                                <TextBlock Text="Parcourir" FontFamily="{StaticResource AppFont}" FontSize="13"/>
+                                <materialDesign:PackIcon Width="18"
+                                                         Height="18"
+                                                         Margin="0,0,8,0"
+                                                         Foreground="{StaticResource PrimaryBrush}"
+                                                         Kind="FolderOpenOutline" />
+                                <TextBlock FontFamily="{StaticResource AppFont}"
+                                           FontSize="13"
+                                           Text="Parcourir" />
                             </StackPanel>
                         </Button>
                     </Grid>
@@ -497,156 +595,300 @@
             </Grid>
         </Border>
 
-        <!-- Primary action row. -->
-        <Border Grid.Row="2" Style="{StaticResource CCard}" Margin="0,0,0,14">
+        <!--  Primary action row.  -->
+        <Border Grid.Row="2"
+                Margin="0,0,0,14"
+                Style="{StaticResource CCard}">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Traitement du fichier" FontFamily="{StaticResource AppFont}"
-                               FontSize="15" FontWeight="SemiBold"/>
-                    <TextBlock Text="Validez d'abord les lignes importées, puis lancez la création des factures."
-                               Margin="0,4,0,0" FontFamily="{StaticResource AppFont}" FontSize="12"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock FontFamily="{StaticResource AppFont}"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Text="Traitement du fichier" />
+                    <TextBlock Margin="0,4,0,0"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="Validez d'abord les lignes importées, puis lancez la création des factures." />
                 </StackPanel>
-                <Button Grid.Column="1" Style="{StaticResource CPrimaryBtn}" Command="{Binding ParseCommand}"
-                        IsEnabled="{Binding IsParsing, Converter={StaticResource InverseBoolConverter}}">
+                <Button Grid.Column="1"
+                        Command="{Binding ParseCommand}"
+                        IsEnabled="{Binding IsParsing, Converter={StaticResource InverseBoolConverter}}"
+                        Style="{StaticResource CPrimaryBtn}">
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="FileCheckOutline" Width="18" Height="18" Foreground="White" Margin="0,0,8,0"/>
-                        <TextBlock Text="Valider le fichier" Foreground="White" FontFamily="{StaticResource AppFont}"
-                                   FontSize="14" FontWeight="SemiBold"/>
+                        <materialDesign:PackIcon Width="18"
+                                                 Height="18"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="White"
+                                                 Kind="FileCheckOutline" />
+                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Text="Valider le fichier" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="3" Style="{StaticResource CSuccessBtn}" Command="{Binding ExecuteCommand}"
-                        IsEnabled="{Binding CanExecute}">
+                <Button Grid.Column="3"
+                        Command="{Binding ExecuteCommand}"
+                        IsEnabled="{Binding CanExecute}"
+                        Style="{StaticResource CSuccessBtn}">
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="PlayCircleOutline" Width="18" Height="18" Foreground="White" Margin="0,0,8,0"/>
-                        <TextBlock Text="Lancer la facturation" Foreground="White" FontFamily="{StaticResource AppFont}"
-                                   FontSize="14" FontWeight="SemiBold"/>
+                        <materialDesign:PackIcon Width="18"
+                                                 Height="18"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="White"
+                                                 Kind="PlayCircleOutline" />
+                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Text="Lancer la facturation" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="5" Style="{StaticResource CDangerBtn}" Command="{Binding CancelCommand}"
-                        IsEnabled="{Binding IsExecuting}">
+                <Button Grid.Column="5"
+                        Command="{Binding CancelCommand}"
+                        IsEnabled="{Binding IsExecuting}"
+                        Style="{StaticResource CDangerBtn}">
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="StopCircleOutline" Width="18" Height="18" Foreground="{StaticResource ErrorBrush}" Margin="0,0,8,0"/>
-                        <TextBlock Text="Arrêter" Foreground="{StaticResource ErrorBrush}" FontFamily="{StaticResource AppFont}" FontSize="13"/>
+                        <materialDesign:PackIcon Width="18"
+                                                 Height="18"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{StaticResource ErrorBrush}"
+                                                 Kind="StopCircleOutline" />
+                        <TextBlock FontFamily="{StaticResource AppFont}"
+                                   FontSize="13"
+                                   Foreground="{StaticResource ErrorBrush}"
+                                   Text="Arrêter" />
                     </StackPanel>
                 </Button>
             </Grid>
         </Border>
 
-        <!-- Execution progress and touch-friendly stat badges. -->
-        <Border Grid.Row="3" Style="{StaticResource CCard}" Margin="0,0,0,14"
+        <!--  Execution progress and touch-friendly stat badges.  -->
+        <Border Grid.Row="3"
+                Margin="0,0,0,14"
+                Style="{StaticResource CCard}"
                 Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVisibilityConverter}}">
             <StackPanel>
                 <Grid>
-                    <TextBlock Text="{Binding ProgressCaption}" FontFamily="{StaticResource AppFont}"
-                               FontSize="14" FontWeight="SemiBold"/>
-                    <TextBlock HorizontalAlignment="Right" FontFamily="{StaticResource AppFont}" FontSize="13"
+                    <TextBlock FontFamily="{StaticResource AppFont}"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Text="{Binding ProgressCaption}" />
+                    <TextBlock HorizontalAlignment="Right"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="13"
                                Foreground="{StaticResource TextSecondaryBrush}">
-                        <Run Text="{Binding ProgressCurrent}"/><Run Text=" / "/><Run Text="{Binding ProgressTotal}"/>
+                        <Run Text="{Binding ProgressCurrent}" /><Run Text=" / " /><Run Text="{Binding ProgressTotal}" />
                     </TextBlock>
                 </Grid>
-                <ProgressBar Margin="0,12,0,16" Height="8" Minimum="0" Maximum="{Binding ProgressTotal}"
-                             Value="{Binding ProgressCurrent}" Foreground="{StaticResource PrimaryBrush}"/>
+                <ProgressBar Height="8"
+                             Margin="0,12,0,16"
+                             Foreground="{StaticResource PrimaryBrush}"
+                             Maximum="{Binding ProgressTotal}"
+                             Minimum="0"
+                             Value="{Binding ProgressCurrent}" />
                 <WrapPanel>
-                    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="10" Padding="14,8" Margin="0,0,10,0">
+                    <Border Margin="0,0,10,0"
+                            Padding="14,8"
+                            Background="{StaticResource BackgroundBrush}"
+                            CornerRadius="10">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Réussites  " FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding SuccessCount}" FontFamily="{StaticResource AppFont}" FontWeight="Bold" Foreground="{StaticResource SuccessBrush}"/>
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Réussites  " />
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource SuccessBrush}"
+                                       Text="{Binding SuccessCount}" />
                         </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="10" Padding="14,8" Margin="0,0,10,0">
+                    <Border Margin="0,0,10,0"
+                            Padding="14,8"
+                            Background="{StaticResource BackgroundBrush}"
+                            CornerRadius="10">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Échecs  " FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding FailureCount}" FontFamily="{StaticResource AppFont}" FontWeight="Bold" Foreground="{StaticResource ErrorBrush}"/>
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Échecs  " />
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource ErrorBrush}"
+                                       Text="{Binding FailureCount}" />
                         </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="10" Padding="14,8" Margin="0,0,10,0">
+                    <Border Margin="0,0,10,0"
+                            Padding="14,8"
+                            Background="{StaticResource BackgroundBrush}"
+                            CornerRadius="10">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Temps écoulé  " FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding ElapsedText}" FontFamily="{StaticResource AppFont}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Temps écoulé  " />
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding ElapsedText}" />
                         </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="10" Padding="14,8">
+                    <Border Padding="14,8"
+                            Background="{StaticResource BackgroundBrush}"
+                            CornerRadius="10">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Restant  " FontFamily="{StaticResource AppFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding RemainingText}" FontFamily="{StaticResource AppFont}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Restant  " />
+                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding RemainingText}" />
                         </StackPanel>
                     </Border>
                 </WrapPanel>
             </StackPanel>
         </Border>
 
-        <!-- Results workspace. -->
-        <Border Grid.Row="4" Style="{StaticResource CCard}" Padding="0">
-            <TabControl Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppFont}">
+        <!--  Results workspace.  -->
+        <Border Grid.Row="4"
+                Padding="0"
+                Style="{StaticResource CCard}">
+            <TabControl Background="Transparent"
+                        BorderThickness="0"
+                        FontFamily="{StaticResource AppFont}">
                 <TabItem Header="Aperçu">
-                    <DataGrid ItemsSource="{Binding ParsedInvoices}" AutoGenerateColumns="False" IsReadOnly="True"
-                              CanUserAddRows="False" GridLinesVisibility="None" HeadersVisibility="Column" BorderThickness="0"
-                              Background="Transparent" RowStyle="{StaticResource TouchDataGridRow}"
-                              ColumnHeaderStyle="{StaticResource TouchDataGridColumnHeader}" CellStyle="{StaticResource TouchDataGridCell}">
+                    <DataGrid AutoGenerateColumns="False"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              CanUserAddRows="False"
+                              CellStyle="{StaticResource TouchDataGridCell}"
+                              ColumnHeaderStyle="{StaticResource TouchDataGridColumnHeader}"
+                              GridLinesVisibility="None"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding ParsedInvoices}"
+                              RowStyle="{StaticResource TouchDataGridRow}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="RÉFÉRENCE" Binding="{Binding Reference}" Width="150"/>
-                            <DataGridTextColumn Header="TYPE" Binding="{Binding Type}" Width="100"/>
-                            <DataGridTextColumn Header="CLIENT" Binding="{Binding ClientName}" Width="*"/>
-                            <DataGridTextColumn Header="LIGNES" Binding="{Binding LineCount}" Width="80"/>
-                            <DataGridTextColumn Header="TOTAL TTC" Binding="{Binding TotalTTC}" Width="120"/>
-                            <DataGridTextColumn Header="DEVISE" Binding="{Binding Currency}" Width="90"/>
+                            <DataGridTextColumn Width="150"
+                                                Binding="{Binding Reference}"
+                                                Header="RÉFÉRENCE" />
+                            <DataGridTextColumn Width="100"
+                                                Binding="{Binding Type}"
+                                                Header="TYPE" />
+                            <DataGridTextColumn Width="*"
+                                                Binding="{Binding ClientName}"
+                                                Header="CLIENT" />
+                            <DataGridTextColumn Width="80"
+                                                Binding="{Binding LineCount}"
+                                                Header="LIGNES" />
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding TotalTTC}"
+                                                Header="TOTAL TTC" />
+                            <DataGridTextColumn Width="90"
+                                                Binding="{Binding Currency}"
+                                                Header="DEVISE" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
                 <TabItem Header="Erreurs de validation">
-                    <DataGrid ItemsSource="{Binding ParseErrors}" AutoGenerateColumns="False" IsReadOnly="True"
-                              CanUserAddRows="False" GridLinesVisibility="None" HeadersVisibility="Column" BorderThickness="0"
-                              Background="Transparent" RowStyle="{StaticResource TouchDataGridRow}"
-                              ColumnHeaderStyle="{StaticResource TouchDataGridColumnHeader}" CellStyle="{StaticResource TouchDataGridCell}">
+                    <DataGrid AutoGenerateColumns="False"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              CanUserAddRows="False"
+                              CellStyle="{StaticResource TouchDataGridCell}"
+                              ColumnHeaderStyle="{StaticResource TouchDataGridColumnHeader}"
+                              GridLinesVisibility="None"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding ParseErrors}"
+                              RowStyle="{StaticResource TouchDataGridRow}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="LIGNE EXCEL" Binding="{Binding ExcelRow}" Width="110"/>
-                            <DataGridTextColumn Header="RÉFÉRENCE" Binding="{Binding Reference}" Width="180"/>
-                            <DataGridTextColumn Header="MESSAGE" Binding="{Binding Message}" Width="*"/>
+                            <DataGridTextColumn Width="110"
+                                                Binding="{Binding ExcelRow}"
+                                                Header="LIGNE EXCEL" />
+                            <DataGridTextColumn Width="180"
+                                                Binding="{Binding Reference}"
+                                                Header="RÉFÉRENCE" />
+                            <DataGridTemplateColumn Width="*"
+                                                    Header="MESSAGE">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Message}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Message}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
                 <TabItem Header="Résultats">
-                    <DataGrid ItemsSource="{Binding ExecutionResults}" AutoGenerateColumns="False" IsReadOnly="True"
-                              CanUserAddRows="False" GridLinesVisibility="None" HeadersVisibility="Column" BorderThickness="0"
-                              Background="Transparent" RowStyle="{StaticResource TouchDataGridRow}"
-                              ColumnHeaderStyle="{StaticResource TouchDataGridColumnHeader}" CellStyle="{StaticResource TouchDataGridCell}">
+                    <DataGrid AutoGenerateColumns="False"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              CanUserAddRows="False"
+                              CellStyle="{StaticResource TouchDataGridCell}"
+                              ColumnHeaderStyle="{StaticResource TouchDataGridColumnHeader}"
+                              GridLinesVisibility="None"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding ExecutionResults}"
+                              RowStyle="{StaticResource TouchDataGridRow}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="RÉFÉRENCE" Binding="{Binding Reference}" Width="145"/>
-                            <DataGridTextColumn Header="N° FACTURE" Binding="{Binding InvoiceNumber}" Width="125"/>
-                            <DataGridTextColumn Header="CLIENT" Binding="{Binding ClientName}" Width="*"/>
-                            <DataGridTextColumn Header="TOTAL TTC" Binding="{Binding TotalTTC}" Width="120"/>
-                            <DataGridTemplateColumn Header="STATUT" Width="105" CanUserResize="False">
+                            <DataGridTextColumn Width="145"
+                                                Binding="{Binding Reference}"
+                                                Header="RÉFÉRENCE" />
+                            <DataGridTextColumn Width="125"
+                                                Binding="{Binding InvoiceNumber}"
+                                                Header="N° FACTURE" />
+                            <DataGridTextColumn Width="*"
+                                                Binding="{Binding ClientName}"
+                                                Header="CLIENT" />
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding TotalTTC}"
+                                                Header="TOTAL TTC" />
+                            <DataGridTemplateColumn Width="105"
+                                                    CanUserResize="False"
+                                                    Header="STATUT">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="6" Padding="8,4" HorizontalAlignment="Left">
+                                        <Border Padding="8,4"
+                                                HorizontalAlignment="Left"
+                                                CornerRadius="6">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="#FEE2E2"/>
+                                                    <Setter Property="Background" Value="#FEE2E2" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Success}" Value="True">
-                                                            <Setter Property="Background" Value="#DCFCE7"/>
+                                                        <DataTrigger Binding="{Binding Success}"
+                                                                     Value="True">
+                                                            <Setter Property="Background" Value="#DCFCE7" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBlock FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="SemiBold">
+                                            <TextBlock FontFamily="{StaticResource AppFont}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
-                                                        <Setter Property="Text" Value="Échec"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                                        <Setter Property="Text" Value="Échec" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Success}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
-                                                                <Setter Property="Text" Value="Réussite"/>
+                                                            <DataTrigger Binding="{Binding Success}"
+                                                                         Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                                <Setter Property="Text" Value="Réussite" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -656,8 +898,18 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="CODE DGI" Binding="{Binding CodeDEFDGI}" Width="120"/>
-                            <DataGridTextColumn Header="ERREUR" Binding="{Binding ErrorMessage}" Width="200"/>
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding CodeDEFDGI}"
+                                                Header="CODE DGI" />
+                            <DataGridTemplateColumn Header="ERREUR" Width="200">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ErrorMessage}" 
+                       TextTrimming="CharacterEllipsis" 
+                       ToolTip="{Binding ErrorMessage}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
